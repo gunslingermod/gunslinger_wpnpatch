@@ -15,6 +15,18 @@ const
   W_BM16:word=$4744;
   W_RPG7:word=$F56C;
 
+  //новые анимации
+  anm_reload:PChar='anm_reload';
+  anm_reload_w_gl:PChar='anm_reload_w_gl';
+  anm_reload_empty:PChar='anm_reload_empty';
+  anm_reload_empty_w_gl:PChar='anm_reload_empty_w_gl';
+  anm_changecartridgetype:PChar='anm_changecartridgetype';
+  anm_changecartridgetype_w_gl:PChar='anm_changecartridgetype_w_gl';
+  anm_jamned:PChar = 'anm_jamned';
+  anm_jamned_last:PChar = 'anm_jamned_last';
+  anm_jamned_w_gl:PChar = 'anm_jamned_w_gl';
+  anm_jamned_last_w_gl:PChar = 'anm_jamned_last_w_gl';
+
   //Новые звуки
   sndReload:PChar='sndReload';
   sndReloadEmpty:PChar='sndReloadEmpty';
@@ -26,6 +38,9 @@ const
   sndJamned:PChar = 'sndJamned';
   snd_jamned_last:PChar = 'snd_jamned_last';
   sndJamnedLast:PChar = 'sndJamnedLast';
+
+  //Остальное
+  scope_name:PChar = 'scope_name';
 
 implementation
 uses windows;

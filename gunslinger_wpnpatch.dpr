@@ -8,7 +8,8 @@ uses
   WeaponSoundSelector in 'WeaponSoundSelector.pas',
   WeaponVisualSelector in 'WeaponVisualSelector.pas',
   ReloadAnimationSelector in 'ReloadAnimationSelector.pas',
-  WeaponAmmoCounter in 'WeaponAmmoCounter.pas';
+  WeaponAmmoCounter in 'WeaponAmmoCounter.pas',
+  collimator in 'collimator.pas';
 
 {$R *.res}
 
@@ -21,4 +22,5 @@ begin
   WeaponVisualSelector.Init;
   ReloadAnimationSelector.Init;
   WeaponAmmoCounter.Init;
+  collimator.Init;
 end.

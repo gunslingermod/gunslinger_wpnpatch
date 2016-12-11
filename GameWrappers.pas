@@ -7,8 +7,10 @@ interface
   function str_container_dock(str:PChar):pointer; stdcall;
   procedure set_weapon_visual(weapon_addr:cardinal; name:pchar);stdcall;
   procedure unload_magazine(weapon_addr:cardinal);stdcall;
-  function game_ini_read_string_by_object_string(section:PChar; key:PChar):PChar;stdcall;
+  function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
   function get_server_object_by_id(id:cardinal):pointer;stdcall;
+  function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
+  function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
 
 implementation
 uses BaseGameData;
@@ -19,12 +21,15 @@ var
 
   //Указатели на игровые функции
   CIniFile_ReadStringByObjectStringPtr:cardinal;
+  CIniFile_line_exist:cardinal;
+  CIniFile_r_bool:cardinal;
   str_container_dock_ptr:cardinal;
-  
+
   game_object_set_visual_name:cardinal;
   game_object_GetScriptGameObject:cardinal;
   alife_object_ptr:cardinal;
   cweaponmagazined_unload_mag:cardinal;
+
 
 function Init:boolean;
 begin
@@ -34,6 +39,8 @@ begin
   //Сразу получим адреса стандартных игровых функций, врапперы для которых написаны выше
   CIniFile_ReadStringByObjectStringPtr:=xrCore_addr+$2BE0;
   str_container_dock_ptr:=xrCore_addr+$20690;
+  CIniFile_line_exist:=xrCore_addr+$182D0;
+  CIniFile_r_bool:=xrCore_addr+$18970;
 
   game_object_set_visual_name:=xrGame_addr+$1BFF60;
   game_object_GetScriptGameObject:= xrGame_addr+$27FD40;
@@ -82,7 +89,7 @@ begin
   end
 end;
 
-function game_ini_read_string_by_object_string(section:PChar; key:PChar):PChar;stdcall;
+function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
 
 begin
   asm
@@ -96,6 +103,44 @@ begin
     mov ecx, [ecx]
     call CIniFile_ReadStringByObjectStringPtr
     mov @result, eax
+
+    popfd
+    popad
+  end
+end;
+
+function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
+begin
+  asm
+    pushad
+    pushfd
+
+    push key
+    push section
+    mov ecx, game_ini_ptr
+    mov ecx, [ecx]
+    mov ecx, [ecx]
+    call CIniFile_line_exist
+    mov @result, al
+
+    popfd
+    popad
+  end
+end;
+
+function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
+begin
+  asm
+    pushad
+    pushfd
+
+    push key
+    push section
+    mov ecx, game_ini_ptr
+    mov ecx, [ecx]
+    mov ecx, [ecx]
+    call CIniFile_r_bool
+    mov @result, al
 
     popfd
     popad

@@ -5,18 +5,7 @@ function Init:boolean;
 
 implementation
 uses BaseGameData;
-const
-  anm_reload:PChar='anm_reload';
-  anm_reload_w_gl:PChar='anm_reload_w_gl';
-  anm_reload_empty:PChar='anm_reload_empty';
-  anm_reload_empty_w_gl:PChar='anm_reload_empty_w_gl';
-  anm_changecartridgetype:PChar='anm_changecartridgetype';
-  anm_changecartridgetype_w_gl:PChar='anm_changecartridgetype_w_gl';
-  anm_jamned:PChar = 'anm_jamned';
-  anm_jamned_last:PChar = 'anm_jamned_last';
-  anm_jamned_w_gl:PChar = 'anm_jamned_w_gl';
-  anm_jamned_last_w_gl:PChar = 'anm_jamned_last_w_gl';
-  
+
 var
   reload_pistols_patch_addr:cardinal;
   reload_nogl_patch_addr:cardinal;
@@ -33,61 +22,41 @@ begin
     mov ax, word ptr [eax]
     cmp ax, W_RPG7
     je @rpg7
-    //теперь провер€ем оружие на клин
-    cmp byte ptr [ecx+$45A], 1
-    je @gun_jamned
-    @reload:
-    //—мотрим, стоит ли подствол
-    test byte ptr [ecx+460], 2
-    jz @nogl
-    jmp @w_gl
-
-    @w_gl:
-    //смотрим, есть ли патроны в стволе
+    //≈сли в магазине нет патронов - то вариант действий один
     cmp [ecx+$690], 0
-    je @reload_empty_w_gl
-    //ѕровер€ем, идет ли смена типа патронов
+    jle @empty
+    //—мотрим, не заклинило ли оружие
+    cmp byte ptr [ecx+$45A], 0
+    jne @jamned
+    //ѕровер€ем, не идет ли смена типа патронов
     cmp byte ptr [ecx+$6C7], $FF
-    jne @changetype_w_gl
+    jne @changeammotype
+    //ѕровер€ем, стоит ли подствол
+    test byte ptr [ecx+$460], 2
+    jz @reload_nogl
     mov ebx, anm_reload_w_gl
     jmp @finish
-    @changetype_w_gl:
-    mov ebx, anm_changecartridgetype_w_gl
-    jmp @finish
-    @reload_empty_w_gl:
-    mov ebx, anm_reload_empty_w_gl
-    jmp @finish
-
-    @nogl:
-    //смотрим, есть ли патроны в стволе
-    cmp [ecx+$690], 0
-    je @reload_empty_nogl
-    //ѕровер€ем, идет ли смена типа патронов
-    cmp byte ptr [ecx+$6C7], $FF
-    jne @changetype_nogl
+    @reload_nogl:
     mov ebx, anm_reload
     jmp @finish
-    @changetype_nogl:
-    mov ebx, anm_changecartridgetype
-    jmp @finish
-    @reload_empty_nogl:
-    mov ebx, anm_reload_empty
-    jmp @finish
-//-------------------------------------------------------------
 
-    @gun_jamned:
-    //клин оружи€. сразу сбросим флаг смены типа патронов, хот€ и дублируетс€ в логике счетчика
+    @jamned:
+    //ќтменим смену типа патронов
     mov byte ptr [ecx+$6C7], $FF
-    //≈сли оружие пустое - просто перезар€жаем
-    //TODO: если в конфиге прописано отключение анимы клина - то действуем так же
-    cmp [ecx+$690], 0
-    jle @reload
-    //если в стволе один патрон - играем соответствующую аниму
+    //ѕроверим, не последний ли патрон осталс€ в магазине
     cmp [ecx+$690], 1
-    jg @jamned_not_last
+    jle @last_jamned
+    //—мотрим, активен ли подствол
+    test byte ptr [ecx+$460], 2
+    jz @jamned_nogl
+    mov ebx, anm_jamned_w_gl
+    jmp @finish
+    @jamned_nogl:
+    mov ebx, anm_jamned
+    jmp @finish
 
-    //ѕоследний патрон осталс€. ѕровер€ем подствол
-    test byte ptr [ecx+460], 2
+    @last_jamned:
+    test byte ptr [ecx+$460], 2
     jz @jamned_nogl_last
     mov ebx, anm_jamned_last_w_gl
     jmp @finish
@@ -95,17 +64,24 @@ begin
     mov ebx, anm_jamned_last
     jmp @finish
 
+    @changeammotype:
+    test byte ptr [ecx+$460], 2
+    jz @changingammo_nogl
+    mov ebx, anm_changecartridgetype_w_gl
+    jmp @finish
+    @changingammo_nogl:
+    mov ebx, anm_changecartridgetype
+    jmp @finish
 
-    @jamned_not_last:
-    //¬ магазине несколько патронов. ѕровер€ем подствол
-    test byte ptr [ecx+460], 2
-    jz @jamned_nogl_not_last
-    mov ebx, anm_jamned_w_gl
+    @empty:
+    //ѕровер€ем подствол
+    test byte ptr [ecx+$460], 2
+    jz @empty_nogl
+    mov ebx, anm_reload_empty_w_gl
     jmp @finish
-    @jamned_nogl_not_last:
-    mov ebx, anm_jamned
+    @empty_nogl:
+    mov ebx, anm_reload_empty
     jmp @finish
-//-------------------------------------------------------------
 
     @rpg7:
     //проверим на клин

@@ -25,35 +25,42 @@ begin
     je @finish
     cmp ax, W_RPG7
     je @finish
+    //смотрим, есть ли в магазине патроны
+    cmp [ecx+$690], 0
+    jle @empty
     //≈сли непустое оружие заклинило - то надо сбросить флаг смены типа патронов, запомнить уменьшенное на 1 текущее число патронов и разр€дить его!
     cmp byte ptr [ecx+$45A], 1
     je @gun_jamned
     //≈сли мы мен€ем тип боеприпасов
     cmp byte ptr [ecx+$6C7], $FF
     jne @changingammotype
-    //смотрим, есть ли в магазине патроны
-    cmp [ecx+$690], 0
-    jle @empty
     jmp @finish
 
     @gun_jamned:
     // лин оружи€
     //ќтмен€ем смену типа патронов в любом случае
     mov byte ptr [ecx+$6C7], $FF
-    //≈сли оружие пустое - то действуем как при перезар€дке
-    mov eax, [ecx+$690]
-    cmp eax, 0
-    jle @empty
-    mov ebx, eax
+    //убираем из запомненного значени€ один патрон
+    mov ebx, [ecx+$690]
     sub ebx, 1
+
+    //теперь вручную оставл€ем в магазине 1 патрон
+    mov [ecx+$690], 1
+    mov edx, [ecx+$6c8]
+    mov eax, [ecx+$6cc]
+    sub eax, $3c
+    mov [ecx+$6c8], eax
+    //разр€жаем этот патрон в инвентарь
     push ecx
     call unload_magazine
-
+    //возвращаем остальные патроны
+    mov [ecx+$6c8], edx
+    mov [ecx+$690], ebx
     jmp @finish
 
     @empty:
     @changingammotype:
-    //ћен€ем тип патронов - никогда нет патрона в патроннике
+    //≈сли мен€ем тип патронов - никогда нет патрона в патроннике
     //TODO:запомнить факт смены при необходимости
     sub ebx, 1
     jmp @finish
@@ -113,8 +120,14 @@ begin
   //TODO: может, сделать это же дл€ остальных видов оружи€?
   debug_bytes[0]:=$C7;
   debug_addr:=xrGame_addr+$2D0185;
-  writeprocessmemory(hndl, PChar(debug_addr), @debug_bytes, 1, rb);
+  writeprocessmemory(hndl, PChar(debug_addr), @debug_bytes[0], 1, rb);
   if rb<>1 then exit;
+  ////////////////////////////////////////////////////
+  //¬ырубаем смену патронов при клине
+  debug_bytes[0]:=$EB;
+  debug_addr:=xrGame_addr+$2D0FF8;
+  writeprocessmemory(hndl, PChar(debug_addr), @debug_bytes[0], 1, rb);
+  if rb<>1 then exit;   
   ////////////////////////////////////////////////////
   //«апишем вызовы функции сравнени€, заменив соответствующие mov'ы на push'ы
   debug_bytes[0]:=$FF; debug_bytes[1]:=$B6; debug_bytes[2]:=$90; debug_bytes[3]:=$06; debug_bytes[4]:=$00; debug_bytes[5]:=$00;

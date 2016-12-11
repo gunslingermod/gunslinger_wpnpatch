@@ -8,11 +8,13 @@ uses BaseGameData, GameWrappers;
 const
   hud:PChar='hud';
   visual:PChar='visual';
+  collimator:PChar='collimator';
 
 var
   cweaponmagazined_netspawn_patch_addr:cardinal;
   scope_attach_callback_addr:cardinal;
   upgrade_weapon_addr:cardinal;
+  scope_detach_callback_addr:cardinal;
 
 procedure WeaponVisualChanger();
 //в действительности - один аргумент, адрес оружия, с которым будем работать
@@ -20,6 +22,7 @@ begin
   asm
     pushad
     pushfd
+    //jmp @finish
     //извлечем аргумент-оружие и на всякий проверим на NULL
     mov edi, [esp+$28]
     test edi, edi
@@ -33,9 +36,14 @@ begin
     mov ebx, [edi+$6b0]
     cmp ebx, [edi+$6b4]
     je @finish
-
-    //получим в ebx строку-объект, содержащую текущую секцию прицела
+    //Прочитаем индекс прицела
     movzx eax, byte ptr [edi+$6bc]
+    //Теперь посмотрим, установлен ли прицел сейчас. Если нет - то автоматически считаем текущей секцией прицела первую. Надо для корректной работы коллиматорных прицелов
+    test byte ptr [edi+$460], 1
+    jnz @getscopesectname
+    mov eax, 0
+    @getscopesectname:
+    //получим в ebx строку-объект, содержащую текущую секцию прицела
     lea ebx, [4*eax+ebx]
     //прочитаем название секции худа оружия для данного прицела
     push hud
@@ -68,6 +76,29 @@ begin
     push eax
     push edi
     call set_weapon_visual
+
+    //Проверим существование строки и прочитаем, коллиматорный прицел используется или нет
+    push scope_name
+    push ebx
+    call game_ini_read_string_by_object_string
+    test eax, eax
+    je @finish
+    mov ebx, eax
+    push collimator
+    push ebx
+    call game_ini_line_exist
+    test al, al
+    jz @no_collimator
+    push collimator
+    push ebx
+    call game_ini_r_bool
+    test al, al
+    jz @no_collimator
+    mov byte ptr [edi+$6be], 1
+    jmp @finish
+    @no_collimator:
+    mov byte ptr [edi+$6be], 0
+    jmp @finish
 
     @finish:
     popfd
@@ -110,6 +141,20 @@ begin
   end;
 end;
 
+procedure DetachScope_Callback_Patch();
+begin
+  asm
+    mov [esi+$460], al
+    pushad
+    pushfd
+    push esi
+    call WeaponVisualChanger
+    popfd
+    popad
+    jmp scope_detach_callback_addr
+  end;
+end;
+
 procedure Upgrade_Weapon_Patch();
 begin
   asm
@@ -119,6 +164,7 @@ begin
     call WeaponVisualChanger
     popfd
     popad
+    
     push ecx
     lea edx, [esp+$1c]
     jmp upgrade_weapon_addr
@@ -135,6 +181,9 @@ begin
 
   scope_attach_callback_addr:=xrGame_addr+$2CEE33;
   if not WriteJump(scope_attach_callback_addr, cardinal(@AttachScope_Callback_Patch), 7) then exit;
+
+  scope_detach_callback_addr:=xrGame_addr+$2CDA8D;
+  if not WriteJump(scope_detach_callback_addr, cardinal(@DetachScope_Callback_Patch), 6) then exit;
 
   upgrade_weapon_addr:=xrGame_addr+$2D09D6;
   if not WriteJump(upgrade_weapon_addr, cardinal(@Upgrade_Weapon_Patch), 5) then exit;
