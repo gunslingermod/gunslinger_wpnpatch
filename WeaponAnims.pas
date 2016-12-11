@@ -1,7 +1,11 @@
-unit AssaultAdditionalAnimStates;
+unit WeaponAnims;
+
+//Не уверен - не редактируй!
 
 interface
 function Init:boolean;
+function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
+function CustomAnmPlayer(wpn:pointer; base_anm:PChar; snd_label:PChar=nil):boolean;
 
 implementation
 uses BaseGameData, WpnUtils, GameWrappers, ActorUtils;
@@ -50,7 +54,7 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     canshoot:=WpnCanShoot(PChar(cls));
-    //--------------------------Модификаторы движения актора (взаимоисключающие!)---------------------------------------
+    //--------------------------Модификаторы движения актора---------------------------------------
     //если актор в режиме прицеливания - однозначно используем модификатор движения aim
     if (canshoot or (cls='WP_BINOC')) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
@@ -130,15 +134,13 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------anm_show/hide/bore/switch_*-----------------------
-
-function anm_std_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
+function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
   cls:string;
 begin
   hud_sect:=GetHUDSection(wpn);
-  anim_name:=base_anim;
   actor:=GetActor();
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
@@ -147,21 +149,27 @@ begin
     if WpnCanShoot(PChar(GetClassName(wpn))) then begin
       cls:=GetClassName(wpn);
       if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
-        anim_name:=anim_name+'_empty';
+        base_anim:=base_anim+'_empty';
       end;
       if IsWeaponJammed(wpn) and (cls<>'WP_BM16') then begin
-        anim_name:=anim_name+'_jammed';
+        base_anim:=base_anim+'_jammed';
       end;
-      ModifierGL(wpn, anim_name);
+      ModifierGL(wpn, base_anim);
     end;
   end;
 
-  ModifierBM16(wpn, anim_name);
-  if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
-    log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
-    anim_name:='anm_idle';
-    ModifierBM16(wpn, anim_name);
+  ModifierBM16(wpn, base_anim);
+  if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
+    log('Section ['+hud_sect+'] has no motion alias defined ['+base_anim+']');
+    base_anim:='anm_idle';
+    ModifierBM16(wpn, base_anim);
   end;
+  result:=base_anim;
+end;
+
+function anm_std_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
+begin
+  anim_name := ModifierStd(wpn, base_anim);
   result:=PChar(anim_name);
 end;
 
@@ -444,11 +452,12 @@ begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
     if IsAimNow(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
-    if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
     if GetAmmoInMagCount(wpn)=1 then
       anim_name:=anim_name+'_last'
     else if CurrentQueueSize(wpn)>1 then
       anim_name:=anim_name+'_queue';
+    if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
+    if IsWeaponJammed(wpn) then anim_name:=anim_name+'_jammed';
     ModifierGL(wpn, anim_name);
   end;
 
@@ -528,55 +537,31 @@ begin
     ret
   end;
 end;
-//-----------------------------------------Назначение анимации переключения режимов огня------------------------
-function CustomAnmPlayer(wpn:pointer; base_anm:PChar; snd_label:PChar):boolean;
+//---------------------------------------Основная функция проигрывания анимаций событий------------------------
+function CustomAnmPlayer(wpn:pointer; base_anm:PChar; snd_label:PChar=nil):boolean;
 var
   hud_sect:PChar;
   lock_time:single;
   lock_time_paramname:string;
+  anm_name:string;
 begin
-  result:=true;
   hud_sect:=GetHUDSection(wpn);
 
-  anm_std_selector(wpn, base_anm);
-  lock_time_paramname:='lock_time_'+anim_name;
+  anm_name:=ModifierStd(wpn, base_anm);
+  lock_time_paramname:='lock_time_'+anm_name;
 
   if game_ini_line_exist(hud_sect, PChar(lock_time_paramname)) then
     lock_time:=game_ini_r_single(hud_sect, PChar(lock_time_paramname))
   else
     lock_time:=0;
 
-  result:=PlayHudLockedAnim(wpn, PChar(anim_name), lock_time);
-  if result then begin
+  result:=PlayHudLockedAnim(wpn, PChar(anm_name), lock_time);
+  if result and (snd_label<>nil) then begin
     MagazinedWpnPlaySnd(wpn, snd_label);
   end;
 
 end;
 
-function AnmChangeFireModeSelector(wpn:pointer):boolean; stdcall;
-var
-  hud_sect:PChar;
-begin
-  result:=true;
-  hud_sect:=GetHUDSection(wpn);
-  if (not game_ini_line_exist(hud_sect, 'use_firemode_change_anim')) or (not game_ini_r_bool(hud_sect, 'use_firemode_change_anim')) then exit;
-  result:=CustomAnmPlayer(wpn, 'anm_changefiremode', 'sndChangeFireMode');
-end;
-
-procedure AnmChangeFireModePatch(); stdcall;
-begin
-  asm
-    pushad
-    push esi
-    call AnmChangeFireModeSelector
-    cmp al, 0
-    popad
-    je @finish
-    cmp byte ptr [esi+$79E],00
-    @finish:
-    ret
-  end;
-end;
 //--------------------------------------------Фикс для перехода анимаций подствола------------------------------
 procedure GrenadeLauncherBugFix(); stdcall;
 begin
@@ -802,6 +787,25 @@ begin
     ret
   end;
 end;
+//---------------------------------------Не даем прицелиться при локе-------------------------------------------------
+procedure AimAnimLockFix; stdcall;
+begin
+  asm
+  push eax
+  //Установить ZF=0, если целиться не можем
+  cmp byte ptr [esi+$494], 0
+  je @finish  
+  xor al, al
+  cmp [esi+$390], 0
+  jne @compare
+  mov al, 1
+  @compare:
+  cmp al, 0
+  @finish:
+  pop eax
+  ret
+  end;
+end;
 
 //--------------------------------------------------------------------------------------------------------------------
 
@@ -827,11 +831,6 @@ begin
   jump_addr:=xrGame_addr+$2CCD75;
   if not WriteJump(jump_addr, cardinal(@EmptyClickAnmPatch), 9) then exit;
 
-  //добавим аниму смены режима стрельбы
-  jump_addr:=xrGame_addr+$2CE2A3;
-  if not WriteJump(jump_addr, cardinal(@AnmChangeFireModePatch), 7, true) then exit;
-  jump_addr:=xrGame_addr+$2CE303;
-  if not WriteJump(jump_addr, cardinal(@AnmChangeFireModePatch), 7, true) then exit;
 
   //Не дадим перезаряжаться при неоконченном выстреле.
   jump_addr:=xrGame_addr+$2CE821;
@@ -854,6 +853,10 @@ begin
   //для выстрела с подствола
   jump_addr:=xrGame_addr+$2D3ABE;
   if not WriteJump(jump_addr, cardinal(@ShootGLAnimLockFix), 7, true) then exit;
+
+  //для прицеливания
+  jump_addr:=xrGame_addr+$2BECE4;
+  if not WriteJump(jump_addr, cardinal(@AimAnimLockFix), 7, true) then exit;
 
 
   //Фиксим назначение анимы медленного идла

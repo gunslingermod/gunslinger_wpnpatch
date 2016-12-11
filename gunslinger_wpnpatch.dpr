@@ -13,10 +13,11 @@ uses
   AN94Patch in 'AN94Patch.pas',
   WeaponUpdate in 'WeaponUpdate.pas',
   LightUtils in 'LightUtils.pas',
-  WeaponVisualSelector in 'WeaponVisualSelector.pas',
-  AssaultAdditionalAnimStates in 'AssaultAdditionalAnimStates.pas',
+  WeaponEvents in 'WeaponEvents.pas',
+  WeaponAnims in 'WeaponAnims.pas',
   ActorUtils in 'ActorUtils.pas',
   HudTransparencyFix in 'HudTransparencyFix.pas';
+//  WeaponAdditionalBuffer in 'WeaponAdditionalBuffer.pas';
 
 {$R *.res}
 
@@ -28,13 +29,13 @@ begin
   WeaponDataSaveLoad.Init;
   WeaponSoundLoader.Init;
   WeaponSoundSelector.Init;
-  WeaponVisualSelector.Init;
+  WeaponEvents.Init;
 //  ReloadAnimationSelector.Init;
   WeaponAmmoCounter.Init;
   collimator.Init;
   AN94Patch.Init;
   WeaponUpdate.Init;
   LightUtils.Init;
-  AssaultAdditionalAnimStates.Init;
+  WeaponAnims.Init;
 //  HudTransparencyFix.Init;
 end.

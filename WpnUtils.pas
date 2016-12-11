@@ -628,7 +628,7 @@ begin
      exit;
   end;
 
-  if GetCurrentState(wpn)<>0 then exit;
+  if (GetCurrentState(wpn)<>0) or IsAimNow(wpn) then exit;
 
   if GetLockTime(wpn)<=0 then begin
     SetLockTime(wpn, time);
