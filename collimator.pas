@@ -13,7 +13,6 @@ var
   restoreoffsets_patch_addr:cardinal;
   IsAimingEdited:boolean;
 
-//Флаг коллиматора выставляется в WeaponVisualSelector.WeaponVisualChanger!
 function IsCollimatorInstalled(wpn:pointer):cardinal;stdcall;
 var scope:PChar;
 begin
@@ -58,8 +57,7 @@ var section:PChar;
 begin
   if isrestore then begin
     if IsAimingEdited=false then exit;
-    section:=GetSection(wpn);
-    section:=game_ini_read_string(section, 'hud');
+    section:=GetHudSection(wpn);
     IsAimingEdited:=false;
   end else begin
     if (GetScopeStatus(wpn)<>2) or (not IsScopeAttached(wpn)) then begin

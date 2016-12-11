@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils;
+uses BaseGameData, GameWrappers, WpnUtils, LightUtils;
 const
   hud:PChar='hud';
   visual:PChar='visual';
@@ -117,8 +117,8 @@ begin
     pushad
     pushfd
 
-    push esi
-    call WeaponVisualChanger
+    //push esi
+    //call WeaponVisualChanger
 
     popfd
     popad
@@ -132,15 +132,34 @@ begin
 end;
 
 procedure AttachScope_Callback_Patch();
+//const n:PChar = 'anm_reload';
 begin
   asm
     or byte ptr [ebp+$460],01
 
     pushad
     pushfd
+    
+{    call CreateLight
+    mov ebx, eax
 
+    push [ebp+$170]
+    push [ebp+$16C]
+    push [ebp+$168]
+    push ebx
+    call LightUtils.SetPos
+
+    push 01
+    push ebx
+    call LightUtils.Enable  }
+
+    //push ebp
+    //call WeaponVisualChanger
+
+{    push 1
+    push n
     push ebp
-    call WeaponVisualChanger
+    call PlayHudAnim}
 
     popfd
     popad
@@ -155,8 +174,8 @@ begin
     pushad
     pushfd
 
-    push esi
-    call WeaponVisualChanger
+    //push esi
+    //call WeaponVisualChanger
 
     popfd
     popad
@@ -169,8 +188,8 @@ begin
   asm
     pushad
     pushfd
-    push ebx
-    call WeaponVisualChanger
+    //push ebx
+    //call WeaponVisualChanger
     popfd
     popad
     

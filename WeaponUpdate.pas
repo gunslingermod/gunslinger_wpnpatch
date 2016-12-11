@@ -4,62 +4,63 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils;
+uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils;
 
 var patch_addr:cardinal;
+  tst_light:pointer;
+
+procedure HideOneUpgradeLevel(wpn:pointer; up_gr_section:pchar); stdcall;
+var
+  up_sect:PChar;
+  up_group:string;
+  tmp:string;
+  all_subelements, element:string;
+begin
+  all_subelements:=game_ini_read_string(up_gr_section, 'elements');
+  
+  while (GetNextSubStr(all_subelements, element, ',')) do begin
+    //Обработаем ветки, которые открывает данный апгрейд
+    if game_ini_line_exist(PChar(element), 'effects') then begin
+      up_group:=game_ini_read_string(PChar(element), 'effects');
+      while (GetNextSubStr(up_group, tmp, ',')) do begin
+        HideOneUpgradeLevel(wpn, PChar(tmp));
+      end;
+    end;
+
+    //Теперь посмотрим, какие кости надо отображать, когда данный апгрейд установлен
+    up_sect:=game_ini_read_string(PChar(element), 'section');
+    if not game_ini_line_exist(up_sect, 'show_bones') then exit;
+    SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(up_sect, 'show_bones'), false);
+  end;
+end;
 
 procedure ProcessUpgrade(wpn:pointer); stdcall;
 var all_upgrades:string;
-    all_subelements:string;
-    bones:string;
-    tmp:string;
-    element:string;
-    up_sect:string;
     section:PChar;
     up_gr_sect:string;
     i:integer;
 begin
   section:=GetSection(wpn);
+  //Скроем все кости, которые надо скрыть, исходя из данных секции оружия
+  if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
+  
   //Прочитаем секции всех доступных апов из конфига
   if not game_ini_line_exist(section, 'upgrades') then exit;
   all_upgrades:=game_ini_read_string(section, 'upgrades');
   //Переберем их все
   while (GetNextSubStr(all_upgrades, up_gr_sect, ',')) do begin
-    all_subelements:=game_ini_read_string(PChar(up_gr_sect), 'elements');
-    while (GetNextSubStr(all_subelements, element, ',')) do begin
-      up_sect:=game_ini_read_string(PChar(element), 'section');
-      //Теперь посмотрим, какие кости надо отображать, когда данный апгрейд установлен
-      if not game_ini_line_exist(PChar(up_sect), 'show_bones') then continue;
-      bones:=game_ini_read_string(PChar(up_sect), 'show_bones');
-      //И скроем их
-      while (GetNextSubStr(bones, tmp, ',')) do begin
-        SetWeaponModelBoneStatus(wpn, PChar(tmp), false);
-      end;
-    end;
+      HideOneUpgradeLevel(wpn, PChar(up_gr_sect));
   end;
 
   //Посмотрим, какие апгрейды уже установлены, и отобразим их
   for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
     section:=GetInstalledUpgradeSection(wpn, i);
     section:=game_ini_read_string(section, 'section');
-    if game_ini_line_exist(section, 'show_bones') then begin
-      bones:=game_ini_read_string(section, 'show_bones');
-      while (GetNextSubStr(bones, tmp, ',')) do begin
-        SetWeaponModelBoneStatus(wpn, PChar(tmp), true);
-      end;
-    end;
-
-    if game_ini_line_exist(section, 'hide_bones') then begin
-      bones:=game_ini_read_string(section, 'hide_bones');
-      while (GetNextSubStr(bones, tmp, ',')) do begin
-        SetWeaponModelBoneStatus(wpn, PChar(tmp), false);
-      end;
-    end;
-
+    if game_ini_line_exist(section, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'show_bones'), true);
+    if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
     if game_ini_line_exist(section, 'hud') then begin
       SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
     end;
-
     if game_ini_line_exist(section, 'visual') then begin
       SetVisual(wpn, game_ini_read_string(section, 'visual'));
     end;
@@ -71,7 +72,6 @@ var section:PChar;
     curscope:string;
     scopes:string;
     tmp:string;
-    bones, bone:string;
     status:boolean;
 begin
   section:=GetSection(wpn);
@@ -81,20 +81,42 @@ begin
   while (GetNextSubStr(scopes, tmp, ',')) do begin
     if not game_ini_line_exist(PChar(tmp), 'bones') then continue;
     if tmp=curscope then status:=true else status:=false;
-    bones:=game_ini_read_string(PChar(tmp), 'bones');
-    while (GetNextSubStr(bones, bone, ',')) do begin
-      SetWeaponModelBoneStatus(wpn, PChar(bone), status);
-    end;
+    SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'bones'), status);
   end;
 end;
 
 procedure WpnUpdate(wpn:pointer); stdcall;
+const a:single = 1.0;
 begin
   //Обработаем установленные апгрейды
   ProcessUpgrade(wpn);
   //Теперь отобразим установленный прицел
   ProcessScope(wpn);
 
+  {if tst_light = nil then tst_light:=LightUtils.CreateLight;
+  LightUtils.Enable(tst_light, true);
+  asm
+    pushad
+    pushfd
+
+    mov ebp, $492ed8
+
+    mov ebx, tst_light
+    push [ebp+$38]
+    push [ebp+$34]
+    push [ebp+$30]
+    push ebx
+    call LightUtils.SetPos
+
+    push [ebp+$44]
+    push [ebp+$40]
+    push [ebp+$3C]
+    push ebx
+    call LightUtils.SetDir
+
+    popfd
+    popad
+  end;     }
 end;
 
 procedure Patch();stdcall;
@@ -114,6 +136,7 @@ end;
 function Init:boolean;
 begin
   result:=false;
+  tst_light:=nil;
   patch_addr:=xrGame_addr+$2BC204;
   if not WriteJump(patch_addr, cardinal(@Patch), 6) then exit;
   result:=true;

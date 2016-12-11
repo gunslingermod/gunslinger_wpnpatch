@@ -10,13 +10,36 @@ var rpm_loading_patch_addr:cardinal;
 
 const
   base_dispersioned_bullets_time_delta:PChar='base_dispersioned_bullets_time_delta';
+  singleshoots_time_delta:PChar='singleshoots_time_delta';
 
 procedure AN94_RPM_Patch; stdcall;
 begin
   asm
+    //делаем вырезанное
     movss xmm0, [esi+$35c]
+    //начинаем шаманства
     pushad
-    pushf
+    pushfd
+    //—начала посмотрим, не стрел€ем ли мы одиночными
+    cmp [esi+$770], 01
+    ja @queue
+    push esi
+    call GetSection
+    mov ebx, eax
+    //ѕосмотрим, есть ли в ней параметр singleshoots_time_delta
+    push singleshoots_time_delta
+    push ebx
+    call game_ini_line_exist
+    cmp al, 0
+    je @finish
+    //ѕрочитаем его и подменим скорострельность
+    push singleshoots_time_delta
+    push ebx
+    call game_ini_r_single
+    jmp @write
+
+
+    @queue:
     mov eax, [esi+$774] //сколько уже выстрелили в очереди
     mov ebx, [esi+$778] //сколько пуль с базовыми параметрами выпускаем
     cmp ebx, 0
@@ -38,12 +61,16 @@ begin
     push base_dispersioned_bullets_time_delta
     push ebx
     call game_ini_r_single
+    jmp @write;
+
+    @write:
+    //«апишем данные, использу€ в качестве буфера стек 
     sub esp, 4
     fstp dword ptr [esp]
     movss xmm0, [esp]
     add esp, 4
     @finish:
-    popf
+    popfd
     popad
     jmp rpm_loading_patch_addr
   end;

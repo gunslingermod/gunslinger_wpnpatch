@@ -25,6 +25,12 @@ begin
     je @finish
     cmp ax, W_RPG7
     je @finish
+    //Проверим, не активен ли подствол
+    test byte ptr [ecx+$460], 2
+    je @nogl
+    cmp byte ptr [ecx+$7f8], 1
+    je @finish
+    @nogl:
     //смотрим, есть ли в магазине патроны
     cmp [ecx+$690], 0
     jle @empty
