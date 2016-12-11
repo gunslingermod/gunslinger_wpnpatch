@@ -5,10 +5,9 @@ unit WeaponAnims;
 interface
 function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
-function CustomAnmPlayer(wpn:pointer; base_anm:PChar; snd_label:PChar=nil):boolean;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math;
 
 var
   anim_name:string;
@@ -16,11 +15,30 @@ var
 
 procedure ModifierGL(wpn:pointer; var anm:string);
 begin
-  if (GetGLStatus(wpn)=1) or  IsGLAttached(wpn) then begin
+  if (GetGLStatus(wpn)=1) or IsGLAttached(wpn) then begin
     if IsGLEnabled(wpn) then
       anm:=anm+'_g'
     else
       anm:=anm+'_w_gl';
+  end;
+end;
+
+procedure ModifierMoving(wpn:pointer; actor:pointer; var anm:string);
+begin
+  if GetActorActionState(actor, actMovingForward or actMovingBack or actMovingLeft or actMovingRight) then begin
+    anm:=anm+'_moving';
+    if GetActorActionState(actor, actMovingForward) then begin
+      anm:=anm+'_forward';
+    end;
+    if GetActorActionState(actor, actMovingBack) then begin
+      anm:=anm+'_back';
+    end;
+    if GetActorActionState(actor, actMovingLeft) then begin
+      anm:=anm+'_left';
+    end;
+    if GetActorActionState(actor, actMovingRight) then begin
+      anm:=anm+'_right';
+    end;
   end;
 end;
 
@@ -46,6 +64,8 @@ var
   actor:pointer;
   canshoot:boolean;
   cls:string;
+  buf:WpnBuf;
+  tmppchar:PChar;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_idle';
@@ -58,31 +78,34 @@ begin
     //если актор в режиме прицеливания - однозначно используем модификатор движения aim
     if (canshoot or (cls='WP_BINOC')) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
-      if IsMovingForward(actor) or IsMovingBack(actor) or IsMovingLeft(actor) or IsMovingRight(actor) then begin
-        anim_name:=anim_name+'_moving';
-      end;
+      ModifierMoving(wpn, actor, anim_name);
+      
     //посмотрим на передвижение актора:
-    end else if IsSprint(actor) then begin
+    end else if GetActorActionState(actor, actSprint, true) and not GetActorActionState(actor, actSprint) then begin
+      //выход из спринта
+      anim_name:=anim_name+'_sprint_end';
+    end else if GetActorActionState(actor, actSprint) then begin
       anim_name:=anim_name+'_sprint';
-    end else if IsMovingForward(actor) or IsMovingBack(actor) or IsMovingLeft(actor) or IsMovingRight(actor) then begin
-      anim_name:=anim_name+'_moving';
-      if IsCrounch(actor) then begin
+      if not GetActorActionState(actor, actSprint, true) then anim_name:=anim_name+'_start';
+    end else begin
+      ModifierMoving(wpn, actor, anim_name);
+      if GetActorActionState(actor, actCrounch) then begin
         anim_name:=anim_name+'_crounch';
       end;
-      if IsSlowMoving(actor) then begin
+      if GetActorActionState(actor, actSlow) then begin
         anim_name:=anim_name+'_slow';
       end;
     end;
   //----------------------------------Модификаторы состояния оружия---------------------------------------------------- 
 
     if canshoot then begin
-        //Если магазин пуст - всегда играем empty, если можем
-        if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
+        //Если оружие заклинило - всегда пытаемся отыграть это состояние
+        if IsWeaponJammed(wpn) then begin
+          anim_name:=anim_name+'_jammed';
+        end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
           anim_name:=anim_name+'_empty';
         end;
-        if IsWeaponJammed(wpn) and (cls<>'WP_BM16') then begin
-          anim_name:=anim_name+'_jammed';
-        end;
+
         ModifierGL(wpn, anim_name);
     end;
   end;
@@ -95,6 +118,7 @@ begin
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
+  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
 end;
 
 procedure anm_idle_std_patch();stdcall;
@@ -148,12 +172,12 @@ begin
     //Если магазин пуст - всегда играем empty, если можем
     if WpnCanShoot(PChar(GetClassName(wpn))) then begin
       cls:=GetClassName(wpn);
-      if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
+      if IsWeaponJammed(wpn) then begin
+        base_anim:=base_anim+'_jammed';
+      end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
         base_anim:=base_anim+'_empty';
       end;
-      if IsWeaponJammed(wpn) and (cls<>'WP_BM16') then begin
-        base_anim:=base_anim+'_jammed';
-      end;
+
       ModifierGL(wpn, base_anim);
     end;
   end;
@@ -161,7 +185,7 @@ begin
   ModifierBM16(wpn, base_anim);
   if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+base_anim+']');
-    base_anim:='anm_idle';
+    base_anim:='anm_reload';
     ModifierBM16(wpn, base_anim);
   end;
   result:=base_anim;
@@ -171,6 +195,7 @@ function anm_std_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
 begin
   anim_name := ModifierStd(wpn, base_anim);
   result:=PChar(anim_name);
+  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anim_name));
 end;
 
 procedure anm_show_std_patch();stdcall;
@@ -452,22 +477,24 @@ begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
     if IsAimNow(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
-    if GetAmmoInMagCount(wpn)=1 then
+    if IsWeaponJammed(wpn) then begin
+      anim_name:=anim_name+'_jammed';
+    end else if GetAmmoInMagCount(wpn)=1 then
       anim_name:=anim_name+'_last'
     else if CurrentQueueSize(wpn)>1 then
       anim_name:=anim_name+'_queue';
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
-    if IsWeaponJammed(wpn) then anim_name:=anim_name+'_jammed';
     ModifierGL(wpn, anim_name);
   end;
 
   ModifierBM16(wpn, anim_name);
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
-    anim_name:='anm_idle';
+    anim_name:='anm_reload';
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
+  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
 end;
 
 procedure anm_shots_std_patch();stdcall;
@@ -499,11 +526,12 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
-    if GetAmmoInMagCount(wpn)<=0 then anim_name:=anim_name+'_empty';
     if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
-      if GetAmmoInMagCount(wpn)=1 then anim_name:=anim_name+'_last';
+      if GetAmmoInMagCount(wpn)=0 then anim_name:=anim_name+'_last';
       SetAmmoTypeChangingStatus(wpn, $FF);
+    end else if GetAmmoInMagCount(wpn)<=0 then begin
+      if GetClassName(wpn)<>'WP_BM16' then anim_name:=anim_name+'_empty'; //у двустволок и так _0 потом модификатор прибавит
     end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
       anim_name:=anim_name+'_ammochange';
     end;
@@ -514,10 +542,11 @@ begin
   ModifierBM16(wpn, anim_name);
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
-    anim_name:='anm_idle';
+    anim_name:='anm_reload';
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
+  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
 end;
 
 
@@ -537,31 +566,6 @@ begin
     ret
   end;
 end;
-//---------------------------------------Основная функция проигрывания анимаций событий------------------------
-function CustomAnmPlayer(wpn:pointer; base_anm:PChar; snd_label:PChar=nil):boolean;
-var
-  hud_sect:PChar;
-  lock_time:single;
-  lock_time_paramname:string;
-  anm_name:string;
-begin
-  hud_sect:=GetHUDSection(wpn);
-
-  anm_name:=ModifierStd(wpn, base_anm);
-  lock_time_paramname:='lock_time_'+anm_name;
-
-  if game_ini_line_exist(hud_sect, PChar(lock_time_paramname)) then
-    lock_time:=game_ini_r_single(hud_sect, PChar(lock_time_paramname))
-  else
-    lock_time:=0;
-
-  result:=PlayHudLockedAnim(wpn, PChar(anm_name), lock_time);
-  if result and (snd_label<>nil) then begin
-    MagazinedWpnPlaySnd(wpn, snd_label);
-  end;
-
-end;
-
 //--------------------------------------------Фикс для перехода анимаций подствола------------------------------
 procedure GrenadeLauncherBugFix(); stdcall;
 begin
@@ -598,51 +602,17 @@ begin
     @finish:
   end;
 end;
-//---------------------------------------------Анимация осечки--------------------------------------------------------
-procedure EmptyClickAnmPatch; stdcall;
-const
-  anm_name:PChar='anm_fakeshoot';
-  sndEmptyClick:PChar = 'sndEmptyClick';
-begin
-  asm
-
-  cmp [ecx-$2e0+$390], 0
-  jne @finish
-
-  pushad
-  pushfd
-  lea edx, [ecx-$2e0]
-
-  push edx  //сохраняем оружие
-  push anm_name
-  push edx
-  call anm_std_selector
-
-  pop ecx   //загружаем оружие
-  push 1
-  push eax
-  push ecx
-  call PlayHudAnim
-
-  popfd
-  popad
-
-  //Назначаем вырезанное нами проигрывание звука
-  push esi
-  push sndEmptyClick
-  call eax
-
-  @finish:
-  pop esi
-  ret
-  end;
-end;
-//------------Фикс для перезарядки - чтобы до истечения времени после выстрела он даже не пытался перезарядиться------
+//------------Фикс для перезарядки - чтобы он даже не пытался перезарядиться когда не надо------
 procedure ReloadAnimPlayingPatch; stdcall;
 begin
   asm
-    cmp [esi+$390], 0
+    pushad
+      push esi
+      call WeaponAdditionalBuffer.CanStartAction
+      cmp al, 1
+    popad
     jne @finish
+
     mov edx, [esi]
     mov eax, [edx+$188]
     mov ecx, esi
@@ -668,7 +638,12 @@ procedure SwitchAnimPlayingPatch2; stdcall;
 begin
   asm
     //Проверяем возможность переключения
-    cmp [esi+$390], 0
+    pushad
+      push esi
+      call WeaponAdditionalBuffer.CanStartAction
+      cmp al, 1
+    popad
+
     je @switch_ok
     //Переключаться сейчас нельзя. Выходим из текущей и _ВЫЗЫВАЮЩЕЙ_ процедур сразу
     xor al, al
@@ -685,22 +660,7 @@ begin
     ret
   end;
 end;
-//-----------Чтобы при нажатии на стрельбу анима не зацикливалась и не происходил выстрел по истеченнию таймера-------
-procedure ShootDelayFix; stdcall;
-begin
-  asm
-  cmp [esi-$338+$390], 0
 
-  jne @noshoot;
-  lea ecx, [esi-$58]
-  push 05
-  call edx
-  ret
-  @noshoot:
-  mov [esi-$338+$2e4], 0
-  mov [esi-$338+$2e8], 0
-  end;
-end;
 //-----------Фикс для idle_slow - чтобы двиг назначал анимацию после перехода из быстрого шага в медленный и т.п.-----
 procedure IdleSlowFixPatch(); stdcall;
 begin
@@ -716,8 +676,8 @@ begin
 
     mov eax, [ebx+$590]
     mov ebx, [ebx+$594]
-    and eax, $30
-    and ebx, $30
+    and eax, $3F
+    and ebx, $3F
     cmp eax, ebx
     pop ebx
     pop eax
@@ -731,10 +691,10 @@ procedure BoreAnimLockFix; stdcall;
 begin
   asm
     pushad
-    sub esi, $2e0
-    push esi
-    call IsWpnLocked
-    cmp al, 0
+      sub esi, $2e0
+      push esi
+      call WeaponAdditionalBuffer.CanStartAction
+      cmp al, 1
     popad
     je @finish
     mov eax, 0
@@ -756,9 +716,9 @@ begin
   asm
     lea ecx, [esi-$2e0]
     pushad
-    push ecx
-    call IsWpnLocked
-    cmp al, 0
+      push ecx
+      call WeaponAdditionalBuffer.CanHideWeaponNow
+      cmp al, 1
     popad
     je @no_lock
     mov [esi-$2e0+$2e4], 0
@@ -773,7 +733,11 @@ end;
 procedure ShootGLAnimLockFix; stdcall;
 begin
   asm
-    cmp [esi+$390], 0
+    pushad
+      push esi
+      call WeaponAdditionalBuffer.OnShoot_CanShootNow
+      cmp al, 1
+    popad
     je @nolock
     //У нас лок - уходим отсюда и из вызвавшей нас процедуры
     xor al, al
@@ -791,22 +755,57 @@ end;
 procedure AimAnimLockFix; stdcall;
 begin
   asm
-  push eax
-  //Установить ZF=0, если целиться не можем
-  cmp byte ptr [esi+$494], 0
-  je @finish  
-  xor al, al
-  cmp [esi+$390], 0
-  jne @compare
-  mov al, 1
-  @compare:
-  cmp al, 0
-  @finish:
-  pop eax
-  ret
+    push eax
+    //Установить ZF=0, если целиться не можем
+    cmp byte ptr [esi+$494], 0
+    je @finish
+    xor al, al
+    pushad
+      push esi
+      call WeaponAdditionalBuffer.CanAimNow
+      cmp al, 1
+    popad
+    jne @compare
+    mov al, 1
+    @compare:
+    cmp al, 0
+    @finish:
+    pop eax
+    ret
   end;
 end;
-
+//---------------------------------------Не даем стрелять при локе-------------------------------------------------
+procedure ShootAnimLockFix; stdcall;
+begin
+  //выставить ZF = 1, если нельзя стрелять
+  asm
+    pushad
+      sub esi, $338
+      push esi
+      call WeaponAdditionalBuffer.OnShoot_CanShootNow
+      cmp al, 0
+    popad
+    je @finish
+    cmp [esi+$358], eax
+    @finish:
+    ret
+  end;
+end;
+//---------------------------------------Отучим перезаряжаться (и не только) на бегу-------------------------------------------------
+procedure SprintAnimLockFix; stdcall;
+asm
+    pushad
+      push ecx
+      call WeaponAdditionalBuffer.CanSprintNow
+      cmp al, 0
+    popad
+    je @finish
+    mov eax, [edx+$dc]
+    call eax
+    test al, al
+    @finish:
+    ret
+end;
 //--------------------------------------------------------------------------------------------------------------------
 
 function Init:boolean;
@@ -822,15 +821,6 @@ begin
   //теперь очередь бага с расклиниванием
   jump_addr:=xrGame_addr+$2D0F2C;
   if not WriteJump(jump_addr, cardinal(@JammedBugFix), 7, true) then exit;
-
-  //Модифицируем стрельбу - чтобы не зацикливалась анима идла при неистекшем таймере
-//  jump_addr:=xrGame_addr+$2CFF02;
-//  if not WriteJump(jump_addr, cardinal(@ShootDelayFix), 7, true) then exit;
-
-  //Добавим аниму осечки
-  jump_addr:=xrGame_addr+$2CCD75;
-  if not WriteJump(jump_addr, cardinal(@EmptyClickAnmPatch), 9) then exit;
-
 
   //Не дадим перезаряжаться при неоконченном выстреле.
   jump_addr:=xrGame_addr+$2CE821;
@@ -858,6 +848,13 @@ begin
   jump_addr:=xrGame_addr+$2BECE4;
   if not WriteJump(jump_addr, cardinal(@AimAnimLockFix), 7, true) then exit;
 
+  //для выстрелов
+  jump_addr:=xrGame_addr+$2CFE69;
+  if not WriteJump(jump_addr, cardinal(@ShootAnimLockFix), 6, true) then exit;
+
+  //для спринта
+  jump_addr:=xrGame_addr+$26AF60;
+  if not WriteJump(jump_addr, cardinal(@SprintAnimLockFix), 10, true) then exit;
 
   //Фиксим назначение анимы медленного идла
   jump_addr:=xrGame_addr+$2727B3;
@@ -1000,6 +997,13 @@ begin
   if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 5, true) then exit;
   jump_addr:=xrGame_addr+$2D18AB;//anm_reload_w_gl
   if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 5, true) then exit;
+
+  jump_addr:=xrGame_addr+$2E057C;//anm_reload_1 - BM16
+  if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 5, true) then exit;
+
+  jump_addr:=xrGame_addr+$2E0547;//anm_reload_2 - BM16
+  if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 5, true) then exit;
+
   jump_addr:=xrGame_addr+$2C5451;//reload - pistols
   if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 14, true) then exit;
   result:=true;

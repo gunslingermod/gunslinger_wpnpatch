@@ -5,7 +5,7 @@ unit GameWrappers;
 interface
   function Init:boolean;
   function str_container_dock(str:PChar):pointer; stdcall;
-  procedure unload_magazine(weapon_addr:cardinal);stdcall;
+  procedure unload_magazine(wpn:pointer);stdcall;
   function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
   function game_ini_read_string(section:PChar; key:PChar):PChar;stdcall;
   function get_server_object_by_id(id:cardinal):pointer;stdcall;
@@ -185,14 +185,14 @@ begin
   end
 end;
 
-procedure unload_magazine(weapon_addr:cardinal);stdcall;
+procedure unload_magazine(wpn:pointer);stdcall;
 begin
   asm
     pushad
     pushfd
 
     push 01
-    mov ecx, weapon_addr
+    mov ecx, wpn
     call cweaponmagazined_unload_mag
 
     popfd

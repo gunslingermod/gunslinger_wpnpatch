@@ -5,7 +5,6 @@ function Init():boolean;
 //function GetPositionVector(obj:pointer):pointer;
 //function GetCurrentHud(wpn: pointer):pointer; stdcall;
 procedure PlayHudAnim(wpn: pointer; anim_name:PChar; immediatly:boolean); stdcall;
-function PlayHudLockedAnim(wpn: pointer; anim_name:PChar; time:single):boolean; stdcall;
 procedure SetWorldModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetHudModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
@@ -33,11 +32,15 @@ function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetClassName(wpn:pointer):string; stdcall;
 function WpnCanShoot(cls:PChar):boolean;stdcall;
-function IsWpnLocked(wpn:pointer):boolean;stdcall;
-function GetLockTime(wpn:pointer):single;stdcall;
-procedure SetLockTime(wpn:pointer; time:single);stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
+function GetSilencerSection(wpn:pointer):PChar; stdcall;
+procedure DetachAddon(wpn:pointer; addon_type:integer);stdcall;
+function GetGLSection(wpn:pointer):PChar; stdcall;
+procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
+function GetShootLockTime(wpn:pointer):single;stdcall;
+procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
+
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
 
@@ -544,61 +547,8 @@ end;
 
 function WpnCanShoot(cls:PChar):boolean;stdcall;
 begin
-  result:=not((cls='G_RGD5_S') or (cls='II_BOLT') or (cls='DET_SIMP') or (cls='DET_ADVA') or (cls = 'DET_ELIT') or (cls = 'G_F1_S') or (cls = 'DET_ELIT') or (cls = 'WP_BINOC') or (cls = 'WP_KNIFE') or (cls = 'ARTEFACT') or (cls='D_FLARE'));
-end;
-
-function IsWpnLocked(wpn:pointer):boolean;stdcall;
-var
-  cls:string;
-begin
-  result:=false;
-  cls:=GetClassName(wpn);
-  if not WpnCanShoot(PChar(cls)) then exit;
-  asm
-    push eax
-    mov eax, wpn
-    mov eax, [eax+$390]
-    cmp eax, 0
-    je @finish
-    mov @result, 1
-    @finish:
-    pop eax
-  end;
-end;
-
-
-function GetLockTime(wpn:pointer):single;stdcall;
-begin
-  asm
-    push eax
-    push eax
-    movss [esp], xmm0
-
-    mov eax, wpn
-    movss xmm0, [eax+$390]
-    movss @result, xmm0
-
-    movss xmm0, [esp]
-    add esp, 4
-    pop eax
-  end;
-end;
-
-procedure SetLockTime(wpn:pointer; time:single);stdcall;
-begin
-  asm
-    push eax
-    push eax
-    movss [esp], xmm0
-
-    mov eax, wpn
-    movss xmm0, time
-    movss [eax+$390], xmm0
-
-    movss xmm0, [esp]
-    add esp, 4
-    pop eax
-  end;
+//  result:=not((cls='G_RGD5_S') or (cls='II_BOLT') or (cls='DET_SIMP') or (cls='DET_ADVA') or (cls = 'DET_ELIT') or (cls = 'G_F1_S') or (cls = 'DET_ELIT') or (cls = 'WP_BINOC') or (cls = 'WP_KNIFE') or (cls = 'ARTEFACT') or (cls='D_FLARE'));
+  result:=(cls='WP_AK74') or (cls='WP_LR300') or (cls='WP_BM16') or (cls='WP_PM') or (cls='WP_GROZA') or (cls='WP_SVD') or (cls='WP_HPSA') or (cls='WP_ASHTG') or (cls='WP_RG6') or (cls='WP_RPG7') or (cls='WP_VAL') or (cls='WP_VAL');
 end;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
@@ -608,33 +558,6 @@ begin
     mov eax, [eax+$2E4]
     mov @result, eax
   end
-end;
-
-function PlayHudLockedAnim(wpn: pointer; anim_name:PChar; time:single):boolean; stdcall;
-var cls:string;
-  actor:pointer;
-begin
-  result:=false;
-  actor:=GetActor();
-  if (actor=nil) or (actor<>GetOwner(wpn)) then begin
-    result:=true;
-    exit;
-  end;
-
-  cls:=GetClassName(wpn);
-  if not WpnCanShoot(PChar(cls)) then begin
-     result:=true;
-     PlayHudAnim(wpn, anim_name, true);
-     exit;
-  end;
-
-  if (GetCurrentState(wpn)<>0) or IsAimNow(wpn) then exit;
-
-  if GetLockTime(wpn)<=0 then begin
-    SetLockTime(wpn, time);
-    PlayHudAnim(wpn, anim_name, true);
-    result:=true;
-  end;
 end;
 
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
@@ -658,6 +581,155 @@ begin
   end;
 end;
 
+////////////////////////////////////////////////////////////////////////////////
+
+procedure DetachGLRight(wpn:pointer);stdcall;
+var addon_name:PChar;
+begin
+  addon_name:=GetGLSection(wpn);
+  if addon_name = nil then begin;
+    Log('WpnUtils.DetachGLRight: Weapon has no GL!', true);
+    exit;
+  end;
+  asm
+    pushad
+      push addon_name
+      call ActorUtils.CreateObjectToActor
+
+      mov esi, wpn
+      and [esi+$460], $FFFFFFFD
+      cmp byte ptr [esi+$7f8], 0
+      je @noactive_gl
+      mov eax, [esi]
+      mov edx, [eax+$20c]
+      push 01
+      mov ecx, esi
+      call edx
+
+      mov ecx, esi
+      mov eax, xrgame_addr
+      add eax, $2d3740
+      call eax
+
+      @noactive_gl:
+      mov ebx, xrgame_addr
+      add ebx, $2BD930
+      mov ecx, esi
+      call ebx                  //call CWeapon::UpdateAddonsVisibility
+
+      cmp [esi+$2E4], 0
+      jne @finish
+      mov eax, [esi+$2e0]
+      mov edx, [eax+$60]
+      lea ecx, [esi+$2e0]
+      call edx
+      @finish:
+      popad
+  end;
+end;
+
+
+procedure DetachAddon(wpn:pointer; addon_type:integer);stdcall;
+var addon_name:PChar;
+begin
+  case addon_type of
+    1:addon_name:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+    4:addon_name:=GetSilencerSection(wpn);
+    2: begin
+        DetachGLRight(wpn);
+        exit;
+       end;
+  else
+    Log('WpnUtils.DetachAddon: Invalid addon type!', true);
+    exit;
+  end;
+  if addon_name = nil then exit;
+  asm
+    pushad
+      push addon_name
+      call ActorUtils.CreateObjectToActor
+
+      mov esi, wpn
+      mov eax, addon_type
+      not eax
+      and [esi+$460], eax
+
+
+      mov ebx, xrgame_addr
+      add ebx, $2BD930
+      mov ecx, esi
+      call ebx                  //call CWeapon::UpdateAddonsVisibility
+
+      mov eax, [esi]
+      mov edx, [eax+$158]
+      mov ecx, esi
+      call edx
+
+      cmp addon_type, 1
+      jne @finish
+      mov byte ptr [esi+$6bc], 0
+
+      @finish:
+    popad
+  end;
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+
+function GetSilencerSection(wpn:pointer):PChar; stdcall;
+begin
+  asm
+    push eax
+
+    mov @result, 0
+    mov eax, wpn
+    mov eax, [eax+$474]
+    cmp eax, 0
+    je @finish
+    add eax, $10
+    mov @result, eax
+    
+    @finish:
+    pop eax
+  end;
+end;
+
+
+function GetGLSection(wpn:pointer):PChar; stdcall;
+begin
+  asm
+    push eax
+
+    mov @result, 0
+    mov eax, wpn
+    mov eax, [eax+$478]
+    cmp eax, 0
+    je @finish
+    add eax, $10
+    mov @result, eax
+                               
+    @finish:
+    pop eax
+  end;
+end;
+
+procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
+begin
+  asm
+    push eax
+    push eax
+    movss [esp], xmm0
+
+    mov eax, wpn
+    movss xmm0, time
+    movss [eax+$390], xmm0
+
+    movss xmm0, [esp]
+    add esp, 4
+    pop eax
+  end;
+end;
+
 function Init():boolean;
 begin
   result:=false;
@@ -665,9 +737,41 @@ begin
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
   SetWorldModelBoneStatus_internal1_func:=xrGame_addr+$3483C0;
   game_object_set_visual_name:=xrGame_addr+$1BFF60;
-  game_object_GetScriptGameObject:= xrGame_addr+$27FD40;  
+  game_object_GetScriptGameObject:= xrGame_addr+$27FD40;
 
   result:=true;
+end;
+
+procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
+begin
+  asm
+    push eax
+    push ecx
+
+    mov eax, wpn
+    mov cl, scope_type
+    mov byte ptr [eax+$6BC], cl
+
+    pop ecx
+    pop eax
+  end;
+end;
+
+function GetShootLockTime(wpn:pointer):single;stdcall;
+begin
+  asm
+    push eax
+    push eax
+    movss [esp], xmm0
+
+    mov eax, wpn
+    movss xmm0, [eax+$390]
+    movss @result, xmm0
+
+    movss xmm0, [esp]
+    add esp, 4
+    pop eax
+  end;
 end;
 
 end.

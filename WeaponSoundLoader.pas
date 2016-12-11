@@ -32,14 +32,26 @@ procedure LoadSounds(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;
 begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype', 'sndChangeCartridgeType', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_empty', 'sndReloadEmpty', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_jamned', 'sndJamned', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_jamned_last', 'sndJamnedLast', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_jammed', 'sndReloadJammed', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_jammed_last', 'sndReloadJammedLast', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_jammed_click', 'sndJammedClick', 1, $80100000);  
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changefiremode', 'sndChangeFireMode', 1, $80040000);
+
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_attach_sil', 'sndSilAtt', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_detach_sil', 'sndSilDet', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_attach_scope', 'sndScopeAtt', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_detach_scope', 'sndScopeDet', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_attach_gl', 'sndGLAtt', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_detach_gl', 'sndGLDet', 1, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_unload_mag', 'sndUnload', 1, $80040000);
+
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_fakeshoot_first', 'sndFakeFirst', 1, $80040000);  
 end;
 
 procedure SoundLoaderPatch; stdcall;
+const
+  sndReload:PChar='sndReload';
 begin
   asm
     pushad

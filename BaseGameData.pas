@@ -4,6 +4,9 @@ interface
   function Init:boolean;
   function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
   function nop_code(addr:cardinal; count:cardinal):boolean;
+  function GetGameTickCount:cardinal;  
+  function GetTimeDeltaSafe(starttime:cardinal):cardinal;
+  function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;   
 
 var
   xrGame_addr:cardinal;
@@ -15,35 +18,23 @@ const
   W_BM16:word=$4744;
   W_RPG7:word=$F56C;
 
-{  //новые анимации
-  anm_reload:PChar='anm_reload';
-  anm_reload_w_gl:PChar='anm_reload_w_gl';
-  anm_reload_empty:PChar='anm_reload_empty';
-  anm_reload_empty_w_gl:PChar='anm_reload_empty_w_gl';
-  anm_changecartridgetype:PChar='anm_changecartridgetype';
-  anm_changecartridgetype_w_gl:PChar='anm_changecartridgetype_w_gl';
-  anm_jamned:PChar = 'anm_jamned';
-  anm_jamned_last:PChar = 'anm_jamned_last';
-  anm_jamned_w_gl:PChar = 'anm_jamned_w_gl';
-  anm_jamned_last_w_gl:PChar = 'anm_jamned_last_w_gl';}
-
   //Новые звуки
-  sndReload:PChar='sndReload';
+{  sndReload:PChar='sndReload';
   sndReloadEmpty:PChar='sndReloadEmpty';
   snd_reload_empty:PChar='snd_reload_empty';
   snd_changecartridgetype:PChar = 'snd_changecartridgetype';
   sndChangeCartridgeType:PChar = 'sndChangeCartridgeType';
 
-  snd_jamned:PChar = 'snd_jamned';
+  snd_jamned:PChar = 'snd_jamned'
   sndJamned:PChar = 'sndJamned';
   snd_jamned_last:PChar = 'snd_jamned_last';
-  sndJamnedLast:PChar = 'sndJamnedLast';
+  sndJamnedLast:PChar = 'sndJamnedLast'; Ъ
 
   //Остальное
   scope_name:PChar = 'scope_name';
   body:PChar = 'body';
   wpn_silencer:PChar = 'wpn_silencer';
-  magazin:PChar = 'magazin';
+  magazin:PChar = 'magazin'; }
 
 implementation
 uses windows;
@@ -76,6 +67,14 @@ begin
   end;
 end;
 
+function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
+var rb:cardinal;
+begin
+  result:=true;
+  writeprocessmemory(hndl, PChar(addr), buf, count, rb);
+  if rb<>count then result:=false;
+end;
+
 function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
 var offsettowrite:cardinal;
     rb:cardinal;
@@ -91,5 +90,24 @@ begin
   if addbytescount>5 then nop_code(write_addr+5, addbytescount-5);
   write_addr:=write_addr+addbytescount;
 end;
+
+function GetGameTickCount:cardinal;
+asm
+  mov eax, $492ed8 //xrEngine.Device
+  mov eax, [eax+$28];
+  mov @result, eax
+end;
+
+
+function GetTimeDeltaSafe(starttime:cardinal):cardinal;
+var
+  curtime:cardinal;
+begin
+  curtime:=GetGameTickCount;
+  result:=curtime-starttime;
+  //обработаем переполнение
+  if result>curtime then result:=$FFFFFFFF-starttime+curtime;
+end;
+
 
 end.

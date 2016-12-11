@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils;
+uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer;
 
 var patch_addr:cardinal;
   tst_light:pointer;
@@ -79,19 +79,34 @@ begin
   scopes:=game_ini_read_string(section, 'scopes_sect');
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then curscope:=GetCurrentScopeSection(wpn) else curscope:='';
   while (GetNextSubStr(scopes, tmp, ',')) do begin
-    if not game_ini_line_exist(PChar(tmp), 'bones') then continue;
     if tmp=curscope then status:=true else status:=false;
-    SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'bones'), status);
+    if game_ini_line_exist(PChar(tmp), 'bones') then begin;
+      SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'bones'), status);
+    end;
+    if game_ini_line_exist(PChar(tmp), 'hide_bones') then begin
+      SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'hide_bones'), not status);
+    end;
   end;
 end;
 
-procedure WpnUpdate(wpn:pointer); stdcall;
+function WpnUpdate(wpn:pointer):boolean; stdcall; //возвращает, стоит ли продолжать апдейт для обновления состояние оружия, или погодеть пока
 const a:single = 1.0;
+var buf:WpnBuf;
 begin
-  //Обработаем установленные апгрейды
-  ProcessUpgrade(wpn);
-  //Теперь отобразим установленный прицел
-  ProcessScope(wpn);
+    result:=true;
+
+    //апдейт буфера
+    buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
+    if buf<>nil then begin
+        if not buf.Update then Log('Failed to update wpn: '+inttohex(cardinal(wpn), 8));
+    end;
+
+    if GetShootLockTime(wpn)<=0 then begin
+    //Обработаем установленные апгрейды
+    ProcessUpgrade(wpn);
+    //Теперь отобразим установленный прицел
+    ProcessScope(wpn);
+    end;
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
   LightUtils.Enable(tst_light, true);
@@ -120,26 +135,26 @@ begin
 end;
 
 procedure Patch();stdcall;
-begin
-  asm
+asm
+    movss [esp+8], xmm0
     pushad
-    pushfd
     push esi
     call WpnUpdate
-    popfd
+    cmp al, 1
     popad
-    lea edi, [esi+$2e0]
-    jmp patch_addr
-  end;
+    jne @finish
+    cmp [esi+$2e8], eax
+    @finish:
+    ret
 end;
 
 function Init:boolean;
 begin
   result:=false;
   tst_light:=nil;
-  patch_addr:=xrGame_addr+$2BC204;
-  if not WriteJump(patch_addr, cardinal(@Patch), 6) then exit;
+
+  patch_addr:=xrGame_addr+$2CD369;
+  if not WriteJump(patch_addr, cardinal(@Patch), 12, true) then exit;
   result:=true;
 end;
-
 end.
