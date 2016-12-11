@@ -41,6 +41,9 @@ const
 
   //Остальное
   scope_name:PChar = 'scope_name';
+  body:PChar = 'body';
+  wpn_silencer:PChar = 'wpn_silencer';
+  magazin:PChar = 'magazin';
 
 implementation
 uses windows;

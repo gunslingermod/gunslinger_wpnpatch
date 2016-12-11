@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers;
+uses BaseGameData, GameWrappers, WpnUtils;
 const
   hud:PChar='hud';
   visual:PChar='visual';
@@ -16,17 +16,20 @@ var
   upgrade_weapon_addr:cardinal;
   scope_detach_callback_addr:cardinal;
 
+
 procedure WeaponVisualChanger();
 //в действительности - один аргумент, адрес оружия, с которым будем работать
 begin
   asm
     pushad
     pushfd
+
     //jmp @finish
     //извлечем аргумент-оружие и на всякий проверим на NULL
     mov edi, [esp+$28]
     test edi, edi
     je @finish
+
     //посмотрим, нужно ли вообще проводить какие-то манипуляции
     //прочитаем scope_status и убедимся, что там 2 - прицел съемный
     mov ebx, [edi+$464]
@@ -75,7 +78,8 @@ begin
 
     push eax
     push edi
-    call set_weapon_visual
+    call SetVisual
+
 
     //Проверим существование строки и прочитаем, коллиматорный прицел используется или нет
     push scope_name
@@ -94,10 +98,10 @@ begin
     call game_ini_r_bool
     test al, al
     jz @no_collimator
-    mov byte ptr [edi+$6be], 1
+    mov byte ptr [edi+$6bd], 1
     jmp @finish
     @no_collimator:
-    mov byte ptr [edi+$6be], 0
+    mov byte ptr [edi+$6bd], 0
     jmp @finish
 
     @finish:
@@ -131,10 +135,13 @@ procedure AttachScope_Callback_Patch();
 begin
   asm
     or byte ptr [ebp+$460],01
+
     pushad
     pushfd
+
     push ebp
     call WeaponVisualChanger
+
     popfd
     popad
     jmp scope_attach_callback_addr
@@ -147,8 +154,10 @@ begin
     mov [esi+$460], al
     pushad
     pushfd
+
     push esi
     call WeaponVisualChanger
+
     popfd
     popad
     jmp scope_detach_callback_addr
