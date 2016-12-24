@@ -62,7 +62,7 @@ begin
       SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
     end;
     if game_ini_line_exist(section, 'visual') then begin
-      SetVisual(wpn, game_ini_read_string(section, 'visual'));
+      SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
     end;
   end;
 end;

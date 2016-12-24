@@ -4,6 +4,8 @@ interface
 function Init:boolean;
 
 procedure OnWeaponJam_AfterAnim(wpn:pointer; param:integer);stdcall;
+procedure OnWeaponHide(wpn:pointer);stdcall;
+procedure OnWeaponShow(wpn:pointer);stdcall;
 
 implementation
 uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils;
@@ -518,6 +520,35 @@ begin
   if not WriteJump(jmp_addr, cardinal(@OnChangeFireMode_Patch), 6, true) then exit;
 
   result:=true;
+end;
+
+procedure ResetActorFlags(act:pointer);
+begin
+//  SetActorActionState(act, actPreparingDetectorFinished, false); //смена пистолетов не требует повтороного доставания детектора
+  SetActorActionState(act, actAimStarted, false);
+  SetActorActionState(act, actModSprintStarted, false);
+end;
+
+procedure OnWeaponHide(wpn:pointer);stdcall;
+var
+  act, owner:pointer;
+begin
+  act:=GetActor();
+  owner:=GetOwner(wpn);
+  if (owner<>nil) and (owner=act) then begin
+    ResetActorFlags(act);
+  end;
+end;
+
+procedure OnWeaponShow(wpn:pointer);stdcall;
+var
+  act, owner:pointer;
+begin
+  act:=GetActor();
+  owner:=GetOwner(wpn);
+  if (owner<>nil) and (owner=act) then begin
+    ResetActorFlags(act);
+  end;
 end;
 
 end.

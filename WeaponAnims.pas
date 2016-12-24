@@ -1,13 +1,13 @@
 unit WeaponAnims;
 
-//Ќе уверен - не редактируй!
+//Ќе уверен - не лезь. Sin!
 
 interface
 function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils;
 
 var
   anim_name:string;
@@ -89,11 +89,22 @@ begin
   //≈сли у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     canshoot:=WpnCanShoot(PChar(cls));
-    //--------------------------ћодификаторы движени€ актора---------------------------------------
-    //если актор в режиме прицеливани€ - однозначно используем модификатор движени€ aim
+    //--------------------------ћодификаторы движени€/состо€ни€ актора---------------------------------------
+
+    //если актор в режиме прицеливани€
     if (canshoot or (cls='WP_BINOC')) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
-      ModifierMoving(wpn, actor, anim_name);
+      if GetActorActionState(actor, actAimStarted) then begin
+        ModifierMoving(wpn, actor, anim_name);
+      end else begin
+        anim_name:=anim_name+'_start';
+        if canshoot then MagazinedWpnPlaySnd(wpn, 'sndAimStart');
+        SetActorActionState(actor, actAimStarted, true);
+      end;
+    end else if (canshoot or (cls='WP_BINOC')) and GetActorActionState(actor, actAimStarted) then begin
+      anim_name:=anim_name+'_aim_end';
+      if canshoot then MagazinedWpnPlaySnd(wpn, 'sndAimEnd');
+      SetActorActionState(actor, actAimStarted, false);
 
     //посмотрим на передвижение актора:
     end else if GetActorActionState(actor, actSprint) then begin
@@ -227,6 +238,15 @@ const anm_show:PChar = 'anm_show';
 begin
   asm
     push 0                  //забиваем место под название анимы
+
+    pushad
+    pushfd
+      push esi
+      call WeaponEvents.OnWeaponShow
+    popfd
+    popad
+
+
     pushad
     pushfd
     push anm_show
@@ -266,14 +286,22 @@ const anm_hide:PChar = 'anm_hide';
 begin
   asm
     push 0                  //забиваем место под название анимы
+
     pushad
     pushfd
-    push anm_hide
-    push esi
-    call anm_std_selector  //получаем строку с именем анимы
-    mov ecx, [esp+$28]      //запоминаем адрес возврата
-    mov [esp+$28], eax      //кладем на его место результирующую строку
-    mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
+      push esi
+      call WeaponEvents.OnWeaponHide
+    popfd
+    popad
+
+    pushad
+    pushfd
+      push anm_hide
+      push esi
+      call anm_std_selector  //получаем строку с именем анимы
+      mov ecx, [esp+$28]      //запоминаем адрес возврата
+      mov [esp+$28], eax      //кладем на его место результирующую строку
+      mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
     popfd
     popad
     ret
@@ -564,6 +592,7 @@ begin
   //≈сли у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------ћодификаторы состо€ни€ оружи€----------------------------------------------------
+    anim_name:=anim_name + GetFireModeStateMark(wpn);
     if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
       if GetAmmoInMagCount(wpn)=0 then anim_name:=anim_name+'_last';

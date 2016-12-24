@@ -4,9 +4,11 @@ interface
 function GetActor():pointer; stdcall;
 function GetActorActionState(stalker:pointer; mask:cardinal; previous_state:boolean = false):boolean; stdcall;
 procedure CreateObjectToActor(section:PChar); stdcall;
-function IsHolderInSprintState(wpn:pointer):boolean; stdcall;
+function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только для актора, для других всегда вернет false!
+function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
 procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
 function GetActorActiveItem():pointer; stdcall;
+function Init():boolean; stdcall;
 
 const
   actMovingForward:cardinal = $1;
@@ -16,11 +18,14 @@ const
   actCrounch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
+
+  actAimStarted:cardinal = $4000000;
+  actDetectorWasActive:cardinal = $2000000;
   actPreparingDetectorFinished:cardinal = $8000000;
   actModSprintStarted:cardinal = $10000000;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers;
+uses BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer;
 
 function GetActor():pointer; stdcall;
 begin
@@ -127,6 +132,17 @@ begin
     result:=false;
 end;
 
+function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
+var
+  holder:pointer;
+begin
+  holder:=WpnUtils.GetOwner(wpn);
+  if (holder<>nil) then begin
+    result:=(DetectorUtils.GetActiveDetector(holder)<>nil);
+  end else
+    result:=false;
+end;
+
 function GetActorActiveItem():pointer; stdcall;
 asm
   pushfd
@@ -143,6 +159,48 @@ asm
   @finish:
   popfd
   mov @result, eax
+end;
+
+procedure ActorUpdate(act:pointer); stdcall;
+var
+  itm:pointer;
+  hud_sect:PChar;
+begin
+  //если стоит флаг того, что детектор только что был в руках, но сейчас детектора в руках нет - непорядок...
+  //сбросим флаги, посмотрим, в каком состоянии оружие актора.
+  //если в идле - то проиграем аниму сокрытия.
+
+  if GetActorActionState(act, actDetectorWasActive) and (GetActiveDetector(act)=nil) then begin
+    itm:=GetActorActiveItem();
+    if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) and (GetCurrentState(itm)=0) then begin
+      hud_sect:=GetHUDSection(itm);
+      if (game_ini_line_exist(hud_sect, 'use_prepare_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_prepare_detector_anim')) then begin
+        PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
+      end;
+    end;
+    SetActorActionState(act, actPreparingDetectorFinished, false);
+    SetActorActionState(act, actDetectorWasActive, false);
+  //end else if (not GetActorActionState(act, actDetectorWasActive)) and GetActorActionState(act, actPreparingDetectorFinished) then begin
+    //TODO:добавить код принудительной активации детектора
+  end;
+end;
+
+procedure ActorUpdate_Patch(); stdcall
+asm
+  pushad
+    push ecx
+    call ActorUpdate
+  popad
+  mov eax, [esi+$200]
+end;
+
+function Init():boolean; stdcall;
+var jmp_addr:cardinal;
+begin
+  result:=false;
+  jmp_addr:=xrGame_addr+$261DF6;
+  if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
+  result:=true;
 end;
 
 end.

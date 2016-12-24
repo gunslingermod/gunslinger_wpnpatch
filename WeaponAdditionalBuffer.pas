@@ -243,7 +243,7 @@ end;
 
 function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) then
+  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsAimNow(wpn) then
     result:=false
   else
     result:=true;
@@ -259,7 +259,7 @@ end;
 
 function CanAimNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) then
+  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsHolderHasActiveDetector(wpn) then
     result:=false
   else
     result:=true;

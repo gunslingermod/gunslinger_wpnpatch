@@ -17,6 +17,7 @@ interface
   function Is16x9():boolean;stdcall;
   function alife():pointer;stdcall;
   function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
+  function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
 
 
 implementation
@@ -40,6 +41,8 @@ var
   alife_create_ptr:cardinal;
   cweaponmagazined_unload_mag:cardinal;
 
+  game_object_GetScriptGameObject_ptr:cardinal;
+
 function Init:boolean;
 begin
   game_ini_ptr:=xrGame_addr+$5127E8;
@@ -57,6 +60,7 @@ begin
   is16x9_addr:=xrGame_addr+$43c830;
   alife_ptr:=xrGame_addr+$97780;
   alife_create_ptr:=xrGame_addr+$96eb0;
+  game_object_GetScriptGameObject_ptr:= xrGame_addr+$27FD40;
 
 
   result:=true;
@@ -308,6 +312,15 @@ asm
     add esp, $14
     mov @result, eax
     @finish:
+  popad
+end;
+
+function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
+asm
+  pushad
+    mov ecx, obj
+    call game_object_GetScriptGameObject_ptr
+    mov @result, eax
   popad
 end;
 end.

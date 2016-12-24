@@ -25,7 +25,7 @@ function GetScopeStatus(wpn:pointer):cardinal; stdcall;
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
 function GetGLStatus(wpn:pointer):cardinal; stdcall;
 function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
-procedure SetVisual(obj:pointer; name:pchar);stdcall;
+procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 function GetAmmoInMagCount(wpn:pointer):integer; stdcall;
 function GetOwner(wpn:pointer):pointer; stdcall;
@@ -56,7 +56,6 @@ var
   PlayHudAnim_Func:cardinal;
   SetWorldModelBoneStatus_internal1_func:cardinal;
   game_object_set_visual_name:cardinal;
-  game_object_GetScriptGameObject:cardinal;
 
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 begin
@@ -85,15 +84,15 @@ begin
   end;
 end;
 
-procedure SetVisual (obj:pointer; name:pchar);stdcall;
+procedure SetWpnVisual (obj:pointer; name:pchar);stdcall;
 begin
   //Будем мимикрировать под скрипт
   asm
     pushad
     pushfd
 
-    mov ecx, obj
-    add ecx, $000000E8
+    add obj, $000000E8
+    push obj
     call game_object_GetScriptGameObject
     mov ecx, eax
     push name
@@ -741,7 +740,6 @@ begin
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
   SetWorldModelBoneStatus_internal1_func:=xrGame_addr+$3483C0;
   game_object_set_visual_name:=xrGame_addr+$1BFF60;
-  game_object_GetScriptGameObject:= xrGame_addr+$27FD40;
 
   result:=true;
 end;

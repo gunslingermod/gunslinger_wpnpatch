@@ -18,7 +18,7 @@ uses
   ActorUtils in 'ActorUtils.pas',
   HudTransparencyFix in 'HudTransparencyFix.pas',
   WeaponAdditionalBuffer in 'WeaponAdditionalBuffer.pas',
-  DetectorAnims in 'DetectorAnims.pas';
+  DetectorUtils in 'DetectorUtils.pas';
 
 {$R *.res}
 
@@ -40,6 +40,7 @@ begin
   WeaponUpdate.Init;
   LightUtils.Init;
   WeaponAnims.Init;
-  DetectorAnims.Init;
+  DetectorUtils.Init;
+  ActorUtils.Init;
 //  HudTransparencyFix.Init;
 end.
