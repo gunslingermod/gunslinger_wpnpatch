@@ -15,6 +15,7 @@ type
 
     _last_update_time:cardinal;
     _lock_remain_time:cardinal;
+    _owner:pointer;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
@@ -65,12 +66,13 @@ begin
   _lock_remain_time:=0;
   _ammo_count_for_reload:=-1;
   _is_weapon_explosed:=false;
+  _owner:=GetOwner(wpn);
 
   _last_update_time:=GetGameTickCount;
 
   _SetWpnBufPtr(wpn, self);
 
-  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
+//  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
 
 destructor WpnBuf.Destroy;
@@ -85,6 +87,7 @@ begin
   result:=nil;
   cls:=GetClassName(wpn);
   if not WpnCanShoot(PChar(cls)) then exit;
+
   asm
     push eax
     push ebx
@@ -197,7 +200,14 @@ end;
 function WpnBuf.Update():boolean;
 var delta:cardinal;
 begin
+
   delta:=GetTimeDeltaSafe(_last_update_time);
+
+  if _owner<>GetOwner(self._my_wpn) then begin
+    _do_action_after_anim_played:=nil;
+    self._lock_remain_time:=0;
+    _owner:=GetOwner(_my_wpn);
+  end;
 
   if self._lock_remain_time>delta then begin
     self._lock_remain_time:=self._lock_remain_time-delta;

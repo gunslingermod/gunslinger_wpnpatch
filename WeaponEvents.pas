@@ -262,7 +262,7 @@ end;
 //------------------------------------------------------------------------------
 function OnCWeaponMagazinedNetSpawn(wpn:pointer):boolean;stdcall;
 begin
-  WpnBuf.Create(wpn);
+  if WpnCanShoot(PChar(GetClassName(wpn))) then WpnBuf.Create(wpn);
 end;
 
 procedure CWeaponMagazined_NetSpawn_Patch();

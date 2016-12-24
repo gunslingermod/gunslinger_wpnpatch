@@ -95,10 +95,12 @@ var buf:WpnBuf;
 begin
     result:=true;
 
+
+
     //апдейт буфера
     buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
     if buf<>nil then begin
-        if not buf.Update then Log('Failed to update wpn: '+inttohex(cardinal(wpn), 8));
+      if not buf.Update then Log('Failed to update wpn: '+inttohex(cardinal(wpn), 8));
     end;
 
     if GetShootLockTime(wpn)<=0 then begin

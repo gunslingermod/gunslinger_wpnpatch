@@ -6,6 +6,7 @@ function GetActorActionState(stalker:pointer; mask:cardinal; previous_state:bool
 procedure CreateObjectToActor(section:PChar); stdcall;
 function IsHolderInSprintState(wpn:pointer):boolean; stdcall;
 procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
+function GetActorActiveItem():pointer; stdcall;
 
 const
   actMovingForward:cardinal = $1;
@@ -15,8 +16,8 @@ const
   actCrounch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
-  actPreparingDetectorShowingStarted:cardinal = $8000000;
-  actModSprintStarted:cardinal = $10000000;  
+  actPreparingDetectorFinished:cardinal = $8000000;
+  actModSprintStarted:cardinal = $10000000;
 
 implementation
 uses BaseGameData, WpnUtils, GameWrappers;
@@ -120,10 +121,28 @@ var actor:pointer;
 begin
   holder:=WpnUtils.GetOwner(wpn);
   actor:=GetActor();
-  if (actor<>nil) and (actor=holder) and (GetActorActionState(holder, actSprint)) then begin
+  if (actor<>nil) and (actor=holder) and (GetActorActionState(holder, actSprint) or GetActorActionState(holder, actModSprintStarted)) then begin
     result:=true;
   end else
     result:=false;
+end;
+
+function GetActorActiveItem():pointer; stdcall;
+asm
+  pushfd
+  
+  mov eax, xrGame_addr
+  add eax, $64F0E4
+  mov eax, [eax]
+  mov eax, [eax+$94]
+  cmp eax, 0
+  je @finish
+  mov eax, [eax+4]
+  sub eax, $2e0
+
+  @finish:
+  popfd
+  mov @result, eax
 end;
 
 end.

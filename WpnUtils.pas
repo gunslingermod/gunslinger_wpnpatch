@@ -42,7 +42,6 @@ function GetGLSection(wpn:pointer):PChar; stdcall;
 procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
 function GetShootLockTime(wpn:pointer):single;stdcall;
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
-function GetActorActiveItem():pointer; stdcall;
 function GetCurrentCondition(wpn:pointer):single; stdcall;
 function GetPosition(wpn:pointer):pointer; stdcall;
 
@@ -779,23 +778,6 @@ begin
   end;
 end;
 
-function GetActorActiveItem():pointer; stdcall;
-asm
-  pushfd
-  
-  mov eax, xrGame_addr
-  add eax, $64F0E4
-  mov eax, [eax]
-  mov eax, [eax+$94]
-  cmp eax, 0
-  je @finish
-  mov eax, [eax+4]
-  sub eax, $2e0
-
-  @finish:
-  popfd
-  mov @result, eax
-end;
 
 function GetCurrentCondition(wpn:pointer):single; stdcall;
 asm

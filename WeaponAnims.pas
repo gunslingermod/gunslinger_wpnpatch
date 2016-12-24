@@ -7,7 +7,7 @@ function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils;
 
 var
   anim_name:string;
@@ -195,7 +195,7 @@ begin
     //≈сли магазин пуст - всегда играем empty, если можем
     cls:=GetClassName(wpn);    
     if WpnCanShoot(PChar(cls)) then begin
-      base_anim:=base_anim + GetFireModeStateMark(wpn);
+      if leftstr(base_anim, 18)<>'anm_changefiremode' then base_anim:=base_anim + GetFireModeStateMark(wpn);
       if IsWeaponJammed(wpn) then begin
         base_anim:=base_anim+'_jammed';
       end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
