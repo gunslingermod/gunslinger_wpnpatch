@@ -112,7 +112,11 @@ end;
 
 function WpnBuf.GetCurAnim: string;
 begin
-  result:=self._current_anim;
+  if self._current_anim<>'' then begin
+    result:=self._current_anim;
+  end else begin
+    result:=GetActualCurrentAnim(self._my_wpn);
+  end;
 end;
 
 function WpnBuf.GetReloadAmmoCnt: integer;

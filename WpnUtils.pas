@@ -18,6 +18,7 @@ function CurrentQueueSize(wpn:pointer):integer; stdcall;
 function GetInstalledUpgradesCount(wpn:pointer):cardinal; stdcall;
 function GetInstalledUpgradeSection(wpn:pointer; index:cardinal):PChar; stdcall;
 function GetSection(wpn:pointer):PChar; stdcall;
+function GetID(wpn:pointer):word; stdcall;
 function GetHUDSection(wpn:pointer):PChar; stdcall;
 function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
 procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
@@ -44,6 +45,7 @@ function GetShootLockTime(wpn:pointer):single;stdcall;
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
 function GetCurrentCondition(wpn:pointer):single; stdcall;
 function GetPosition(wpn:pointer):pointer; stdcall;
+function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
 
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
@@ -292,12 +294,35 @@ begin
   end;
 end;
 
+function GetID(wpn:pointer):word; stdcall;
+asm
+  mov eax, [wpn]
+  movzx eax, word ptr [eax+$18c]
+  mov @result, ax
+end;
+
 function GetHUDSection(wpn:pointer):PChar; stdcall;
 begin
   asm
     mov eax, wpn
     mov eax, [eax+$314]
     add eax, $10
+    mov @result, eax
+  end;
+end;
+
+function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
+begin
+  asm
+    mov eax, wpn
+    mov eax, [eax+$2FC]
+
+    test eax, eax
+    je @finish
+
+    add eax, $10
+
+    @finish:
     mov @result, eax
   end;
 end;
@@ -449,7 +474,7 @@ begin
     call str_container_dock
     test eax, eax
     je @finish
-    add [eax], 1
+//    add [eax], 1
     push eax
     mov eax, esp
 
@@ -738,6 +763,7 @@ function Init():boolean;
 begin
   GetCurrentHud_Func:=xrGame_addr+$2F97A0;
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
+
   SetWorldModelBoneStatus_internal1_func:=xrGame_addr+$3483C0;
   game_object_set_visual_name:=xrGame_addr+$1BFF60;
 

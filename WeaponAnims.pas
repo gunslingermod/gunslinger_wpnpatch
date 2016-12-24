@@ -525,10 +525,12 @@ begin
   fun:=nil;
 
   if play_breech_snd then begin
-    if IsWeaponJammed(wpn) then begin
-      MagazinedWpnPlaySnd(wpn, 'sndBreechblock');
-    end else begin
+    if IsExplosed(wpn) then begin
+      MagazinedWpnPlaySnd(wpn, 'sndExplose');
+    end else if IsWeaponJammed(wpn) then begin
       MagazinedWpnPlaySnd(wpn, 'sndJam');
+    end else begin
+      MagazinedWpnPlaySnd(wpn, 'sndBreechblock');
     end
   end;
 
@@ -540,10 +542,10 @@ begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
     if IsAimNow(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
-    anim_name:=anim_name + GetFireModeStateMark(wpn);
+    anim_name:=anim_name + GetFireModeStateMark(wpn);                                         
     if IsExplosed(wpn) then begin
       anim_name:=anim_name+'_explose';
-      fun:=OnWeaponJam_AfterAnim;
+      fun:=OnWeaponExplode_AfterAnim;
     end else if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
     end else if GetAmmoInMagCount(wpn)=1 then
@@ -559,7 +561,7 @@ begin
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
-  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name), false, fun, 0);
+  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name), true, fun, 0);
 end;
 
 procedure anm_shots_std_patch();stdcall;

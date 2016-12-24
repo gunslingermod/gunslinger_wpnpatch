@@ -3,12 +3,12 @@ unit WeaponEvents;
 interface
 function Init:boolean;
 
-procedure OnWeaponJam_AfterAnim(wpn:pointer; param:integer);stdcall;
+procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
 procedure OnWeaponHide(wpn:pointer);stdcall;
 procedure OnWeaponShow(wpn:pointer);stdcall;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils;
+uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -123,7 +123,7 @@ var addonname:PChar;
     anim_name:string;
     hud_sect:PChar;
 begin
-  log('Attaching addon: '+inttostr(addontype));
+  //log('Attaching addon: '+inttostr(addontype));
 
   param_name:=nil;
   snd_name:=nil;
@@ -353,9 +353,12 @@ var
   anm_name:string;
 begin
   hud_sect:=GetHUDSection(wpn);
+  firemode:=CurrentQueueSize(wpn);
+  if firemode=new_mode then exit; //обрабатываем срабатывание в случае единственного доступного режима стрельбы
+
   if (hud_sect=nil) or (not game_ini_line_exist(hud_sect, 'use_firemode_change_anim')) or (not game_ini_r_bool(hud_sect, 'use_firemode_change_anim')) then exit;
 
-  firemode:=CurrentQueueSize(wpn);
+
   anm_name:='anm_changefiremode_from_';
   if firemode<0 then anm_name:=anm_name+'a' else anm_name:=anm_name+inttostr(firemode);
   anm_name:=anm_name+'_to_';
@@ -394,10 +397,23 @@ asm
 end;
 
 //-------------------------Событие назначения клина-----------------------------
-procedure OnWeaponJam_AfterAnim(wpn:pointer; param:integer);stdcall;
+procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
+var
+  hud_sect:PChar;
+  trash, element:string;
 begin
-  log('AfterExplosion');
-  alife_create('energetic_trash', GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+  log('afterexpl');
+  hud_sect:=GetHUDSection(wpn);
+  if game_ini_line_exist(hud_sect, 'explosion_trash') then begin
+    trash:= game_ini_read_string(hud_sect, 'explosion_trash');
+    while (GetNextSubStr(trash, element, ',')) do begin
+      alife_create(PChar(element), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+    end;
+  end;
+  if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then alife_create(game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name'), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+  if IsSilencerAttached(wpn) and (GetSilencerStatus(wpn)=2) then alife_create(GetSilencerSection(wpn), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+  if IsGLAttached(wpn) and (GetGLStatus(wpn)=2) then alife_create(GetGLSection(wpn), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+  alife_release(get_server_object_by_id(GetID(wpn)));
 end;
 
 procedure OnWeaponJam(wpn:pointer);stdcall;
@@ -432,6 +448,26 @@ asm
   xor eax, eax
 end;
 
+//--------------Отображение сообщения о клине----------------------------------
+
+procedure OnJammedHintShow(); stdcall
+var
+  wpn:pointer;
+begin
+  wpn:=GetActorActiveItem();
+  if (wpn=nil) or not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
+  if not (IsExplosed(wpn) or (IsActionProcessing(wpn) and (leftstr(GetCurAnim(wpn), length('anm_fakeshoot'))<>'anm_fakeshoot'))) then begin
+    ShowCustomMessage('gun_jammed', true);
+  end;
+end;
+
+procedure OnJammedHintShow_Patch(); stdcall
+asm
+  pushad
+    call OnJammedHintShow
+  popad
+end;
+
 //---------------------Щелчки при осечках/пустом магазине-----------------------
 procedure OnEmptyClick(wpn:pointer);stdcall;
 begin
@@ -463,6 +499,40 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
+
+procedure ResetActorFlags(act:pointer);
+begin
+  SetActorActionState(act, actAimStarted, false);
+  SetActorActionState(act, actModSprintStarted, false);
+end;
+
+procedure OnWeaponHide(wpn:pointer);stdcall;
+var
+  act, owner:pointer;
+begin
+  act:=GetActor();
+  owner:=GetOwner(wpn);
+  if (owner<>nil) and (owner=act) then begin
+    ResetActorFlags(act);
+  end;
+end;
+
+procedure OnWeaponShow(wpn:pointer);stdcall;
+var
+  act, owner, det:pointer;
+begin
+  act:=GetActor();
+  owner:=GetOwner(wpn);
+  if (owner<>nil) and (owner=act) then begin
+    ResetActorFlags(act);
+    det:=ItemInSlot(act, 9);
+    if (det<>nil) and not CanUseDetectorWithItem(wpn) then begin
+      SetDetectorForceUnhide(det, false);
+      SetActorActionState(act, actShowDetectorNow, false);
+    end;
+  end;
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -532,41 +602,13 @@ begin
   jmp_addr:=xrGame_addr+$2CE34F;
   if not WriteJump(jmp_addr, cardinal(@OnChangeFireMode_Patch), 6, true) then exit;
 
+  //модифицированный обработчик отображения сообщения о клине
+  jmp_addr:=xrGame_addr+$2CFF6B;
+  if not WriteJump(jmp_addr, cardinal(@OnJammedHintShow_Patch), 19, true) then exit;
+  
   result:=true;
 end;
 
-procedure ResetActorFlags(act:pointer);
-begin
-  SetActorActionState(act, actAimStarted, false);
-  SetActorActionState(act, actModSprintStarted, false);
-end;
-
-procedure OnWeaponHide(wpn:pointer);stdcall;
-var
-  act, owner:pointer;
-begin
-  act:=GetActor();
-  owner:=GetOwner(wpn);
-  if (owner<>nil) and (owner=act) then begin
-    ResetActorFlags(act);
-  end;
-end;
-
-procedure OnWeaponShow(wpn:pointer);stdcall;
-var
-  act, owner, det:pointer;
-begin
-  act:=GetActor();
-  owner:=GetOwner(wpn);
-  if (owner<>nil) and (owner=act) then begin
-    ResetActorFlags(act);
-    det:=ItemInSlot(act, 9);
-    if (det<>nil) and not CanUseDetectorWithItem(wpn) then begin
-      SetDetectorForceUnhide(det, false);
-      SetActorActionState(act, actShowDetectorNow, false);
-    end;
-  end;
-end;
 
 end.
 

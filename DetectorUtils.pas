@@ -123,14 +123,21 @@ end;
 function CanShowDetector():boolean; stdcall;
 var
   itm:pointer;
+  param:string;
 begin
   result:=true;
   itm:=GetActorActiveItem();
   if itm<>nil then begin
-    //играем аниму только если мы не бежим и не выполняем какое-либо действие, кроме отыгрывания анимы детектора
-    //result:= not (IsHolderInAimState(itm) or IsAimNow(itm) or GetActorActionState(GetActor, actModSprintStarted) or (IsActionProcessing(itm) and (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') ));
-    result:= not (IsHolderInAimState(itm) or IsAimNow(itm) or GetActorActionState(GetActor, actModSprintStarted));
-    if result then result:= (not IsActionProcessing(itm)) or (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') or (leftstr(GetCurAnim(itm), length('anm_finish_detector'))='anm_finish_detector') ;
+      param := GetCurAnim(itm);
+      if param = '' then param:=GetActualCurrentAnim(itm);
+      param:='disable_detector_'+param;
+      if IsHolderInAimState(itm) or IsAimNow(itm) then begin
+        result:=false;
+      end else if game_ini_line_exist(GetHUDSection(itm), PChar(param)) then begin
+        result:=not game_ini_r_bool(GetHUDSection(itm), PChar(param));
+      end else begin
+        result:=true
+      end;
   end;
 end;
 

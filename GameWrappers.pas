@@ -17,7 +17,9 @@ interface
   function Is16x9():boolean;stdcall;
   function alife():pointer;stdcall;
   function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
+  function alife_release(srv_obj:pointer):boolean;stdcall;
   function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
+  procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall;
 
 
 implementation
@@ -39,6 +41,7 @@ var
   alife_object_ptr:cardinal;
   alife_ptr:cardinal;
   alife_create_ptr:cardinal;
+  alife_release_ptr:cardinal;
   cweaponmagazined_unload_mag:cardinal;
 
   game_object_GetScriptGameObject_ptr:cardinal;
@@ -60,6 +63,7 @@ begin
   is16x9_addr:=xrGame_addr+$43c830;
   alife_ptr:=xrGame_addr+$97780;
   alife_create_ptr:=xrGame_addr+$96eb0;
+  alife_release_ptr:=xrGame_addr+$98410;
   game_object_GetScriptGameObject_ptr:= xrGame_addr+$27FD40;
 
 
@@ -323,4 +327,50 @@ asm
     mov @result, eax
   popad
 end;
+
+function alife_release(srv_obj:pointer):boolean;stdcall;
+asm
+  mov @result, 0
+  pushad
+    cmp srv_obj, 0
+    je @finish
+    call alife
+    cmp eax, 0
+    je @finish
+    push 01
+    push srv_obj
+    push eax
+    call alife_release_ptr
+    add esp, $C
+    mov @result, al
+
+    @finish:
+  popad
+end;
+
+procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall;
+asm
+  pushad
+    cmp message_name, 0
+    je @finish
+
+    mov eax, xrgame_addr
+    add eax, $4AFD90
+    call eax
+    cmp eax, 0
+    je @finish
+
+    mov ecx, eax
+    movzx eax, b
+    push eax
+    push message_name
+
+    mov eax, xrgame_addr
+    add eax, $4B1760
+    call eax
+
+    @finish:
+  popad
+end;
+
 end.

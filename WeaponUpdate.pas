@@ -2,9 +2,10 @@ unit WeaponUpdate;
 
 interface
 function Init:boolean;
+function WpnUpdate(wpn:pointer):boolean; stdcall;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer;
+uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils;
 
 var patch_addr:cardinal;
   tst_light:pointer;
@@ -94,8 +95,14 @@ const a:single = 1.0;
 var buf:WpnBuf;
 begin
     result:=true;
+    if get_server_object_by_id(GetID(wpn))=nil then exit;
 
-
+    if ((GetActor=nil) or (GetOwner(wpn)<>GetActor)) then begin
+      if IsExplosed(wpn) then OnWeaponExplode_AfterAnim(wpn, 0);
+      if leftstr(GetCurAnim(wpn), length('anm_attach_scope_'))='anm_attach_scope_' then DetachAddon(wpn, 1);
+      if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
+      if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
+    end;
 
     //апдейт буфера
     buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
@@ -104,10 +111,10 @@ begin
     end;
 
     if GetShootLockTime(wpn)<=0 then begin
-    //Обработаем установленные апгрейды
-    ProcessUpgrade(wpn);
-    //Теперь отобразим установленный прицел
-    ProcessScope(wpn);
+      //Обработаем установленные апгрейды
+      ProcessUpgrade(wpn);
+      //Теперь отобразим установленный прицел
+      ProcessScope(wpn);
     end;
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
@@ -135,6 +142,8 @@ begin
     popad
   end;     }
 end;
+
+
 
 procedure Patch();stdcall;
 asm
