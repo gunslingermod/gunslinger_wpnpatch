@@ -7,7 +7,7 @@ procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 function GetActiveDetector(act:pointer):pointer; stdcall;    //¬озвращает CScriptGameObject! »справить!
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils;
+uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils;
 
 function CanShowDetector():boolean; stdcall;
 var
@@ -15,7 +15,9 @@ var
 begin
   result:=true;
   itm:=GetActorActiveItem();
-  if itm<>nil then result:= not (IsActionProcessing(itm) or GetActorActionState(GetActor, actModSprintStarted));
+  if itm<>nil then
+    //играем аниму только если мы не бежим и не выполн€ем какое-либо действие, кроме отыгрывани€ анимы детектора
+    result:= not ( GetActorActionState(GetActor, actModSprintStarted) or (IsActionProcessing(itm) and (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') ));
 end;
 
 procedure HideDetectorInUpdateOnActionPatch; stdcall;
@@ -51,13 +53,28 @@ end;
 procedure OnDetectorPrepared(wpn:pointer; p:integer); stdcall
 var
   act:pointer;
-  itm:pointer;
+  itm, det:pointer;
 begin
-  itm:=GetActorActiveItem();
   act:=GetActor;
+  if (act=nil) or (act<>GetOwner(wpn)) then exit;
 
-  if (itm <> nil) and (itm=wpn) then 
-    SetActorActionState(act, actPreparingDetectorFinished, true);
+  itm:=GetActorActiveItem();
+  det:=ItemInSlot(act, 9);
+  if (itm <> nil) and (itm=wpn) and (det<>nil) then begin
+    SetActorActionState(act, actShowDetectorNow, true);
+
+    SetDetectorForceUnhide(det, false);
+    asm
+      pushad
+        push 01
+        mov ecx, det
+        mov eax, xrGame_addr
+        add eax, $2ecda0
+        call eax
+      popad
+    end;
+    PlayCustomAnimStatic(itm, 'anm_show_detector');
+  end;
 
 end;
 
@@ -123,8 +140,9 @@ begin
   if not CanShowDetector then exit;
 
   //теперь смотрим, игралась ли уже вводна€ анимаци€ доставани€ детектора
-  if GetActorActionState(act, actPreparingDetectorFinished) then begin
+  if GetActorActionState(act, actShowDetectorNow) then begin
     result:=true;
+    SetActorActionState(act, actShowDetectorNow, false);
   end else begin
     //анима не игралась. “ак воспроизведем еЄ! ≈сли сможем...
     itm:=GetActorActiveItem();
@@ -132,7 +150,7 @@ begin
       hud_sect:=GetHUDSection(itm);
       if (game_ini_line_exist(hud_sect, 'use_prepare_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_prepare_detector_anim')) then begin
         PlayCustomAnimStatic(itm, 'anm_prepare_detector', 'sndPrepareDet', OnDetectorPrepared, 0);
-        SetDetectorForceUnhide(det, true);
+        SetDetectorForceUnhide(det, true); 
       end else result:=true;
     end else begin
       result:=true;
@@ -164,6 +182,21 @@ asm
   @finish:
 end;
 
+procedure MakeUnActive(det: pointer);stdcall;
+begin
+    SetDetectorActiveStatus(det,false);
+    if GetCurrentState(det)<>3 then begin
+      //принудительно выставим неактивное состо€ние
+      asm
+        pushad
+          mov eax, det
+          mov [eax+$2E4], 3
+          mov [eax+$2E8], 3
+        popad
+      end;
+    end;
+end;
+
 procedure DetectorUpdate(det: pointer);stdcall;
 var
   itm, act:pointer;
@@ -172,26 +205,10 @@ begin
   act:=GetActor();
   if act=nil then exit;
   if (GetOwner(det)<>act) then begin
-    SetDetectorActiveStatus(det,false);
-    if GetCurrentState(det)<>3 then begin
-      //принудительно выставим неактивное состо€ние
-      asm
-        pushad
-          mov eax, det
-          mov [eax+$2E4], 3
-          mov [eax+$2E8], 3          
-        popad
-      end;
-    end;
+    //≈сли актор выбросил активный детектор и подн€л его - то он формально находитс€ в активном состо€нии, а по факту не рисуетс€
+    //“ак что при обнаружении выбрасывани€ обманываем игру, выставл€€ неактивность детектора
+    MakeUnActive(det);
   end;
-  //если детектор активен - выставим принудительно флаг того, что была проиграна анимаци€ подготовки
-  //Ёто дл€ ситуации: с пустыми руками достали детектор, а затем достали в пару к нему пистоль
-  //также поставим флаг того, что детектор был активен  в этом апдейте
-  if (GetActiveDetector(act)<>nil) then begin
-    SetActorActionState(act, actPreparingDetectorFinished, true);
-    SetActorActionState(act, actDetectorWasActive, true);
-  end;
-
 
 {//фикс бага с повторным доставанием старого оружи€
     itm:=GetActorActiveItem();

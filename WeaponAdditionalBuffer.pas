@@ -15,6 +15,7 @@ type
 
     _last_update_time:cardinal;
     _lock_remain_time:cardinal;
+    _current_anim:string;
     _owner:pointer;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
@@ -32,6 +33,8 @@ type
     function IsExplosed():boolean;stdcall;
     procedure SetExplosed(status:boolean);stdcall;
 
+    function GetCurAnim():string;stdcall;
+
     procedure AddLockTime(time:cardinal);
     procedure SetLockTime(time:cardinal);
     procedure MakeLockByConfigParam(section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
@@ -42,6 +45,7 @@ type
   function IsExplosed(wpn:pointer):boolean;stdcall;
   procedure SetExplosed(wpn:pointer; status:boolean);stdcall;
   function IsActionProcessing(wpn:pointer):boolean;stdcall;
+  function GetCurAnim(wpn:pointer):string;stdcall;
   function CanStartAction(wpn:pointer):boolean;stdcall;
   function CanSprintNow(wpn:pointer):boolean;stdcall;
   function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
@@ -64,6 +68,7 @@ begin
 
   _my_wpn := wpn;
   _lock_remain_time:=0;
+  self._current_anim:='';
   _ammo_count_for_reload:=-1;
   _is_weapon_explosed:=false;
   _owner:=GetOwner(wpn);
@@ -104,6 +109,11 @@ begin
   end;
 end;
 
+function WpnBuf.GetCurAnim: string;
+begin
+  result:=self._current_anim;
+end;
+
 function WpnBuf.GetReloadAmmoCnt: integer;
 begin
   if self._ammo_count_for_reload>=0 then begin
@@ -121,7 +131,17 @@ begin
   if buf<>nil then
     result:=(buf._lock_remain_time>0)
   else
-    result:=false; 
+    result:=false;
+end;
+
+function GetCurAnim(wpn:pointer):string;stdcall;
+var buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.GetCurAnim
+  else
+    result:='';
 end;
 
 function WpnBuf.IsExplosed: boolean;
@@ -168,6 +188,7 @@ begin
   PlayHudAnim(_my_wpn, PChar(anm_name), true);
   if (snd_label<>nil) then MagazinedWpnPlaySnd(_my_wpn, snd_label);
   self.MakeLockByConfigParam(hud_sect, PChar('lock_time_'+anm_name), lock_shooting, effector, eff_param);
+  if self._lock_remain_time>0 then self._current_anim:=anm_name;
   result:=true;
 end;
 
@@ -217,6 +238,7 @@ begin
       _do_action_after_anim_played(self._my_wpn, self._action_param);
       _do_action_after_anim_played:=nil;
       _action_param:=0;
+      _current_anim:='';
     end;
   end;
 

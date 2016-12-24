@@ -21,8 +21,7 @@ const
   actSprint:cardinal = $1000;
 
   actAimStarted:cardinal = $4000000;
-  actDetectorWasActive:cardinal = $2000000;
-  actPreparingDetectorFinished:cardinal = $8000000;
+  actShowDetectorNow:cardinal = $8000000;
   actModSprintStarted:cardinal = $10000000;
 
 implementation
@@ -168,27 +167,7 @@ var
   hud_sect:PChar;
 begin
 
-  //если стоит флаг того, что детектор только что был в руках, но сейчас детектора в руках нет - непорядок...
-  //сбросим флаги, посмотрим, в каком состоянии оружие актора.
-  //если в идле - то проиграем аниму сокрытия.
 
-  if GetActorActionState(act, actDetectorWasActive) and (GetActiveDetector(act)=nil) then begin
-    itm:=GetActorActiveItem();
-    if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) and (GetCurrentState(itm)=0) then begin
-      hud_sect:=GetHUDSection(itm);
-      if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
-        PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
-      end;
-    end;
-    SetActorActionState(act, actPreparingDetectorFinished, false);
-    SetActorActionState(act, actDetectorWasActive, false);
-  end else if (not GetActorActionState(act, actDetectorWasActive)) and GetActorActionState(act, actPreparingDetectorFinished) then begin
-    //подготовка доставания окончилась, так что терять нечего - активируем показ детектора
-    det:=ItemInSlot(act, 9);
-    if det<>nil then begin
-      SetDetectorForceUnhide(det, true);
-    end;
-  end;
 end;
 
 procedure ActorUpdate_Patch(); stdcall
