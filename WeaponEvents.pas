@@ -254,7 +254,7 @@ asm
   xor ecx, ecx
 
   @finish:
-  //оргинальный код
+  //оригинальный код
   mov [esp+$28], ecx
   test esi, esi
 end;
@@ -331,31 +331,60 @@ begin
 end;
 
 //-----------------------------------------Переключение режимов огня------------------------
-function OnChangeFireMode(wpn:pointer):boolean; stdcall;
+//function OnChangeFireMode(wpn:pointer):boolean; stdcall;
+//var
+//  hud_sect:PChar;
+//begin
+//  result:=true;
+//  hud_sect:=GetHUDSection(wpn);
+//  if (not game_ini_line_exist(hud_sect, 'use_firemode_change_anim')) or (not game_ini_r_bool(hud_sect, 'use_firemode_change_anim')) then exit;
+//  result:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_changefiremode', 'sndChangeFireMode');
+//end;
+
+procedure OnChangeFireMode(wpn:pointer; new_mode:integer); stdcall;
 var
   hud_sect:PChar;
+  firemode:integer;
+  anm_name:string;
 begin
-  result:=true;
   hud_sect:=GetHUDSection(wpn);
-  if (not game_ini_line_exist(hud_sect, 'use_firemode_change_anim')) or (not game_ini_r_bool(hud_sect, 'use_firemode_change_anim')) then exit;
-  result:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_changefiremode', 'sndChangeFireMode');
+  if (hud_sect=nil) or (not game_ini_line_exist(hud_sect, 'use_firemode_change_anim')) or (not game_ini_r_bool(hud_sect, 'use_firemode_change_anim')) then exit;
+
+  firemode:=CurrentQueueSize(wpn);
+  anm_name:='anm_changefiremode_from_';
+  if firemode<0 then anm_name:=anm_name+'a' else anm_name:=anm_name+inttostr(firemode);
+  anm_name:=anm_name+'_to_';
+  if new_mode<0 then anm_name:=anm_name+'a' else anm_name:=anm_name+inttostr(new_mode);
+  
+  WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireMode');
 end;
 
-procedure ChangeFireMode_Patch(); stdcall;
-begin
-  asm
+procedure OnChangeFireMode_Patch(); stdcall;
+asm
+  pushad
+  pushfd
+    push eax
+    push esi
+    call OnChangeFireMode
+  popfd
+  popad
+  mov eax, [edi+$218]
+end;
+
+
+procedure CanChangeFireMode_Patch(); stdcall;
+asm
     cmp [esi+$2E4],00
     jne @finish
 
     pushad
     push esi
-    call OnChangeFireMode
+    call WeaponAdditionalBuffer.CanStartAction
     cmp al, 1
     popad
 
     @finish:
     ret
-  end;
 end;
 
 //-------------------------Событие назначения клина-----------------------------
@@ -479,9 +508,14 @@ begin
 
   //добавим аниму смены режима стрельбы
   jmp_addr:=xrGame_addr+$2CE2AC;
-  if not WriteJump(jmp_addr, cardinal(@ChangeFireMode_Patch), 7, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CanChangeFireMode_Patch), 7, true) then exit;
   jmp_addr:=xrGame_addr+$2CE30C;
-  if not WriteJump(jmp_addr, cardinal(@ChangeFireMode_Patch), 7, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CanChangeFireMode_Patch), 7, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2CE2EF;
+  if not WriteJump(jmp_addr, cardinal(@OnChangeFireMode_Patch), 6, true) then exit;
+  jmp_addr:=xrGame_addr+$2CE34F;
+  if not WriteJump(jmp_addr, cardinal(@OnChangeFireMode_Patch), 6, true) then exit;
 
   result:=true;
 end;

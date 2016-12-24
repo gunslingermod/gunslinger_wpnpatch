@@ -7,7 +7,7 @@ function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils;
 
 var
   anim_name:string;
@@ -20,6 +20,23 @@ begin
       anm:=anm+'_g'
     else
       anm:=anm+'_w_gl';
+  end;
+end;
+
+function GetFireModeStateMark(wpn:pointer):string;
+var
+  hud_sect:PChar;
+  firemode:integer;
+  tmpstr:string;
+begin
+  result:='';
+  hud_sect:=GetHUDSection(wpn);
+  if hud_sect=nil then exit;
+  firemode:=CurrentQueueSize(wpn);
+  if firemode<0 then tmpstr:='a' else tmpstr:=inttostr(firemode);
+  tmpstr:='mask_firemode_'+tmpstr;
+  if game_ini_line_exist(hud_sect, PChar(tmpstr)) then begin
+    result:=game_ini_read_string(hud_sect,PChar(tmpstr));
   end;
 end;
 
@@ -104,6 +121,7 @@ begin
   //----------------------------------Модификаторы состояния оружия---------------------------------------------------- 
 
     if canshoot then begin
+        anim_name:=anim_name + GetFireModeStateMark(wpn);
         //Если оружие заклинило - всегда пытаемся отыграть это состояние
         if IsWeaponJammed(wpn) then begin
           anim_name:=anim_name+'_jammed';
@@ -175,8 +193,9 @@ begin
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
   //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     //Если магазин пуст - всегда играем empty, если можем
-    if WpnCanShoot(PChar(GetClassName(wpn))) then begin
-      cls:=GetClassName(wpn);
+    cls:=GetClassName(wpn);    
+    if WpnCanShoot(PChar(cls)) then begin
+      base_anim:=base_anim + GetFireModeStateMark(wpn);
       if IsWeaponJammed(wpn) then begin
         base_anim:=base_anim+'_jammed';
       end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
@@ -493,15 +512,14 @@ begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
     if IsAimNow(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
+    anim_name:=anim_name + GetFireModeStateMark(wpn);
     if IsExplosed(wpn) then begin
       anim_name:=anim_name+'_explose';
       fun:=OnWeaponJam_AfterAnim;
     end else if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
     end else if GetAmmoInMagCount(wpn)=1 then
-      anim_name:=anim_name+'_last'
-    else if CurrentQueueSize(wpn)>1 then
-      anim_name:=anim_name+'_queue';
+      anim_name:=anim_name+'_last';
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
     ModifierGL(wpn, anim_name);
   end;
