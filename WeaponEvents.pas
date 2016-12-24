@@ -8,7 +8,7 @@ procedure OnWeaponHide(wpn:pointer);stdcall;
 procedure OnWeaponShow(wpn:pointer);stdcall;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils;
+uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -554,12 +554,17 @@ end;
 
 procedure OnWeaponShow(wpn:pointer);stdcall;
 var
-  act, owner:pointer;
+  act, owner, det:pointer;
 begin
   act:=GetActor();
   owner:=GetOwner(wpn);
   if (owner<>nil) and (owner=act) then begin
     ResetActorFlags(act);
+    det:=ItemInSlot(act, 9);
+    if (det<>nil) and not CanUseDetectorWithItem(wpn) then begin
+      SetDetectorForceUnhide(det, false);
+      SetActorActionState(act, actShowDetectorNow, false);
+    end;
   end;
 end;
 

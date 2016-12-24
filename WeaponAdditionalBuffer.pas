@@ -189,7 +189,9 @@ begin
   PlayHudAnim(_my_wpn, PChar(anm_name), true);
   if (snd_label<>nil) then MagazinedWpnPlaySnd(_my_wpn, snd_label);
   self.MakeLockByConfigParam(hud_sect, PChar('lock_time_'+anm_name), lock_shooting, effector, eff_param);
-  if self._lock_remain_time>0 then self._current_anim:=anm_name;
+  if self._lock_remain_time>0 then begin
+    self._current_anim:=anm_name;
+  end;
   result:=true;
 end;
 
@@ -235,11 +237,13 @@ begin
     self._lock_remain_time:=self._lock_remain_time-delta;
   end else begin
     self._lock_remain_time:=0;
+    _current_anim:='';
+        
     if @_do_action_after_anim_played<>nil then begin
       _do_action_after_anim_played(self._my_wpn, self._action_param);
       _do_action_after_anim_played:=nil;
       _action_param:=0;
-      _current_anim:='';
+
     end;
   end;
 

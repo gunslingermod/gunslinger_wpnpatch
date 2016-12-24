@@ -189,7 +189,7 @@ begin
       if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
         hud_sect:=GetHUDSection(itm);
         if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
-          if (GetCurrentState(itm)=0) and not IsHolderInSprintState(itm) then PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
+          if CanStartAction(itm) and (not IsHolderInSprintState(itm)) then PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
         end;
       end;
     end;

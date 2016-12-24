@@ -5,6 +5,7 @@ interface
 function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 function GetActiveDetector(act:pointer):pointer; stdcall;    //¬озвращает CScriptGameObject! »справить!
+function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 
 implementation
 uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils;
@@ -125,9 +126,12 @@ var
 begin
   result:=true;
   itm:=GetActorActiveItem();
-  if itm<>nil then
+  if itm<>nil then begin
     //играем аниму только если мы не бежим и не выполн€ем какое-либо действие, кроме отыгрывани€ анимы детектора
-    result:= not (IsHolderInAimState(itm) or IsAimNow(itm) or GetActorActionState(GetActor, actModSprintStarted) or (IsActionProcessing(itm) and (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') ));
+    //result:= not (IsHolderInAimState(itm) or IsAimNow(itm) or GetActorActionState(GetActor, actModSprintStarted) or (IsActionProcessing(itm) and (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') ));
+    result:= not (IsHolderInAimState(itm) or IsAimNow(itm) or GetActorActionState(GetActor, actModSprintStarted));
+    if result then result:= (not IsActionProcessing(itm)) or (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') or (leftstr(GetCurAnim(itm), length('anm_finish_detector'))='anm_finish_detector') ;
+  end;
 end;
 
 procedure HideDetectorInUpdateOnActionPatch; stdcall;
@@ -328,18 +332,6 @@ begin
     //“ак что при обнаружении выбрасывани€ обманываем игру, выставл€€ неактивность детектора
     MakeUnActive(det);
   end;
-
-{//фикс бага с повторным доставанием старого оружи€
-
-    itm:=GetActorActiveItem();
-    if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
-      hud_sect:=GetHUDSection(itm);
-      if (GetCurrentState(itm) = 2) then begin
-        if not(game_ini_line_exist(hud_sect, 'use_prepare_detector_anim')) or not (game_ini_r_bool(hud_sect, 'use_prepare_detector_anim')) then exit;
-        SetActorActionState(act, actPreparingDetectorFinished, false);
-        SetDetectorForceUnhide(det, false);
-      end;
-    end;  }
 end;
 
 procedure DetectorUpdatePatch();stdcall;
