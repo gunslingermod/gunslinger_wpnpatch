@@ -524,7 +524,6 @@ end;
 
 procedure ResetActorFlags(act:pointer);
 begin
-//  SetActorActionState(act, actPreparingDetectorFinished, false); //смена пистолетов не требует повтороного доставания детектора
   SetActorActionState(act, actAimStarted, false);
   SetActorActionState(act, actModSprintStarted, false);
 end;

@@ -125,13 +125,12 @@ begin
   //теперь смотрим, игралась ли уже вводная анимация доставания детектора
   if GetActorActionState(act, actPreparingDetectorFinished) then begin
     result:=true;
-    //SetActorActionState(act, actPreparingDetectorFinished, false);
   end else begin
     //анима не игралась. Так воспроизведем её! Если сможем...
     itm:=GetActorActiveItem();
     if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
       hud_sect:=GetHUDSection(itm);
-      if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
+      if (game_ini_line_exist(hud_sect, 'use_prepare_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_prepare_detector_anim')) then begin
         PlayCustomAnimStatic(itm, 'anm_prepare_detector', 'sndPrepareDet', OnDetectorPrepared, 0);
         SetDetectorForceUnhide(det, true);
       end else result:=true;

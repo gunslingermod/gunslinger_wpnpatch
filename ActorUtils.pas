@@ -8,6 +8,7 @@ function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только 
 function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
 procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
 function GetActorActiveItem():pointer; stdcall;
+function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
 function Init():boolean; stdcall;
 
 const
@@ -25,7 +26,7 @@ const
   actModSprintStarted:cardinal = $10000000;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer;
+uses BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils;
 
 function GetActor():pointer; stdcall;
 begin
@@ -163,9 +164,10 @@ end;
 
 procedure ActorUpdate(act:pointer); stdcall;
 var
-  itm:pointer;
+  itm, det:pointer;
   hud_sect:PChar;
 begin
+
   //если стоит флаг того, что детектор только что был в руках, но сейчас детектора в руках нет - непорядок...
   //сбросим флаги, посмотрим, в каком состоянии оружие актора.
   //если в идле - то проиграем аниму сокрытия.
@@ -174,14 +176,18 @@ begin
     itm:=GetActorActiveItem();
     if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) and (GetCurrentState(itm)=0) then begin
       hud_sect:=GetHUDSection(itm);
-      if (game_ini_line_exist(hud_sect, 'use_prepare_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_prepare_detector_anim')) then begin
+      if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
         PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
       end;
     end;
     SetActorActionState(act, actPreparingDetectorFinished, false);
     SetActorActionState(act, actDetectorWasActive, false);
-  //end else if (not GetActorActionState(act, actDetectorWasActive)) and GetActorActionState(act, actPreparingDetectorFinished) then begin
-    //TODO:добавить код принудительной активации детектора
+  end else if (not GetActorActionState(act, actDetectorWasActive)) and GetActorActionState(act, actPreparingDetectorFinished) then begin
+    //подготовка доставания окончилась, так что терять нечего - активируем показ детектора
+    det:=ItemInSlot(act, 9);
+    if det<>nil then begin
+      SetDetectorForceUnhide(det, true);
+    end;
   end;
 end;
 
@@ -193,6 +199,38 @@ asm
   popad
   mov eax, [esi+$200]
 end;
+
+function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
+asm
+  pushad
+    mov @result, 0
+    cmp act, 0
+    je @finish
+
+    push act
+    call game_object_GetScriptGameObject
+    cmp eax, 0
+    je @finish
+
+    mov ecx, eax
+    push slot
+    mov ebx, xrGame_addr
+    add ebx, $1C87f0
+    call ebx
+    cmp eax, 0
+    je @finish
+
+    mov eax, [eax+4]
+    cmp eax, 0
+    je @finish
+    
+    sub eax, $e8
+    mov @result, eax
+
+    @finish:
+  popad
+end;
+
 
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
