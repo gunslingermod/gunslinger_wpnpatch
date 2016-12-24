@@ -674,6 +674,7 @@ procedure ReloadAnimPlayingPatch; stdcall;
 begin
   asm
     pushad
+      push 0
       push esi
       call WeaponAdditionalBuffer.CanStartAction
       cmp al, 1
@@ -706,6 +707,7 @@ begin
   asm
     //Проверяем возможность переключения
     pushad
+      push 0
       push esi
       call WeaponAdditionalBuffer.CanStartAction
       cmp al, 1
@@ -759,6 +761,7 @@ begin
   asm
     pushad
       sub esi, $2e0
+      push 0
       push esi
       call WeaponAdditionalBuffer.CanStartAction
       cmp al, 1
@@ -826,6 +829,8 @@ begin
     //Установить ZF=0, если целиться не можем
     cmp byte ptr [esi+$494], 0
     je @finish
+    cmp byte ptr [esi+$496], 0
+    jne @finish
     xor al, al
     pushad
       push esi
@@ -873,6 +878,49 @@ asm
     @finish:
     ret
 end;
+//---------------------------------------Отключение автоматической перезарядки, когда она не нужна-------------------------------------------------
+
+procedure AutoReloadAssaultLockFix; stdcall;
+asm
+  cmp byte ptr[ecx+$4C0], 0
+  jne @finish
+  
+  pushad
+    push esi
+    call WeaponAdditionalBuffer.CanAutoReload
+    cmp eax, 1
+  popad
+
+
+  @finish:
+end;
+
+procedure AutoReloadPistolsLockFix; stdcall;
+asm
+  pushad
+    push esi
+    call WeaponAdditionalBuffer.CanAutoReload
+    cmp eax, 0
+  popad
+  je @finish
+    lea ecx, [esi+$2E0]
+    push 09
+    call edx
+  @finish:
+end;
+
+procedure AutoReloadPistols2LockFix; stdcall;
+asm
+  pushad
+    push esi
+    call WeaponAdditionalBuffer.CanAutoReload
+    cmp eax, 1
+  popad
+  jb @finish
+    xorps xmm0, xmm0
+    comiss xmm0, [ecx+$58]
+  @finish:
+end;
 //--------------------------------------------------------------------------------------------------------------------
 
 function Init:boolean;
@@ -892,6 +940,14 @@ begin
   //Не дадим перезаряжаться при неоконченном выстреле.
   jump_addr:=xrGame_addr+$2CE821;
   if not WriteJump(jump_addr, cardinal(@ReloadAnimPlayingPatch), 12, true) then exit;
+
+  //Отключим автоматическую перезарядку, когда она не нужна
+  jump_addr:=xrGame_addr+$2CCB2F;
+  if not WriteJump(jump_addr, cardinal(@AutoReloadPistolsLockFix), 10, true) then exit;
+  jump_addr:=xrGame_addr+$2C5070;
+  if not WriteJump(jump_addr, cardinal(@AutoReloadPistols2LockFix), 7, true) then exit;
+  jump_addr:=xrGame_addr+$2D14E0;
+  if not WriteJump(jump_addr, cardinal(@AutoReloadAssaultLockFix), 7, true) then exit;
 
   //аналогично с переключениями на подствол и обратно
   jump_addr:=xrGame_addr+$2D1545;

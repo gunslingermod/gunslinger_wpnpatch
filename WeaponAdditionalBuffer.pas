@@ -23,7 +23,7 @@ type
     public
     constructor Create(wpn:pointer);
     destructor Destroy; override;
-    function PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false):boolean; stdcall;
+    function PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
 
     function Update():boolean;
 
@@ -40,13 +40,14 @@ type
     procedure MakeLockByConfigParam(section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
   end;
 
-  function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false):boolean; stdcall;
+  function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
   function GetBuffer(wpn:pointer):WpnBuf;stdcall;
   function IsExplosed(wpn:pointer):boolean;stdcall;
   procedure SetExplosed(wpn:pointer; status:boolean);stdcall;
   function IsActionProcessing(wpn:pointer):boolean;stdcall;
   function GetCurAnim(wpn:pointer):string;stdcall;
-  function CanStartAction(wpn:pointer):boolean;stdcall;
+  function CanStartAction(wpn:pointer; allow_aim_state:boolean=false):boolean;stdcall;
+  function CanAutoReload(wpn:pointer):boolean;stdcall;
   function CanSprintNow(wpn:pointer):boolean;stdcall;
   function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
   function CanAimNow(wpn:pointer):boolean;stdcall;  
@@ -164,7 +165,7 @@ begin
   end;
 end;
 
-function WpnBuf.PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false):boolean; stdcall;
+function WpnBuf.PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
 var
   actor:pointer;
   hud_sect:PChar;
@@ -179,7 +180,7 @@ begin
     result:=true;
     exit;
   end;
-  if not CanStartAction(_my_wpn) then exit;
+  if not CanStartAction(_my_wpn, ignore_aim_state) then exit;
 
   hud_sect:=GetHUDSection(_my_wpn);
 
@@ -192,12 +193,12 @@ begin
   result:=true;
 end;
 
-function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false):boolean; stdcall;
+function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
 var buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
   if buf<> nil then
-    result:=buf.PlayCustomAnim(base_anm, snd_label, effector, eff_param, lock_shooting)
+    result:=buf.PlayCustomAnim(base_anm, snd_label, effector, eff_param, lock_shooting, ignore_aim_state)
   else
     result:=true;
 end;
@@ -265,7 +266,7 @@ end;
 
 function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsAimNow(wpn) then
+  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsHolderInAimState(wpn) or IsAimNow(wpn) then
     result:=false
   else
     result:=true;
@@ -311,9 +312,9 @@ begin
   end;
 end;
 
-function CanStartAction(wpn:pointer):boolean;stdcall;
+function CanStartAction(wpn:pointer; allow_aim_state:boolean=false):boolean;stdcall;
 begin
-  if (GetBuffer(wpn)=nil) or IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or IsAimNow(wpn) or IsHolderInSprintState(wpn) then
+  if (GetBuffer(wpn)=nil) or IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or ( (not allow_aim_state) and (IsHolderInAimState(wpn) or IsAimNow(wpn)) ) or IsHolderInSprintState(wpn) then
     result:=false
   else
     result:=true;
@@ -345,6 +346,16 @@ var
 begin
   buf:=GetBuffer(wpn);
   if buf<>nil then buf.SetExplosed(status);
+end;
+
+function CanAutoReload(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  result:=false;
+{  if not CanStartAction(wpn) then exit;
+  buf:=GetBuffer(wpn);
+  if not IsWeaponJammed(wpn) then result:=true;}
 end;
 
 

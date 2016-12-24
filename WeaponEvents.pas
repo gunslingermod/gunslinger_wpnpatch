@@ -217,7 +217,8 @@ asm
     je @finish
 
     pushad
-      push [esp+$34]
+      push 0
+      push [esp+$38]
       call WeaponAdditionalBuffer.CanStartAction
       cmp al, 0
     popad
@@ -236,6 +237,7 @@ asm
   cmp esi, 0
   je @rifle
   pushad
+    push 0
     push esi
     call WeaponAdditionalBuffer.CanStartAction
     cmp al, 0
@@ -248,6 +250,7 @@ asm
   cmp ecx, 0
   je @finish
   pushad
+    push 0
     push ecx
     call WeaponAdditionalBuffer.CanStartAction
     cmp al, 0
@@ -380,6 +383,7 @@ asm
     jne @finish
 
     pushad
+    push 0
     push esi
     call WeaponAdditionalBuffer.CanStartAction
     cmp al, 1
@@ -432,10 +436,19 @@ end;
 procedure OnEmptyClick(wpn:pointer);stdcall;
 begin
   //ѕри патчинге мы вырезали воспроизведение звука. »справим это недоразумение одновременно с проигрыванием анимы.
-  if IsWeaponJammed(wpn) then
-    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndJammedClick')
-  else
-    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndEmptyClick');
+  if IsWeaponJammed(wpn) then begin
+    if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
+      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndJammedClick', nil, 0, false, true)
+    end else begin
+      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndJammedClick', nil, 0, false, true);
+    end;
+  end else begin
+    if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
+      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndEmptyClick', nil, 0, false, true)
+    end else begin
+      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndEmptyClick', nil, 0, false, true);
+    end;
+  end;
 end;
 
 procedure EmptyClick_Patch; stdcall;

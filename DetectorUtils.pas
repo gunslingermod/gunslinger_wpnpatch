@@ -9,6 +9,116 @@ function GetActiveDetector(act:pointer):pointer; stdcall;    //Возвращает CScrip
 implementation
 uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils;
 
+
+function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
+var
+  sect:PChar;
+begin
+  result:=true;
+  if wpn=nil then exit;
+  sect:=GetSection(wpn);
+  if sect=nil then exit;
+  if not(game_ini_line_exist(sect, 'supports_detector') and game_ini_r_bool(sect,'supports_detector')) then begin
+    result:=false;
+  end;  
+end;
+
+function GetItemInSlotByWeapon(wpn:pointer; slot:integer):pointer; stdcall;
+asm
+  pushad
+    mov eax, 0
+    
+    mov esi, wpn
+    cmp esi, 0
+    je @finish
+
+    mov ecx, [esi+$8C]
+    cmp ecx, 0
+    je @finish
+
+    push slot
+    mov eax, xrgame_addr
+    add eax, $2a7740
+    call eax
+
+    @finish:
+    mov @result, eax
+  popad
+end;
+
+function SelectSlotForDetector(curwpn:pointer):integer; stdcall;
+var i:integer;
+  wpn_in_slot:pointer;
+begin
+  result:=0;
+  if curwpn=nil then exit;
+  for i:=6 downto 1 do begin
+    wpn_in_slot:=GetItemInSlotByWeapon(curwpn, i);
+    if wpn_in_slot<>nil then begin
+      if CanUseDetectorWithItem(wpn_in_slot) then begin
+        result:=i;
+        exit;
+      end;
+    end;
+  end;
+end;
+
+function ParseDetector(wpn:pointer; slot:pinteger): boolean; stdcall;
+//заменяем стандартную функцию, решающую, можно ли сейчас использовать детектор
+//возвращаем false - вообще даже не пытаемся доставать детектор
+//возвращаем true и ^slot = 0 - достает детектор, не меняя оружия
+//возвращаем true и ^slot<>0 - сначала меняет слот на указанный, затем достает детектор
+var
+  state:integer;
+begin
+  if CanUseDetectorWithItem(wpn) then begin
+    result:=true;
+    if slot<>nil then slot^:=0;
+  end else if slot<>nil then begin
+    slot^:=SelectSlotForDetector(wpn);
+    if slot^=0 then result:=false else result:=true;
+  end else begin
+    result:=false;
+  end;
+
+  if (not result) or (not WpnCanShoot(PChar(GetClassName(wpn)))) then exit;
+  state:=GetCurrentState(wpn);
+  if (state=4) or (state=7) or (state=$A) or IsAimNow(wpn) then result:=false;
+end;
+
+procedure CanUseDetectorPatch; stdcall;
+asm
+  push ebp
+  mov ebp, esp
+  mov eax, 1
+
+  pushad
+    mov eax, [ebp+$8]
+    test eax, eax
+    je @nowpn
+
+    mov eax, [eax+$54]
+    test eax, eax
+    je @nowpn
+    
+    push [ebp+$c]
+    push eax
+    call ParseDetector
+    cmp al, 1
+    
+    @nowpn:
+  popad
+
+  je @finish
+  mov eax, 0
+
+  @finish:
+  pop ebp
+  ret 8;
+end;
+
+
+
 function CanShowDetector():boolean; stdcall;
 var
   itm:pointer;
@@ -17,7 +127,7 @@ begin
   itm:=GetActorActiveItem();
   if itm<>nil then
     //играем аниму только если мы не бежим и не выполняем какое-либо действие, кроме отыгрывания анимы детектора
-    result:= not ( GetActorActionState(GetActor, actModSprintStarted) or (IsActionProcessing(itm) and (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') ));
+    result:= not (IsHolderInAimState(itm) or IsAimNow(itm) or GetActorActionState(GetActor, actModSprintStarted) or (IsActionProcessing(itm) and (leftstr(GetCurAnim(itm), length('anm_show_detector'))='anm_show_detector') ));
 end;
 
 procedure HideDetectorInUpdateOnActionPatch; stdcall;
@@ -63,7 +173,8 @@ begin
   if (itm <> nil) and (itm=wpn) and (det<>nil) then begin
     SetActorActionState(act, actShowDetectorNow, true);
 
-    SetDetectorForceUnhide(det, false);
+    SetDetectorForceUnhide(det, true);
+    PlayCustomAnimStatic(itm, 'anm_show_detector');
     asm
       pushad
         push 01
@@ -73,7 +184,7 @@ begin
         call eax
       popad
     end;
-    PlayCustomAnimStatic(itm, 'anm_show_detector');
+
   end;
 
 end;
@@ -170,9 +281,17 @@ asm
   add eax, $2ECC40
   call eax
   test al, al
+{  pushad
+    call SelectActorSlotForUsingWithDetector
+    cmp eax, -1
+    je @detector_forbidden
+    mov [esp+$2C], eax
+    @detector_forbidden:
+  popad}
 
   je @finish
   //добавляем проверку
+
   pushad
     push esi
     call CanShowDetectorWithPrepareIfNeeded //записать здесь в esi+$33d 1, запустив циклический анхайд
@@ -205,12 +324,13 @@ begin
   act:=GetActor();
   if act=nil then exit;
   if (GetOwner(det)<>act) then begin
-    //Если актор выбросил активный детектор и поднял его - то он формально находится в активном состоянии, а по факту не рисуется
+    //Если актор выбросил активный детектор и поднял его - то этот детектор в оригинале формально находится в активном состоянии, а по факту не рисуется
     //Так что при обнаружении выбрасывания обманываем игру, выставляя неактивность детектора
     MakeUnActive(det);
   end;
 
 {//фикс бага с повторным доставанием старого оружия
+
     itm:=GetActorActiveItem();
     if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
       hud_sect:=GetHUDSection(itm);
@@ -231,6 +351,34 @@ asm
   popad
 end;
 
+function ReadDispersionMultiplier(wpn:pointer):single;stdcall;
+var
+  sect:PChar;
+begin
+  result:=1;
+  if wpn=nil then exit;
+  sect:=GetSection(wpn);
+  if (sect<>nil) and (GetActorActiveItem = wpn) and (GetActiveDetector(GetActor)<>nil) then begin
+    if game_ini_line_exist(sect, 'detector_disp_factor') then begin
+      result:= game_ini_r_single(sect, 'detector_disp_factor')
+    end;
+  end;
+end;
+
+procedure WeaponDispersionPatch();stdcall;
+//увеличим дисперсию оружия, если в руках детектор
+asm
+  mulss xmm1, [ecx+$38c]
+  pushad
+    push eax
+    push ecx
+    call ReadDispersionMultiplier
+    fstp [esp]
+    mulss xmm1, [esp]
+    add esp, 4    
+  popad
+end;
+
 function Init:boolean;
 var jmp_addr:cardinal;
 begin
@@ -243,6 +391,10 @@ begin
   if not WriteJump(jmp_addr, cardinal(@HideDetectorInUpdateOnActionPatch), 6, true) then exit;
   jmp_addr:=xrGame_addr+$2ECF78;
   if not WriteJump(jmp_addr, cardinal(@UnHideDetectorInUpdateOnActionPatch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2ECC40;
+  if not WriteJump(jmp_addr, cardinal(@CanUseDetectorPatch), 5, false) then exit;
+  jmp_addr:=xrGame_addr+$2C2B87;
+  if not WriteJump(jmp_addr, cardinal(@WeaponDispersionPatch), 8, true) then exit;
   result:=true;
 end;
 

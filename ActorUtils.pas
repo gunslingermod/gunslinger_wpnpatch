@@ -6,6 +6,7 @@ function GetActorActionState(stalker:pointer; mask:cardinal; previous_state:bool
 procedure CreateObjectToActor(section:PChar); stdcall;
 function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только для актора, для других всегда вернет false!
 function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
+function IsHolderInAimState(wpn:pointer):boolean;stdcall;
 procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
 function GetActorActiveItem():pointer; stdcall;
 function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
@@ -132,6 +133,18 @@ begin
     result:=false;
 end;
 
+function IsHolderInAimState(wpn:pointer):boolean;stdcall;
+var actor:pointer;
+    holder:pointer;
+begin
+  holder:=WpnUtils.GetOwner(wpn);
+  actor:=GetActor();
+  if (actor<>nil) and (actor=holder) and (GetActorActionState(holder, actAimStarted)) then begin
+    result:=true;
+  end else
+    result:=false;
+end;
+
 function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
 var
   holder:pointer;
@@ -166,8 +179,23 @@ var
   itm, det:pointer;
   hud_sect:PChar;
 begin
+  det:=ItemInSlot(act, 9);
 
-
+  if det <> nil then begin
+    if GetActorActionState(act, actShowDetectorNow) and (GetActiveDetector(act)=nil) then begin
+      SetDetectorForceUnhide(det, true);
+    end else if GetCurrentState(det)=2 then begin //мы собрались убирать детектор. Назначим аниму рукам, если оружие не выполняет сейчас какое-то действие.
+      itm:=GetActorActiveItem();
+      if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
+        hud_sect:=GetHUDSection(itm);
+        if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
+          if (GetCurrentState(itm)=0) and not IsHolderInSprintState(itm) then PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
+        end;
+      end;
+    end;
+  end else begin
+    SetActorActionState(act, actShowDetectorNow, false);
+  end;
 end;
 
 procedure ActorUpdate_Patch(); stdcall
