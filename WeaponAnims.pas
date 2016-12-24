@@ -7,7 +7,7 @@ function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents;
 
 var
   anim_name:string;
@@ -64,8 +64,6 @@ var
   actor:pointer;
   canshoot:boolean;
   cls:string;
-  buf:WpnBuf;
-  tmppchar:PChar;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_idle';
@@ -79,14 +77,21 @@ begin
     if (canshoot or (cls='WP_BINOC')) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
       ModifierMoving(wpn, actor, anim_name);
-      
+
     //посмотрим на передвижение актора:
-    end else if GetActorActionState(actor, actSprint, true) and not GetActorActionState(actor, actSprint) then begin
-      //выход из спринта
-      anim_name:=anim_name+'_sprint_end';
     end else if GetActorActionState(actor, actSprint) then begin
       anim_name:=anim_name+'_sprint';
-      if not GetActorActionState(actor, actSprint, true) then anim_name:=anim_name+'_start';
+      if not GetActorActionState(actor, actModSprintStarted) then begin
+        anim_name:=anim_name+'_start';
+        if canshoot then MagazinedWpnPlaySnd(wpn, 'sndSprintStart');
+        SetActorActionState(actor, actModSprintStarted, true);
+      end;
+
+    end else if GetActorActionState(actor, actModSprintStarted) then begin;
+      anim_name:=anim_name+'_sprint_end';
+      if canshoot then MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
+      SetActorActionState(actor, actModSprintStarted, false);
+
     end else begin
       ModifierMoving(wpn, actor, anim_name);
       if GetActorActionState(actor, actCrounch) then begin
@@ -464,11 +469,22 @@ begin
   end;
 end;
 //----------------------------------------------------------anm_shots------------------------------------------------
-function anm_shots_selector(wpn:pointer):pchar;stdcall;
+function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
+  fun:TAnimationEffector;
 begin
+  fun:=nil;
+
+  if play_breech_snd then begin
+    if IsWeaponJammed(wpn) then begin
+      MagazinedWpnPlaySnd(wpn, 'sndBreechblock');
+    end else begin
+      MagazinedWpnPlaySnd(wpn, 'sndJam');
+    end
+  end;
+
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_shoot';
   actor:=GetActor();
@@ -477,7 +493,10 @@ begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
     if IsAimNow(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
-    if IsWeaponJammed(wpn) then begin
+    if IsExplosed(wpn) then begin
+      anim_name:=anim_name+'_explose';
+      fun:=OnWeaponJam_AfterAnim;
+    end else if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
     end else if GetAmmoInMagCount(wpn)=1 then
       anim_name:=anim_name+'_last'
@@ -494,7 +513,7 @@ begin
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
-  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name), false, fun, 0);
 end;
 
 procedure anm_shots_std_patch();stdcall;
@@ -503,6 +522,7 @@ begin
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
+    push 1
     push esi
     call anm_shots_selector  //получаем строку с именем анимы
     mov ecx, [esp+$28]      //запоминаем адрес возврата

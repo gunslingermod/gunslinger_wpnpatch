@@ -34,12 +34,17 @@ function GetClassName(wpn:pointer):string; stdcall;
 function WpnCanShoot(cls:PChar):boolean;stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
+function GetLevelVertexID(wpn:pointer):cardinal; stdcall
+function GetGameVertexID(wpn:pointer):cardinal; stdcall
 function GetSilencerSection(wpn:pointer):PChar; stdcall;
 procedure DetachAddon(wpn:pointer; addon_type:integer);stdcall;
 function GetGLSection(wpn:pointer):PChar; stdcall;
 procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
 function GetShootLockTime(wpn:pointer):single;stdcall;
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
+function GetActorActiveItem():pointer; stdcall;
+function GetCurrentCondition(wpn:pointer):single; stdcall;
+function GetPosition(wpn:pointer):pointer; stdcall;
 
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
@@ -584,6 +589,7 @@ end;
 ////////////////////////////////////////////////////////////////////////////////
 
 procedure DetachGLRight(wpn:pointer);stdcall;
+//детач с учетом возможной активности подствола
 var addon_name:PChar;
 begin
   addon_name:=GetGLSection(wpn);
@@ -732,7 +738,6 @@ end;
 
 function Init():boolean;
 begin
-  result:=false;
   GetCurrentHud_Func:=xrGame_addr+$2F97A0;
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
   SetWorldModelBoneStatus_internal1_func:=xrGame_addr+$3483C0;
@@ -772,6 +777,60 @@ begin
     add esp, 4
     pop eax
   end;
+end;
+
+function GetActorActiveItem():pointer; stdcall;
+asm
+  pushfd
+  
+  mov eax, xrGame_addr
+  add eax, $64F0E4
+  mov eax, [eax]
+  mov eax, [eax+$94]
+  cmp eax, 0
+  je @finish
+  mov eax, [eax+4]
+  sub eax, $2e0
+
+  @finish:
+  popfd
+  mov @result, eax
+end;
+
+function GetCurrentCondition(wpn:pointer):single; stdcall;
+asm
+    push eax
+    movss [esp], xmm0
+
+    mov eax, wpn
+    movss xmm0, [eax+$AC]
+    movss @result, xmm0
+
+    movss xmm0, [esp]
+    add esp, 4
+end;
+
+function GetLevelVertexID(wpn:pointer):cardinal; stdcall
+asm
+  mov eax, wpn
+  mov eax, [eax+$208]
+  mov eax, [eax]
+  mov @result, eax
+end;
+
+function GetGameVertexID(wpn:pointer):cardinal; stdcall
+asm
+  mov eax, wpn
+  mov eax, [eax+$208]
+  movzx eax, word ptr [eax+4]
+  mov @result, eax
+end;
+
+function GetPosition(wpn:pointer):pointer; stdcall;
+asm
+  mov eax, wpn
+  add eax, $168
+  mov @result, eax
 end;
 
 end.

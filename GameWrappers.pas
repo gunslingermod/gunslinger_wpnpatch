@@ -15,6 +15,8 @@ interface
   function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
   procedure Log(text:string; IsError:boolean = false);stdcall;
   function Is16x9():boolean;stdcall;
+  function alife():pointer;stdcall;
+  function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
 
 
 implementation
@@ -34,6 +36,8 @@ var
   is16x9_addr:cardinal;
 
   alife_object_ptr:cardinal;
+  alife_ptr:cardinal;
+  alife_create_ptr:cardinal;
   cweaponmagazined_unload_mag:cardinal;
 
 function Init:boolean;
@@ -51,6 +55,8 @@ begin
   alife_object_ptr:=xrGame_addr+$99450;
   cweaponmagazined_unload_mag:=xrGame_addr+$2CF660;
   is16x9_addr:=xrGame_addr+$43c830;
+  alife_ptr:=xrGame_addr+$97780;
+  alife_create_ptr:=xrGame_addr+$96eb0;
 
 
   result:=true;
@@ -274,4 +280,34 @@ begin
    end;
 end;
 
+function alife():pointer;
+asm
+  pushad
+  pushfd
+
+  call alife_ptr
+  mov @result, eax
+  
+  popfd
+  popad
+end;
+
+function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer; stdcall;
+asm
+  mov @result, 0
+  pushad
+    call alife
+    cmp eax, 0
+    je @finish
+    push gvid
+    push lvid
+    push pos
+    push section
+    push eax
+    call alife_create_ptr
+    add esp, $14
+    mov @result, eax
+    @finish:
+  popad
+end;
 end.

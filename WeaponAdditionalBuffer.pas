@@ -5,6 +5,8 @@ type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
   WpnBuf = class
     private
+    _is_weapon_explosed:boolean;
+
     _light:pointer;
     _do_action_after_anim_played:TAnimationEffector;
     _action_param:integer;
@@ -26,20 +28,25 @@ type
     procedure SetReloadAmmoCnt(cnt:integer);
     function GetReloadAmmoCnt():integer;
 
+    function IsExplosed():boolean;stdcall;
+    procedure SetExplosed(status:boolean);stdcall;
+
     procedure AddLockTime(time:cardinal);
     procedure SetLockTime(time:cardinal);
-    procedure MakeLockByConfigParam(section:PChar; key:PChar; lock_shooting:boolean = false);
+    procedure MakeLockByConfigParam(section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false):boolean; stdcall;
   function GetBuffer(wpn:pointer):WpnBuf;stdcall;
+  function IsExplosed(wpn:pointer):boolean;stdcall;
+  procedure SetExplosed(wpn:pointer; status:boolean);stdcall;
   function IsActionProcessing(wpn:pointer):boolean;stdcall;
   function CanStartAction(wpn:pointer):boolean;stdcall;
   function CanSprintNow(wpn:pointer):boolean;stdcall;
   function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
   function CanAimNow(wpn:pointer):boolean;stdcall;  
   function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
-  procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false);
+  procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
 implementation
 uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math;
 
@@ -57,6 +64,7 @@ begin
   _my_wpn := wpn;
   _lock_remain_time:=0;
   _ammo_count_for_reload:=-1;
+  _is_weapon_explosed:=false;
 
   _last_update_time:=GetGameTickCount;
 
@@ -113,7 +121,12 @@ begin
     result:=false; 
 end;
 
-procedure WpnBuf.MakeLockByConfigParam(section, key: PChar; lock_shooting:boolean = false);
+function WpnBuf.IsExplosed: boolean;
+begin
+  result:=self._is_weapon_explosed;
+end;
+
+procedure WpnBuf.MakeLockByConfigParam(section, key: PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
 var time:single;
 begin
   if game_ini_line_exist(section, key) then begin
@@ -121,13 +134,17 @@ begin
     self.SetLockTime(floor(time*1000));
     if lock_shooting then SetShootLockTime(self._my_wpn, time);
   end;
+
+  if @fun<>nil then begin
+    self._do_action_after_anim_played:=fun;
+    self._action_param:=param;
+  end;
 end;
 
 function WpnBuf.PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false):boolean; stdcall;
 var
   actor:pointer;
   hud_sect:PChar;
-  lock_time:single;
   anm_name:string;
 begin
   result:=false;
@@ -145,12 +162,9 @@ begin
 
   anm_name:=ModifierStd(_my_wpn, base_anm);
 
-  self.MakeLockByConfigParam(hud_sect, PChar('lock_time_'+anm_name), lock_shooting);
-
   PlayHudAnim(_my_wpn, PChar(anm_name), true);
   if (snd_label<>nil) then MagazinedWpnPlaySnd(_my_wpn, snd_label);
-  self._do_action_after_anim_played:=effector;
-  self._action_param:=eff_param;
+  self.MakeLockByConfigParam(hud_sect, PChar('lock_time_'+anm_name), lock_shooting, effector, eff_param);
   result:=true;
 end;
 
@@ -162,6 +176,12 @@ begin
     result:=buf.PlayCustomAnim(base_anm, snd_label, effector, eff_param, lock_shooting)
   else
     result:=true;
+end;
+
+
+procedure WpnBuf.SetExplosed(status: boolean);
+begin
+  self._is_weapon_explosed:=status;
 end;
 
 procedure WpnBuf.SetLockTime(time: cardinal);
@@ -238,6 +258,7 @@ end;
 function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
 var anm_name:string;
   hud_sect:PChar;
+  act:pointer;
 begin
   if IsActionProcessing(wpn) then
     result:=false
@@ -245,9 +266,15 @@ begin
     result:=true;
     if IsHolderInSprintState(wpn) then begin
       hud_sect:=GetHUDSection(wpn);
+      act:=GetActor();
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
-      PlayHudAnim(wpn, PChar(anm_name), true);
+            
+      if (act<>nil) and (act = GetOwner(wpn)) then begin
+        PlayHudAnim(wpn, PChar(anm_name), true);
+        MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
+        SetActorActionState(act, actModSprintStarted, false);
+      end;
     end;
   end;
 end;
@@ -260,13 +287,34 @@ begin
     result:=true;
 end;
 
-procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false);
+procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
 var buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
   if buf<>nil then begin
-    buf.MakeLockByConfigParam(section, key, lock_shooting);
+    buf.MakeLockByConfigParam(section, key, lock_shooting, fun, param);
   end;
 end;
+
+function IsExplosed(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.IsExplosed()
+  else
+    result:=false;
+end;
+
+procedure SetExplosed(wpn:pointer; status:boolean);stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then buf.SetExplosed(status);
+end;
+
+
 
 end.

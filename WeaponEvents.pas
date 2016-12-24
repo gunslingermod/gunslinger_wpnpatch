@@ -3,6 +3,8 @@ unit WeaponEvents;
 interface
 function Init:boolean;
 
+procedure OnWeaponJam_AfterAnim(wpn:pointer; param:integer);stdcall;
+
 implementation
 uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils;
 
@@ -357,16 +359,44 @@ begin
 end;
 
 //-------------------------Событие назначения клина-----------------------------
-procedure WeaponJammed_Patch(); stdcall;
+procedure OnWeaponJam_AfterAnim(wpn:pointer; param:integer);stdcall;
 begin
-  //у нас оружие должно было заклинить при данном выстреле
-  //мы сделаем хитрее - выставим флаг клина, но игре сообщим, что все нормально, и выстрел при этом произойдет
-  //Аниму выстрела в заклинившем состоянии выставляем отличную от обычного выстрела в WeaponAnims.pas
-  asm
-    mov byte ptr [esi+$45A],01
-    xor eax, eax
-  end;
+  log('AfterExplosion');
+  alife_create('energetic_trash', GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
 end;
+
+procedure OnWeaponJam(wpn:pointer);stdcall;
+var sect:PChar;
+    owner:pointer;
+begin
+  owner := GetOwner(wpn);
+  if (owner=nil) or (owner<>GetActor()) then exit;
+  sect:=GetSection(wpn);
+  if game_ini_line_exist(sect, 'can_explose') and game_ini_r_bool(sect, 'can_explose') then begin
+    if GetCurrentCondition(wpn)<game_ini_r_single(sect, 'explode_start_condition') then begin
+      if random < game_ini_r_single(sect, 'explode_probability') then begin
+        SetExplosed(wpn, true);
+      end;
+    end; 
+  end;
+//
+end;
+
+procedure WeaponJammed_Patch(); stdcall;
+//у нас оружие должно было заклинить при данном выстреле
+//мы сделаем хитрее - выставим флаг клина, но игре сообщим, что все нормально, и выстрел при этом произойдет
+//Аниму выстрела в заклинившем состоянии выставляем отличную от обычного выстрела в WeaponAnims.pas
+asm
+  mov byte ptr [esi+$45A],01
+  pushad
+  pushfd
+    push esi
+    call OnWeaponJam
+  popfd
+  popad
+  xor eax, eax
+end;
+
 //---------------------Щелчки при осечках/пустом магазине-----------------------
 procedure OnEmptyClick(wpn:pointer);stdcall;
 begin

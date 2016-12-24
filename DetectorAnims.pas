@@ -7,12 +7,51 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer;
+uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils;
 
-function IsDetectorNeedHideNow(detector: pointer; curwpn:pointer):boolean; stdcall;
+function CanShowDetector():boolean; stdcall;
+var
+  itm:pointer;
 begin
-  result:=IsActionProcessing(curwpn);
+  result:=true;
+  itm:=GetActorActiveItem();
+  if itm<>nil then result:= not (IsActionProcessing(itm) or GetActorActionState(GetActor, actModSprintStarted));
 end;
+
+procedure OnDetectorPrepared(wpn:pointer; p:integer); stdcall
+var act:pointer;
+begin
+  act:=GetActor;
+  if (act <> nil) then SetActorActionState(act, actPreparingDetectorShowingStarted, true)
+end;
+
+{function CanShowDetectorWithPrepareIfNeeded():boolean; stdcall;
+var
+  itm:pointer;
+  var act:pointer;
+  cls:string;
+begin
+  result:=true;
+  act:=GetActor;
+  if (act = nil) then exit;
+  if GetActorActionState(act, actPreparingDetectorShowingStarted) then begin
+    SetActorActionState(act, actPreparingDetectorShowingStarted, false);
+    exit;
+  end;
+
+  itm:=GetActorActiveItem();
+  if itm<>nil then begin
+    cls:=GetClassName(itm);
+    if WpnCanShoot(PChar(cls)) or (cls = 'WP_KNIFE') then begin
+      result:=false;
+      if not (IsActionProcessing(itm) or GetActorActionState(GetActor, actModSprintStarted)) then begin
+        PlayCustomAnimStatic(itm, 'anm_prepare_detector', 'sndPrepareDetector',OnDetectorPrepared, 0);
+      end;
+    end else begin
+      if GetActorActionState(GetActor, actModSprintStarted) then result:=false; 
+    end;
+  end;
+end;      }
 
 procedure HideDetectorOnActionPatch; stdcall;
 asm
@@ -22,19 +61,10 @@ asm
   jne @finish
   //Проверим, не выполняется ли какое-либо действие
   pushad
-    push eax
-    push esi
-    call IsDetectorNeedHideNow
-    cmp al, 0
+    call CanShowDetector
+    cmp al, 1
   popad
   @finish:
-end;
-
-
-function IsDetectorNeedUnHideNow(detector: pointer; curwpn:pointer):boolean; stdcall;
-begin
-  result:=true;
-  if curwpn<>nil then result:=IsActionProcessing(curwpn);
 end;
 
 procedure UnHideDetectorOnActionPatch; stdcall;
@@ -45,13 +75,32 @@ asm
   jne @finish
   //Проверим, не выполняется ли какое-либо действие
   pushad
-    mov eax, [edi+4]
-    sub eax, $2e0
-    push eax
-    push esi
-    call IsDetectorNeedUnHideNow
+    call CanShowDetector
+    cmp al, 1
+  popad
+  @finish:
+end;
+
+procedure ShowDetectorPatch; stdcall;
+asm
+  //делаем вырезанное
+  push ecx
+  push eax
+  mov ecx, esi
+  mov [esp+$14], 0
+
+  mov eax, xrgame_addr
+  add eax, $2ECC40
+  call eax
+  test al, al
+
+  je @finish
+  //добавляем проверку
+  pushad
+    call CanShowDetector //записать здесь в esi+$33d 1, запустив циклический анхайд
     cmp al, 0
   popad
+
   @finish:
 end;
 
@@ -59,6 +108,8 @@ end;
 function Init:boolean;
 var jmp_addr:cardinal;
 begin
+  jmp_addr:=xrGame_addr+$2ECDF0;
+  if not WriteJump(jmp_addr, cardinal(@ShowDetectorPatch), 19, true) then exit;
   jmp_addr:=xrGame_addr+$2ECF0A;
   if not WriteJump(jmp_addr, cardinal(@HideDetectorOnActionPatch), 6, true) then exit;
   jmp_addr:=xrGame_addr+$2ECF78;

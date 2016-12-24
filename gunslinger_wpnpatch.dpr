@@ -23,6 +23,8 @@ uses
 {$R *.res}
 
 begin
+  randomize; 
+
   decimalseparator:='.';
   BaseGameData.Init;
   GameWrappers.Init;

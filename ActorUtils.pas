@@ -5,6 +5,7 @@ function GetActor():pointer; stdcall;
 function GetActorActionState(stalker:pointer; mask:cardinal; previous_state:boolean = false):boolean; stdcall;
 procedure CreateObjectToActor(section:PChar); stdcall;
 function IsHolderInSprintState(wpn:pointer):boolean; stdcall;
+procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
 
 const
   actMovingForward:cardinal = $1;
@@ -14,9 +15,11 @@ const
   actCrounch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
+  actPreparingDetectorShowingStarted:cardinal = $8000000;
+  actModSprintStarted:cardinal = $10000000;  
 
 implementation
-uses BaseGameData, WpnUtils;
+uses BaseGameData, WpnUtils, GameWrappers;
 
 function GetActor():pointer; stdcall;
 begin
@@ -51,6 +54,29 @@ asm
   pop ecx
 end;
 
+procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
+asm
+  pushad
+  mov edx, $594
+  cmp previous_state, 0
+  je @body
+  mov edx, $590
+
+  @body:
+  mov eax, stalker
+  mov ecx, mask
+
+  cmp set_value, 0
+  je @clear_flag
+    or [eax+edx], ecx
+    jmp @finish
+  @clear_flag:
+    not ecx
+    and [eax+edx], ecx
+  @finish:
+  popad
+end;
+
 function IsActorAim(stalker:pointer):boolean; stdcall;
 begin
   asm
@@ -68,9 +94,7 @@ begin
 
   asm
     pushad
-      mov ebx, xrgame_addr
-      add ebx, $97780
-      call ebx // call alife()
+      call alife
       
       push 0
       push 0
