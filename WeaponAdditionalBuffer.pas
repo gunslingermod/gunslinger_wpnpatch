@@ -7,6 +7,9 @@ type
     private
     _is_weapon_explosed:boolean;
 
+    _reloaded:boolean;
+    _ammocnt_before_reload:integer;
+
     _light:pointer;
     _do_action_after_anim_played:TAnimationEffector;
     _action_param:integer;
@@ -30,8 +33,14 @@ type
     procedure SetReloadAmmoCnt(cnt:integer);
     function GetReloadAmmoCnt():integer;
 
+    procedure SetBeforeReloadAmmoCnt(cnt:integer);
+    function GetBeforeReloadAmmoCnt():integer;
+
     function IsExplosed():boolean;stdcall;
     procedure SetExplosed(status:boolean);stdcall;
+
+    function IsReloaded():boolean;stdcall;
+    procedure SetReloaded(status:boolean);stdcall;
 
     function GetCurAnim():string;stdcall;
 
@@ -50,9 +59,15 @@ type
   function CanAutoReload(wpn:pointer):boolean;stdcall;
   function CanSprintNow(wpn:pointer):boolean;stdcall;
   function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
-  function CanAimNow(wpn:pointer):boolean;stdcall;  
+  function CanAimNow(wpn:pointer):boolean;stdcall;
+  function CanBoreNow(wpn:pointer):boolean;stdcall;
   function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
   procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
+
+  function IsReloaded(wpn:pointer):boolean;stdcall;
+  procedure SetReloaded(wpn:pointer; status:boolean);stdcall;
+  procedure SetBeforeReloadAmmoCnt(wpn:pointer; cnt:integer);stdcall;
+  function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
 implementation
 uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math;
 
@@ -77,6 +92,9 @@ begin
   _last_update_time:=GetGameTickCount;
 
   _SetWpnBufPtr(wpn, self);
+
+  _reloaded:=false;
+  _ammocnt_before_reload:=-1;
 
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
@@ -107,6 +125,16 @@ begin
 
     pop ebx
     pop eax
+  end;
+end;
+
+function WpnBuf.GetBeforeReloadAmmoCnt: integer;
+begin
+  if self._ammocnt_before_reload>=0 then begin
+    result:=self._ammocnt_before_reload;
+  end else begin
+    result:=0;
+    log('WpnBuf.GetBeforeReloadAmmoCnt: negative value found; uninitialized?');
   end;
 end;
 
@@ -152,6 +180,11 @@ end;
 function WpnBuf.IsExplosed: boolean;
 begin
   result:=self._is_weapon_explosed;
+end;
+
+function WpnBuf.IsReloaded: boolean;
+begin
+  result:=self._reloaded;
 end;
 
 procedure WpnBuf.MakeLockByConfigParam(section, key: PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
@@ -210,6 +243,11 @@ begin
 end;
 
 
+procedure WpnBuf.SetBeforeReloadAmmoCnt(cnt: integer);
+begin
+  self._ammocnt_before_reload:=cnt;
+end;
+
 procedure WpnBuf.SetExplosed(status: boolean);
 begin
   self._is_weapon_explosed:=status;
@@ -223,6 +261,11 @@ end;
 procedure WpnBuf.SetReloadAmmoCnt(cnt: integer);
 begin
   self._ammo_count_for_reload:=cnt;
+end;
+
+procedure WpnBuf.SetReloaded(status: boolean);
+begin
+  self._reloaded:=status;
 end;
 
 function WpnBuf.Update():boolean;
@@ -247,7 +290,6 @@ begin
       _do_action_after_anim_played(self._my_wpn, self._action_param);
       _do_action_after_anim_played:=nil;
       _action_param:=0;
-
     end;
   end;
 
@@ -296,6 +338,20 @@ begin
     result:=true;
 end;
 
+function CanBoreNow(wpn:pointer):boolean;stdcall;
+var hud_sect:string;
+begin
+  if IsActionProcessing(wpn) then
+    result:=false
+  else begin
+    hud_sect:=GetHUDSection(wpn);
+    if game_ini_line_exist(PChar(hud_sect), 'disable_bore') and game_ini_r_bool(PChar(hud_sect), 'disable_bore') then
+      result:=false
+    else
+      result:=true;
+  end;
+end;
+
 function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
 var anm_name:string;
   hud_sect:PChar;
@@ -310,7 +366,7 @@ begin
       act:=GetActor();
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
-            
+
       if (act<>nil) and (act = GetOwner(wpn)) then begin
         PlayHudAnim(wpn, PChar(anm_name), true);
         MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
@@ -367,5 +423,42 @@ begin
 end;
 
 
+function IsReloaded(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.IsReloaded()
+  else
+    result:=false;
+end;
+
+procedure SetReloaded(wpn:pointer; status:boolean);stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then buf.SetReloaded(status);
+end;
+
+procedure SetBeforeReloadAmmoCnt(wpn:pointer; cnt:integer);stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then buf.SetBeforeReloadAmmoCnt(cnt);
+end;
+
+function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.GetBeforeReloadAmmoCnt()
+  else
+    result:=-1;
+end;
 
 end.

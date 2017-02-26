@@ -7,7 +7,7 @@ function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter;
 
 var
   anim_name:string;
@@ -40,10 +40,17 @@ begin
   end;
 end;
 
-procedure ModifierMoving(wpn:pointer; actor:pointer; var anm:string);
+procedure ModifierMoving(wpn:pointer; actor:pointer; var anm:string; config_enabler_directions:string; config_enabler_main:string='');
+var hud_sect:PChar;
 begin
+  hud_sect:=GetHUDSection(wpn);
+    if (config_enabler_main<>'') then begin
+       if not game_ini_line_exist(hud_sect, PChar(config_enabler_main)) or not game_ini_r_bool(hud_sect, PChar(config_enabler_main)) then exit;
+    end;
   if GetActorActionState(actor, actMovingForward or actMovingBack or actMovingLeft or actMovingRight) then begin
     anm:=anm+'_moving';
+    
+    if not game_ini_line_exist(hud_sect, PChar(config_enabler_directions)) or not game_ini_r_bool(hud_sect, PChar(config_enabler_directions)) then exit;
     if GetActorActionState(actor, actMovingForward) then begin
       anm:=anm+'_forward';
     end;
@@ -79,7 +86,7 @@ function anm_idle_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
-  canshoot:boolean;
+  canshoot, isdetector:boolean;
   cls:string;
 begin
   hud_sect:=GetHUDSection(wpn);
@@ -89,13 +96,14 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     canshoot:=WpnCanShoot(PChar(cls));
+    isdetector :=WpnIsDetector(PChar(cls));
     //--------------------------Модификаторы движения/состояния актора---------------------------------------
 
     //если актор в режиме прицеливания
     if (canshoot or (cls='WP_BINOC')) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
       if GetActorActionState(actor, actAimStarted) then begin
-        ModifierMoving(wpn, actor, anim_name);
+        ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
       end else begin
         anim_name:=anim_name+'_start';
         if canshoot then MagazinedWpnPlaySnd(wpn, 'sndAimStart');
@@ -109,19 +117,19 @@ begin
     //посмотрим на передвижение актора:
     end else if GetActorActionState(actor, actSprint) then begin
       anim_name:=anim_name+'_sprint';
-      if not GetActorActionState(actor, actModSprintStarted) then begin
+      if (not isdetector) and (not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
         if canshoot then MagazinedWpnPlaySnd(wpn, 'sndSprintStart');
         SetActorActionState(actor, actModSprintStarted, true);
       end;
 
-    end else if GetActorActionState(actor, actModSprintStarted) then begin;
+    end else if (not isdetector) and GetActorActionState(actor, actModSprintStarted) then begin;
       anim_name:=anim_name+'_sprint_end';
       if canshoot then MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
       SetActorActionState(actor, actModSprintStarted, false);
 
     end else begin
-      ModifierMoving(wpn, actor, anim_name);
+      ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
       if GetActorActionState(actor, actCrounch) then begin
         anim_name:=anim_name+'_crounch';
       end;
@@ -213,6 +221,7 @@ begin
         base_anim:=base_anim+'_empty';
       end;
 
+      ModifierMoving(wpn, actor, base_anim, 'enable_directions_'+base_anim, 'enable_moving_'+base_anim);
       ModifierGL(wpn, base_anim);
     end;
   end;
@@ -551,6 +560,7 @@ begin
     end else if GetAmmoInMagCount(wpn)=1 then
       anim_name:=anim_name+'_last';
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
+    ModifierMoving(wpn, actor, anim_name, 'enable_directions_anm_shoot_directions', 'enable_moving_anm_shoot');
     ModifierGL(wpn, anim_name);
   end;
 
@@ -583,6 +593,27 @@ begin
 end;
 
 //---------------------------------------------------------anm_reload------------------------------------------------
+
+procedure OnFinishReload(wpn:pointer; param:integer);stdcall;
+begin
+  GetBuffer(wpn).SetReloaded(false);
+end;
+
+procedure OnAmmoTimer(wpn:pointer; param:integer);stdcall;
+var
+  hud_sect:PChar;
+begin
+//TODO: предусмотреть механизм разряжания оружия при неоконченной аниме
+//  log (GetHUDSection(wpn)+': reloading...');
+  if (GetCurrentState(wpn)=7) and (GetActor()<>nil) and (GetOwner(wpn)=GetActor()) and (leftstr(GetCurAnim(wpn), length('anm_reload'))='anm_reload') then begin
+    hud_sect:=GetHUDSection(wpn);
+    SelectAmmoInMagCount(wpn, GetMagCapacityInCurrentWeaponMode(wpn));
+    ReloadMag(wpn);
+    GetBuffer(wpn).SetReloaded(true);
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+GetCurAnim(wpn)));
+  end;
+end;
+
 function anm_reload_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
@@ -615,7 +646,13 @@ begin
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
-  MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+
+  GetBuffer(wpn).SetReloaded(false);
+  if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAmmoTimer);
+  end else begin
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+  end;
 end;
 
 
@@ -733,6 +770,20 @@ begin
 end;
 
 //-----------Фикс для idle_slow - чтобы двиг назначал анимацию после перехода из быстрого шага в медленный и т.п.-----
+function NeedAssignAnim(act:pointer):boolean; stdcall;
+begin
+  result:=false;
+  if GetActorActionState(act, actMovingForward)<>GetActorActionState(act, actMovingForward, true)
+    or GetActorActionState(act, actMovingBack)<>GetActorActionState(act, actMovingBack, true)
+    or GetActorActionState(act, actMovingLeft)<>GetActorActionState(act, actMovingLeft, true)
+    or GetActorActionState(act, actMovingRight)<>GetActorActionState(act, actMovingRight, true)
+    or GetActorActionState(act, actCrounch)<>GetActorActionState(act, actCrounch, true)
+    or GetActorActionState(act, actSlow)<>GetActorActionState(act, actSlow, true)
+  then begin
+    result:=true;
+  end;
+end;
+
 procedure IdleSlowFixPatch(); stdcall;
 begin
   asm
@@ -752,20 +803,25 @@ begin
     cmp eax, ebx
     pop ebx
     pop eax
+
+{    pushad
+      push ebx
+      call NeedAssignAnim //BUG IN THIS FUNCTION!!!
+      cmp al, 0
+    popad  }
     
     @finish:
     ret
   end;
 end;
-//-------------------------------Не даем назначить bore, если не истек лок оружия-------------------------------------
+//-------------------------------Не даем назначить bore-------------------------------------
 procedure BoreAnimLockFix; stdcall;
 begin
   asm
     pushad
       sub esi, $2e0
-      push 0
       push esi
-      call WeaponAdditionalBuffer.CanStartAction
+      call WeaponAdditionalBuffer.CanBoreNow
       cmp al, 1
     popad
     je @finish

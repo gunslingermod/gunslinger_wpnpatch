@@ -20,10 +20,11 @@ const
   actCrounch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
-
+  
   actAimStarted:cardinal = $4000000;
   actShowDetectorNow:cardinal = $8000000;
   actModSprintStarted:cardinal = $10000000;
+
 
 implementation
 uses BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils;

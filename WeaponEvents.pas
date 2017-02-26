@@ -363,8 +363,14 @@ begin
   if firemode<0 then anm_name:=anm_name+'a' else anm_name:=anm_name+inttostr(firemode);
   anm_name:=anm_name+'_to_';
   if new_mode<0 then anm_name:=anm_name+'a' else anm_name:=anm_name+inttostr(new_mode);
-  
-  WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireMode');
+
+  if IsWeaponJammed(wpn) then begin
+    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireModeJammed');
+  end else if GetAmmoInMagCount(wpn)<=0 then begin
+    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireModeEmpty');
+  end else begin
+    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireMode');
+  end;
 end;
 
 procedure OnChangeFireMode_Patch(); stdcall;
@@ -401,18 +407,21 @@ procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
 var
   hud_sect:PChar;
   trash, element:string;
+  sitm:pointer;
 begin
-  log('afterexpl');
   hud_sect:=GetHUDSection(wpn);
   if game_ini_line_exist(hud_sect, 'explosion_trash') then begin
     trash:= game_ini_read_string(hud_sect, 'explosion_trash');
     while (GetNextSubStr(trash, element, ',')) do begin
-      alife_create(PChar(element), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+      sitm:=alife_create(PChar(element), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+      if sitm<>nil then CSE_SetAngle(sitm, GetOrientation(wpn));
+      if sitm<>nil then CSE_SetPosition(sitm, GetPosition(wpn));
     end;
   end;
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then alife_create(game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name'), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
   if IsSilencerAttached(wpn) and (GetSilencerStatus(wpn)=2) then alife_create(GetSilencerSection(wpn), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
   if IsGLAttached(wpn) and (GetGLStatus(wpn)=2) then alife_create(GetGLSection(wpn), GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn));
+
   alife_release(get_server_object_by_id(GetID(wpn)));
 end;
 
@@ -427,10 +436,12 @@ begin
     if GetCurrentCondition(wpn)<game_ini_r_single(sect, 'explode_start_condition') then begin
       if random < game_ini_r_single(sect, 'explode_probability') then begin
         SetExplosed(wpn, true);
+        if game_ini_line_exist(sect, 'explode_flame_particles') then SetCurrentParticles(wpn, game_ini_read_string(sect, 'explode_flame_particles'), OFFSET_PARTICLE_WEAPON_CURFLAME);
+        if game_ini_line_exist(sect, 'explode_shell_particles') then SetCurrentParticles(wpn, game_ini_read_string(sect, 'explode_shell_particles'), OFFSET_PARTICLE_WEAPON_CURSHELLS);
+        if game_ini_line_exist(sect, 'explode_smoke_particles') then SetCurrentParticles(wpn, game_ini_read_string(sect, 'explode_smoke_particles'), OFFSET_PARTICLE_WEAPON_CURSMOKE);
       end;
-    end; 
+    end;
   end;
-//
 end;
 
 procedure WeaponJammed_Patch(); stdcall;

@@ -30,8 +30,7 @@ begin
 
     //Теперь посмотрим, какие кости надо отображать, когда данный апгрейд установлен
     up_sect:=game_ini_read_string(PChar(element), 'section');
-    if not game_ini_line_exist(up_sect, 'show_bones') then exit;
-    SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(up_sect, 'show_bones'), false);
+    if game_ini_line_exist(up_sect, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(up_sect, 'show_bones'), false);
   end;
 end;
 
@@ -43,7 +42,8 @@ var all_upgrades:string;
 begin
   section:=GetSection(wpn);
   //Скроем все кости, которые надо скрыть, исходя из данных секции оружия
-  if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
+  if game_ini_line_exist(section, 'def_hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones'), false);
+  if game_ini_line_exist(section, 'def_show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_show_bones'), true);  
   
   //Прочитаем секции всех доступных апов из конфига
   if not game_ini_line_exist(section, 'upgrades') then exit;
@@ -102,6 +102,18 @@ begin
       if leftstr(GetCurAnim(wpn), length('anm_attach_scope_'))='anm_attach_scope_' then DetachAddon(wpn, 1);
       if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
       if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
+
+      {if (leftstr(GetCurAnim(wpn), length('anm_reload'))='anm_reload') then begin
+        if (leftstr(GetCurAnim(wpn), length('anm_reload_jammed'))<>'anm_reload_jammed') then begin
+          unload_magazine(wpn);
+          if GetBuffer(wpn).GetBeforeReloadAmmoCnt()>0 then
+            SelectAmmoInMagCount(wpn, GetMagCapacityInCurrentWeaponMode(wpn), 1);
+            ReloadMag(wpn);
+          end;
+        end else begin
+          JamWeapon(wpn);
+        end;
+      end;  }
     end;
 
     //апдейт буфера

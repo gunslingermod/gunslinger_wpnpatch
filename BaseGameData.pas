@@ -18,24 +18,6 @@ const
   W_BM16:word=$4744;
   W_RPG7:word=$F56C;
 
-  //Новые звуки
-{  sndReload:PChar='sndReload';
-  sndReloadEmpty:PChar='sndReloadEmpty';
-  snd_reload_empty:PChar='snd_reload_empty';
-  snd_changecartridgetype:PChar = 'snd_changecartridgetype';
-  sndChangeCartridgeType:PChar = 'sndChangeCartridgeType';
-
-  snd_jamned:PChar = 'snd_jamned'
-  sndJamned:PChar = 'sndJamned';
-  snd_jamned_last:PChar = 'snd_jamned_last';
-  sndJamnedLast:PChar = 'sndJamnedLast'; Ъ
-
-  //Остальное
-  scope_name:PChar = 'scope_name';
-  body:PChar = 'body';
-  wpn_silencer:PChar = 'wpn_silencer';
-  magazin:PChar = 'magazin'; }
-
 implementation
 uses windows;
 

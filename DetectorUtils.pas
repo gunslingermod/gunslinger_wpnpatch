@@ -4,7 +4,7 @@ interface
 
 function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
-function GetActiveDetector(act:pointer):pointer; stdcall;    //Возвращает CScriptGameObject! Исправить!
+function GetActiveDetector(act:pointer):pointer; stdcall;   
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 
 implementation
@@ -408,6 +408,14 @@ asm
     mov eax, xrGame_addr
     add eax, $1c92a0
     call eax
+    cmp eax, 0
+    je @null
+
+    mov eax, [eax+4]
+    cmp eax, 0
+    je @null
+    sub eax, $e8
+
     mov @result, eax
 
     jmp @finish

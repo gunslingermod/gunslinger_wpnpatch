@@ -2,6 +2,7 @@ unit WeaponAmmoCounter;
 
 interface
 function Init:boolean;
+procedure SelectAmmoInMagCount(wpn:pointer; default_value:integer); stdcall;
 
 implementation
 uses BaseGameData, GameWrappers, windows, WeaponAdditionalBuffer, WpnUtils;
@@ -11,28 +12,32 @@ var
 
 procedure SelectAmmoInMagCount(wpn:pointer; default_value:integer); stdcall;
 var curammocnt:integer;
-    cls:string;
 begin
+  if default_value < 0 then begin
+    WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(0);
+    exit;
+  end;
   WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(default_value);
-  
+  WeaponAdditionalBuffer.GetBuffer(wpn).SetBeforeReloadAmmoCnt(GetAmmoInMagCount(wpn));
+
   if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then exit;
 
   curammocnt:=WpnUtils.GetAmmoInMagCount(wpn);
-  
+
   if WpnUtils.IsWeaponJammed(wpn) then begin
     WpnUtils.SetAmmoTypeChangingStatus(wpn, $FF);
     WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(curammocnt);
     exit;
   end;
 
-  cls:=WpnUtils.GetClassName(wpn);
-  if (cls = 'WP_BM16') or (cls = 'WP_RPG7') then exit; 
+  if  (not game_ini_line_exist(GetSection(wpn), 'ammo_in_chamber')) or (game_ini_r_bool(GetSection(wpn), 'ammo_in_chamber')=false) then exit;
 
   if (curammocnt=0) or (WpnUtils.GetAmmoTypeChangingStatus(wpn)<>$FF) then begin
     WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(default_value-1);
     exit;
   end;
 end;
+
 
 procedure SelectAmmoInMagCount_Patch; stdcall;
 //В конфиге указывать емкость на 1 большую, чем в магазине!
@@ -43,7 +48,22 @@ begin
     pushad
     pushfd
 
+    push ecx
+
+    push ecx
+    call WeaponAdditionalBuffer.IsReloaded
+    pop ecx
+
+    cmp al, 1
+    je @noreload
+
     push [ecx+$694]
+    jmp @doselect
+
+    @noreload:
+    push -1
+
+    @doselect:
     push ecx
     call SelectAmmoInMagCount
 

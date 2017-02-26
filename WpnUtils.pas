@@ -33,6 +33,7 @@ function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetClassName(wpn:pointer):string; stdcall;
 function WpnCanShoot(cls:PChar):boolean;stdcall;
+function WpnIsDetector(cls:PChar):boolean;stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall
@@ -45,7 +46,20 @@ function GetShootLockTime(wpn:pointer):single;stdcall;
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
 function GetCurrentCondition(wpn:pointer):single; stdcall;
 function GetPosition(wpn:pointer):pointer; stdcall;
+function GetOrientation(wpn:pointer):pointer; stdcall;
 function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
+procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
+procedure CSE_SetAngle(swpn:pointer; ang:pointer); stdcall;
+procedure SetCurrentParticles(wpn:pointer; name:PChar; part_type:cardinal); stdcall;
+procedure ReloadMag(wpn:pointer); stdcall;
+function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+function GetNextState(wpn:pointer):integer; stdcall;
+procedure JamWeapon(wpn:pointer); stdcall;
+
+const
+  OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
+  OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
+  OFFSET_PARTICLE_WEAPON_CURSMOKE:cardinal = $438;  
 
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
@@ -413,7 +427,9 @@ end;
 
 procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 begin
-  SetHudModelBoneStatus(wpn, bone_name, status);
+  if (ActorUtils.GetActor()<>nil) and (ActorUtils.GetActorActiveItem() = wpn) then begin
+    SetHudModelBoneStatus(wpn, bone_name, status);
+  end;
   SetWorldModelBoneStatus(wpn, bone_name, status);
 end;
 
@@ -584,6 +600,15 @@ begin
   asm
     mov eax, wpn
     mov eax, [eax+$2E4]
+    mov @result, eax
+  end
+end;
+
+function GetNextState(wpn:pointer):integer; stdcall;
+begin
+  asm
+    mov eax, wpn
+    mov eax, [eax+$2E8]
     mov @result, eax
   end
 end;
@@ -837,6 +862,108 @@ asm
   mov eax, wpn
   add eax, $168
   mov @result, eax
+end;
+
+function GetOrientation(wpn:pointer):pointer; stdcall;
+asm
+  mov eax, wpn
+  add eax, $158
+  mov @result, eax
+end;
+
+function WpnIsDetector(cls:PChar):boolean;stdcall;
+begin
+  result:=(cls='DET_SIMP') or (cls='DET_ADVA') or (cls='DET_ELIT') or (cls='DET_SCIE');
+end;
+
+procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
+asm
+  push eax
+  push ebx
+
+  mov eax, swpn
+  mov ebx, pos
+  
+  mov ecx, [ebx]
+  mov [eax+$54], ecx
+
+  mov ecx, [ebx+4]
+  mov [eax+$58], ecx
+
+  mov ecx, [ebx+8]
+  mov [eax+$5C], ecx
+
+  pop ebx
+  pop eax
+end;
+
+procedure CSE_SetAngle(swpn:pointer; ang:pointer); stdcall;
+asm
+  push eax
+  push ebx
+
+  mov eax, swpn
+  mov ebx, ang
+  
+  mov ecx, [ebx]
+  mov [eax+$60], ecx
+
+  mov ecx, [ebx+4]
+  mov [eax+$64], ecx
+
+  mov ecx, [ebx+8]
+  mov [eax+$68], ecx
+
+  pop ebx
+  pop eax
+end;
+
+procedure SetCurrentParticles(wpn:pointer; name:PChar; part_type:cardinal); stdcall;
+asm
+  pushad
+    push name
+    call str_container_dock
+    test eax, eax
+    je @finish
+    add [eax], 1
+
+    mov ebx, wpn
+    add ebx, part_type
+    cmp [ebx], 0
+    je @writenewparticle
+      mov ecx, [ebx]
+      sub [ecx], 1
+    @writenewparticle:
+    mov [ebx], eax
+
+    @finish:
+  popad
+
+end;
+
+procedure ReloadMag(wpn:pointer); stdcall;
+asm
+  pushad
+    mov ecx, wpn
+    mov eax, xrgame_addr
+    add eax, $2d0f10
+    call eax
+  popad
+end;
+
+function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+asm
+  mov eax, wpn
+  mov eax, [eax+$694]
+  mov @result, eax
+end;
+
+procedure JamWeapon(wpn:pointer); stdcall;
+begin
+  asm
+    mov eax, wpn
+    mov byte ptr [eax+$45A], 1
+  end;
 end;
 
 end.
