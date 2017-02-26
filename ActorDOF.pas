@@ -66,23 +66,6 @@ asm
   @finish:
 end;
 
-procedure CWeapon__OnZoomOut(wpn:pointer); stdcall;
-begin
-  if IsDynamicDOF() then begin
-    ResetDof(game_ini_r_single_def(GetHUDSection(wpn),'zoom_out_dof_speed', GetDefaultDOFSpeed_Out()));
-  end;
-end;
-
-procedure CWeapon__OnZoomOut_Patch(); stdcall;
-asm
-  pushad
-    push esi
-    call CWeapon__OnZoomOut
-  popad
-  fld [esi+$498]
-end;
-
-
 
 function GetGamePersistent():pointer; stdcall;
 asm
@@ -277,9 +260,6 @@ begin
 
   jmp_addr:= xrgame_addr+$230ADE;
   if not WriteJump(jmp_addr, cardinal(@DOFLoadSpeed_Patch), 8, true) then exit;
-
-  jmp_addr:= xrgame_addr+$2BEE13;
-  if not WriteJump(jmp_addr, cardinal(@CWeapon__OnZoomOut_Patch), 6, true) then exit;
 
   result:=true;
 end;

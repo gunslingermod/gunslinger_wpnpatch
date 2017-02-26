@@ -86,6 +86,7 @@ procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
 procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
 
 procedure SetZoomStatus(wpn:pointer; status:boolean); stdcall;
+procedure SetZoomFactor(wpn:pointer; factor:single); stdcall;
 function IsAimToggle():boolean; stdcall;
 
 function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdcall;
@@ -1641,6 +1642,21 @@ end;
 function GetHandsRotOffset(attachable_hud_item:pointer):FVector3;
 begin
   result:=FVector3_copyfromengine(PChar(attachable_hud_item)+$AA);
+end;
+
+procedure SetZoomFactor(wpn:pointer; factor:single); stdcall;
+asm
+  push eax
+  push eax
+  movss [esp], xmm0
+
+  mov eax, wpn
+  movss xmm0, factor
+
+  movss [eax+$498], xmm0
+  movss xmm0, [esp]
+  add esp, 4
+  pop eax
 end;
 
 end.

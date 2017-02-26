@@ -7,7 +7,7 @@ procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster, UIUtils;
 
 
 
@@ -90,7 +90,7 @@ begin
     dotpos.y:=dotpos.y+dotdir.y*dist;
     dotpos.z:=dotpos.z+dotdir.z*dist;
 
-    buf.PlayLaserdotParticle(@dotpos, dist, true, b);
+    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, buf.PlayLaserdotParticle(@dotpos, dist, true, b));
     buf.SetLaserDotParticleHudStatus(b);
   end else if (GetOwner(wpn)=GetActor()) and (GetActorActiveItem()=wpn) then begin
     viewpos:=laserdot_data.world_offset;
@@ -100,7 +100,7 @@ begin
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
     dotpos.z:=dotpos.z+dotdir.z*dist;
-    buf.PlayLaserdotParticle(@dotpos, dist, false, false);
+    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones,buf.PlayLaserdotParticle(@dotpos, dist, false, false));
     buf.SetLaserDotParticleHudStatus(false);
 
     //messenger.SendMessage(PChar(inttohex(cardinal(wpn),8)));
@@ -429,6 +429,8 @@ var
   sect:PChar;
 
   offset:integer;
+
+  bp:conditional_breaking_params;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
     sect:=GetSection(wpn);
@@ -456,7 +458,23 @@ begin
       if not buf.IsTorchInstalled() and game_ini_r_bool_def(sect, 'torch_installed', false) then begin
         buf.InstallTorch(sect)
       end;
-    end;    
+
+      if (game_ini_line_exist(GetSection(wpn), 'collimator_sights_bones')) then begin
+        bp:=buf.GetCollimatorBreakingParams();
+        if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter()) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
+          SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), false);
+        end else if GetCurrentCondition(wpn)<bp.start_condition then begin
+          SetWeaponMultipleBonesStatus(
+                                        wpn,
+                                        game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'),
+                                        not (random<bp.start_probability+(bp.start_condition-GetCurrentCondition(wpn))* (1-bp.start_probability)/(bp.start_condition-bp.end_condition))
+                                      );
+
+        end else begin
+          SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), true);
+        end;
+      end;
+    end;
 
     if ((GetActor()=nil) or (GetOwner(wpn)<>GetActor())) or (GetActorActiveItem()<>wpn) then begin
       if IsExplosed(wpn) then OnWeaponExplode_AfterAnim(wpn, 0);
@@ -526,8 +544,13 @@ var
   buf:WpnBuf;
 begin
   //вернуть true, если прицел все же показывать
+  if (CDialogHolder__TopInputReceiver()<>nil) then begin
+    result:=false;
+    exit;
+  end;
+
   buf:=GetBuffer(wpn);
-  if (buf<>nil) and buf.IsLaserInstalled() and buf.IsLaserEnabled() then begin
+  if (buf<>nil) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) then begin
     result:=false;
     exit;
   end;

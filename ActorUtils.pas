@@ -504,7 +504,7 @@ begin
     end;
   end;
 
-  if IsSprintOnHoldEnabled() and (not IsActionKeyPressedInGame(kWPN_ZOOM)) and (_keyflags=0) and (CDialogHolder__TopInputReceiver()=nil) then begin
+  if IsSprintOnHoldEnabled() and (IsAimToggle() or (not IsActionKeyPressedInGame(kWPN_ZOOM)) and (not IsActionKeyPressedInGame(kWPN_ZOOM_ALTER))) and (_keyflags=0) and (CDialogHolder__TopInputReceiver()=nil) then begin
     if IsActionKeyPressedInGame(kSPRINT_TOGGLE) and ((wpn=nil) or CanSprintNow(wpn)) then begin
       SetActorActionState(act, actSprint, true, mState_WISHFUL);
     end else begin
@@ -530,6 +530,11 @@ begin
   if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
     if not IsAimToggle() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
       virtual_Action(wpn, kWPN_ZOOM, kActPress);
+      SetActorKeyRepeatFlag(kfUNZOOM, false);
+    end;
+  end else if IsActionKeyPressedInGame(kWPN_ZOOM_ALTER) then begin
+    if not IsAimToggle() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
+      virtual_Action(wpn, kWPN_ZOOM_ALTER, kActPress);
       SetActorKeyRepeatFlag(kfUNZOOM, false);
     end;
   end;
@@ -998,11 +1003,17 @@ asm
   push edi
 end;
 
+procedure ResetZoomFov_Patch(); stdcall;
+asm
+  mov [esi+$498], $3F800000; //m_zoom_params.m_fCurrentZoomFactor = 1.0
+end;
+
 
 procedure UpdateFOV(act:pointer);
 var
     fov, zoom_fov, hud_fov, af:single;
     wpn:pointer;
+    buf:WpnBuf;
 begin
   //Можно манипулировать FOV и HudFOV
 
@@ -1017,10 +1028,19 @@ begin
   if (wpn<>nil) then begin
     hud_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_factor', 1.0);
     if IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then begin
-      if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
-        zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_zoom_factor', hud_fov);
+      buf:=GetBuffer(wpn);
+      if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
+          zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_gl_zoom_factor', hud_fov);
+      end else if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
+          zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_zoom_factor', hud_fov);
+          if (buf<>nil) and buf.IsAlterZoomMode() then begin
+            zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_alter_zoom_factor', zoom_fov);
+          end;
       end else begin
-        zoom_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_zoom_factor', hud_fov);
+          zoom_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_zoom_factor', hud_fov);
+          if (buf<>nil) and buf.IsAlterZoomMode() then begin
+            zoom_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_alter_zoom_factor', zoom_fov);
+          end;
       end;
       af :=GetAimFactor(wpn);
       hud_fov:=hud_fov-(hud_fov-zoom_fov)*af;
@@ -1374,6 +1394,14 @@ begin
     nop_code(xrgame_addr+$4e2160, 2);
     nop_code(xrgame_addr+$4e20c0, 2);
   end;
+
+  //теперь в обычном состоянии m_zoom_params.m_fCurrentZoomFactor должен инициализироваться не g_fov, а 1.0
+  //в CWeapon::OnZoomOut
+  jmp_addr:= xrgame_addr+$2BEE26;
+  if not WriteJump(jmp_addr, cardinal(@ResetZoomFov_Patch), 16, true) then exit;
+  //и в CWeapon::CWeapon
+  jmp_addr:= xrgame_addr+$2BF6F7;
+  if not WriteJump(jmp_addr, cardinal(@ResetZoomFov_Patch), 16, true) then exit;
 
   result:=true;
 end;

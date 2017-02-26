@@ -4,13 +4,36 @@ unit collimator;
 interface
 function Init:boolean;
 function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
+function CanUseAlterScope(wpn:pointer):boolean;
+function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, sysutils, windows, MatVectors, ActorUtils, strutils, messenger;
+uses BaseGameData, gunsl_config, HudItemUtils, sysutils, windows, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer;
 
 var
   last_hud_data:pointer;
 
+function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
+begin
+  if IsScopeAttached(wpn) then begin
+    result:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'alter_scope_zoom_factor', 1.0);
+  end else begin
+    result:=game_ini_r_single_def(GetSection(wpn), 'alter_scope_zoom_factor', 1.0)
+  end;
+end;
+
+function CanUseAlterScope(wpn:pointer):boolean;
+begin
+  result:=false;
+
+  if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit; 
+
+  if IsScopeAttached(wpn) then begin
+    result:=game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'alter_zoom_allowed', false)
+  end else begin
+    result:=game_ini_r_bool_def(GetHudSection(wpn), 'alter_zoom_allowed', false)
+  end;
+end;
 
 function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
 var
@@ -23,20 +46,29 @@ begin
   result:=game_ini_r_bool_def(scope, 'collimator', false)
 end;
 
+function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  result:=IsCollimatorInstalled(wpn) or ((buf<>nil) and buf.IsAlterZoomMode()); 
+end;
+
 procedure PatchHudVisibility(); stdcall;
+//CWeapon::need_renderable
 asm
-    pushfd
+    xor eax, eax
+
     pushad
-
-
     push esi
-    call IsCollimatorInstalled;
-    and eax, 1
-    mov [esp+$1C], eax //загоним сохрaненные значения
-
+    call IsHudNotNeededToBeHidden;
+    test al, al
     popad
-    popfd
 
+    je @finish
+    mov eax, 1
+
+    @finish:
     pop edi
     pop esi
     ret
@@ -44,31 +76,49 @@ end;
 
 procedure ChangeHudOffsets(wpn:pointer; hud_data:pointer); stdcall;
 var
-  section, pos_str, rot_str:PChar;
-  pos, rot,targetpos, targetrot, zerovec:FVector3;
-  factor:single;
-  speed:single;
+  section:PChar;
+  pos_str, rot_str:string;
+  pos, rot, zerovec:FVector3;
   rb:cardinal;
+
+  buf:WpnBuf;
+  is_alter:boolean;
 begin
   if not IsCollimAimEnabled() then exit;
+  is_alter:=false;
   last_hud_data:=nil;
   v_zero(@zerovec);
   section:=GetHudSection(wpn);
+
+  buf:=GetBuffer(wpn);
+
   if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
     section:=GetCurrentScopeSection(wpn);
     last_hud_data:=hud_data;
   end;
+  
+  if (buf<>nil) and CanUseAlterScope(wpn) and (buf.IsAlterZoomMode() or ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter())) then begin
+    last_hud_data:=hud_data;
+    is_alter:=true;
+  end;
 
   if last_hud_data<>nil then begin
+    pos_str:='aim_hud_offset_pos';
+    rot_str:='aim_hud_offset_rot';
+
     if Is16x9() then begin
-      pos_str:='aim_hud_offset_pos_16x9';
-      rot_str:='aim_hud_offset_rot_16x9';
-    end else begin
-      pos_str:='aim_hud_offset_pos';
-      rot_str:='aim_hud_offset_rot';
+      pos_str:=pos_str+'_16x9';
+      rot_str:=rot_str+'_16x9';
     end;
-    pos:=game_ini_read_vector3_def(section, pos_str, @zerovec);
-    rot:=game_ini_read_vector3_def(section, rot_str, @zerovec);
+
+    if is_alter then begin
+      //log('alter_zoom');
+      pos_str:='alter_' + pos_str;
+      rot_str:='alter_' + rot_str;
+    end;
+
+    pos:=game_ini_read_vector3_def(section, PChar(pos_str), @zerovec);
+    rot:=game_ini_read_vector3_def(section, PChar(rot_str), @zerovec);
 
     writeprocessmemory(hndl, PChar(last_hud_data)+$2b, @pos, 12, rb);
     writeprocessmemory(hndl, PChar(last_hud_data)+$4f, @rot, 12, rb);
@@ -144,7 +194,7 @@ procedure CWeapon_show_indicators_Patch(); stdcall;
 asm
   pushad
     push esi
-    call IsCollimatorInstalled
+    call IsHudNotNeededToBeHidden
     cmp al, 1
   popad
   je @finish
@@ -152,6 +202,82 @@ asm
   @finish:
 end;
 
+function IsAlterZoom(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf := GetBuffer(wpn);
+  result:= (buf<>nil) and buf.IsAlterZoomMode();
+end;
+
+procedure CWeapon__OnZoomIn_PreExit_Patch();
+asm
+  pushad
+  push esi
+  call IsAlterZoom
+  cmp al, 0
+  popad
+  je @notneed
+  add esp, 4
+  pop edi
+  pop esi
+  ret
+
+  @notneed:
+  mov eax, [esi+$4B4]
+end;
+
+procedure CWeapon__ZoomTexture_Patch();
+asm
+  pushad
+  push esi
+  call IsAlterZoom
+  cmp al, 1
+  popad
+  je @disable
+  mov eax, [esi+$4c4]
+  ret
+  @disable:
+  xor eax, eax
+end;
+
+
+procedure CWeapon__render_item_ui_query_Patch();
+asm
+  pushad
+  push esi
+  call IsAlterZoom
+  cmp al, 1
+  popad
+  je @finish
+  cmp [esi+$4c4], 0
+  @finish:
+end;
+
+procedure CWeapon__show_crosshair_Patch();
+asm
+  pushad
+  push esi
+  call IsAlterZoom
+  cmp al, 0
+  popad
+
+  je @noalterzoom
+  
+  xor eax, eax
+  cmp byte ptr [esi+$495], 01
+  je @exit
+  mov eax, 1
+
+  @exit:
+  add esp, 4
+  pop esi
+  ret
+
+  @noalterzoom:
+  cmp byte ptr [esi+$495], 00
+
+end;
 
 function Init:boolean;
 var
@@ -169,6 +295,18 @@ begin
 
   patch_addr:=xrGame_addr+$2BC773;
   if not WriteJump(patch_addr, cardinal(@CWeapon_show_indicators_Patch), 7, true) then exit;
+
+  patch_addr:=xrGame_addr+$2C0802;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__OnZoomIn_PreExit_Patch), 6, true) then exit;
+
+  patch_addr:=xrGame_addr+$2BC3D1;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__ZoomTexture_Patch), 6, true) then exit;
+
+  patch_addr:=xrGame_addr+$2BD12B;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui_query_Patch), 7, true) then exit;
+
+  patch_addr:=xrGame_addr+$2BD1C5;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__show_crosshair_Patch), 7, true) then exit;
 
   result:=true;
 end;

@@ -13,6 +13,12 @@ type dist_koefs = record
   multiplier:single;
 end;
 
+type conditional_breaking_params = packed record
+  start_condition:single; //при каком состоянии начнутся проблемы
+  end_condition:single;   //при каком состоянии отрубится вообще
+  start_probability:single; //вероятность проблем в стартовом состоянии
+end;
+
 type laserdot_params = packed record
     particles_cur:PChar;
     bone_name:PChar;
@@ -66,6 +72,13 @@ type
 
     _actor_camera_speed:single;
 
+    _is_alter_zoom_now:boolean;
+    _is_alter_zoom_last:boolean;
+
+    _collimator_breaking:conditional_breaking_params;
+    _laser_breaking:conditional_breaking_params;
+    _torch_breaking:conditional_breaking_params;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -109,7 +122,7 @@ type
     procedure InstallLaser(params_section:PChar);
 
     procedure SetLaserEnabledStatus(status:boolean);
-    procedure PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean);
+    function PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean):boolean;
     procedure StopLaserdotParticle();
     procedure SetLaserDotParticleHudStatus(status:boolean);
 
@@ -127,6 +140,15 @@ type
 
     procedure SetCameraSpeed(s:single);
     function GetCameraSpeed():single;
+
+    function IsAlterZoomMode():boolean;
+    procedure SetAlterZoomMode(status:boolean);
+
+    function IsLastZoomAlter():boolean;
+    procedure SetLastZoomAlter(status:boolean);
+
+    function GetCollimatorBreakingParams():conditional_breaking_params;
+    function GetLaserBreakingParams():conditional_breaking_params;
 
   end;
 
@@ -153,6 +175,8 @@ type
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 
+
+
 implementation
 uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster;
 
@@ -164,6 +188,8 @@ begin
 end;
 
 constructor WpnBuf.Create(wpn: pointer);
+var
+  tmpvec:FVector3;
 begin
   inherited Create;
 
@@ -205,7 +231,19 @@ begin
   _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
 
   _actor_camera_speed:=game_ini_r_single_def(GetSection(wpn), 'actor_camera_speed_factor', 1.0)*GetCamSpeedDef();
+  _is_alter_zoom_now:=false;
+  _is_alter_zoom_last:=false;
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
+
+
+  tmpvec.x := -1;
+  tmpvec.y := -1;
+  tmpvec.z := 0;
+  tmpvec:=game_ini_read_vector3_def(GetSection(wpn), 'collimator_breaking_params', @tmpvec);
+  _collimator_breaking.start_condition:=tmpvec.x;
+  _collimator_breaking.end_condition:=tmpvec.y;
+  _collimator_breaking.start_probability:=tmpvec.z;
+
 end;
 
 destructor WpnBuf.Destroy;
@@ -714,6 +752,7 @@ procedure WpnBuf.InstallLaser(params_section: PChar);
 var
   i:integer;
   len:integer;
+  tmpvec:FVector3;
 begin
   if IsLaserInstalled() then exit;
   _laserdot_particle_object:=nil;
@@ -760,6 +799,16 @@ begin
   _laserdot.always_hud:=game_ini_r_bool_def(GetHUDSection(_my_wpn), 'laserdot_always_hud', false);
   _laserdot.always_world:=game_ini_r_bool_def(GetHUDSection(_my_wpn), 'laserdot_always_world', false);
   _laserdot.hud_treshold:=cos(game_ini_r_single_def(GetHUDSection(_my_wpn), 'laserdot_hud_treshold', 10)*pi/180);
+
+
+  tmpvec.x := -1;
+  tmpvec.y := -1;
+  tmpvec.z := 0;
+  tmpvec:=game_ini_read_vector3_def(params_section, 'laser_breaking_params', @tmpvec);
+  _laser_breaking.start_condition:=tmpvec.x;
+  _laser_breaking.end_condition:=tmpvec.y;
+  _laser_breaking.start_probability:=tmpvec.z;
+
   self._laser_installed:=true;
 end;
 
@@ -768,14 +817,26 @@ begin
   result:=self._laserdot;
 end;
 
-procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean);
+function WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean):boolean;
 var
   zero_vel, viewpos:FVector3;
   index, i, l:integer;
   newdist, tmpdist, dist_to_cam:single;
 begin
+  result:=false;
   if (not self.IsLaserInstalled) or (not self.IsLaserEnabled) then exit;
 
+  if GetCurrentCondition(_my_wpn)<_laser_breaking.end_condition then begin
+    StopLaserdotParticle();
+    exit;
+  end else if GetCurrentCondition(_my_wpn)<_laser_breaking.start_condition then begin
+    if random<_laser_breaking.start_probability+(_laser_breaking.start_condition-GetCurrentCondition(_my_wpn))* (1-_laser_breaking.start_probability)/(_laser_breaking.start_condition-_laser_breaking.end_condition) then begin
+      StopLaserdotParticle();
+      exit;
+    end;
+  end;
+
+  result:=true;
   if is1stpersonview then begin
     if hud_mode then begin
       StopLaserdotParticle();
@@ -873,8 +934,18 @@ begin
 end;
 
 procedure WpnBuf.InstallTorch(params_section: PChar);
+var
+  tmpvec:FVector3;
 begin
   if self._torch_installed then exit;
+
+  tmpvec.x := -1;
+  tmpvec.y := -1;
+  tmpvec.z := 0;
+  tmpvec:=game_ini_read_vector3_def(params_section, 'torch_breaking_params', @tmpvec);
+  _torch_breaking.start_condition:=tmpvec.x;
+  _torch_breaking.end_condition:=tmpvec.y;
+  _torch_breaking.start_probability:=tmpvec.z;
 
   self._torch_installed:=true;
   NewTorchlight(@_torch_params, params_section);
@@ -892,7 +963,7 @@ procedure WpnBuf.UpdateTorch;
 var
   HID:pointer;
   pos, dir, tmp, zerovec, omnipos, omnidir:FVector3;
-  hudmode:boolean;
+  hudmode, is_broken:boolean;
 begin
 
   if not self._torch_installed then exit;
@@ -909,6 +980,20 @@ begin
     SetWeaponMultipleBonesStatus(_my_wpn, _torch_params.light_cone_bones, false);
     SwitchTorch(false);
     exit; 
+  end;
+
+  if GetCurrentCondition(_my_wpn)<_torch_breaking.end_condition then begin
+    is_broken:=true;
+  end else if GetCurrentCondition(_my_wpn)<_torch_breaking.start_condition then begin
+    is_broken:= random<_torch_breaking.start_probability+(_torch_breaking.start_condition-GetCurrentCondition(_my_wpn))* (1-_torch_breaking.start_probability)/(_torch_breaking.start_condition-_torch_breaking.end_condition)
+  end else begin
+    is_broken:=false;
+  end;  
+
+  if is_broken then begin
+    SwitchTorch(false);
+    SetWeaponMultipleBonesStatus(_my_wpn, _torch_params.light_cone_bones, false);
+    _torch_params.enabled:=true;
   end;
 
   zerovec.x:=0;
@@ -963,6 +1048,36 @@ end;
 procedure WpnBuf.SetCameraSpeed(s: single);
 begin
   self._actor_camera_speed:=s;
+end;
+
+function WpnBuf.IsAlterZoomMode: boolean;
+begin
+  result:=self._is_alter_zoom_now;
+end;
+
+procedure WpnBuf.SetAlterZoomMode(status: boolean);
+begin
+  _is_alter_zoom_now:=status;
+end;
+
+function WpnBuf.IsLastZoomAlter: boolean;
+begin
+  result:=_is_alter_zoom_last;
+end;
+
+procedure WpnBuf.SetLastZoomAlter(status: boolean);
+begin
+  _is_alter_zoom_last:=status;
+end;
+
+function WpnBuf.GetCollimatorBreakingParams: conditional_breaking_params;
+begin
+  result:=self._collimator_breaking;
+end;
+
+function WpnBuf.GetLaserBreakingParams: conditional_breaking_params;
+begin
+  result:=self._laser_breaking;
 end;
 
 end.

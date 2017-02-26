@@ -12,7 +12,7 @@ function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -821,7 +821,7 @@ var
 begin
   result:=CanAimNow(wpn);
   act:=GetActor();
-  if not result and (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
+  if not result and (act<>nil) and not IsAimToggle() and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
   end;
 
@@ -1061,34 +1061,82 @@ begin
 end;
 
 //---------------------------------------------------------------------------------------------------------
-procedure CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal); stdcall;
-
+procedure OnZoomAlterButton(wpn:pointer; flags:cardinal);
+var
+  buf:WpnBuf;
+  act:pointer;
 begin
+
+    buf:=GetBuffer(wpn);
+    if (buf=nil) or not CanUseAlterScope(wpn) then exit;
+    
+    act:=GetActor();
+    if (act=nil) or (act<>GetOwner(wpn)) then exit;
+    
+    if not CanAimNow(wpn) then begin
+     if IsHolderInSprintState(wpn) and not IsAimToggle() then begin
+      SetActorActionState(act, actSprint, false, mState_WISHFUL);
+     end;
+     exit;
+    end;
+
+    if IsAimToggle() then begin
+      if flags=kActPress then begin
+        if not IsAimNow(wpn) then begin
+          buf.SetAlterZoomMode(true);
+          virtual_Action(wpn, kWPN_ZOOM, kActPress);
+        end else if buf.IsAlterZoomMode() then begin
+          buf.SetAlterZoomMode(false);
+          virtual_Action(wpn, kWPN_ZOOM, kActPress);
+        end;
+      end;
+    end else begin
+      if (flags=kActPress) and not IsAimNow(wpn) then begin
+          buf.SetAlterZoomMode(true);
+          virtual_Action(wpn, kWPN_ZOOM, kActPress);
+      end else if (flags=kActRelease) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
+          buf.SetAlterZoomMode(false);
+          virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+      end;
+    end;
+end;
+//---------------------------------------------------------------------------------------------------------
+function CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal):boolean; stdcall;
+//вернуть true, если дальше обрабатывать нажатие не надо
+var
+  buf:WpnBuf;
+begin
+  result:=false;
   if (id=kLASER) and (flags=kActPress) then begin
     OnLaserButton(wpn);
   end else if (id=kTACTICALTORCH) and (flags=kActPress) then begin
     OnTorchButton(wpn);
+  end else if (id=kWPN_ZOOM_ALTER) then begin
+    OnZoomAlterButton(wpn, flags);
+  end else if (id=kWPN_ZOOM) then begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
+      result:=true;
+    end;
+  end else if (id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) then begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
+      result:=true;
+    end;  
   end;
 end;
 
 procedure CWeapon__Action_Patch(); stdcall;
 asm
-  push [esp]
-  mov [esp+$4], ebx
-
-  mov ebx, [esp+$10]
-
+  mov esi, ecx
   pushad
     push ebx
-    push [esp+$30]
+    push edi
     push ecx
     call CWeapon__Action
+    test al, al
   popad
-
-
-  ret
 end;
-
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -1239,6 +1287,55 @@ asm
   pop esi //вырезанное
 end;
 
+procedure CWeaponMagazined__InitAddons_Patch; stdcall;
+asm
+  fstp dword ptr [esi+$4a4]
+  mov eax, [esi+$4a4]
+  mov [esi+$4C0], eax // m_fRTZoomFactor = m_zoom_params.m_fScopeZoomFactor
+end;
+
+//----------------------------------------------------------------------------------------------------------
+procedure CWeapon__OnZoomOut(wpn:pointer); stdcall;
+begin
+  if IsDynamicDOF() then begin
+    ResetDof(game_ini_r_single_def(GetHUDSection(wpn),'zoom_out_dof_speed', GetDefaultDOFSpeed_Out()));
+  end;
+end;
+
+procedure CWeapon__OnZoomOut_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CWeapon__OnZoomOut
+  popad
+  fld [esi+$498]
+end;
+
+
+
+procedure CWeapon__OnZoomIn(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) then begin
+    buf.SetLastZoomAlter(buf.IsAlterZoomMode());
+
+    if buf.IsAlterZoomMode() then begin
+      SetZoomFactor(wpn, GetAlterScopeZoomFactor(wpn));
+    end;
+  end;
+end;
+
+procedure CWeapon__OnZoomIn_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CWeapon__OnZoomIn
+  popad
+  lea ecx, [esi+$2e0]
+end;
+
 //----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
@@ -1321,14 +1418,15 @@ begin
   if not WriteJump(jmp_addr, cardinal(@OnKnifeKick_Patch), 5, true) then exit;
 
   //обработка дополнительных клавиатурных действий
-  jmp_addr:=xrGame_addr+$2BEC70;
-  if not WriteJump(jmp_addr, cardinal(@CWeapon__Action_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$2BEC7B;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__Action_Patch), 11, true) then exit;
 
 
   //исправляем рассинхрон с детектором
   jmp_addr:=xrGame_addr+$2bc7e0;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
-  //фикс убирания оружия для пианистов
+
+  //[bug] фикс убирания оружия для пианистов
   jmp_addr:=xrGame_addr+$2F96A0;
   if not WriteJump(jmp_addr, cardinal(@CHudItem__SendHiddenItem_Patch), 5, true) then exit;
   jmp_addr:=xrGame_addr+$2d4f30;
@@ -1338,9 +1436,19 @@ begin
   jmp_addr:=xrGame_addr+$2DE3DB;
   if not WriteJump(jmp_addr, cardinal(@CWeaponShotgun__OnAnimationEnd_OnClose_Patch), 6, true) then exit;
 
-  //фикс показа в руке аптеки при съедении перед дестроем
+  jmp_addr:= xrgame_addr+$2BEE13;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__OnZoomOut_Patch), 6, true) then exit;
+
+  jmp_addr:= xrgame_addr+$2C07E5;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__OnZoomIn_Patch), 6, true) then exit;
+
+  //[bug] фикс показа в руке аптеки при съедении перед дестроем
   jmp_addr:=xrGame_addr+$2AC678;
   if not WriteJump(jmp_addr, cardinal(@CEatableItemObject__OnH_A_Independent_Patch), 14, false) then exit;
+
+  //[bug] фикс неопределенного поведения при аттаче прицела с переменной кратностью к только что заспавненному оружию
+  jmp_addr:=xrGame_addr+$2CDD6B;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__InitAddons_Patch), 6, true) then exit;
 
   result:=true;
 end;
