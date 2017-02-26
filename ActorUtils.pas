@@ -1,5 +1,7 @@
 unit ActorUtils;
 
+//xragme+4e212a - менять условия для включения коллизии
+
 interface
 const
   actMovingForward:cardinal = $1;
@@ -51,8 +53,13 @@ procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean);
 procedure ClearActorKeyRepeatFlags();
 procedure ResetActorFlags(act:pointer);
 procedure UpdateSlots(act:pointer);
+procedure UpdateFOV(act:pointer);
 function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
 procedure ActivateActorSlot(slot:cardinal); stdcall;
+
+procedure SetFOV(fov:single); stdcall;
+function GetFOV():single; stdcall;
+procedure SetHudFOV(fov:single); stdcall;
 
 
 
@@ -392,6 +399,7 @@ begin
 
 
   ProcessKeys(act);
+  UpdateFOV(act);
 
 end;
 
@@ -591,4 +599,66 @@ begin
     
   result:=true;
 end;
+
+procedure UpdateFOV(act:pointer);
+var
+    fov:single;
+    wpn:pointer;
+begin
+  //Можно манипулировать FOV и HudFOV
+
+  wpn:=GetActorActiveItem();
+
+  if not game_ini_line_exist('gunslinger_base', 'fov') then exit;
+  fov:=game_ini_r_single('gunslinger_base', 'fov');
+  if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'fov_factor');
+  SetFOV(fov);
+
+  if not game_ini_line_exist('gunslinger_base', 'hud_fov') then exit;
+  fov:=game_ini_r_single('gunslinger_base', 'hud_fov');
+  if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'hud_fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'hud_fov_factor');  
+  SetHudFOV(fov);
+end;
+
+procedure SetFOV(fov:single); stdcall;
+asm
+  push eax
+  push ebx
+
+  mov eax, fov
+  mov ebx, xrgame_addr
+  add ebx, $635C44
+  mov [ebx], eax
+
+  pop ebx
+  pop eax
+end;
+
+function GetFOV():single; stdcall;
+asm
+  mov eax, xrgame_addr
+  add eax, $635C44
+  mov eax, [eax]
+  mov @result, eax
+end;
+
+procedure SetHudFOV(fov:single); stdcall;
+var
+  koef:single;
+begin
+  koef:=fov/GetFOV;
+  asm
+    push eax
+    push ebx
+
+    mov eax, koef
+    mov ebx, $490624
+    mov [ebx], eax
+
+    pop ebx
+    pop eax
+  end;
+end;
+
+
 end.

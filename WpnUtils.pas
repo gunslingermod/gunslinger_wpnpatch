@@ -62,6 +62,9 @@ function IsThrowable(cls:PChar):boolean;stdcall;
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
 
+function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
+function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;
+
 procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
 procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
 
@@ -1108,5 +1111,14 @@ asm
   movzx eax, byte ptr [eax]
 end;
 
+
+function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
+begin
+end;
+
+
+function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;
+begin
+end;
 
 end.

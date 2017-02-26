@@ -610,6 +610,11 @@ begin
   act:=GetActor();
   owner:=GetOwner(wpn);
   result:=CanHideWeaponNow(wpn);
+
+  {if (act<>nil) and (owner=act) then begin
+    log(inttostr(getcurrentstate(wpn)));
+  end;}
+
   if (act<>nil) and (owner=act) then begin
     if result then begin
       ResetActorFlags(act);
@@ -688,9 +693,14 @@ begin
   result:=CanStartAction(wpn);
   if not result then begin
     act:=GetActor();
-    if (act<>nil) and (act=GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
-      SetActorActionState(act, actSprint, false, mState_WISHFUL);
-      SetActorKeyRepeatFlag(kfACTTYPE, true);
+    if (act<>nil) and (act=GetOwner(wpn)) then begin
+
+      if IsHolderInSprintState(wpn) then begin
+        SetActorActionState(act, actSprint, false, mState_WISHFUL);
+        SetActorKeyRepeatFlag(kfACTTYPE, true);
+      end else if (IsWeaponJammed(wpn) and (kfACTTYPE = kfRELOAD)) then begin
+        SetActorKeyRepeatFlag(kfACTTYPE, true);
+      end;
     end;
   end;
 end;

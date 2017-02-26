@@ -1,4 +1,6 @@
 unit HudTransparencyFix;
+//Фикс на полупрозрачность в моделях худа
+//Работает через уравнивание мирового и худового FOV'ов
 
 interface
 function Init:boolean;

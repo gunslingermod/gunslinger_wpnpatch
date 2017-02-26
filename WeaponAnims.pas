@@ -1140,6 +1140,58 @@ asm
   ret
 end;
 
+//----------------------------Общий фикс многократного сокрытия при беспорядочной смене слотов-------------------------
+function MultiHideFix_IsHidingNow(wpn:pointer): boolean; stdcall;
+begin
+  if (GetCurrentState(wpn)=CHUDState__eHiding) and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
+    result:=true
+  else
+    result:=false;
+end;
+
+procedure MultiHideFix(); stdcall;
+asm
+  //Посмотрим, какая анима сейчас играется
+  //Если уже убирание - то забываем про аргументы процедуры, если еще нет - то вызовем убирание.
+
+  //поместим адрес возврата над аргументами CHudItem::PlayHUDMotion
+  push [esp]
+  push eax
+  push ebx
+  mov eax, [esp+$c] //ret addr
+  mov ebx, [esp+$1c] // arg4
+  mov [esp+$1c], eax   // ret --> arg4
+  mov eax, [esp+$18] //arg3
+  mov [esp+$18], ebx // arg4-->arg3
+  mov ebx, [esp+$14] //arg2
+  mov [esp+$14], eax // arg3 -->arg2
+  mov eax, [esp+$10] //arg1
+  mov [esp+$10], ebx //arg2 --> arg1
+  mov [esp+$c], eax  //arg1 --> ret
+  pop ebx
+  pop eax
+  add esp, 4
+
+  //смотрим, играется ли уже анима
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call MultiHideFix_IsHidingNow
+    test eax, eax
+  popad
+  jne @already_playing_anim
+
+  mov eax, xrgame_addr
+  add eax, $2F9A60// CHudItem::PlayHUDMotion
+  call eax
+
+  jmp @finish
+  @already_playing_anim:
+  //играть не надо, снимаем аргументы
+  add esp, $10
+  @finish:
+end;
+
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -1162,6 +1214,22 @@ begin
   //теперь очередь бага с расклиниванием
   jump_addr:=xrGame_addr+$2D0F2C;
   if not WriteJump(jump_addr, cardinal(@JammedBugFix), 7, true) then exit;
+
+  //Баг с повторением анимации сокрытия
+  jump_addr:=xrGame_addr+$2D1860; //CWeaponMagazinedWGrenade
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2CCF78; //CWeaponMagazined
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2C552F; //CWeaponPistol
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2D4FED; //CWeaponKnife
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E3A89; //артефакты
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2C7649; //CMissile
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2F38F3; //Flare
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
 
   //Не дадим перезаряжаться 
   jump_addr:=xrGame_addr+$2CE821;
