@@ -1,5 +1,6 @@
 unit WeaponAmmoCounter;
 
+{$define DISABLE_AUTOAMMOCHANGE}  //отключает автоматическую смену типа патронов по нажатию клавиши релоада при отсутсвии патронов текущего типа
 interface
 function Init:boolean;
 procedure SelectAmmoInMagCount(wpn:pointer; default_value:integer); stdcall;
@@ -96,6 +97,7 @@ begin
   end;
 end;
 
+
 procedure OnCartridgeAdded; stdcall;
 begin
   asm
@@ -108,6 +110,23 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
+
+{$ifdef DISABLE_AUTOAMMOCHANGE}
+procedure CWeaponmagazined__TryReload_Patch();stdcall;
+asm
+  //проверяем, была ли от юзера команда на смену режима
+
+  cmp byte ptr [esi+$6C7], $FF //if m_set_next_ammoType_on_reload<>-1 then jmp
+  jne @orig
+  mov eax, 0                    //говорим, что у оружия 0 доступных типов патронов ;)
+
+  @orig:
+  //делаем вырезанное
+  sar eax, 02
+  test al, al
+  ret
+end;
+{$endif}
 
 function Init:boolean;
 var rb:cardinal;
@@ -159,6 +178,13 @@ begin
 
   addr:=xrGame_addr+$2D11DA;
   if not WriteJump(addr, cardinal(@OnCartridgeAdded), 6, true) then exit;
+
+
+{$ifdef DISABLE_AUTOAMMOCHANGE}
+  addr:=xrGame_addr+$2D00FF;
+  if not WriteJump(addr, cardinal(@CWeaponmagazined__TryReload_Patch), 5, true) then exit;
+{$endif}
+
   result:=true;
 end;
 

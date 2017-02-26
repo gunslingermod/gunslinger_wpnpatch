@@ -9,10 +9,10 @@ procedure OnWeaponHideAnmStart(wpn:pointer);stdcall;
 function OnWeaponShow(wpn:pointer):boolean;stdcall;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
-function OnWeaponAction(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
+function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -40,6 +40,7 @@ function OnUnloadMag(wpn:pointer):boolean; stdcall;
 var
   hud_sect: PChar;
   act:pointer;
+  curanm:PChar;
 const
   param_name:PChar = 'use_unloadmag_anim';
 begin
@@ -60,16 +61,16 @@ begin
     exit;
   end;
 
-
-
   if WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_unload_mag', 'sndUnload') then begin
+    curanm:=WpnUtils.GetActualCurrentAnim(wpn);
+    StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
     //анима начала игратьс€. ѕосмотрим, когда надо разр€жатьс€
     if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+WpnUtils.GetActualCurrentAnim(wpn))) then begin
       //разр€жание идет по схеме визуального отображени€ патронов (в середине анимации)
-      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+WpnUtils.GetActualCurrentAnim(wpn)), false, OnUnloadInMiddleAnim);
-    end else if game_ini_line_exist(hud_sect, PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn))) then begin
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+curanm), false, OnUnloadInMiddleAnim);
+    end else if game_ini_line_exist(hud_sect, PChar('lock_time_end_'+curanm)) then begin
       //разр€жание выполн€етс€ после анимации
-      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)), false, OnUnloadInEndOfAnim);
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+curanm), false, OnUnloadInEndOfAnim);
     end else begin
       //никаких указаний нет, поэтому разр€жаемс€ сразу
       result := true;
@@ -317,12 +318,15 @@ begin
   result:=true;
 end;
 
-function OnCWeaponMagazinedNetSpawn(wpn:pointer):boolean;stdcall;
+function OnCWeaponNetSpawn(wpn:pointer):boolean;stdcall;
 begin
-  if WpnCanShoot(PChar(GetClassName(wpn))) then WpnBuf.Create(wpn);
+  //буфер может уже быть создан в load'e - проверим это
+  if (GetBuffer(wpn)=nil) and WpnCanShoot(PChar(GetClassName(wpn))) then begin
+    WpnBuf.Create(wpn);
+  end;
 end;
 
-procedure CWeaponMagazined_NetSpawn_Patch();
+procedure CWeapon_NetSpawn_Patch();
 begin
   asm
 
@@ -330,7 +334,7 @@ begin
     pushfd
 
     push esi
-    call OnCWeaponMagazinedNetSpawn
+    call OnCWeaponNetSpawn
 
     popfd
     popad
@@ -342,14 +346,14 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-function OnCWeaponMagazinedNetDestroy(wpn:pointer):boolean;stdcall;
+function OnCWeaponNetDestroy(wpn:pointer):boolean;stdcall;
 var buf:WpnBuf;
 begin
   buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
   if buf<>nil then buf.Free;
 end;
 
-procedure CWeaponMagazined_NetDestroy_Patch();
+procedure CWeapon_NetDestroy_Patch();
 begin
   asm
 
@@ -357,7 +361,7 @@ begin
     pushfd
 
     push esi
-    call OnCWeaponMagazinedNetDestroy
+    call OnCWeaponNetDestroy
 
     popfd
     popad
@@ -394,25 +398,20 @@ var
   hud_sect:PChar;
   firemode:integer;
   anm_name:string;
-  act,det:pointer;
-  det_anm:string;
+  det_anim:PChar;
+  act:pointer;
   res:boolean;
 begin
   //возвратить false, если нельз€ сейчас мен€ть режим огн€
   act:=GetActor();
-  if not CanStartAction(wpn) then begin
-    result:=false;
-    if (act<>nil) and (act=GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
-      SetActorActionState(act, actSprint, false, mState_WISHFUL);
-      if isPrev then
-        SetActorKeyRepeatFlag(kfPREVFIREMODE, true)
-      else
-        SetActorKeyRepeatFlag(kfNEXTFIREMODE, true);
-    end;
-    exit;
-  end;
 
-  result:=true;
+  if isPrev then
+    result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfPREVFIREMODE)
+  else
+    result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfNEXTFIREMODE);
+
+  if not result then exit;
+
 
   hud_sect:=GetHUDSection(wpn);
   firemode:=CurrentQueueSize(wpn);
@@ -435,17 +434,9 @@ begin
   end;
 
   if res then begin
-    SetAnimForceReassignStatus(wpn, true);
-    if act<>nil then begin
-      det:=GetActiveDetector(act);
-      if det<>nil then begin
-        det_anm:=GetActualCurrentAnim(wpn);
-        det_anm:=ANM_LEFTHAND+GetSection(det)+'_wpn'+rightstr(det_anm, length(det_anm)-3); //без anm
-        if game_ini_line_exist(hud_sect, PChar(det_anm)) then begin
-          AssignDetectorAnim(det, PChar(det_anm), true, true);
-        end;
-      end;
-    end;
+    SetAnimForceReassignStatus(wpn, true);     //for world model
+    det_anim:=GetActualCurrentAnim(wpn);
+    StartCompanionAnimIfNeeded(rightstr(det_anim, length(det_anim)-4), wpn, true);
   end;
 end;
 
@@ -564,7 +555,7 @@ begin
 {  wpn:=GetActorActiveItem();
   if (wpn=nil) or not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
   if not (IsExplosed(wpn) or (IsActionProcessing(wpn) and (leftstr(GetCurAnim(wpn), length('anm_fakeshoot'))<>'anm_fakeshoot'))) then begin
-    Messenger.SendMessage('gun_jammed');
+    Messenger.SendMessage('gun_jammed', gd_novice);
   end;}
 end;
 
@@ -581,7 +572,7 @@ var
   anm_started:boolean;
   txt:PChar;
   act, detector:pointer;
-  modif:string;
+  det_anm:PChar;
 begin
   anm_started:=false;
 
@@ -604,14 +595,9 @@ begin
 
   act:=GetActor();
   if (act<>nil) and (act=GetOwner(wpn)) and anm_started then begin
-    detector:=GetActiveDetector(act);
-    if detector<>nil then begin
-      modif:='_fakeshoot';
-      if IsAimNow(wpn) or IsHolderInAimState(wpn) then modif:=modif+'_aim';
-      if IsWeaponJammed(wpn) then modif:=modif+'_jammed';
-      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+modif), true, true);
-    end;
-    Messenger.SendMessage(txt);
+    det_anm:=GetActualCurrentAnim(wpn);
+    StartCompanionAnimIfNeeded(rightstr(det_anm, length(det_anm)-4), wpn, true);
+    Messenger.SendMessage(txt, gd_novice);
   end;
 end;
 
@@ -664,8 +650,7 @@ end;
 
 procedure OnWeaponHideAnmStart(wpn:pointer);stdcall;
 var
-  act, det, owner:pointer;
-  det_anim:string;
+  act, owner:pointer;
 begin
   //” ножа нет звука убирани€. ¬оспроизведем.
   if IsKnife(PChar(GetClassName(wpn))) then begin
@@ -679,13 +664,7 @@ begin
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     SetActorActionState(act, actSprint, false, mState_REAL);
 
-    det:=GetActiveDetector(act);
-    if det <> nil then begin
-      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_hide';
-      if game_ini_line_exist(GetHUDSection(wpn), PChar(det_anim)) then begin
-        AssignDetectorAnim(det, PChar(det_anim), true, true);
-      end;
-    end;
+    StartCompanionAnimIfNeeded('hide', wpn, false);
   end;
 end;
 
@@ -693,7 +672,6 @@ end;
 function OnWeaponShow(wpn:pointer):boolean;stdcall;
 var
   act, owner, det:pointer;
-  det_anim:string;
 begin
   //” ножа нет звука доставани€. ¬оспроизведем.
   if IsKnife(PChar(GetClassName(wpn))) then begin
@@ -717,13 +695,7 @@ begin
     end;
 
     //если детектор не только в слоте, но и активен
-    det:=GetActiveDetector(act);
-    if det <> nil then begin
-      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_draw';
-      if game_ini_line_exist(GetHUDSection(wpn), PChar(det_anim)) then begin
-        AssignDetectorAnim(det, PChar(det_anim), true, true);
-      end;
-    end;
+    StartCompanionAnimIfNeeded('draw', wpn, false);
   end;
 end;
 
@@ -762,7 +734,7 @@ begin
 end;
 
 
-function OnWeaponAction(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
+function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 var
   act:pointer;
 begin
@@ -813,21 +785,20 @@ end;
 procedure OnKnifeKick(knife:pointer; kick_type:cardinal); stdcall;
 var
   act:pointer;
-  det:pointer;
 begin
   act:=GetActor();
-  if (act=nil) or (act<>GetOwner(knife)) then det:=nil else begin
+  if (act<>nil) and (act=GetOwner(knife)) then begin
     SetActorActionState(act, actModSprintStarted, false);
-    det:=GetActiveDetector(act);
+    SetActorActionState(act, actModSprintStarted, false, mState_WISHFUL);
   end;
 
   case kick_type of
     1:begin
-        if det<>nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack'), true, true);
+        StartCompanionAnimIfNeeded('knife_attack', knife, true);
         CHudItem_Play_Snd(knife, 'sndKick1');
       end;
     2:begin
-        if det<>nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack2'), true, true);
+        StartCompanionAnimIfNeeded('knife_attack2', knife, true);
         CHudItem_Play_Snd(knife, 'sndKick2');
       end;
   end;
@@ -856,6 +827,68 @@ asm
   popad
   ret
 end;
+//---------------------------------------------------------------------------------------------------------
+procedure LaserSwitch(wpn:pointer; param:integer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  buf.SetLaserEnabledStatus(not buf.IsLaserEnabled());
+  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)));
+end;
+
+procedure OnLaserButton(wpn:pointer);
+var
+  buf:WpnBuf;
+  res:boolean;
+  curanm:PChar;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and buf.IsLaserInstalled() then begin
+    res:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfLASER);
+    if res then begin
+      if buf.IsLaserEnabled() then begin
+        res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_laser_on', 'sndLaserOn');
+      end else begin
+        res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_laser_off', 'sndLaserOff');
+      end;
+    end;
+
+    curanm:=WpnUtils.GetActualCurrentAnim(wpn);
+    if res then  begin
+      StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
+      MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, LaserSwitch);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------------------------------------
+procedure CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal); stdcall;
+
+begin
+  if (id=kLASER) and (flags=kActPress) then begin
+    OnLaserButton(wpn);
+  end;
+end;
+
+procedure CWeapon__Action_Patch(); stdcall;
+asm
+  push [esp]
+  mov [esp+$4], ebx
+
+  mov ebx, [esp+$10]
+
+  pushad
+    push ebx
+    push [esp+$30]
+    push ecx
+    call CWeapon__Action
+  popad
+
+
+  ret
+end;
+
 //----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
@@ -903,10 +936,10 @@ begin
 
   //спавн и дестрой
   jmp_addr:=xrGame_addr+$2C120B;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined_NetSpawn_Patch),6, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch),6, true) then exit;
 
   jmp_addr:=xrGame_addr+$2BEFE9;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined_NetDestroy_Patch),6, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetDestroy_Patch),6, true) then exit;
 
   upgrade_weapon_addr:=xrGame_addr+$2D09D6;
   if not WriteJump(upgrade_weapon_addr, cardinal(@Upgrade_Weapon_Patch), 5) then exit;
@@ -931,6 +964,11 @@ begin
   //јнимаци€ дл€ детектора в паре с ножом
   jmp_addr:=xrGame_addr+$2D547D;
   if not WriteJump(jmp_addr, cardinal(@OnKnifeKick_Patch), 7, true) then exit;
+
+  //обработка дополнительных клавиатурных действий
+  jmp_addr:=xrGame_addr+$2BEC70;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__Action_Patch), 5, true) then exit;
+
   result:=true;
 end;
 

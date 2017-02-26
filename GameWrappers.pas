@@ -3,6 +3,17 @@ unit GameWrappers;
 
 
 interface
+
+  type FVector3 = packed record
+    x:single;
+    y:single;
+    z:single;
+  end;
+
+  type PFVector3 = ^FVector3;
+
+  function FVector3_copyfromengine(v:pointer):FVector3;stdcall;
+
   function Init:boolean;
   function str_container_dock(str:PChar):pointer; stdcall;
   procedure unload_magazine(wpn:pointer);stdcall;
@@ -473,4 +484,28 @@ asm
   popad
 end;
 
+function FVector3_copyfromengine(v:pointer):FVector3;stdcall;
+var
+  a,b,c:single;
+begin
+  asm
+    push eax
+    push ebx
+      mov eax, v
+
+      mov ebx, [eax]
+      mov a, ebx
+
+      mov ebx, [eax+4]
+      mov b, ebx
+
+      mov ebx, [eax+8]
+      mov c, ebx
+    pop ebx
+    pop eax
+  end;
+  result.x:=a;
+  result.y:=b;
+  result.z:=c;
+end;
 end.

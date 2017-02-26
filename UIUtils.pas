@@ -5,6 +5,7 @@ interface
 function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
 function AddCustomStatic(cuigamecustom_this: pointer; id:PChar; bSingleInstance: boolean): {SDrawStaticStruct*} pointer; stdcall;
 
+function g_hud():{CCustomHUD*}pointer; stdcall;
 
 procedure CUILines__SetText(cuilines: pointer; msg:PChar); stdcall;
 procedure virtual_CUIWindow__Show (cuiwindow: pointer; status:cardinal); stdcall;
@@ -91,5 +92,14 @@ asm
     mov @result, eax 
   popad
 end;
+
+function g_hud():{CCustomHUD*}pointer; stdcall;
+asm
+  mov eax, xrengine_addr
+  mov eax, [eax+$92d3c]
+  mov @result, eax
+end;
+
+
 
 end.

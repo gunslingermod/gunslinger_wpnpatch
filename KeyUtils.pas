@@ -60,23 +60,28 @@ const
 	kTEAM:cardinal=$32;
 	kACTIVE_JOBS:cardinal=$33;
 	kVOTE_BEGIN:cardinal=$34;
-	kVOTE:cardinal=$35;
-	kVOTEYES:cardinal=$36;
-	kVOTENO:cardinal=$37;
-	kNEXT_SLOT:cardinal=$38;
-	kPREV_SLOT:cardinal=$39;
-	kSPEECH_MENU_0:cardinal=$3A;
-	kSPEECH_MENU_1:cardinal=$3B;
-	kQUICK_USE_1:cardinal=$3C;
-	kQUICK_USE_2:cardinal=$3D;
-	kQUICK_USE_3:cardinal=$3E;
-	kQUICK_USE_4:cardinal=$3F;
-	kQUICK_SAVE:cardinal=$40;
-	kQUICK_LOAD:cardinal=$41;
-	kALIFE_CMD:cardinal=$42;
-	kLASTACTION:cardinal=$43;
-	kNOTBINDED:cardinal=$44;
+  kADMIN:cardinal=$35;
+	kVOTE:cardinal=$36;
+	kVOTEYES:cardinal=$37;
+	kVOTENO:cardinal=$38;
+	kNEXT_SLOT:cardinal=$39;
+	kPREV_SLOT:cardinal=$3A;
+	kSPEECH_MENU_0:cardinal=$3B;
+	kSPEECH_MENU_1:cardinal=$3C;
+	kQUICK_USE_1:cardinal=$3D;
+	kQUICK_USE_2:cardinal=$3E;
+	kQUICK_USE_3:cardinal=$3F;
+	kQUICK_USE_4:cardinal=$40;
+	kQUICK_SAVE:cardinal=$41;
+	kQUICK_LOAD:cardinal=$42;
+	kALIFE_CMD:cardinal=$43;
+	kLASTACTION:cardinal=$44;
+	kNOTBINDED:cardinal=$45;
 	kFORCEDWORD:cardinal=$FF;
+
+  //действия мода
+  kLASER:cardinal = $46;
+  kQUICK_GRENADE:cardinal = $47;  
 
 function IsActionKeyPressed(EGameAction:cardinal):boolean; stdcall;
 function get_action_dik(EGameAction:cardinal; idx:integer):cardinal; stdcall; //idx принимает значения: 0 - основная клавиша, 1 - вспомогательная, -1 - дефаултовая назначенная

@@ -2,14 +2,64 @@ unit WeaponUpdate;
 
 interface
 function Init:boolean;
-function WpnUpdate(wpn:pointer):boolean; stdcall;
+//function WpnUpdate(wpn:pointer):boolean; stdcall;
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils;
 
 var patch_addr:cardinal;
   tst_light:pointer;
+
+//вызывается в случае наличия ЛЦУ на оружии
+procedure ProcessLaserDot(wpn: pointer; laser_bones:PChar; laser_particle:PChar);
+var
+  act:pointer;
+  buf:WpnBuf;
+  pos:FVector3;
+  dir:FVector3;
+
+  koef:single;
+begin
+  buf:=GetBuffer(wpn);
+  if buf=nil then exit;
+  buf.SetLaserInstalledStatus(true);
+
+  act:=GetActor();
+  if not buf.IsLaserEnabled() then begin
+    SetWeaponMultipleBonesStatus(wpn, laser_bones, false);
+  end else begin
+    SetWeaponMultipleBonesStatus(wpn, laser_bones, true);
+  end;
+
+//TODO:добавить проверку на то, отрисовывается ли сейчас худ или нет
+
+  if (act=nil) or (act<>GetOwner(wpn)) or (GetActorActiveItem()<>wpn) or not buf.IsLaserEnabled() or IsDemoRecord() then begin
+    if buf.IsLaserDotInited() then begin
+      buf.SetLaserDotParticle(nil);
+    end;
+    exit;
+  end;
+
+  if not buf.IsLaserDotInited() then begin
+    buf.SetLaserDotParticle(laser_particle);
+//    log('playing at '+floattostr((psingle(GetPosition(wpn)))^));
+  end;
+
+
+  pos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  dir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+
+  koef:=GetLaserPointDrawingDistance(GetTargetDist());
+//  log (floattostr(koef));
+
+  pos.x:=pos.x+koef*dir.x;
+  pos.y:=pos.y+koef*dir.y;
+  pos.z:=pos.z+koef*dir.z;
+
+  buf.PlayLaserDotParticleAt(@pos);
+
+end;
 
 procedure ProcessAmmoAdv(wpn: pointer);
 var
@@ -160,6 +210,10 @@ begin
     if game_ini_line_exist(section, 'visual') then begin
       SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
     end;
+
+    if game_ini_line_exist(section, 'laser') and game_ini_r_bool(section, 'laser') then begin
+      ProcessLaserDot(wpn, game_ini_read_string(section, 'laser_ray_bones'), game_ini_read_string(section, 'laser_particle'));
+    end;
   end;
 end;
 
@@ -255,50 +309,42 @@ begin
   SetAnimForceReassignStatus(wpn, false);
 end;
 
-function WpnUpdate(wpn:pointer):boolean; stdcall; //возвращает, стоит ли продолжать апдейт для обновления состояние оружия, или погодеть пока
-const a:single = 1.0;
-var buf:WpnBuf;
+procedure CWeapon__UpdateCL(wpn:pointer); stdcall;
+const
+  a:single = 1.0;
+var
+  buf:WpnBuf;
+  sect:PChar;
 begin
-
-    result:=true;
     if get_server_object_by_id(GetID(wpn))=nil then exit;
-
-    if ((GetActor=nil) or (GetOwner(wpn)<>GetActor)) then begin
-      if IsExplosed(wpn) then OnWeaponExplode_AfterAnim(wpn, 0);
-      if leftstr(GetCurAnim(wpn), length('anm_attach_scope_'))='anm_attach_scope_' then DetachAddon(wpn, 1);
-      if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
-      if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
-
-      {if (leftstr(GetCurAnim(wpn), length('anm_reload'))='anm_reload') then begin
-        if (leftstr(GetCurAnim(wpn), length('anm_reload_jammed'))<>'anm_reload_jammed') then begin
-          unload_magazine(wpn);
-          if GetBuffer(wpn).GetBeforeReloadAmmoCnt()>0 then
-            SelectAmmoInMagCount(wpn, GetMagCapacityInCurrentWeaponMode(wpn), 1);
-            ReloadMag(wpn);
-          end;
-        end else begin
-          JamWeapon(wpn);
-        end;
-      end;  }
-    end;
 
     //апдейт буфера
     buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
     if buf<>nil then begin
       if not buf.Update then Log('Failed to update wpn: '+inttohex(cardinal(wpn), 8));
+    end;    
+
+    if ((GetActor()=nil) or (GetOwner(wpn)<>GetActor())) then begin
+      if IsExplosed(wpn) then OnWeaponExplode_AfterAnim(wpn, 0);
+      if leftstr(GetCurAnim(wpn), length('anm_attach_scope_'))='anm_attach_scope_' then DetachAddon(wpn, 1);
+      if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
+      if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
     end;
 
-    if GetShootLockTime(wpn)<=0 then begin
-      //Обработаем установленные апгрейды
-      ProcessUpgrade(wpn);
-      //Теперь отобразим установленный прицел
-      ProcessScope(wpn);
-    end;
-
-    //Разберемся с патронами
+    //Обработаем установленные апгрейды
+    ProcessUpgrade(wpn);
+    //Теперь отобразим установленный прицел
+    ProcessScope(wpn);
+    //Разберемся с визуализацией патронов
     ProcessAmmo(wpn);
     //анимы от 3-го лица
     ReassignWorldAnims(wpn);
+
+    sect:=GetSection(wpn);
+    if game_ini_line_exist(sect, 'laser') and game_ini_r_bool(sect, 'laser') then begin
+      ProcessLaserDot(wpn, game_ini_read_string(sect, 'laser_ray_bones'), game_ini_read_string(sect, 'laser_particle'));
+    end;
+
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
   LightUtils.Enable(tst_light, true);
@@ -326,20 +372,49 @@ begin
   end;     }
 end;
 
-
-
-procedure Patch();stdcall;
+procedure CWeapon__UpdateCL_Patch();stdcall;
 asm
-    movss [esp+8], xmm0
     pushad
-    push esi
-    call WpnUpdate
-    cmp al, 1
+      push esi
+      call CWeapon__UpdateCL
     popad
-    jne @finish
-    cmp [esi+$2e8], eax
-    @finish:
-    ret
+    mov eax, [esi+$338]
+end;
+
+
+
+function AdditionalCrosshairHideConditions(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+begin
+  //вернуть true, если прицел все же показывать
+
+
+  if GetCurrentDifficulty()>=gd_veteran then begin
+    result:=false;
+    exit;
+  end;
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and buf.IsLaserInstalled() and buf.IsLaserEnabled() then begin
+    result:=false;
+    exit;  
+  end;
+  result:=true;
+end;
+
+procedure CWeapon__show_crosshair_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call AdditionalCrosshairHideConditions
+    cmp al, 1
+  popad
+  je @show
+  xor eax, eax
+  ret
+  @show:
+  mov eax, 1
+  ret
 end;
 
 function Init:boolean;
@@ -347,8 +422,13 @@ begin
   result:=false;
   tst_light:=nil;
 
-  patch_addr:=xrGame_addr+$2CD369;
-  if not WriteJump(patch_addr, cardinal(@Patch), 12, true) then exit;
+  patch_addr:=xrGame_addr+$2C04A0;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__UpdateCL_Patch), 6, true) then exit;
+
+  //патч CWeapon::show_crosshair, чтобы при установленном ЛЦУ перекрестие скрывалось
+  patch_addr:=xrGame_addr+$2bd1e5;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__show_crosshair_Patch), 5, true) then exit;
+
   result:=true;
 end;
 end.

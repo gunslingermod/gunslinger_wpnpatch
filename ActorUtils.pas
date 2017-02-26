@@ -33,7 +33,8 @@ const
   kfWPNHIDE:cardinal=$40;
   kfDETECTOR:cardinal=$80;
   kfZOOM:cardinal=$100;
-  kfFIRE:cardinal=$200;  
+  kfFIRE:cardinal=$200;
+  kfLASER:cardinal=$400;  
 
 
 
@@ -69,6 +70,9 @@ procedure SetFOV(fov:single); stdcall;
 function GetFOV():single; stdcall;
 procedure SetHudFOV(fov:single); stdcall;
 
+function CRenderDevice__GetCamPos():pointer;
+function CRenderDevice__GetCamDir():pointer;
+function GetTargetDist():single;
 
 
 implementation
@@ -415,6 +419,13 @@ begin
     end;
   end;
 
+  if (_keyflags and kfLASER)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kLASER, kActPress);
+      SetActorKeyRepeatFlag(kfLASER, false);
+    end;
+  end;
+
 
 {  //принудительный сброс бега во время действия
   if not (IsSprintOnHoldEnabled()) and GetActorActionState(act, actSprint, mstate_WISHFUL) and (not CanSprintNow(wpn)) then begin
@@ -432,6 +443,7 @@ begin
     detector:=ItemInSlot(act, 9);
     if (detector<>nil) and (not GetDetectorActiveStatus(detector)) then begin
       SetDetectorForceUnhide(detector, true);
+      SetActorActionState(act, actShowDetectorNow, true);
     end;
   end;
 end;
@@ -761,12 +773,11 @@ begin
   wpn:=GetActorActiveItem();
 
   if not game_ini_line_exist('gunslinger_base', 'fov') then exit;
-  fov:=game_ini_r_single('gunslinger_base', 'fov');
+  fov:=GetBaseFOV();
   if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'fov_factor');
   SetFOV(fov);
 
-  if not game_ini_line_exist('gunslinger_base', 'hud_fov') then exit;
-  fov:=game_ini_r_single('gunslinger_base', 'hud_fov');
+  fov:=GetBaseHudFOV();
   if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'hud_fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'hud_fov_factor');  
   SetHudFOV(fov);
 end;
@@ -841,5 +852,39 @@ asm
   popad
 end;
 
+function CRenderDevice__GetCamPos():pointer;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ed8+$30]
+  mov @result, eax
+end;
+
+function CRenderDevice__GetCamDir():pointer;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ed8+$3C]
+  mov @result, eax
+end;
+
+function GetTargetDist():single;
+asm
+  pushad
+  mov @result, 0
+  call g_hud
+  cmp eax, 0
+  je @finish
+  mov ecx, eax
+  mov eax, xrgame_addr
+  add eax, $4afe40
+  call eax                 //CHudManager::GetCurrentRayQuery
+  cmp eax, 0
+  je @finish
+  
+  mov eax, [eax+4]
+  mov @result, eax
+
+  @finish:
+  popad
+end;
 
 end.

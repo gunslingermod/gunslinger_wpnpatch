@@ -1,6 +1,8 @@
 unit WeaponAdditionalBuffer;
 
 interface
+uses ScriptParticles;
+
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
   WpnBuf = class
@@ -25,9 +27,17 @@ type
 
     _wanim_force_assign:boolean;
 
+    _laserdot:CScriptParticles;
+    _laser_enabled:boolean;
+    _laser_installed:boolean;
+
+
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
+    procedure _DestructLaserDot();
 
     public
+
     constructor Create(wpn:pointer);
     destructor Destroy; override;
     function PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -54,6 +64,14 @@ type
     procedure AddLockTime(time:cardinal);
     procedure SetLockTime(time:cardinal);
     procedure MakeLockByConfigParam(section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
+
+    procedure SetLaserDotParticle(particlename: PChar);
+    procedure PlayLaserDotParticleAt(vector:pointer);
+    function IsLaserEnabled():boolean;
+    function IsLaserInstalled():boolean;
+    procedure SetLaserInstalledStatus(status:boolean);
+    procedure SetLaserEnabledStatus(status:boolean);    
+    function IsLaserDotInited():boolean;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -109,12 +127,17 @@ begin
   _needs_unzoom:=false;
   _wanim_force_assign:=false;
 
+  InitCScriptParticles(_laserdot);
+  _laser_enabled:= (Random>0.5);
+  _laser_installed:=false;
+
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
 
 destructor WpnBuf.Destroy;
 begin
   _SetWpnBufPtr(_my_wpn, nil);
+  _DestructLaserDot();
   inherited;
 end;
 
@@ -123,7 +146,7 @@ var cls:string;
 begin
   result:=nil;
   cls:=GetClassName(wpn);
-  if not WpnCanShoot(PChar(cls)) then exit;
+  if not WpnCanShoot(PChar(cls))  then exit;
 
   asm
     push eax
@@ -553,6 +576,65 @@ begin
     result:=buf.GetAnimForceReassignStatus()
   else
     result:=false;
+end;
+
+procedure WpnBuf._DestructLaserDot;
+begin
+//  log('Destruct laserdot');
+  if IsLaserDotInited then begin
+//    log ('vftable == '+inttohex(cardinal(_laserdot.vftable),8));
+    CScriptParticles__destructor(@_laserdot);
+  end;
+  InitCScriptParticles(_laserdot);
+end;
+
+procedure WpnBuf.SetLaserDotParticle(particlename: PChar);
+begin
+//  log('SetLaserDotParticle');
+  if IsLaserDotInited then _DestructLaserDot;
+  if particlename<>nil then CScriptParticles__constructor(@_laserdot, particlename);
+end;
+
+function WpnBuf.IsLaserEnabled: boolean;
+begin
+  result:=_laser_enabled;
+end;
+
+function WpnBuf.IsLaserDotInited: boolean;
+begin
+  result:=_laserdot.vftable<>nil;
+end;
+
+procedure WpnBuf.PlayLaserDotParticleAt(vector: pointer);
+var
+  zerovec:FVector3;
+begin
+  if not IsLaserDotInited() then exit;
+  CScriptParticles__Stop(@_laserdot);
+  CScriptParticles__PlayAtPos(@_laserdot, vector);
+{  if not CScriptParticles__IsPlaying(@_laserdot) then begin
+    CScriptParticles__PlayAtPos(@_laserdot, vector);
+  end else begin
+    zerovec.x:=0;
+    zerovec.y:=0;
+    zerovec.z:=0;
+    CScriptParticles__MoveTo(@_laserdot, vector, @zerovec);
+  end;}
+end;
+
+function WpnBuf.IsLaserInstalled: boolean;
+begin
+  result:=self._laser_installed
+end;
+
+procedure WpnBuf.SetLaserEnabledStatus(status: boolean);
+begin
+  self._laser_enabled:=status;
+end;
+
+procedure WpnBuf.SetLaserInstalledStatus(status: boolean);
+begin
+  self._laser_installed:=status;
 end;
 
 end.

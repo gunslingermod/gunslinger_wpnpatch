@@ -19,7 +19,6 @@ uses
   HudTransparencyFix in 'HudTransparencyFix.pas',
   WeaponAdditionalBuffer in 'WeaponAdditionalBuffer.pas',
   DetectorUtils in 'DetectorUtils.pas',
-  CommonUpdate in 'CommonUpdate.pas',
   Messenger in 'Messenger.pas',
   UIUtils in 'UIUtils.pas',
   KeyUtils in 'KeyUtils.pas',
@@ -33,8 +32,9 @@ uses
   hud_transp_r3 in 'hud_transp_r3.pas',
   hud_transp_r4 in 'hud_transp_r4.pas',
   ArchiveProtect in 'ArchiveProtect.pas',
-  LensDoubleRender in 'LensDoubleRender.pas';
-
+  LensDoubleRender in 'LensDoubleRender.pas',
+  ScriptParticles in 'ScriptParticles.pas',
+  keybinding in 'keybinding.pas';
 
 {$R *.res}
 
@@ -44,7 +44,10 @@ begin
   decimalseparator:='.';
   BaseGameData.Init;
   GameWrappers.Init;
-//  ArchiveProtect.Init;  
+//  ArchiveProtect.Init;
+
+  gunsl_config.Init;
+  keybinding.Init;
 
   WpnUtils.Init;
   WeaponDataSaveLoad.Init;
@@ -68,6 +71,5 @@ begin
   hud_transp_r3.Init();
   hud_transp_r4.Init();
 //  Messenger.Init;
-//  CommonUpdate.Init;
 //  HudTransparencyFix.Init;
 end.

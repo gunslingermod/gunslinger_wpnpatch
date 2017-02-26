@@ -169,10 +169,9 @@ end;
 
 function CMissile__State_anm_show_selector(CMissile:pointer):PChar; stdcall;
 var
-  act, det:pointer;
+  act:pointer;
   snd, sect:PChar;
   curslot:integer;
-  det_anim:string;
   isquickthrow:boolean;
 begin
   result:='anm_show';
@@ -201,16 +200,10 @@ begin
       ForgetDetectorAutoHide();
     end;
 
-    det:=GetActiveDetector(act);
-    if det <> nil then begin
-      if isquickthrow then begin
-        det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_quickthrow';      
-      end else begin
-        det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_draw';
-      end;
-      if game_ini_line_exist(GetHUDSection(CMissile), PChar(det_anim)) then begin
-        AssignDetectorAnim(det, PChar(det_anim), true, true);
-      end;
+    if isquickthrow then begin
+      StartCompanionAnimIfNeeded('quickthrow', CMissile, false)
+    end else begin
+      StartCompanionAnimIfNeeded('draw', CMissile, false)    
     end;
   end;
   CHudItem_Play_Snd(CMissile, snd);
@@ -226,13 +219,7 @@ begin
   if (act<>nil) and (GetOwner(CMissile)=act) then begin
     ResetActorFlags(act);
 
-    det:=GetActiveDetector(act);
-    if det <> nil then begin
-      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_hide';
-      if game_ini_line_exist(GetHUDSection(CMissile), PChar(det_anim)) then begin
-        AssignDetectorAnim(det, PChar(det_anim), true, true);
-      end;
-    end;
+    StartCompanionAnimIfNeeded('hide', CMissile, false);
   end;
   CHudItem_Play_Snd(CMissile, 'sndHide');
 end;
@@ -240,18 +227,10 @@ end;
 
 
 function CMissile__State_anm_selector_dispatcher(CMissile:pointer; ret_addr:cardinal):PChar; stdcall;
-var
-  det, act:pointer;
 begin
   result:='anm_unknown';
   ret_addr:=ret_addr and $0000FFFF;
 
-  act:=GetActor();
-  if (act<>nil) and (GetOwner(CMissile)=act) then begin
-    det:=GetActiveDetector(act);
-  end else begin
-    det:=nil;
-  end;
 
   case ret_addr of
     $75AA:result:=CMissile__State_anm_show_selector(CMissile);
@@ -259,12 +238,12 @@ begin
     $76B4:begin
             result:='anm_throw_begin';
             CHudItem_Play_Snd(CMissile, 'sndThrowBegin');
-            if det <> nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_begin'), true, true);
+            StartCompanionAnimIfNeeded('throw_begin', CMissile, true);
           end;
     $7740:begin
             result:='anm_throw';
             CHudItem_Play_Snd(CMissile, 'sndThrow');
-            if det <> nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_end'), true, true);            
+            StartCompanionAnimIfNeeded('throw_end', CMissile, true);
           end;
   else
     log('CMissile__State_anm_selector_dispatcher: unknown call detected!', true);
@@ -294,7 +273,7 @@ var
   curslot: integer;
   act:pointer;
 const
-  GRENADE_KEY_HOLD_TIME_DELTA:cardinal = 250; //период времени, нажатость клавиши в течение которого означает ее удержание в нажатом состоянии
+  GRENADE_KEY_HOLD_TIME_DELTA:cardinal = 350; //период времени, нажатость клавиши в течение которого означает ее удержание в нажатом состоянии
 begin
 
   result:=true;
@@ -329,7 +308,7 @@ begin
     _activate_key_state.IsHoldContinued:=false;
   end;
 
-  if (GetActorPreviousSlot()>0) or ((GetTimeDeltaSafe(_activate_key_state.ActivationStart)>_activate_key_state.HoldDeltaTimePeriod) or not _activate_key_state.IsHoldContinued) then begin
+  if {(GetActorPreviousSlot()>0) or} ((GetTimeDeltaSafe(_activate_key_state.ActivationStart)>_activate_key_state.HoldDeltaTimePeriod) or not _activate_key_state.IsHoldContinued) then begin
     result:=true;
   end else begin
     result:=false;

@@ -83,6 +83,9 @@ begin
 
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_aim_start', 'sndAimStart', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_aim_end', 'sndAimEnd', 1, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_laser_on', 'sndLaserOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_laser_off', 'sndLaserOff', 1, $80040000);
 end;
 
 procedure LoadSounds_Knife(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;
@@ -91,6 +94,8 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_holster', 'sndHide', 1, $80200000);  
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_kick_1', 'sndKick1', 1, $80200000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_kick_2', 'sndKick2', 1, $80200000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_start', 'sndSprintStart', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_end', 'sndSprintEnd', 1, $80040000);  
 end;
 
 procedure SoundLoader_Knife_Patch; stdcall;

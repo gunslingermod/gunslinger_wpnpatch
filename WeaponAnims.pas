@@ -90,7 +90,7 @@ function anm_idle_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
-  canshoot, isdetector, isgrenorbolt:boolean;
+  canshoot, isdetector, isgrenorbolt, is_knife:boolean;
   cls:string;
 {  companion:pointer;
   state:cardinal;  }
@@ -99,13 +99,12 @@ begin
   anim_name:='anm_idle';
   actor:=GetActor();
   cls:=GetClassName(wpn);
+  canshoot:=WpnCanShoot(PChar(cls));
+  isgrenorbolt:=IsThrowable(PChar(cls));
+  isdetector :=WpnIsDetector(PChar(cls));
+  is_knife:=IsKnife(PChar(cls));
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
-    canshoot:=WpnCanShoot(PChar(cls));
-    isgrenorbolt:=IsThrowable(PChar(cls));
-    isdetector :=WpnIsDetector(PChar(cls));
-
-
     //--------------------------Модификаторы движения/состояния актора---------------------------------------
 
     //если актор в режиме прицеливания
@@ -128,8 +127,7 @@ begin
       anim_name:=anim_name+'_sprint';
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
-        if canshoot or isgrenorbolt then
-          CHudItem_Play_Snd(wpn, 'sndSprintStart');
+        if canshoot or isgrenorbolt or is_knife then CHudItem_Play_Snd(wpn, 'sndSprintStart');
         if isdetector then
           SetActorActionState(actor, actModDetectorSprintStarted, true)
         else
@@ -138,9 +136,9 @@ begin
 
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
-      if canshoot or isgrenorbolt then
+      if canshoot or isgrenorbolt or is_knife then
         CHudItem_Play_Snd(wpn, 'sndSprintEnd');
-        
+
       if isdetector then
         SetActorActionState(actor, actModDetectorSprintStarted, false)
       else
@@ -155,7 +153,7 @@ begin
         anim_name:=anim_name+'_slow';
       end;
     end;
-  //----------------------------------Модификаторы состояния оружия---------------------------------------------------- 
+  //----------------------------------Модификаторы состояния оружия----------------------------------------------------
 
     if canshoot then begin
         anim_name:=anim_name + GetFireModeStateMark(wpn);
@@ -563,7 +561,6 @@ var
   actor:pointer;
   fun:TAnimationEffector;
   modifier:string;
-  detector:pointer;
 begin
   fun:=nil;
 
@@ -604,12 +601,9 @@ begin
 
 
   //Теперь воспроизведем все
-  if (actor<>nil) and (actor=GetOwner(wpn)) then begin
-    detector:=GetActiveDetector(actor);
-    if detector<>nil then begin
-      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+'_shoot'+modifier), true, true);
-    end;
-  end;
+
+  StartCompanionAnimIfNeeded('shoot'+modifier, wpn, true);
+
 
   anim_name:=anim_name+modifier;
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
@@ -668,8 +662,7 @@ end;
 function anm_reload_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
-  actor, det:pointer;
-  det_anim:string;
+  actor:pointer;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
@@ -703,18 +696,8 @@ begin
 
   ModifierBM16(wpn, anim_name);
 
-  if (actor<>nil) and (actor=GetOwner(wpn)) then begin
-    //назначим аниму детектору при необходимости
-    det:=GetActiveDetector(actor);
-    if det<>nil then begin
 
-      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn'+rightstr(anim_name, length(anim_name)-3); //без anm
-      if game_ini_line_exist(hud_sect, PChar(det_anim)) then begin
-        AssignDetectorAnim(det, PChar(det_anim), true, true);
-      end;
-    end;
-  end;
-
+  StartCompanionAnimIfNeeded(rightstr(anim_name, length(anim_name)-4), wpn, false);
 
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
@@ -737,8 +720,8 @@ end;
 function anm_reload_g_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
-  actor, det:pointer;
-  det_anim, snd:string;
+  actor:pointer;
+  snd:string;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
@@ -752,7 +735,7 @@ begin
     end else snd := 'sndLoadGrenade';
 
     if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
-       //log ('det+rel');
+      //log ('det+rel');
       anim_name:=anim_name+'_detector';
       snd:=snd+'Detector';
     end;
@@ -763,15 +746,8 @@ begin
     end;
 
     ModifierGL(wpn, anim_name);
-
     //назначим аниму детектору при необходимости
-    det:=GetActiveDetector(actor);
-    if det<>nil then begin
-      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn'+rightstr(anim_name, length(anim_name)-3); //без anm
-      if game_ini_line_exist(hud_sect, PChar(det_anim)) then begin
-        AssignDetectorAnim(det, PChar(det_anim), true, true);
-      end;
-    end;    
+    StartCompanionAnimIfNeeded(rightstr(anim_name, length(anim_name)-4), wpn, false);
   end;
 
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
@@ -877,7 +853,7 @@ begin
 
       push kfRELOAD
       push esi
-      call WeaponEvents.OnWeaponAction
+      call WeaponEvents.Weapon_SetKeyRepeatFlagIfNeeded
       cmp al, 1
     popad
     jne @finish
@@ -935,7 +911,7 @@ begin
 //      call WeaponAdditionalBuffer.CanStartAction
       push kfGLAUNCHSWITCH
       push esi
-      call WeaponEvents.OnWeaponAction
+      call WeaponEvents.Weapon_SetKeyRepeatFlagIfNeeded
       cmp al, 1
     popad
 
@@ -1019,7 +995,6 @@ end;
 function CheckForceMoveReassign():boolean; stdcall;
 var
   act:pointer;
-  delta:cardinal;
 begin
   result:=false;
   act:=GetActor;
