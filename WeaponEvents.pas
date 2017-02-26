@@ -5,7 +5,7 @@ function Init:boolean;
 
 procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
 function OnWeaponHide(wpn:pointer):boolean;stdcall;
-procedure OnWeaponShowAnmStart(wpn:pointer);stdcall;
+procedure OnWeaponHideAnmStart(wpn:pointer);stdcall;
 function OnWeaponShow(wpn:pointer):boolean;stdcall;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
@@ -566,6 +566,8 @@ procedure OnEmptyClick(wpn:pointer);stdcall;
 var
   anm_started:boolean;
   txt:PChar;
+  act, detector:pointer;
+  modif:string;
 begin
   anm_started:=false;
 
@@ -586,7 +588,17 @@ begin
     end;
   end;
 
-  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and anm_started then Messenger.SendMessage(txt);
+  act:=GetActor();
+  if (act<>nil) and (act=GetOwner(wpn)) and anm_started then begin
+    detector:=GetActiveDetector(act);
+    if detector<>nil then begin
+      modif:='_fakeshoot';
+      if IsAimNow(wpn) or IsHolderInAimState(wpn) then modif:=modif+'_aim';
+      if IsWeaponJammed(wpn) then modif:=modif+'_jammed';
+      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+modif), false, true);
+    end;
+    Messenger.SendMessage(txt);
+  end;
 end;
 
 procedure EmptyClick_Patch; stdcall;
@@ -627,9 +639,9 @@ begin
   end;
 end;
 
-procedure OnWeaponShowAnmStart(wpn:pointer);stdcall;
+procedure OnWeaponHideAnmStart(wpn:pointer);stdcall;
 var
-  act, owner:pointer;
+  act, det, owner:pointer;
 begin
   act:=GetActor();
   owner:=GetOwner(wpn);
@@ -637,6 +649,11 @@ begin
     ResetActorFlags(act);
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     SetActorActionState(act, actSprint, false, mState_REAL);
+
+{    det:=GetActiveDetector(act);
+    if det <> nil then begin
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_hide'), false, true);
+    end;  }
   end;
 end;
 
@@ -656,6 +673,12 @@ begin
       SetDetectorForceUnhide(det, false);
       SetActorActionState(act, actShowDetectorNow, false);
     end;
+
+{    det:=GetActiveDetector(act);
+    //если детектор не только в слоте, но и активен
+    if det <> nil then begin
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_draw'), false, true);
+    end;  }
   end;
 end;
 
@@ -713,6 +736,7 @@ var
 begin
   wpn:=dynamic_cast(chuditem, 0, RTTI_CHudItem, RTTI_CWeapon, false);
   if wpn<>nil then begin
+    //для мирового оружия
     case GetNextState(wpn) of
       1,2,3,7,8,10: begin
         SetAnimForceReassignStatus(wpn, true);
@@ -732,7 +756,46 @@ asm
   add esp, $4014
   ret 4
 end;
+//----------------------------------------------------------------------------------------------------------
+procedure OnKnifeKick(knife:pointer; kick_type:cardinal); stdcall;
+var
+  act:pointer;
+  det:pointer;
+begin
+  act:=GetActor();
+  if (act=nil) or (act<>GetOwner(knife)) then exit;
+  det:=GetActiveDetector(act);
+  if det=nil then exit;
 
+  case kick_type of
+    1:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack'), false, true);
+    2:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack2'), false, true);
+  end;
+end;
+
+procedure OnKnifeKick_Patch(); stdcall;
+asm
+  //original
+  mov ebp, [esp+$10]
+  cmp ebp, 5
+
+
+  pushad
+  pushfd
+  //select type
+  jne @second_type
+    push 1
+    jmp @call_proc
+  @second_type:
+    push 2
+  @call_proc:
+  push esi
+  call OnKnifeKick
+
+  popfd
+  popad
+  ret
+end;
 //----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
@@ -803,7 +866,11 @@ begin
   //Обработчик OnSwitchState
   jmp_addr:=xrGame_addr+$2BC4D7;
   if not WriteJump(jmp_addr, cardinal(@CHudItem__SwitchState_Patch), 10, false) then exit;
- 
+
+
+  //Анимация для детектора в паре с ножом
+  jmp_addr:=xrGame_addr+$2D547D;
+  if not WriteJump(jmp_addr, cardinal(@OnKnifeKick_Patch), 7, true) then exit;
   result:=true;
 end;
 

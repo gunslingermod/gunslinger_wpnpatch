@@ -2,6 +2,10 @@ unit WpnUtils;
 
 interface
 function Init():boolean;
+
+function GetPlayerHud():pointer; stdcall;
+function GetAttachableHudItem(index:cardinal):pointer; stdcall;
+function GetCHudItemFromAttachableHudItem(ahi:pointer):pointer; stdcall;
 procedure PlayAnimIdle(wpn: pointer); stdcall;
 //function GetPositionVector(obj:pointer):pointer;
 //function GetCurrentHud(wpn: pointer):pointer; stdcall;
@@ -92,6 +96,8 @@ const
   EHudStates__eHidden:cardinal = $3;
   EHudStates__eBore:cardinal = $4;
   EHudStates__eLastBaseState:cardinal = $4;
+
+  ANM_LEFTHAND:string='anm_lefthand_';
 
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
@@ -1127,9 +1133,40 @@ end;
 
 function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
 asm
-  mov eax, wpn
-  mov eax, [eax+$2F8]
-  mov @result, eax
+  pushad
+    mov eax, wpn
+    mov eax, [eax+$2F8]
+    mov @result, eax
+  popad
+end;
+
+function GetPlayerHud():pointer; stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    mov eax, [eax+$64f0e4]
+    mov @result, eax
+  popad
+end;
+
+function GetAttachableHudItem(index:cardinal):pointer; stdcall;
+asm
+  pushad
+    call GetPlayerHud
+    mov ebx, index
+    mov eax, [eax+$94+4*ebx]
+    mov @result, eax
+  popad
+end;
+
+function GetCHudItemFromAttachableHudItem(ahi:pointer):pointer; stdcall;
+asm
+  pushad
+    mov eax, ahi
+    mov eax, [eax+$4]
+    sub eax, $2e0
+    mov @result, eax
+  popad
 end;
 
 function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;

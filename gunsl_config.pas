@@ -9,6 +9,7 @@ const
   gd_master:cardinal=3;
 
 function IsSprintOnHoldEnabled():boolean; stdcall;
+function IsDebug():boolean; stdcall;
 //function GetCurrentDifficulty():boolean; stdcall;  //todo
 
 
@@ -19,5 +20,9 @@ begin
   result:=true;
 end;
 
+function IsDebug():boolean; stdcall;
+begin
+  result:=true;
+end;
 
 end.

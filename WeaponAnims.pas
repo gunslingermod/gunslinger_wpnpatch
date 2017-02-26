@@ -7,7 +7,7 @@ function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string; stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -123,7 +123,6 @@ begin
     //посмотрим на передвижение актора:
     end else if GetActorActionState(actor, actSprint) then begin
       anim_name:=anim_name+'_sprint';
-//      if (not isdetector) and (not GetActorActionState(actor, actModSprintStarted)) then begin
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
         if canshoot then
@@ -136,7 +135,6 @@ begin
           SetActorActionState(actor, actModSprintStarted, true);
       end;
 
-//    end else if (not isdetector) and GetActorActionState(actor, actModSprintStarted) then begin;
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
       if canshoot then
@@ -174,19 +172,23 @@ begin
   //ƒвустволки имеют собственный суффикс
   ModifierBM16(wpn, anim_name);
 
+  //≈сли мы работаем с детектором
   if (isdetector and Is16x9 and not game_ini_line_exist(hud_sect, PChar(anim_name+'_16x9'))) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+'_16x9]');
+    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
     anim_name:='anm_idle';
   end;
 
   if (not game_ini_line_exist(hud_sect, PChar(anim_name))) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
+    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
     anim_name:='anm_idle';
     ModifierBM16(wpn, anim_name);
   end;
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
 end;
+
 
 procedure anm_idle_std_patch();stdcall;
 begin
@@ -263,6 +265,7 @@ begin
   ModifierBM16(wpn, base_anim);
   if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+base_anim+']');
+    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
     base_anim:='anm_reload';
     ModifierBM16(wpn, base_anim);
   end;
@@ -562,9 +565,8 @@ var
   hud_sect:PChar;
   actor:pointer;
   fun:TAnimationEffector;
-  companion_anim:string; //дл€ детектора при его наличии
-  cur_companion:pointer;
-  tmp:string;
+  modifier:string;
+  detector:pointer;
 begin
   fun:=nil;
 
@@ -580,43 +582,42 @@ begin
 
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_shoot';
+  modifier:='';
   actor:=GetActor();
   //≈сли у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------ћодификаторы состо€ни€ актора----------------------------------------------------
-    if IsAimNow(wpn) or IsHolderInAimState(wpn) then anim_name:=anim_name+'_aim';
+    if IsAimNow(wpn) or IsHolderInAimState(wpn) then modifier:=modifier+'_aim';
     //----------------------------------ћодификаторы состо€ни€ оружи€----------------------------------------------------
-    anim_name:=anim_name + GetFireModeStateMark(wpn);
-    companion_anim:='anm_wpn_shoot';                                             
+    modifier:=modifier + GetFireModeStateMark(wpn);
     if IsExplosed(wpn) then begin
-      anim_name:=anim_name+'_explose';
+      modifier:=modifier+'_explose';
       fun:=OnWeaponExplode_AfterAnim;
-      companion_anim:='anm_wpn_shoot_explose';
     end else if IsWeaponJammed(wpn) then begin
-      anim_name:=anim_name+'_jammed';
-      companion_anim:='anm_wpn_shoot_jammed';
+      modifier:=modifier+'_jammed';
     end else if GetAmmoInMagCount(wpn)=1 then begin
-      anim_name:=anim_name+'_last';
+      modifier:=modifier+'_last';
     end;
-    if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
-    ModifierMoving(wpn, actor, anim_name, 'enable_directions_anm_shoot_directions', 'enable_moving_anm_shoot');
-    ModifierGL(wpn, anim_name);
+    if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then modifier:=modifier+'_sil';
+    ModifierMoving(wpn, actor, modifier, 'enable_directions_anm_shoot_directions', 'enable_moving_anm_shoot');
+    ModifierGL(wpn, modifier);
+  end;
 
-    //—разу назначим аниму детектору (если он активен), чтобы не провер€ть наличие актора второй раз
-    cur_companion:=GetActiveDetector(actor);
-    if (cur_companion<>nil) and (GetCurrentState(cur_companion)=CHUDState__eIdle) then begin //проверить на CHUDState__eIdle важно, иначе детектор может "залипнуть" и перестать реагировать на внешние раздражители!
-      if Is16x9 then tmp:=companion_anim+'_16x9' else tmp:=companion_anim;
-      if game_ini_line_exist(GetHUDSection(cur_companion), PChar(tmp)) then begin
-        PlayHudAnim(cur_companion, PChar(companion_anim), false);
-      end else begin
-        log('Section ['+GetHUDSection(cur_companion)+'] has no motion alias defined ['+tmp+']');
-      end;
+  ModifierBM16(wpn, modifier);
+
+
+  //“еперь воспроизведем все
+  if (actor<>nil) and (actor=GetOwner(wpn)) then begin
+    detector:=GetActiveDetector(actor);
+    if detector<>nil then begin
+      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+'_shoot'+modifier), false, GetHUDSection(detector));
     end;
   end;
 
-  ModifierBM16(wpn, anim_name);
+  anim_name:=anim_name+modifier;
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
+    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
     anim_name:='anm_reload';
     ModifierBM16(wpn, anim_name);
   end;
@@ -704,6 +705,7 @@ begin
   ModifierBM16(wpn, anim_name);
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
+    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
     anim_name:='anm_reload';
     ModifierBM16(wpn, anim_name);
   end;

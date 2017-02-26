@@ -6,10 +6,11 @@ function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 function GetActiveDetector(act:pointer):pointer; stdcall;   
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
-function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall
+function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
+procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; immediate:boolean=false; use_companion_section:boolean=false); stdcall;
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils;
+uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils, Messenger, gunsl_config;
 
 
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
@@ -432,6 +433,75 @@ asm
 
     @finish:
   popad
+end;
+
+procedure SwapAHI(ahi_c:pointer; ahi_d:pointer); stdcall;
+asm
+  //меняем местами player_hud_motion_container  m_hand_motions
+  pushad
+
+  mov eax, ahi_c;
+  mov ebx, ahi_d;
+
+  mov ecx, [eax+$138]
+  mov edx, [ebx+$138]
+  mov [eax+$138], edx
+  mov [ebx+$138], ecx  
+
+  mov ecx, [eax+$13c]
+  mov edx, [ebx+$13c]
+  mov [eax+$13c], edx
+  mov [ebx+$13c], ecx
+
+  mov ecx, [eax+$140]
+  mov edx, [ebx+$140]
+  mov [eax+$140], edx
+  mov [ebx+$140], ecx
+
+
+  popad
+end;
+
+
+procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; immediate:boolean=false; use_companion_section:boolean=false); stdcall;
+var
+  tmp:string;
+  companion:pointer;
+  section:PChar;
+  ahi_d:pointer; //attachable_hud_item for detector
+  ahi_c:pointer; //attachable_hud_item for companion
+begin
+  if (det=nil) or (GetCurrentState(det)<>CHUDState__eIdle) then exit;
+
+  //проверяем, в руках ли этот детектор сейчас
+  ahi_d:=GetAttachableHudItem(1);
+  if GetCHudItemFromAttachableHudItem(ahi_d)<>det then begin
+    ahi_c:=ahi_d;
+    ahi_d:=GetAttachableHudItem(0);
+    if GetCHudItemFromAttachableHudItem(ahi_d)<>det then exit;
+  end else begin
+    ahi_c:=GetAttachableHudItem(0);
+  end;
+
+  if not use_companion_section then begin
+    section:=GetHUDSection(det);
+  end else begin
+    companion:=GetCHudItemFromAttachableHudItem(ahi_c);
+    if companion=nil then exit;
+    section:=GetHUDSection(companion);
+  end;
+
+  if Is16x9 then tmp:=anm_alias+'_16x9' else tmp:=anm_alias;
+
+  if game_ini_line_exist(section, PChar(tmp)) then begin
+    //подменим в нашем детекторе attachable_hud_item  m_animations детектора на компаньоновские
+    if use_companion_section then SwapAHI(ahi_c, ahi_d);
+    PlayHudAnim(det, PChar(anm_alias), immediate);
+    if use_companion_section  then SwapAHI(ahi_c, ahi_d);
+  end else begin
+    log('Section ['+section+'] has no motion alias defined ['+tmp+']');
+    if IsDebug then Messenger.SendMessage('Detector animation not found, see log!')
+  end;
 end;
 
 function Init:boolean;
