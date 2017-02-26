@@ -193,6 +193,7 @@ var
   act, det:pointer;
   snd, sect:PChar;
   curslot:integer;
+  det_anim:string;
 begin
   result:='anm_show';
   snd:='sndDraw';
@@ -216,7 +217,10 @@ begin
 
     det:=GetActiveDetector(act);
     if det <> nil then begin
-      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_draw'), true, true);
+      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_draw';
+      if game_ini_line_exist(GetHUDSection(CMissile), PChar(det_anim)) then begin
+        AssignDetectorAnim(det, PChar(det_anim), true, true);
+      end;
     end;
   end;
   Throwable_Play_Snd(CMissile, snd);
@@ -225,6 +229,7 @@ end;
 function CMissile__State_anm_hide_selector(CMissile:pointer):PChar; stdcall;
 var
   act, det:pointer;
+  det_anim:string;
 begin
   result:='anm_hide';
   act:=GetActor();
@@ -233,8 +238,11 @@ begin
 
     det:=GetActiveDetector(act);
     if det <> nil then begin
-      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_hide'), true, true);
-    end;    
+      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_hide';
+      if game_ini_line_exist(GetHUDSection(CMissile), PChar(det_anim)) then begin
+        AssignDetectorAnim(det, PChar(det_anim), true, true);
+      end;
+    end;
   end;
   Throwable_Play_Snd(CMissile, 'sndHide');
 end;
@@ -631,7 +639,7 @@ end;
 
 function Init():boolean;
 var
-  jump_addr:cardinal;
+  jump_addr, buf:cardinal;
 begin
   result:=false;
   ResetActivationHoldState();
@@ -663,7 +671,7 @@ begin
   jump_addr:=xrGame_addr+$2C719B;
   if not WriteJump(jump_addr, cardinal(@CMissile__ExitContactCallback_Patch), 5) then exit;
   jump_addr:=xrGame_addr+$2C5B5C;
-  if not WriteJump(jump_addr, cardinal(@CMissile__OnHit_CanExplode_Patch), 31, true) then exit;  
+  if not WriteJump(jump_addr, cardinal(@CMissile__OnHit_CanExplode_Patch), 31, true) then exit;
 
   result:=true;
 

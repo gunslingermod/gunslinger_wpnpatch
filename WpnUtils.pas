@@ -40,10 +40,12 @@ function GetAmmoInMagCount(wpn:pointer):integer; stdcall;
 function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
 function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
+function GetAimFactor(wpn:pointer):single; stdcall;
+procedure SetAimFactor(wpn:pointer; f:single); stdcall;
 function GetClassName(wpn:pointer):string; stdcall;
 function WpnCanShoot(cls:PChar):boolean;stdcall;
 function WpnIsDetector(cls:PChar):boolean;stdcall;
-function WpnIsThrowable(cls:PChar):boolean;stdcall;
+function IsKnife(cls:PChar):boolean;stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall
@@ -1001,9 +1003,9 @@ begin
   result:=(cls='DET_SIMP') or (cls='DET_ADVA') or (cls='DET_ELIT') or (cls='DET_SCIE');
 end;
 
-function WpnIsThrowable(cls:PChar):boolean;stdcall;
+function IsKnife(cls:PChar):boolean;stdcall;
 begin
-  result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
+  result:=(cls='WP_KNIFE');
 end;
 
 procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
@@ -1200,6 +1202,27 @@ asm
   call eax;
 
   popad
+end;
+
+function GetAimFactor(wpn:pointer):single; stdcall;
+asm
+  push eax
+  mov eax, wpn
+  mov eax, [eax+$4A8]
+  mov @result, eax
+  pop eax
+end;
+
+procedure SetAimFactor(wpn:pointer; f:single); stdcall;
+asm
+  push eax
+  push ebx
+  mov eax, wpn
+  mov ebx, f
+
+  mov [eax+$4A8], ebx
+  pop ebx
+  pop eax
 end;
 
 function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;

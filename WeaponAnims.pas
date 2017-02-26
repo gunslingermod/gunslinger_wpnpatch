@@ -85,7 +85,6 @@ begin
   end;
 end;
 
-
 //------------------------------------------------------------------------------anm_idle(_sprint, _moving, _aim)---------------------------------------
 function anm_idle_selector(wpn:pointer):pchar;stdcall;
 var
@@ -717,6 +716,7 @@ begin
     end;
 
     if game_ini_line_exist(hud_sect, PChar('immediate_unhide_'+anim_name)) and game_ini_r_bool(hud_sect, PChar('immediate_unhide_'+anim_name)) then begin
+      //если выставлен такой параметр - не надо проигрывать аниму преддоставания детектора, тупо достаем его после окончания анимы (?)
       SetActorActionState(actor, actShowDetectorNow, true);
     end;
 
@@ -896,6 +896,51 @@ begin
     ret
   end;
 end;
+//-----------------------------------------Проверка на необходимость назначения идла----------------------------------
+function CanReAssignIdleNow(CHudItem:pointer):boolean; stdcall;
+var
+  act, wpn:pointer;
+  state:cardinal;
+  iswpnthrowable:boolean;
+begin
+  result:=true;
+  if WpnIsDetector(PChar(GetClassName(CHudItem))) then begin
+    act:=GetActor();
+    if (act<>nil) and (GetOwner(CHudItem)=act) then begin
+      wpn:=GetActorActiveItem();
+      if wpn<>nil then begin
+        iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
+        state:=GetCurrentState(wpn);
+
+        if (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd))) then begin
+          result:=false;
+        end;
+      end;
+    end;
+  end;
+end;
+
+
+procedure CHudItem__OnMovementChanged_Patch(); stdcall;
+asm
+  pushad
+    sub esi, $2e0
+    push esi
+    call CanReAssignIdleNow
+    cmp al, 0
+  popad
+  je @finish
+    mov eax, [esi]
+    mov edx, [eax+$60]
+    call edx  // --> this->PlayAnimIdle()
+    mov eax, xrgame_addr
+    mov eax, [eax+$512bcc]    //CRenderDevice* Device
+    mov ecx, [eax+$28]
+    mov [esi+$10], ecx
+  @finish:
+  ret
+end;
+
 
 //-----------Фикс для idle_slow - чтобы двиг назначал анимацию после перехода из быстрого шага в медленный и т.п.-----
 function NeedAssignAnim(act:pointer):boolean; stdcall;
@@ -1267,7 +1312,7 @@ function CanAssignIdleAnimNow(wpn:pointer):boolean; stdcall;
 const
   anm:string = 'anm_shoot';
 begin
-  result := (GetCurrentMotionDef(wpn)=nil) or (leftstr(GetActualCurrentAnim(wpn), length(anm))<>anm);
+  result := ((GetAimFactor(wpn)>0.001) and (GetAimFactor(wpn)<0.999)) or (GetCurrentMotionDef(wpn)=nil) or (leftstr(GetActualCurrentAnim(wpn), length(anm))<>anm);
 end;
 
 procedure CWeaponMagazined__OnStateSwitch_IdlePatch(); stdcall;
@@ -1314,7 +1359,25 @@ asm
   jmp eax
 end;
 
+//---------------------------------------------------------------------------------------------------------------------
 
+
+procedure CHudItem__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call WeaponEvents.OnWeaponHide
+    cmp al, 1
+  popad
+  je @finish
+    //выходим из текущей и вызывающей сразу
+    pop eax
+    ret
+  @finish:
+  mov eax, $4014
+  ret
+end;
 
 //---------------------------------------------------------------------------------------------------------------------
 function Init:boolean;
@@ -1394,6 +1457,8 @@ begin
   //для убирания
   jump_addr:=xrGame_addr+$2D02FF;
   if not WriteJump(jump_addr, cardinal(@HideAnimLockFix), 8, true) then exit;
+  jump_addr:=xrGame_addr+$2F96A0;
+  if not WriteJump(jump_addr, cardinal(@CHudItem__OnAnimationEnd_Patch), 5, true) then exit;
 
   //для выстрела с подствола
   jump_addr:=xrGame_addr+$2D3ABE;
@@ -1416,6 +1481,11 @@ begin
   //Фиксим назначение анимы медленного идла
   jump_addr:=xrGame_addr+$2727B3;
   if not WriteJump(jump_addr, cardinal(@IdleSlowFixPatch), 7, true) then exit;
+
+  //Для невозможности назначения новой идловой анимы детектору, когда он в состояни идла проигрывает кастомную
+  jump_addr:=xrGame_addr+$2F977F;
+  if not WriteJump(jump_addr, cardinal(@CHudItem__OnMovementChanged_Patch), 18, true) then exit;
+
 
 
   //теперь прописываем обработчики анимаций

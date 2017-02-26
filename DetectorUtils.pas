@@ -389,14 +389,18 @@ var
   companion, act:pointer;
   state:cardinal;
 begin
+  act:=GetActor();
+  if (act<>nil) and (act=GetOwner(det)) and (leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show') then begin
+    SetActorActionState(act, actModNeedMoveReassign, true);
+  end;
+  
   PlayAnimIdle(det);
   //PlayHudAnim(det, GetActualCurrentAnim(det), true); //для отключения микшера
 
   //проверка на необходимость играть идловую аниму с замахом
-  act:=GetActor();
   if (act<>nil) and (GetOwner(det)=act) then begin
     companion:= GetActorActiveItem();
-    if (companion<>nil) and WpnIsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
+    if (companion<>nil) and IsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
     if (state<>0) and ((state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady)) then begin
       AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_idle'), true, true);
     end

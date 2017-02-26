@@ -80,7 +80,7 @@ type
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 
 implementation
-uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math, strutils;
+uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math, strutils, DetectorUtils;
 
 { WpnBuf }
 
@@ -446,11 +446,19 @@ begin
 end;
 
 function CanStartAction(wpn:pointer; allow_aim_state:boolean=false):boolean;stdcall;
+var
+act, det:pointer;
 begin
   if (GetBuffer(wpn)=nil) or IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or ( (not allow_aim_state) and (IsHolderInAimState(wpn) or IsAimNow(wpn)) ) or IsHolderInSprintState(wpn) then
     result:=false
-  else
+  else begin
     result:=true;
+    if wpn <> GetActorActiveItem() then exit;
+
+    act:=GetActor;
+    det := GetActiveDetector(act);
+    if (det<>nil) and (GetCurrentState(det)=CHUDState__eShowing) then result:=false;
+  end;
 end;
 
 procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);

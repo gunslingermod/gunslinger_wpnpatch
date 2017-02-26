@@ -30,6 +30,8 @@ const
   kfGLAUNCHSWITCH:cardinal=$20;
   kfWPNHIDE:cardinal=$40;
   kfDETECTOR:cardinal=$80;
+  kfZOOM:cardinal=$100;
+  kfFIRE:cardinal=$200;  
 
 
 
@@ -275,14 +277,39 @@ end;
 
 procedure ProcessKeys(act:pointer);
 var
-  wpn:pointer;
+  wpn, det:pointer;
+  action:cardinal;
 begin
 
+  if act = nil then exit;
   wpn:=GetActorActiveItem();
+  det:=GetActiveDetector(act);
+
+  
   if (wpn = nil) then begin
     ClearActorKeyRepeatFlags();
     ResetActorFlags(act);
   end else if (not WpnCanShoot(PChar(GetClassName(wpn)))) then begin
+    //Реактивация после блока у болта, грены, ножа, вызванного доставанием детектора.
+    if (IsThrowable(PChar(GetClassName(wpn))) or IsKnife(PChar(GetClassName(wpn)))) then begin
+
+      if ((_keyflags and kfFIRE)<>0) then
+        action:=kWPN_FIRE
+      else if ((_keyflags and kfZOOM)<>0) then
+        action:=kWPN_ZOOM
+      else
+        action:=0;
+        
+      if action>0 then begin
+        if cardinal(GetCurrentState(det))<>CHUDState__eShowing then begin
+          virtual_Action(wpn, action, kActPress);
+          if (action=kWPN_ZOOM) and not IsActionKeyPressedInGame(kWPN_ZOOM) then virtual_Action(wpn, action, kActRelease);
+          SetActorKeyRepeatFlag(kfFIRE, false);
+          SetActorKeyRepeatFlag(kfZOOM, false);
+        end;
+      end;
+    end;
+
     wpn:=nil;
   end;
 
@@ -487,26 +514,30 @@ end;
 function CActor__OnKeyboardPress(dik:cardinal):boolean; stdcall;
 var
   act:pointer;
-  wpn:pointer;
+  wpn, det:pointer;
   iswpnthrowable:boolean;
   state:cardinal;
+  cls:PChar;
 begin
 
   //возвратить false, чтобы забыть про данное нажатие
   result:=true;
 
   act:=GetActor();
-  if dik = kDETECTOR then begin
-    wpn:=GetActorActiveItem();
-    if (act<>nil) then begin
-      if (wpn<>nil) then begin
-        iswpnthrowable:=WpnIsThrowable(PChar(GetClassName(wpn)));
-        state:=GetCurrentState(wpn);
+  if act = nil then exit;
+  det:=GetActiveDetector(act);
+  wpn:=GetActorActiveItem();
 
+  if dik = kDETECTOR then begin
+      if (wpn<>nil) then begin
+        iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
+        state:=GetCurrentState(wpn);
         if
           (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)))
           or
           (not iswpnthrowable and ((state=EWeaponStates__eReload) or (state=EWeaponStates__eSwitch) or (state=EWeaponStates__eFire) or (state=EWeaponStates__eFire2)))
+          or
+          (IsActionProcessing(wpn))
         then begin
           result:=false;
         end;
@@ -516,13 +547,30 @@ begin
         SetActorKeyRepeatFlag(kfDETECTOR, true);
         SetActorActionState(act, actSprint, false, mState_WISHFUL);
       end;
-    end else begin
-      if (wpn<>nil) and WpnCanShoot(PChar(GetClassName(wpn))) and not CanStartAction(wpn) then begin
-        result:=false;
+  end else if ((dik=kWPN_FIRE) or (dik=kWPN_ZOOM)) then begin
+    if (det<>nil) and (wpn<>nil) then begin
+      cls:=PChar(GetClassName(wpn));
+      if (IsKnife(cls) or IsThrowable(cls)) then begin
+        if (GetCurrentState(det)=CHUDState__eShowing) then begin
+          result:=false;
+          if dik=kWPN_FIRE then SetActorKeyRepeatFlag(kfFIRE, true) else SetActorKeyRepeatFlag(kfZOOM, true);
+        end else if GetActorActionState(act, actModDetectorSprintStarted) then begin
+          SetActorActionState(act, actModDetectorSprintStarted, false);
+        end;
+      end;
+    end;
+  end else if ((dik=kWPN_1) or (dik=kWPN_2) or (dik=kWPN_3) or (dik=kWPN_4) or (dik=kWPN_5) or (dik=kWPN_6) or (dik=kARTEFACT)) then begin
+    if (det<>nil) and (wpn<>nil) then begin
+      cls:=PChar(GetClassName(wpn));
+      state:=GetCurrentState(wpn);
+      if IsThrowable(cls) then begin
+        if (state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) then begin
+          result:=false;
+        end;
       end;
     end;
   end;
-  
+
 end;
 
 procedure OnKeyPressPatch1();stdcall;

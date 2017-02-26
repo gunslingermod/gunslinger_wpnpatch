@@ -394,7 +394,9 @@ var
   hud_sect:PChar;
   firemode:integer;
   anm_name:string;
-  act:pointer;
+  act,det:pointer;
+  det_anm:string;
+  res:boolean;
 begin
   //возвратить false, если нельзя сейчас менять режим огня
   act:=GetActor();
@@ -425,14 +427,26 @@ begin
   if new_mode<0 then anm_name:=anm_name+'a' else anm_name:=anm_name+inttostr(new_mode);
 
   if IsWeaponJammed(wpn) then begin
-    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireModeJammed');
+    res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireModeJammed');
   end else if GetAmmoInMagCount(wpn)<=0 then begin
-    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireModeEmpty');
+    res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireModeEmpty');
   end else begin
-    WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireMode');
+    res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireMode');
   end;
 
-  SetAnimForceReassignStatus(wpn, true);
+  if res then begin
+    SetAnimForceReassignStatus(wpn, true);
+    if act<>nil then begin
+      det:=GetActiveDetector(act);
+      if det<>nil then begin
+        det_anm:=GetActualCurrentAnim(wpn);
+        det_anm:=ANM_LEFTHAND+GetSection(det)+'_wpn'+rightstr(det_anm, length(det_anm)-3); //без anm
+        if game_ini_line_exist(hud_sect, PChar(det_anm)) then begin
+          AssignDetectorAnim(det, PChar(det_anm), true, true);
+        end;
+      end;
+    end;
+  end;
 end;
 
 procedure OnChangeFireMode_Patch(); stdcall;
@@ -617,16 +631,25 @@ end;
 function OnWeaponHide(wpn:pointer):boolean;stdcall;
 var
   act, owner:pointer;
+  state:cardinal;
 begin
-  //вернуть, можно скрывать оружие или нет
+
+  //вернуть, можно скрывать или нет
+  //работает для всех CHudItem!
   act:=GetActor();
   owner:=GetOwner(wpn);
+
+
+  if not (WpnCanShoot(PChar(GetClassName(wpn)))) then begin
+    result:=true;
+    state:=GetCurrentState(wpn);
+    if (act<>nil) and (owner=act) and IsThrowable(PChar(GetClassName(wpn))) and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)) then begin
+      result:=false;
+    end;
+    exit;
+  end;
+
   result:=CanHideWeaponNow(wpn);
-
-  {if (act<>nil) and (owner=act) then begin
-    log(inttostr(getcurrentstate(wpn)));
-  end;}
-
   if (act<>nil) and (owner=act) then begin
     if result then begin
       ResetActorFlags(act);
@@ -642,6 +665,7 @@ end;
 procedure OnWeaponHideAnmStart(wpn:pointer);stdcall;
 var
   act, det, owner:pointer;
+  det_anim:string;
 begin
   act:=GetActor();
   owner:=GetOwner(wpn);
@@ -652,7 +676,10 @@ begin
 
     det:=GetActiveDetector(act);
     if det <> nil then begin
-      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_hide'), true, true);
+      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_hide';
+      if game_ini_line_exist(GetHUDSection(wpn), PChar(det_anim)) then begin
+        AssignDetectorAnim(det, PChar(det_anim), true, true);
+      end;
     end;
   end;
 end;
@@ -661,6 +688,7 @@ end;
 function OnWeaponShow(wpn:pointer):boolean;stdcall;
 var
   act, owner, det:pointer;
+  det_anim:string;
 begin
   act:=GetActor();
   owner:=GetOwner(wpn);
@@ -678,10 +706,13 @@ begin
       SetActorActionState(act, actShowDetectorNow, false);
     end;
     
-    det:=GetActiveDetector(act);
     //если детектор не только в слоте, но и активен
+    det:=GetActiveDetector(act);
     if det <> nil then begin
-      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_draw'), true, true);
+      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_draw';
+      if game_ini_line_exist(GetHUDSection(wpn), PChar(det_anim)) then begin
+        AssignDetectorAnim(det, PChar(det_anim), true, true);
+      end;
     end;
   end;
 end;
@@ -697,6 +728,10 @@ begin
   if not result and (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
   end;
+
+  if result and (GetAimFactor(wpn)< 0.002) then begin
+    SetAimFactor(wpn, 0.002); //ставим по минимуму фактор входа, чтобы не отменилось переназначение анимы
+  end;
 end;
 
 
@@ -710,6 +745,10 @@ begin
   result:=CanLeaveAimNow(wpn);
 //  log(booltostr(result, true));
   if not result then SetActorKeyRepeatFlag(kfUNZOOM, true);
+
+  if result and (GetAimFactor(wpn)> 0.998) then begin
+    SetAimFactor(wpn, 0.998); //ставим по минимуму фактор выхода, чтобы не отменилось переназначение анимы
+  end;  
 end;
 
 
