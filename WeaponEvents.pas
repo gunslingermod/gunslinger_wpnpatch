@@ -4,16 +4,20 @@ interface
 function Init:boolean;
 
 procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
-procedure OnWeaponHide(wpn:pointer);stdcall;
-procedure OnWeaponShow(wpn:pointer);stdcall;
+function OnWeaponHide(wpn:pointer):boolean;stdcall;
+procedure OnWeaponShowAnmStart(wpn:pointer);stdcall;
+function OnWeaponShow(wpn:pointer):boolean;stdcall;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
+function OnWeaponAction(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
 uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils;
 
 var
   upgrade_weapon_addr:cardinal;
+
+  force_moving_update:boolean;
 
 //-------------------------------–азр€жание магазина-----------------------------
 procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
@@ -382,12 +386,29 @@ end;
 
 //-----------------------------------------ѕереключение режимов огн€------------------------
 
-procedure OnChangeFireMode(wpn:pointer; new_mode:integer); stdcall;
+function OnChangeFireMode(wpn:pointer; new_mode:integer; isPrev:boolean):boolean; stdcall;
 var
   hud_sect:PChar;
   firemode:integer;
   anm_name:string;
+  act:pointer;
 begin
+  //возвратить false, если нельз€ сейчас мен€ть режим огн€
+  act:=GetActor();
+  if not CanStartAction(wpn) then begin
+    result:=false;
+    if (act<>nil) and (act=GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
+      SetActorActionState(act, actSprint, false, mState_WISHFUL);
+      if isPrev then
+        SetActorKeyRepeatFlag(kfPREVFIREMODE, true)
+      else
+        SetActorKeyRepeatFlag(kfNEXTFIREMODE, true);
+    end;
+    exit;
+  end;
+
+  result:=true;
+
   hud_sect:=GetHUDSection(wpn);
   firemode:=CurrentQueueSize(wpn);
   if firemode=new_mode then exit; //обрабатываем срабатывание в случае единственного доступного режима стрельбы
@@ -411,32 +432,51 @@ end;
 
 procedure OnChangeFireMode_Patch(); stdcall;
 asm
+  push [esi+$7ac]       //сохраним текущий индекс режима стрельбы
+
+  mov [esi+$7ac], edx   //запишем новый индекс (предполагаемый) режима стрельбы
+  mov edx, [edi+$1a8]
+  call edx              //определим размер очереди дл€ нового режима стрельбы
+  push eax              //поместим сразу размер очереди дл€ вызова метода, его устанавливающего (удачный исход)
+
+
+  mov ecx, [esp+$C]     //восстанавливаем тип переключени€ (вперед/назад, не€вный аргумент)
   pushad
-  pushfd
+    push ecx
     push eax
     push esi
     call OnChangeFireMode
-  popfd
-  popad
-  mov eax, [edi+$218]
-end;
-
-
-procedure CanChangeFireMode_Patch(); stdcall;
-asm
-    cmp [esi+$2E4],00
-    jne @finish
-
-    pushad
-    push 0
-    push esi
-    call WeaponAdditionalBuffer.CanStartAction
     cmp al, 1
-    popad
+  popad
+  
+  jne @nochange
+    mov ecx, esi    //все нормально, выполн€ем переключение
+    mov eax, [edi+$218]
+    call eax        //устанавливаем новый размер очереди
+    add esp, 4      //снимаем со стека не понадобившийс€ нам старый режим стрельбы
+    jmp @finish
 
-    @finish:
-    ret
+  @nochange:
+                          //все плохо, сейчас переключатьс€ не можем
+      add esp, 4          //забываем, какую очередь собирались выставл€ть
+      pop [esi+$7ac]      //восстанавливаем старый индекс
+
+  @finish:
+  ret 4
 end;
+
+
+function InitChangeFireMode(address:cardinal; changetype:byte):boolean;
+var buf:string;
+begin
+  result:=false;
+  buf:=chr($6A)+chr(changetype);//формируем и записываем аргумент дл€ патча
+  if not WriteBufAtAdr(address, PChar(buf), 2) then exit;
+  address:=address+2;//теперь записываем вызов патча
+  if not WriteJump(address, cardinal(@OnChangeFireMode_Patch), 23, true) then exit;
+  result:=true;
+end;
+
 
 //-------------------------—обытие назначени€ клина-----------------------------
 procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
@@ -556,30 +596,49 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure ResetActorFlags(act:pointer);
+function OnWeaponHide(wpn:pointer):boolean;stdcall;
+var
+  act, owner:pointer;
 begin
-  SetActorActionState(act, actAimStarted, false);
-  SetActorActionState(act, actModSprintStarted, false);
+  //вернуть, можно скрывать оружие или нет
+  act:=GetActor();
+  owner:=GetOwner(wpn);
+  result:=CanHideWeaponNow(wpn);
+  if (act<>nil) and (owner=act) then begin
+    if result then begin
+      ResetActorFlags(act);
+    end else begin
+      if ActorUtils.IsHolderInSprintState(wpn) then begin
+        SetActorKeyRepeatFlag(kfWPNHIDE, true);
+        SetActorActionState(act, actSprint, false, mState_WISHFUL);
+      end;
+    end;
+  end;
 end;
 
-procedure OnWeaponHide(wpn:pointer);stdcall;
+procedure OnWeaponShowAnmStart(wpn:pointer);stdcall;
 var
   act, owner:pointer;
 begin
   act:=GetActor();
   owner:=GetOwner(wpn);
-  if (owner<>nil) and (owner=act) then begin
+  if (act<>nil) and (owner=act) then begin
     ResetActorFlags(act);
+    SetActorActionState(act, actSprint, false, mState_WISHFUL);
+    SetActorActionState(act, actSprint, false, mState_REAL);
   end;
 end;
 
-procedure OnWeaponShow(wpn:pointer);stdcall;
+
+function OnWeaponShow(wpn:pointer):boolean;stdcall;
 var
   act, owner, det:pointer;
 begin
   act:=GetActor();
   owner:=GetOwner(wpn);
   if (owner<>nil) and (owner=act) then begin
+    ClearActorKeyRepeatFlags();
+    SetActorActionState(act, actSprint, false, mState_WISHFUL);
     ResetActorFlags(act);
     det:=ItemInSlot(act, 9);
     if (det<>nil) and not CanUseDetectorWithItem(wpn) then begin
@@ -598,16 +657,8 @@ begin
   result:=CanAimNow(wpn);
   act:=GetActor();
   if not result and (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
-      SetActorActionState(act, actSprint, false, mState_WISHFUL);
+    SetActorActionState(act, actSprint, false, mState_WISHFUL);
   end;
-{    anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
-    MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anm_name), true);
-    PlayHudAnim(wpn, PChar(anm_name), true);
-    MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
-    SetActorActionState(act, actModSprintStarted, false);
-    SetActorActionState(act, actSprint, false);
-
-  end;}
 end;
 
 
@@ -620,7 +671,22 @@ begin
   //«атем в апдейте актора ждем окончани€ действи€ и вручную вызываем повторную попытку выйти из зума
   result:=CanLeaveAimNow(wpn);
 //  log(booltostr(result, true));
-  if not result then ActorUtils.NeedUnZoom_flag:=true;
+  if not result then SetActorKeyRepeatFlag(kfUNZOOM, true);
+end;
+
+
+function OnWeaponAction(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
+var
+  act:pointer;
+begin
+  result:=CanStartAction(wpn);
+  if not result then begin
+    act:=GetActor();
+    if (act<>nil) and (act=GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
+      SetActorActionState(act, actSprint, false, mState_WISHFUL);
+      SetActorKeyRepeatFlag(kfACTTYPE, true);
+    end;
+  end;
 end;
 
 
@@ -677,17 +743,14 @@ begin
 
   upgrade_weapon_addr:=xrGame_addr+$2D09D6;
   if not WriteJump(upgrade_weapon_addr, cardinal(@Upgrade_Weapon_Patch), 5) then exit;
+  //поправим баг с недопереключением режима стрельбы во врем€ апгрейда
+  nop_code(xrGame_addr+$2d0abe, 6);
 
-  //добавим аниму смены режима стрельбы
-  jmp_addr:=xrGame_addr+$2CE2AC;
-  if not WriteJump(jmp_addr, cardinal(@CanChangeFireMode_Patch), 7, true) then exit;
-  jmp_addr:=xrGame_addr+$2CE30C;
-  if not WriteJump(jmp_addr, cardinal(@CanChangeFireMode_Patch), 7, true) then exit;
 
-  jmp_addr:=xrGame_addr+$2CE2EF;
-  if not WriteJump(jmp_addr, cardinal(@OnChangeFireMode_Patch), 6, true) then exit;
-  jmp_addr:=xrGame_addr+$2CE34F;
-  if not WriteJump(jmp_addr, cardinal(@OnChangeFireMode_Patch), 6, true) then exit;
+  //добавим анимы смены режима стрельбы
+  if not InitChangeFireMode(xrGame_addr+$2CE2E0,0) then exit;
+  if not InitChangeFireMode(xrGame_addr+$2CE340,1) then exit;
+
 
   //модифицированный обработчик отображени€ сообщени€ о клине
   jmp_addr:=xrGame_addr+$2CFF6B;

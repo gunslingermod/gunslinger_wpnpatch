@@ -660,24 +660,19 @@ begin
 end;
 
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
-begin
-  asm
+asm
     pushad
-    pushfd
 
     mov esi, wpn
-    lea ecx, [esi+$2e0]
-    mov edx, [ecx]
-    mov edx, [edx+$30]
-
     lea eax, [esi+$5b1]
-    push eax
+    push eax        //vector3d& position
     push sndLabel
-    call edx
+    add esi, $2e0
+    push esi        //CHudItem
 
-    popfd
+    call virtual_CHudItem_PlaySound
+
     popad
-  end;
 end;
 
 ////////////////////////////////////////////////////////////////////////////////

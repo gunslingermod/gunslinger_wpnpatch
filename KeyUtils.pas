@@ -81,9 +81,10 @@ const
 function IsActionKeyPressed(EGameAction:cardinal):boolean; stdcall;
 function get_action_dik(EGameAction:cardinal; idx:integer):cardinal; stdcall; //idx принимает значения: 0 - основная клавиша, 1 - вспомогательная, -1 - дефаултовая назначенная
 function IsKeyPressed(dik:cardinal):boolean; stdcall;
+function IsActionKeyPressedInGame(EGameAction:cardinal):boolean; stdcall;
 
 implementation
-uses BaseGameData;
+uses BaseGameData, UIUtils, ConsoleUtils;
 
 function IsActionKeyPressed(EGameAction:cardinal):boolean; stdcall;
 var
@@ -144,5 +145,14 @@ asm
 
   popad
 end;
+
+function IsActionKeyPressedInGame(EGameAction:cardinal):boolean; stdcall;
+begin
+  if IsActionKeyPressed(EGameAction) and (not IsConsoleShown()) and (not IsDemoRecord()) and (CDialogHolder__TopInputReceiver()=nil) then
+    result:=true
+  else
+    result:=false;
+end;
+
 
 end.

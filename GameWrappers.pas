@@ -21,6 +21,16 @@ interface
   function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
 {  procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall; //старое, дублирует функционал UIUtils}
   function translate(text:PChar):PChar;stdcall;
+  procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr:pointer); stdcall;
+  procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
+
+  const
+		CHUDState__eIdle:cardinal = 0;
+		CHUDState__eShowing:cardinal = 1;
+		CHUDState__eHiding:cardinal = 2;
+		CHUDState__eHidden:cardinal = 3;
+		CHUDState__eBore:cardinal = 4;
+		CHUDState__eLastBaseState:cardinal = 4;
 
 implementation
 uses BaseGameData, SysUtils, strutils, windows;
@@ -383,6 +393,42 @@ asm
     call eax
     mov @result, eax
     add esp, 4
+  popad
+end;
+
+
+procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr:pointer); stdcall;
+asm
+  pushad
+
+  mov ecx, CHudItem
+
+  push position_ptr
+  push alias
+
+
+  mov edx, [ecx]
+  mov edx, [edx+$30]
+  call edx
+
+  popad
+end;
+
+
+procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
+//все наследники имеют CHudItem по смещению 2e0, так что далаем сразу на всех.
+asm
+  pushad
+
+  mov ecx, Weapon
+  add ecx, $2e0
+
+  push state
+
+  mov edx, [ecx]
+  mov edx, [edx]
+  call edx
+
   popad
 end;
 

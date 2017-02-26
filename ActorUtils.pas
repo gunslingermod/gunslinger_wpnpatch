@@ -11,8 +11,9 @@ const
   actSprint:cardinal = $1000;
 
   actAimStarted:cardinal = $4000000;
-  actShowDetectorNow:cardinal = $8000000;
+  actShowDetectorNow:cardinal = $8000000; //преддоставание проигралoсь, можно показывать детектор
   actModSprintStarted:cardinal = $10000000;
+  actModNeedMoveReassign:cardinal = $20000000;
 
 
   mState_WISHFUL:cardinal = $58c;
@@ -20,8 +21,22 @@ const
   mState_REAL:cardinal = $594;
 
 
+  kfUNZOOM:cardinal=$1;
+  kfRELOAD:cardinal=$2;
+  kfNEXTFIREMODE:cardinal=$8;
+  kfPREVFIREMODE:cardinal=$10;
+  kfGLAUNCHSWITCH:cardinal=$20;
+  kfWPNHIDE:cardinal=$40;
+  kfDETECTOR:cardinal=$80;
+
+
+
+
 
 function GetActor():pointer; stdcall;
+function GetActorTargetSlot():integer; stdcall;
+function GetActorActiveSlot():integer; stdcall;
+function GetActorPreviousSlot():integer; stdcall;
 function GetActorActionState(stalker:pointer; mask:cardinal; state:cardinal=$594):boolean; stdcall;
 procedure CreateObjectToActor(section:PChar); stdcall;
 function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только для актора, для других всегда вернет false!
@@ -32,14 +47,22 @@ function GetActorActiveItem():pointer; stdcall;
 function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
 function Init():boolean; stdcall;
 function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
+procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean);
+procedure ClearActorKeyRepeatFlags();
+procedure ResetActorFlags(act:pointer);
+procedure UpdateSlots(act:pointer);
+function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
+procedure ActivateActorSlot(slot:cardinal); stdcall;
 
-
-
-var NeedUnZoom_flag:boolean;
 
 
 implementation
-uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils;
+uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable;
+
+var
+  _keyflags:cardinal;
+  _prev_act_slot:integer;
+  _last_act_slot:integer;
 
 function GetActor():pointer; stdcall;
 begin
@@ -166,7 +189,7 @@ end;
 function GetActorActiveItem():pointer; stdcall;
 asm
   pushfd
-  
+
   mov eax, xrGame_addr
   add eax, $64F0E4
   mov eax, [eax]
@@ -181,29 +204,163 @@ asm
   mov @result, eax
 end;
 
-procedure ProcessZoom(act:pointer);
-var
-  itm:pointer;
-begin
-  itm:=GetActorActiveItem();
-  if (itm=nil) or not WpnCanShoot(PChar(GetClassName(itm))) then exit;
+function GetActorActiveSlot():integer; stdcall;
+asm
+  mov @result, -1;
+  pushfd
 
-  if IsActionKeyPressed(kWPN_ZOOM) then begin
-    if not IsAimToggle() and (CDialogHolder__TopInputReceiver()=nil) and CanAimNow(itm) and not IsAimNow(itm) then begin
-      virtual_Action(itm, kWPN_ZOOM, kActPress);
-      NeedUnZoom_flag := false;
+  call GetActor        //получаем актора
+
+  test eax, eax
+  je @finish
+
+  mov eax, [eax+$2e4]   //получаем его CInventory
+  test eax, eax
+  je @finish
+
+  mov ax, [eax+$40]     //получаем текущий активный слот актора
+  movzx eax, ax
+  mov @result, eax
+
+  @finish:
+  popfd
+end;
+
+
+function GetActorTargetSlot():integer; stdcall;
+asm
+  mov @result, -1;
+  pushfd
+
+  call GetActor        //получаем актора
+
+  test eax, eax
+  je @finish
+
+  mov eax, [eax+$2e4]   //получаем его CInventory
+  test eax, eax
+  je @finish
+
+  mov ax, [eax+$42]     //получаем целевой слот актора
+  movzx eax, ax
+  mov @result, eax
+
+  @finish:
+  popfd
+end;
+
+procedure ResetActorFlags(act:pointer);
+begin
+  SetActorActionState(act, actAimStarted, false);
+  SetActorActionState(act, actModSprintStarted, false);
+  SetActorActionState(act, actModNeedMoveReassign, false);  
+end;
+
+procedure ProcessKeys(act:pointer);
+var
+  wpn:pointer;
+begin
+
+  wpn:=GetActorActiveItem();
+  if (wpn = nil) then begin
+    ClearActorKeyRepeatFlags();
+    ResetActorFlags(act);
+  end else if (not WpnCanShoot(PChar(GetClassName(wpn)))) then begin
+    wpn:=nil;
+  end;
+
+  if IsSprintOnHoldEnabled() and (not IsActionKeyPressedInGame(kWPN_ZOOM)) and (_keyflags=0) and (CDialogHolder__TopInputReceiver()=nil) then begin
+    if not IsActionKeyPressedInGame(kSPRINT_TOGGLE) and ((wpn=nil) or (CanSprintNow(wpn)))  then
+      SetActorActionState(act, actSprint, false, mState_WISHFUL)
+    else
+      SetActorActionState(act, actSprint, true, mState_WISHFUL)
+  end;
+
+  if ((_keyflags and kfWPNHIDE)<>0) then begin
+    if (wpn=nil) or CanStartAction(wpn) then begin
+      SetActorKeyRepeatFlag(kfWPNHIDE, false);
     end;
   end;
 
-  if NeedUnZoom_flag then begin
-    if IsAimNow(itm) then begin
-      if CanLeaveAimNow(itm) then begin
-        virtual_Action(itm, kWPN_ZOOM, kActRelease);
+  if ((_keyflags and kfDETECTOR)<>0) then begin
+    if (wpn=nil) or CanStartAction(wpn) then begin
+      SetActorKeyRepeatFlag(kfDETECTOR, false);
+    end;
+  end;  
+
+  if (wpn=nil) then exit;
+
+
+  if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
+    if not IsAimToggle() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
+      virtual_Action(wpn, kWPN_ZOOM, kActPress);
+      SetActorKeyRepeatFlag(kfUNZOOM, false);
+    end;
+  end;
+
+  if (_keyflags and kfUNZOOM)<>0 then begin
+    if IsAimNow(wpn) then begin
+      if CanLeaveAimNow(wpn) then begin
+        virtual_Action(wpn, kWPN_ZOOM, kActRelease);
       end;
     end else begin
-      NeedUnZoom_flag:=false;
+      SetActorKeyRepeatFlag(kfUNZOOM, false);
     end;
   end;
+
+  if (_keyflags and kfRELOAD)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kWPN_RELOAD, kActPress);
+      SetActorKeyRepeatFlag(kfRELOAD, false);
+    end;
+  end;
+
+
+  if (_keyflags and kfGLAUNCHSWITCH)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kWPN_FUNC, kActPress);
+      SetActorKeyRepeatFlag(kfGLAUNCHSWITCH, false);
+    end;
+  end;
+
+  if (_keyflags and kfNEXTFIREMODE)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kWPN_FIREMODE_NEXT, kActPress);
+      SetActorKeyRepeatFlag(kfNEXTFIREMODE, false);
+    end;
+  end;
+
+  if (_keyflags and kfPREVFIREMODE)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kWPN_FIREMODE_PREV, kActPress);
+      SetActorKeyRepeatFlag(kfPREVFIREMODE, false);
+    end;
+  end;
+
+
+{  //принудительный сброс бега во время действия
+  if not (IsSprintOnHoldEnabled()) and GetActorActionState(act, actSprint, mstate_WISHFUL) and (not CanSprintNow(wpn)) then begin
+    SetActorActionState(act, actSprint, false, mstate_WISHFUL);
+  end; }
+
+end;
+
+procedure OnActorNewSlotActivated(act:pointer; slot:integer); stdcall;
+begin
+  ResetActorFlags(act);
+  ResetActivationHoldState();
+  //TODO: перенести еду
+end;
+
+procedure UpdateSlots(act:pointer);
+begin
+  if _last_act_slot<>-1 then begin
+    if _last_act_slot<>GetActorActiveSlot() then begin
+      _prev_act_slot:=_last_act_slot;
+      OnActorNewSlotActivated(act, GetActorActiveSlot());
+    end;
+  end;
+  _last_act_slot:=GetActorActiveSlot();
 end;
 
 procedure ActorUpdate(act:pointer); stdcall;
@@ -211,6 +368,8 @@ var
   itm, det:pointer;
   hud_sect:PChar;
 begin
+  UpdateSlots(act);
+
   det:=ItemInSlot(act, 9);
 
   if det <> nil then begin
@@ -231,7 +390,8 @@ begin
   end;
 
 
-  ProcessZoom(act);
+  ProcessKeys(act);
+
 end;
 
 procedure ActorUpdate_Patch(); stdcall
@@ -290,14 +450,144 @@ begin
   result:=true;
 end;
 
+procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean);
+begin
+  if state then begin
+    _keyflags:=_keyflags or mask;
+  end else begin
+    _keyflags:=_keyflags and (not mask);
+  end;
+end;
+
+
+procedure ClearActorKeyRepeatFlags();
+begin
+  _keyflags:=0;
+end;
+
+function CActor__OnKeyboardPress(dik:cardinal):boolean; stdcall;
+var
+  act:pointer;
+  wpn:pointer;
+begin
+
+  //возвратить false, чтобы забыть про данное нажатие
+  result:=true;
+
+  act:=GetActor();
+  if dik = kDETECTOR then begin
+    wpn:=GetActorActiveItem();
+    if (act<>nil) and (GetActorActionState(act, actSprint) or GetActorActionState(act, actModSprintStarted)) then begin
+//      if (wpn<>nil) and WpnCanShoot(PChar(GetClassName(wpn))) then begin
+        SetActorKeyRepeatFlag(kfDETECTOR, true);
+        SetActorActionState(act, actSprint, false, mState_WISHFUL);
+//      end;
+//      result:=false;
+    end else begin
+      if (wpn<>nil) and WpnCanShoot(PChar(GetClassName(wpn))) and not CanStartAction(wpn) then begin
+        result:=false;
+      end;
+    end;
+  end;
+  
+end;
+
+procedure OnKeyPressPatch1();stdcall;
+asm
+  pushad
+    push ebp
+    call CActor__OnKeyboardPress
+    cmp  al, 1
+  popad
+  jne @ignore
+
+  mov ebx, 00000001
+  test bl, cl
+  @ignore:
+end;
+
+
+function GetActorPreviousSlot():integer; stdcall;
+begin
+  result:=_prev_act_slot;
+end;
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+procedure CActor__netSpawn(CActor:pointer); stdcall;
+begin
+  ClearActorKeyRepeatFlags();
+  ResetActorFlags(CActor);
+  ResetActivationHoldState();
+  _prev_act_slot:=-1;
+  _last_act_slot:=-1;  
+end;
+
+procedure CActor__netSpawn_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CActor__netSpawn
+  popad
+  
+  pop edi //оригинальный код завершения метода
+  pop esi
+  pop ebp
+  mov eax, 1
+  pop ebx
+  add esp, 8
+  ret 4
+end;
+
+function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
+begin
+  for result:=1 to 9 do begin
+    if ItemInSlot(act, result)=itm then exit;
+  end;
+  result:=-1;
+end;
+
+procedure ActivateActorSlot(slot:cardinal); stdcall;
+asm
+  pushad
+  pushfd
+
+  call GetActor        //получаем актора
+
+  test eax, eax
+  je @finish
+
+  mov eax, [eax+$2e4]   //получаем его CInventory
+  test eax, eax
+  je @finish
+
+  mov ecx, slot
+  mov [eax+$42], cx     //пишем желаемый слот актора
+
+  @finish:
+  popfd  
+  popad
+end;
+
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
-  NeedUnZoom_flag:=false;
+  ClearActorKeyRepeatFlags();
+
+  _prev_act_slot:=-1;
+  _last_act_slot:=-1;
+
   result:=false;
   jmp_addr:=xrGame_addr+$261DF6;
   if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
+
+  jmp_addr:= xrgame_addr+$2783F9;  //CActor::IR_OnKeyboardPress
+  if not WriteJump(jmp_addr, cardinal(@OnKeyPressPatch1), 7, true) then exit;
+
+  jmp_addr:= xrgame_addr+$26D115;
+  if not WriteJump(jmp_addr, cardinal(@CActor__netSpawn_Patch), 8) then exit;
+    
   result:=true;
 end;
-
 end.

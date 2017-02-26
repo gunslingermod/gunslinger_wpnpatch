@@ -1,12 +1,20 @@
 unit BaseGameData;
 
 interface
-  function Init:boolean;
-  function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
-  function nop_code(addr:cardinal; count:cardinal):boolean;
-  function GetGameTickCount:cardinal;  
-  function GetTimeDeltaSafe(starttime:cardinal):cardinal;
-  function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;   
+
+type TKeyHoldState = record
+  IsActive: boolean;
+  IsHoldContinued:boolean;
+  ActivationStart: cardinal;
+  HoldDeltaTimePeriod: cardinal; //время, после истечения которого мы засчитываем удержание клавиши
+end;
+
+function Init:boolean;
+function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
+function nop_code(addr:cardinal; count:cardinal):boolean;
+function GetGameTickCount:cardinal;
+function GetTimeDeltaSafe(starttime:cardinal):cardinal;
+function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
 
 var
   xrGame_addr:cardinal;
@@ -34,6 +42,9 @@ begin
   xrGame_addr := GetModuleHandle(xrGame);
   xrCore_addr := GetModuleHandle(xrCore);
   xrEngine_addr:=GetModuleHandle(xrEngine);
+  
+  if xrEngine_addr=0 then xrEngine_addr:=$400000;
+
   if (xrGame_addr = 0) or (xrCore_addr = 0) then exit;
   xrGame_addr := (xrGame_addr shr 16) shl 16;
   xrCore_addr := (xrCore_addr shr 16) shl 16;

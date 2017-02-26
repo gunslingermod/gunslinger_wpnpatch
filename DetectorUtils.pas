@@ -6,6 +6,7 @@ function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 function GetActiveDetector(act:pointer):pointer; stdcall;   
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
+function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall
 
 implementation
 uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils;
@@ -88,6 +89,8 @@ begin
 end;
 
 procedure CanUseDetectorPatch; stdcall;
+//патчит CCustomDetector::CheckCompatibility
+//последний в свою очередь вызывается, когда мы нажимаем кнопку на смену оружия
 asm
   push ebp
   mov ebp, esp
@@ -237,13 +240,13 @@ asm
   @finish:
 end;
 
-function GetDetectorActiveStatus(det:pointer):boolean; stdcall
+function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall
 asm
   mov @result, 0
-  cmp det, 0
+  cmp CCustomDetector, 0
   je @finish
   pushad
-    mov eax, det
+    mov eax, CCustomDetector
     mov ebx, [eax+$344]
     mov @result, bl
   popad

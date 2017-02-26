@@ -2,27 +2,30 @@ unit WeaponSoundLoader;
 
 interface
 function Init:boolean;
+procedure HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION:pointer; section:PChar; config_name:PChar; internal_name:PChar; exclusive:cardinal; snd_type:cardinal);stdcall;
+
 
 implementation
 uses BaseGameData, GameWrappers;
 
 var
   sound_load_addr:cardinal;
-  HUD_SOUND_COLLECTION__LoadSound_addr:cardinal;
 
-
-procedure HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION:pointer; section:PChar; config_name:PChar; internal_name:PChar; param1:integer; snd_type:cardinal);stdcall;
+procedure HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION:pointer; section:PChar; config_name:PChar; internal_name:PChar; exclusive:cardinal; snd_type:cardinal);stdcall;
 begin
   asm
     pushad
     pushfd
     push snd_type
-    push param1
+    push exclusive
     push internal_name
     push config_name
     push section
     mov ecx, HUD_SOUND_COLLECTION
-    call HUD_SOUND_COLLECTION__LoadSound_addr
+
+    mov eax, xrgame_addr
+    add eax, $2FB430
+    call eax // HUD_SOUND_COLLECTION::LoadSound
     popfd
     popad
   end;
@@ -99,7 +102,6 @@ end;
 function Init:boolean;
 begin
   result:=false;
-  HUD_SOUND_COLLECTION__LoadSound_addr:=xrGame_addr+$2FB430;
   sound_load_addr:=xrGame_addr+$2CFADE;
   if not WriteJump(sound_load_addr, cardinal(@SoundLoaderPatch), 5) then exit;
   result:=true;

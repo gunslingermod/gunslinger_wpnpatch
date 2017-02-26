@@ -4,7 +4,7 @@ unit WeaponAnims;
 
 interface
 function Init:boolean;
-function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
+function ModifierStd(wpn:pointer; base_anim:string):string; stdcall;
 
 implementation
 uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter;
@@ -12,6 +12,11 @@ uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, m
 var
   anim_name:string;
   jump_addr:cardinal;
+
+  movreass_last_update:cardinal;
+  movreass_remain_time:cardinal;
+
+
 
 procedure ModifierGL(wpn:pointer; var anm:string);
 begin
@@ -297,10 +302,8 @@ begin
     push 0                  //забиваем место под название анимы
 
     pushad
-    pushfd
       push esi
-      call WeaponEvents.OnWeaponHide
-    popfd
+      call OnWeaponShowAnmStart
     popad
 
     pushad
@@ -719,9 +722,12 @@ procedure ReloadAnimPlayingPatch; stdcall;
 begin
   asm
     pushad
-      push 0
+      //push 0
+      //call WeaponAdditionalBuffer.CanStartAction
+
+      push kfRELOAD
       push esi
-      call WeaponAdditionalBuffer.CanStartAction
+      call WeaponEvents.OnWeaponAction
       cmp al, 1
     popad
     jne @finish
@@ -774,9 +780,12 @@ begin
   asm
     //ѕровер€ем возможность переключени€
     pushad
-      push 0
+//      push 0
+//      push esi
+//      call WeaponAdditionalBuffer.CanStartAction
+      push kfGLAUNCHSWITCH
       push esi
-      call WeaponAdditionalBuffer.CanStartAction
+      call WeaponEvents.OnWeaponAction
       cmp al, 1
     popad
 
@@ -812,6 +821,18 @@ begin
   end;
 end;
 
+function CheckForceMoveReassign():boolean; stdcall;
+var
+  act:pointer;
+  delta:cardinal;
+begin
+  result:=false;
+  act:=GetActor;
+  if act=nil then exit;
+  result:=GetActorActionState(act, actModNeedMoveReassign);
+  if result then SetActorActionState(act, actModNeedMoveReassign, false);
+end;
+
 procedure IdleSlowFixPatch(); stdcall;
 begin
   asm
@@ -829,8 +850,18 @@ begin
     and eax, $3F
     and ebx, $3F
     cmp eax, ebx
+
     pop ebx
     pop eax
+
+    jne @already_need_updating
+
+    pushad
+      call CheckForceMoveReassign
+      cmp al, 0
+    popad
+
+    @already_need_updating:
 
 {    pushad
       push ebx
@@ -873,7 +904,7 @@ begin
     lea ecx, [esi-$2e0]
     pushad
       push ecx
-      call WeaponAdditionalBuffer.CanHideWeaponNow
+      call WeaponEvents.OnWeaponHide
       cmp al, 1
     popad
     je @no_lock
@@ -966,6 +997,19 @@ begin
   end;
 end;
 //---------------------------------------ќтучим перезар€жатьс€ (и не только) на бегу-------------------------------------------------
+function ProcessAllowSprintRequest(wpn:pointer):boolean;
+var
+  act:pointer;
+begin
+  result:=WeaponAdditionalBuffer.CanSprintNow(wpn);
+  act:=GetActor();
+  if not result and (act<>nil) and (act=GetOwner(wpn)) then begin
+    SetActorActionState(act, actSprint, false, mState_WISHFUL);
+    SetActorActionState(act, actSprint, false, mState_REAL);
+    SetActorActionState(act, actSprint, false, mState_OLD);
+  end;
+end;
+
 procedure SprintAnimLockFix; stdcall;
 asm
     pushad
@@ -974,9 +1018,9 @@ asm
       cmp al, 0
     popad
     je @finish
-    mov eax, [edx+$dc]
-    call eax
-    test al, al
+      mov eax, [edx+$dc]
+      call eax
+      test al, al
     @finish:
     ret
 end;
@@ -1024,10 +1068,67 @@ asm
   @finish:
 end;
 //--------------------------------------------------------------------------------------------------------------------
+//ћикширование аним выстрела
+function NeedShootMix(wpn:pointer):boolean; stdcall;
+var
+  act: pointer;
+  hud_sect:pchar;
+  cur_anim:pchar;
+begin
+  result:=false;
+
+  act:=GetActor();
+  if (act=nil) or (GetOwner(wpn)<>act) then exit;
+  hud_sect:=GetHUDSection(wpn);
+
+  if not (game_ini_line_exist(hud_sect, 'mix_shoot_after_idle') and game_ini_r_bool(hud_sect, 'mix_shoot_after_idle')) then exit;
+
+  cur_anim:=GetActualCurrentAnim(wpn);
+
+  if leftstr(cur_anim, length('anm_idle')) = 'anm_idle' then result:=true;
+
+end;
+
+
+
+procedure ShootAnimMixPatch(); stdcall;
+asm
+  pop edx //запоминаем адрес возврата, про регистр не беспокоимс€
+
+  mov ecx, [esi+$2e4] //оригинальный вырезанный код
+  push ecx
+  push edi
+
+  pushad
+    push esi
+    call NeedShootMix
+    cmp al, 0
+  popad
+  je @nomix
+
+  push 1
+  jmp @finish
+
+  @nomix:
+  push 0
+
+  @finish:
+  push edx
+  ret
+end;
+
+
+//---------------------------------------------------------------------------------------------------------------------
+
+
 
 function Init:boolean;
 begin
   result:=false;
+
+  movreass_remain_time:=0;
+  movreass_last_update:=0;
+  
   //фиксим баг (мгновенна€ смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;
   if not WriteJump(jump_addr, cardinal(@GrenadeLauncherBugFix), 5, true) then exit;
@@ -1039,7 +1140,7 @@ begin
   jump_addr:=xrGame_addr+$2D0F2C;
   if not WriteJump(jump_addr, cardinal(@JammedBugFix), 7, true) then exit;
 
-  //Ќе дадим перезар€жатьс€ при неоконченном выстреле.
+  //Ќе дадим перезар€жатьс€ 
   jump_addr:=xrGame_addr+$2CE821;
   if not WriteJump(jump_addr, cardinal(@ReloadAnimPlayingPatch), 12, true) then exit;
 
@@ -1162,7 +1263,7 @@ begin
   if not WriteJump(jump_addr, cardinal(@anm_show_sub_patch), 5, true) then exit;
 {  jump_addr:=xrGame_addr+$2C75A5;//anm_show - grenades
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;}
-  jump_addr:=xrGame_addr+$2CCED2;//anm_show - spas12, rg6
+  jump_addr:=xrGame_addr+$2CCED2;//anm_show - spas12, rg6, knife
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
   jump_addr:=xrGame_addr+$2D176A;//anm_show - assault
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
@@ -1237,6 +1338,16 @@ begin
 
   jump_addr:=xrGame_addr+$2C5451;//reload - pistols
   if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 14, true) then exit;
+
+
+  //микшировние выстрелов:
+  //CWeaponMagazined:PlayAnimShoot
+  jump_addr:=xrGame_addr+$2CD0CF;
+  if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;  
+  //CWeaponPistol::PlayAnimShoot
+  jump_addr:=xrGame_addr+$2C5597;
+  if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
+
   result:=true;
 end;
 

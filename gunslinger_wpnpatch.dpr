@@ -22,7 +22,10 @@ uses
   CommonUpdate in 'CommonUpdate.pas',
   Messenger in 'Messenger.pas',
   UIUtils in 'UIUtils.pas',
-  KeyUtils in 'KeyUtils.pas';
+  KeyUtils in 'KeyUtils.pas',
+  ConsoleUtils in 'ConsoleUtils.pas',
+  gunsl_config in 'gunsl_config.pas',
+  Throwable in 'Throwable.pas';
 
 {$R *.res}
 
@@ -37,7 +40,6 @@ begin
   WeaponSoundLoader.Init;
   WeaponSoundSelector.Init;
   WeaponEvents.Init;
-//  ReloadAnimationSelector.Init;
   WeaponAmmoCounter.Init;
   collimator.Init;
   AN94Patch.Init;
@@ -46,6 +48,8 @@ begin
   WeaponAnims.Init;
   DetectorUtils.Init;
   ActorUtils.Init;
+  ConsoleUtils.Init;
+  Throwable.Init();
 //  Messenger.Init;
 //  CommonUpdate.Init;
 //  HudTransparencyFix.Init;
