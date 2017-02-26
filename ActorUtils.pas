@@ -11,6 +11,7 @@ procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean;
 function GetActorActiveItem():pointer; stdcall;
 function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
 function Init():boolean; stdcall;
+function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
 
 const
   actMovingForward:cardinal = $1;
@@ -27,7 +28,7 @@ const
 
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils;
+uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils;
 
 function GetActor():pointer; stdcall;
 begin
@@ -239,6 +240,21 @@ asm
   popad
 end;
 
+
+function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
+begin
+  result:=false;
+  if (GetActorActiveItem()<>wpn) then begin
+    Messenger.SendMessage('gunsl_msg_take_wpn_into_hands');
+    exit;
+  end;
+
+  if not (CanStartAction(wpn)) then begin
+    Messenger.SendMessage('gunsl_msg_stop_actions');
+    exit;
+  end;
+  result:=true;
+end;
 
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;

@@ -15,8 +15,6 @@ var
 
 //-------------------------------Разряжание магазина-----------------------------
 procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
-var
-  hud_sect:PChar;
 begin
   unload_magazine(wpn);
   ForceWpnHudBriefUpdate(wpn);
@@ -33,6 +31,7 @@ end;
 function OnUnloadMag(wpn:pointer):boolean; stdcall;
 var
   hud_sect: PChar;
+  act:pointer;
 const
   param_name:PChar = 'use_unloadmag_anim';
 begin
@@ -40,10 +39,21 @@ begin
   result := false;
 
   hud_sect:=GetHUDSection(wpn);
+  act:=GetActor();
+  if ((act=nil) or (GetOwner(wpn)<>act)) then begin
+    result:=true;
+    exit;
+  end;
+
+  if not CheckActorWeaponAvailabilityWithInform(wpn) then exit;
+
   if (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
     result:=true;
     exit;
   end;
+
+
+
   if WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_unload_mag', 'sndUnload') then begin
     //анима начала играться. Посмотрим, когда надо разряжаться
     if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+WpnUtils.GetActualCurrentAnim(wpn))) then begin
@@ -86,9 +96,12 @@ var
   addon_name:PChar;
   snd_name:PChar;
   hud_sect:PChar;
+  act:pointer;
 
 begin
-//  log('Detaching addon: '+inttostr(addontype));
+  act:=GetActor();
+  if ((act=nil) or (GetOwner(wpn)<>act)) or not CheckActorWeaponAvailabilityWithInform(wpn) then exit;
+
   param_name:=nil;
   snd_name:=nil;
   case addontype of
@@ -154,33 +167,52 @@ var addonname:PChar;
     snd_name:PChar;
     param_name:PChar;
     anim_name:string;
-    hud_sect:PChar;
+    hud_sect, sect:PChar;
+    err_msg:PChar;
 begin
-  //log('Attaching addon: '+inttostr(addontype));
-
   param_name:=nil;
   snd_name:=nil;
+  sect:=GetSection(wpn);
+  err_msg:=nil;
   case addontype of
     1:begin
+        //log ('scope_att');
         addonname:=GetCurrentScopeSection(wpn);
-        if addonname<>nil then begin
-          param_name:='use_scopeattach_anim';
-          anim_name:='anm_attach_scope_'+addonname;
-          snd_name:='sndScopeAtt';
-          addonname:=game_ini_read_string(addonname, 'scope_name');
+        if addonname=nil then log('WpnEvents.OnAddonAttach: Scope has no section?!');
+        addonname:=game_ini_read_string(addonname, 'scope_name');
+        param_name:='use_scopeattach_anim';
+        anim_name:='anm_attach_scope_'+addonname;
+        snd_name:='sndScopeAtt';
+
+        if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_sil') and game_ini_r_bool(sect, 'restricted_scope_and_sil')  then begin
+          err_msg:='gunsl_msg_sil_restricts_scope';
+        end else if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl') then begin
+          err_msg:='gunsl_msg_gl_restricts_scope';
         end;
       end;
     4:begin
-        addonname:=GetSilencerSection(wpn);
+        //log ('sil_att');
         param_name:='use_silattach_anim';
         anim_name:='anm_attach_sil';
         snd_name:='sndSilAtt';
+        addonname:=GetSilencerSection(wpn);
+        if IsScopeAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_sil') and game_ini_r_bool(sect, 'restricted_scope_and_sil')  then begin
+          err_msg:='gunsl_msg_scope_restricts_sil';
+        end else if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
+          err_msg:='gunsl_msg_gl_restricts_sil';
+        end;
       end;
     2:begin
-        addonname:=GetGLSection(wpn);
+        //log('gl_att');
         param_name:='use_glattach_anim';
         anim_name:='anm_attach_gl';
         snd_name:='sndGLAtt';
+        addonname:=GetGLSection(wpn);
+        if IsScopeAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl')  then begin
+          err_msg:='gunsl_msg_scope_restricts_gl';
+        end else if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
+          err_msg:='gunsl_msg_sil_restricts_gl';
+        end;
       end;
     else begin
       log('WeaponEvents.OnAddonAttach: Invalid addontype!', true);
@@ -191,26 +223,62 @@ begin
 
   hud_sect:=GetHUDSection(wpn);
   actor:=GetActor();
-  if (actor=nil) or (actor<>GetOwner(wpn)) or (param_name=nil) or (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
+  if (actor<>nil) and (actor=GetOwner(wpn)) and not CheckActorWeaponAvailabilityWithInform(wpn) then begin
+    //log('not_available');
+    result:=false;
+  end else if err_msg<>nil then begin
+    //log('att_err');
+    if (actor<>nil) and (actor=GetOwner(wpn)) then begin
+      Messenger.SendMessage(err_msg);
+    end;
+    result:=false
+  end else if (actor=nil) or (actor<>GetOwner(wpn)) then begin
+    //log('actor_not_owner');
     result:=true;
-    exit;
+  end else if (param_name=nil) or (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
+    //log('no_param');
+    result:=true;
+  end else begin
+    //log (anim_name);
+    //log('playing...');
+    result:= WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anim_name), snd_name);
   end;
-  result:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anim_name), snd_name);
 
   if (not result) then begin
     //Сейчас присоединять аддон нельзя. Отспавним его назад в инвентарь.
     if addontype = 1 then SetCurrentScopeType(wpn, 0);
-    CreateObjectToActor(addonname);
+    if (actor<>nil) and (actor=GetOwner(wpn)) then CreateObjectToActor(addonname);
   end;
 end;
 
-procedure AttachAddon_Patch(addontype:integer);stdcall;
+procedure AttachAddon_Patch{(addontype:integer)}();stdcall;
 asm
-  push esi
-  mov esi, [esp+4] //восстанавливаем из стека указатель на оружие
   push ecx
-  mov ecx, addontype
+  mov ecx, [esp+8]
 
+  
+  push esi
+  push ebx
+
+  mov ebx, ecx
+
+  //в младшем ниббле младшего байта addontype - тип аддона, в старшем ниббле - индекс регистра с адресом оружия
+  //1 - ebp, 0 - esi
+
+  and ecx, $0000000F
+  and ebx, $000000F0
+  shr ebx, 4
+
+  //восстанавливаем из стека указатель на оружие
+
+  cmp bx, 0
+  je @wpnfound
+  
+  mov esi, ebp
+  cmp bx, 1
+  je @wpnfound
+
+  @wpnfound:
   pushad
     push ecx
     push esi //CWeapon
@@ -222,8 +290,11 @@ asm
   or byte ptr [esi+$460], cl
 
   @finish:
-  pop ecx
+
+  pop ebx
   pop esi
+  pop ecx
+  ret 4
 end;
 
 function InitAttachAddon(address:cardinal; addontype:byte):boolean;
@@ -232,72 +303,11 @@ begin
   result:=false;
   buf:=chr($6A)+chr(addontype);//формируем и записываем аргумент для патча
   if not WriteBufAtAdr(address, PChar(buf), 2) then exit;
-  address:=address+2;//теперь записываем вызов патча и нопим лишнее, дабы аддон не исчез
+  address:=address+2;//теперь записываем вызов патча
   if not WriteJump(address, cardinal(@AttachAddon_Patch), 0, true) then exit;
   result:=true;
 end;
 
-//------------------------отключение хинтов при активном действии----------------
-
-procedure AddonsDetach_UnloadMag_Hint_Patch(); stdcall;
-asm
-    //выполним оригинальное add esp, 4
-    pop edx         //снимаем адрес возврата
-    mov [esp], edx  //переносим его вверх по стеку
-
-    mov esi, eax
-    test esi, esi
-    je @finish
-
-    pushad
-      push 0
-      push [esp+$38]
-      call WeaponAdditionalBuffer.CanStartAction
-      cmp al, 0
-    popad
-
-    @finish:
-end;
-
-procedure AddonsAttach_Hint_Patch(); stdcall;
-asm
-  //оригинальный код
-  mov ecx, eax
-
-  //пистолет - в esi, винтовка - в ecx
-
-  //проверяем пистолет
-  cmp esi, 0
-  je @rifle
-  pushad
-    push 0
-    push esi
-    call WeaponAdditionalBuffer.CanStartAction
-    cmp al, 0
-  popad
-  jne @rifle
-  xor esi, esi
-
-  @rifle:
-  //проверим винтовку
-  cmp ecx, 0
-  je @finish
-  pushad
-    push 0
-    push ecx
-    call WeaponAdditionalBuffer.CanStartAction
-    cmp al, 0
-  popad
-  jne @finish
-  xor ecx, ecx
-
-  @finish:
-  //оригинальный код
-  mov [esp+$28], ecx
-  test esi, esi
-end;
-
-//------------------------------------------------------------------------------
 function OnCWeaponMagazinedNetSpawn(wpn:pointer):boolean;stdcall;
 begin
   if WpnCanShoot(PChar(GetClassName(wpn))) then WpnBuf.Create(wpn);
@@ -369,15 +379,6 @@ begin
 end;
 
 //-----------------------------------------Переключение режимов огня------------------------
-//function OnChangeFireMode(wpn:pointer):boolean; stdcall;
-//var
-//  hud_sect:PChar;
-//begin
-//  result:=true;
-//  hud_sect:=GetHUDSection(wpn);
-//  if (not game_ini_line_exist(hud_sect, 'use_firemode_change_anim')) or (not game_ini_r_bool(hud_sect, 'use_firemode_change_anim')) then exit;
-//  result:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_changefiremode', 'sndChangeFireMode');
-//end;
 
 procedure OnChangeFireMode(wpn:pointer; new_mode:integer); stdcall;
 var
@@ -514,23 +515,30 @@ end;
 
 //---------------------Щелчки при осечках/пустом магазине-----------------------
 procedure OnEmptyClick(wpn:pointer);stdcall;
+var
+  anm_started:boolean;
+  txt:PChar;
 begin
+  anm_started:=false;
+
   //При патчинге мы вырезали воспроизведение звука. Исправим это недоразумение одновременно с проигрыванием анимы.
   if IsWeaponJammed(wpn) then begin
-    if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then Messenger.SendMessage('gunsl_msg_weapon_jammed');
+    txt := 'gunsl_msg_weapon_jammed';
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
-      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndJammedClick', nil, 0, false, true)
+      anm_started:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndJammedClick', nil, 0, false, true)
     end else begin
-      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndJammedClick', nil, 0, false, true);
+      anm_started:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndJammedClick', nil, 0, false, true);
     end;
   end else begin
-    if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then Messenger.SendMessage('gunsl_msg_weapon_empty');
+    txt := 'gunsl_msg_weapon_empty';
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
-      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndEmptyClick', nil, 0, false, true)
+      anm_started:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndEmptyClick', nil, 0, false, true);
     end else begin
-      WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndEmptyClick', nil, 0, false, true);
+      anm_started:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndEmptyClick', nil, 0, false, true);
     end;
   end;
+
+  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and anm_started then Messenger.SendMessage(txt);
 end;
 
 procedure EmptyClick_Patch; stdcall;
@@ -594,22 +602,18 @@ begin
   if not WriteJump(jmp_addr, cardinal(@EmptyClick_Patch), 8, true) then exit;
 
   //-----------------------------------------------------------------------------------------------------
-  //Отключение отображения хинтов об аттаче
-  jmp_addr:= xrGame_addr+$46D6A3;
-  if not WriteJump(jmp_addr, cardinal(@AddonsAttach_Hint_Patch), 8, true) then exit;
-
   //Аттач прицела
-  InitAttachAddon(xrGame_addr+$2CEE33, 1);
-  //Аттач подствола
-  InitAttachAddon(xrGame_addr+$2CEEF5, 2);
+  InitAttachAddon(xrGame_addr+$2CEE33, $11);
+  //                           register^|^addon type  
+  //Аттач подствола(мертвый?)
+  InitAttachAddon(xrGame_addr+$2CEEF5, $12);
+  //второй аттач подствола, живой
+  InitAttachAddon(xrGame_addr+$2D26F7, $02);
+
   //Аттач глушителя
-  InitAttachAddon(xrGame_addr+$2CEE5A, 4);
+  InitAttachAddon(xrGame_addr+$2CEE5A, $14);  
 
   //-----------------------------------------------------------------------------------------------------
-  //Отключение отображения хинтов о детаче и разрядке магазина
-  jmp_addr:= xrGame_addr+$46ca86;
-  if not WriteJump(jmp_addr, cardinal(@AddonsDetach_UnloadMag_Hint_Patch), 7, true) then exit;
-
   //Детач глушителя
   InitDetachAddon(xrGame_addr+$2CDB22, 4, 38);
 

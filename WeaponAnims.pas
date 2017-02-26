@@ -636,6 +636,11 @@ begin
       anim_name:=anim_name+'_ammochange';
     end;
 
+    if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
+       //log ('det+rel');
+      anim_name:=anim_name+'_detector';
+    end;
+
     ModifierGL(wpn, anim_name);
   end;
 
@@ -650,6 +655,7 @@ begin
   GetBuffer(wpn).SetReloaded(false);
   if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAmmoTimer);
+    //log('lock-start, anm = '+anim_name);
   end else begin
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
   end;
@@ -726,6 +732,28 @@ begin
     call eax
     @finish:
     ret
+  end;
+end;
+
+procedure AmmoChangePlayingPatch; stdcall;
+begin
+  asm
+    pushad
+      push 0
+      push esi
+      call WeaponAdditionalBuffer.CanStartAction
+      cmp al, 1
+    popad
+    mov eax, 1
+    jne @finish
+
+    mov eax, xrgame_addr
+    add eax, $2bdcd0
+    push [esp+4]
+    call eax
+
+    @finish:
+    ret 4
   end;
 end;
 //--------------------------Аналогичный фикс для аним переключения режимов подствола----------------------------------
@@ -1006,6 +1034,10 @@ begin
   if not WriteJump(jump_addr, cardinal(@AutoReloadPistols2LockFix), 7, true) then exit;
   jump_addr:=xrGame_addr+$2D14E0;
   if not WriteJump(jump_addr, cardinal(@AutoReloadAssaultLockFix), 7, true) then exit;
+
+  jump_addr:=xrGame_addr+$2becd9;
+  if not WriteJump(jump_addr, cardinal(@AmmoChangePlayingPatch), 5, true) then exit;
+
 
   //аналогично с переключениями на подствол и обратно
   jump_addr:=xrGame_addr+$2D1545;

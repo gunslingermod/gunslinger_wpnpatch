@@ -10,6 +10,41 @@ uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditiona
 var patch_addr:cardinal;
   tst_light:pointer;
 
+
+procedure ProcessAmmo(wpn: pointer);
+var hud_sect:PChar;
+    prefix:string;
+    i:integer;
+    start_index, finish_index, limitator:integer;
+begin
+  hud_sect:=GetHUDSection(wpn);
+  if not game_ini_line_exist(hud_sect, 'use_ammo_bones') or (game_ini_r_bool(hud_sect, 'use_ammo_bones')=false) then exit;
+  prefix:= game_ini_read_string(hud_sect, 'ammo_bones_prefix');
+  if not game_ini_line_exist(hud_sect, 'start_ammo_bone_index') then
+    start_index:= strtoint(game_ini_read_string(hud_sect, 'start_ammo_bone_index'))
+  else
+    start_index:=0;
+
+  if game_ini_line_exist(hud_sect, 'end_ammo_bone_index') then
+    limitator:= strtoint(game_ini_read_string(hud_sect, 'end_ammo_bone_index'))
+  else
+    limitator:=0;
+
+  finish_index:=start_index+GetAmmoInMagCount(wpn)-1;
+
+  if game_ini_line_exist(hud_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(hud_sect, 'additional_ammo_bone_when_jammed') then
+    finish_index:=finish_index+1;
+
+  if finish_index>limitator then finish_index:=limitator;
+
+  for i:=start_index to finish_index do begin
+    SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), true);
+  end;
+  for i:= finish_index+1 to limitator do begin
+    SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), false);
+  end;
+end;
+
 procedure HideOneUpgradeLevel(wpn:pointer; up_gr_section:pchar); stdcall;
 var
   up_sect:PChar;
@@ -128,6 +163,8 @@ begin
       ProcessUpgrade(wpn);
       //Теперь отобразим установленный прицел
       ProcessScope(wpn);
+      //Разберемся с патронами
+      ProcessAmmo(wpn);
     end;
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
