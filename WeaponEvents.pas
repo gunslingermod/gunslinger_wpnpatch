@@ -347,14 +347,15 @@ begin
         end;
       end else begin
        if (length(buf.ammos)>0) then begin
-        log('There is NO ammotype data in the save???', true)
-       end else if (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
-        log('Count of ammotypes in the save is not equal to count of ammo in weapon', true);
+        log(PChar('There is NO ammotype data in the save??? Weapon '+GetSection(wpn)+':'+inttostr(GetID(wpn))), true)
+       end else if (length(buf.ammos)<>0) and (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
+        log(PChar('Count of ammotypes in the save is not equal to count of ammo in weapon '+GetSection(wpn)+':'+inttostr(GetID(wpn))), true);
        end;
       end;
       setlength(buf.ammos, 0);
     end;
   end;
+  SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure CWeapon_NetSpawn_Patch_middle();
@@ -580,7 +581,7 @@ begin
     end;
   end;
 
-  if game_ini_r_bool_def(sect, 'use_light_misfire', false) then begin
+  if game_ini_r_bool_def(sect, 'use_light_misfire', false) and not (IsHolderHasActiveDetector(wpn) and game_ini_r_bool_def(GetHUDSection(wpn), 'disable_light_misfires_with_detector', false)) then begin
     startcond:=game_ini_r_single_def(sect, 'light_misfire_start_condition', 1);   //при каком состоянии начнутся осечки
     endcond:=game_ini_r_single_def(sect, 'light_misfire_end_condition', 0);       //при каком закончатся
     startprob:=game_ini_r_single_def(sect, 'light_misfire_start_probability', 1); //какую долю от клинов при начальном состоянии будут составлять осечки

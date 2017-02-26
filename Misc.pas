@@ -3,7 +3,7 @@ unit Misc;
 interface
 //всячина, которую не особо понятно, в какие модули спихнуть
 
-
+function Init():boolean;stdcall;
 function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
 function PHRetrieveGeomUserData(dxGeom:pointer):pointer; stdcall;
 function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
@@ -151,5 +151,22 @@ asm
 
     @finish:
   popad
+end;
+
+
+procedure get_rank_Patch(); stdcall;
+asm
+  xor esi, esi
+end;
+
+function Init():boolean;stdcall;
+var
+  jmp_addr:cardinal;
+begin
+  //затычка от вылета mp_ranks
+  result:=false;
+  jmp_addr:=xrGame_addr+$4CCD0E;
+  if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
+  result:=true;
 end;
 end.

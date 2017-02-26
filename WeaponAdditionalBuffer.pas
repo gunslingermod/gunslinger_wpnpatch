@@ -417,9 +417,14 @@ begin
   act := GetActor();
   if (buf = nil) or (act=nil) or (act<>GetOwner(wpn))  then exit;
 
+  if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot_lightmisfire'))='anm_shoot_lightmisfire') then begin
+    result:=false;
+    exit;
+  end;
+
   if (IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim_start'))<>'anm_idle_aim_start') then begin
     hud_sect:=GetHUDSection(wpn);
-    if game_ini_line_exist(hud_sect, 'allow_halfaimstate') and game_ini_r_bool(hud_sect, 'allow_halfaimstate') then begin
+    if game_ini_r_bool_def(hud_sect, 'allow_halfaimstate', false) then begin
       if IsScopeAttached(wpn) then begin
         scope:=GetCurrentScopeSection(wpn);
         if not game_ini_line_exist(scope, 'allow_halfaimstate') or not game_ini_r_bool(scope, 'allow_halfaimstate') then begin

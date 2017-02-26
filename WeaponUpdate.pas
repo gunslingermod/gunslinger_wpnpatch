@@ -6,7 +6,7 @@ procedure ReassignWorldAnims(wpn:pointer); stdcall;
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster;
 
 
 
@@ -313,6 +313,11 @@ begin
   SetAnimForceReassignStatus(wpn, false);
 end;
 
+function CastToCWeapon(CObject:pointer):pointer; stdcall;
+begin
+  result:=dynamic_cast(CObject, 0, RTTI_CObject, RTTI_CWeapon, false);
+end;
+
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
@@ -390,15 +395,42 @@ begin
   end;     }
 end;
 
-procedure CWeapon__UpdateCL_Patch();stdcall;
+{procedure CWeapon__UpdateCL_Patch();stdcall;
 asm
     pushad
       push esi
       call CWeapon__ModUpdate
     popad
     mov eax, [esi+$338]
+end;}
+
+procedure CObjectList__SingleUpdate_Patch();stdcall;
+asm
+    pushad
+      push esi
+      call CastToCWeapon
+      cmp eax, 0
+      je @not_cweapon
+      push eax
+      call CWeapon__ModUpdate
+      @not_cweapon:
+    popad
+
+    cmp byte ptr[esi+$a6], 00
 end;
 
+procedure CObject__shedule_Update_Patch();stdcall;
+asm
+  //принудительно отправим в очередь апдейтов объект, который является оружием, там уже разберутся.
+  cmp byte ptr[esi+$a6], 00
+  jne @all_ok
+  pushad
+    push esi
+    call CastToCWeapon
+    test eax, eax
+  popad
+  @all_ok:
+end;
 
 function AdditionalCrosshairHideConditions(wpn:pointer):boolean; stdcall;
 var
@@ -439,9 +471,12 @@ begin
   result:=false;
   tst_light:=nil;
 
-  patch_addr:=xrGame_addr+$2C04A0;
-  if not WriteJump(patch_addr, cardinal(@CWeapon__UpdateCL_Patch), 6, true) then exit;
-
+//  patch_addr:=xrGame_addr+$2C04A0;
+//  if not WriteJump(patch_addr, cardinal(@CWeapon__UpdateCL_Patch), 6, true) then exit;
+  patch_addr:=xrEngine_addr+$1B226;
+  if not WriteJump(patch_addr, cardinal(@CObjectList__SingleUpdate_Patch), 7, true) then exit;
+  patch_addr:=xrEngine_addr+$1A487;
+  if not WriteJump(patch_addr, cardinal(@CObject__shedule_Update_Patch), 7, true) then exit;
 
   //патч CWeapon::show_crosshair, чтобы при установленном ЛЦУ перекрестие скрывалось
   patch_addr:=xrGame_addr+$2bd1e5;

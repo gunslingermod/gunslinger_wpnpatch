@@ -8,12 +8,13 @@ const
   //all xrGame-based
 
   RTTI_CGrenade:cardinal = $61ad4c;
-  RTTI_CMissile:cardinal = $61ad00;  
+  RTTI_CMissile:cardinal = $61ad00;
   RTTI_CInventoryItem:cardinal = $61842c;
   RTTI_IPhysicsShellHolder:cardinal = $61d560;
   RTTI_CCustomRocket:cardinal = $6361cc;
   RTTI_CHudItem:cardinal = $635F48;
   RTTI_CWeapon:cardinal = $637268;
+  RTTI_CObject:cardinal = $616020;
 
 implementation
 uses BaseGameData;

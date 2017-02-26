@@ -71,20 +71,22 @@ procedure SetFOV(fov:single); stdcall;
 function GetFOV():single; stdcall;
 procedure SetHudFOV(fov:single); stdcall;
 
-function CRenderDevice__GetCamPos():pointer;
-function CRenderDevice__GetCamDir():pointer;
-function GetTargetDist():single;
+function CRenderDevice__GetCamPos():pointer;stdcall;
+function CRenderDevice__GetCamDir():pointer;stdcall;
+function GetTargetDist():single;stdcall;
+function GetActorThirst():single;stdcall;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF;
 
 var
   _keyflags:cardinal;
   _last_act_slot:integer;
   _prev_act_slot:integer;
 
-  _last_act_item:pointer;
+
+  _thirst_value:single;
 
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:boolean;
@@ -531,12 +533,6 @@ begin
   ProcessKeys(act);
   UpdateFOV(act);
 
-  itm:=GetActorActiveItem();
-  if (_last_act_item<>nil) and (_last_act_item<>itm) then begin
-    if (GetBuffer(_last_act_item)<>nil) then CWeapon__ModUpdate(_last_act_item);
-  end;
-  _last_act_item:=itm;
-
 end;
 
 procedure ActorUpdate_Patch(); stdcall
@@ -711,8 +707,8 @@ begin
 {$endif}  
   _prev_act_slot:=-1;
   _last_act_slot:=-1;
-  _last_act_item:=nil;
   ResetDOF(1000);
+  _thirst_value:=1;
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
@@ -850,21 +846,21 @@ asm
   popad
 end;
 
-function CRenderDevice__GetCamPos():pointer;
+function CRenderDevice__GetCamPos():pointer; stdcall;
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$30]
   mov @result, eax
 end;
 
-function CRenderDevice__GetCamDir():pointer;
+function CRenderDevice__GetCamDir():pointer; stdcall;
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$3C]
   mov @result, eax
 end;
 
-function GetTargetDist():single;
+function GetTargetDist():single; stdcall;
 asm
   pushad
   mov @result, 0
@@ -883,6 +879,12 @@ asm
 
   @finish:
   popad
+end;
+
+
+function GetActorThirst():single; stdcall;
+begin
+  result:=_thirst_value;
 end;
 
 

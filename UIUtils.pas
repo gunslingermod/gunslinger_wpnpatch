@@ -2,6 +2,29 @@ unit UIUtils;
 
 interface
 
+{type CUIWindow = packed record
+  _unknown:array [0..54] of byte;
+end;
+
+type CUIStatic = packed record
+end;
+type pCUIStatic = ^CUIStatic;
+
+type CUITextWnd = packed record
+end;
+type pCUITextWnd = ^CUITextWnd;
+
+type CUIMotionIcon = packed record
+end;
+type pCUIMotionIcon = ^CUIMotionIcon;
+
+type CUIMainIngameWnd = packed record
+  base:CUIWindow;
+  UIStaticDiskIO:pCUIStatic;
+  UIStaticQuickHelp:pCUITextWnd;
+  UIMotionIcon:pCUIMotionIcon;
+end;        }
+
 function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
 function AddCustomStatic(cuigamecustom_this: pointer; id:PChar; bSingleInstance: boolean): {SDrawStaticStruct*} pointer; stdcall;
 

@@ -238,7 +238,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeapon__load_Patch), 7, false) then exit;
 
   jmp_addr:=xrGame_addr+$2BF104;
-  if not WriteJump(jmp_addr, cardinal(@CWeapon__save_Patch), 5, false) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__save_Patch), 5, false) then exit;  
 
     
   result:=true;

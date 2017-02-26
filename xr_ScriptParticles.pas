@@ -5,7 +5,7 @@ uses MatVectors;
 
 type CScriptParticles = packed record
   vftable:pointer;
-  m_particles_object:pointer;
+  m_particles:pointer;
 end;
 
 function CScriptParticles__constructor(this:pointer; name:PChar):pointer; stdcall;
@@ -109,7 +109,7 @@ end;
 procedure InitCScriptParticles(var this:CScriptParticles);
 begin
   this.vftable:=nil;
-  this.m_particles_object:=nil;
+  this.m_particles:=nil;
 end;
 
 procedure CScriptParticles__Stop(this:pointer);stdcall;

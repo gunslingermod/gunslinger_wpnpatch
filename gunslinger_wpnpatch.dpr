@@ -46,7 +46,7 @@ begin
 
   decimalseparator:='.';
   BaseGameData.Init;
-  ConsoleUtils.Init;  
+  ConsoleUtils.Init;
   gunsl_config.Init;
   xr_keybinding.Init;
 
@@ -65,13 +65,13 @@ begin
   ActorUtils.Init;
   Throwable.Init();
   ActorDOF.Init();
-  //LensDoubleRender.Init();
-
+  Misc.Init();
 
   hud_transp_r1.Init();
   hud_transp_r2.Init();
   hud_transp_r3.Init();
-  hud_transp_r4.Init();  
+  hud_transp_r4.Init();
+//  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;
 end.
