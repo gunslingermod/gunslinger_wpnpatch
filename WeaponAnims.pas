@@ -1013,12 +1013,17 @@ asm
     ret
 end;
 
+function CanAmmoChangeNow(wpn:pointer):boolean; stdcall;
+begin
+    result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfNEXTAMMO);
+end;
+
 procedure AmmoChangePlayingPatch; stdcall;
 asm
     pushad
-      push 0
+//      push 0
       push esi
-      call WeaponAdditionalBuffer.CanStartAction
+      call CanAmmoChangeNow //WeaponAdditionalBuffer.CanStartAction
       cmp al, 1
     popad
     mov eax, 1
@@ -1408,7 +1413,7 @@ end;
 //----------------------------Общий фикс многократного сокрытия при беспорядочной смене слотов-------------------------
 function MultiHideFix_IsHidingNow(wpn:pointer): boolean; stdcall;
 begin
-  if (GetCurrentState(wpn)=CHUDState__eHiding) and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
+  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and (GetCurrentState(wpn)=CHUDState__eHiding) and (GetAnimTimeState(wpn, ANM_TIME_CUR)<GetAnimTimeState(wpn, ANM_TIME_END))  and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
     result:=true
   else
     result:=false;
@@ -1522,6 +1527,13 @@ begin
   jump_addr:=xrGame_addr+$2C7649; //CMissile
   if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
   jump_addr:=xrGame_addr+$2F38F3; //Flare
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  //CWeaponBM16 x 3
+  jump_addr:=xrGame_addr+$2e036e;
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2e03aa;
+  if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2e03e6;
   if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
 
   //Не дадим прерывать анимацию выстрела при назначении идла

@@ -7,6 +7,7 @@ interface
 function Init():boolean;
 procedure ResetActivationHoldState(); stdcall;
 procedure SetForcedQuickthrow(status:boolean);
+function GetForcedQuickthrow():boolean;
 
 const
 		EMissileStates__eThrowStart:cardinal = 5;
@@ -646,6 +647,11 @@ end;
 procedure SetForcedQuickthrow(status:boolean);
 begin
   _quick_throw_forced:=status;
+end;
+
+function GetForcedQuickthrow():boolean;
+begin
+  result:=_quick_throw_forced;
 end;
 
 ////////////////////////////////////////////////////////

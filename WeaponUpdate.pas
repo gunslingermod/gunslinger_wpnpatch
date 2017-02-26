@@ -552,7 +552,7 @@ end;
 function CanDrawCrosshairNow():boolean; stdcall;
 begin
   result:=true;
-  if gunsl_config.GetCurrentDifficulty()>gunsl_config.gd_veteran then begin
+  if gunsl_config.GetCurrentDifficulty()>=gunsl_config.gd_veteran then begin
     result:=false;
   end;
 end;

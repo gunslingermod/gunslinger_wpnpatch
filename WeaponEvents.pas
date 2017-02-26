@@ -722,6 +722,11 @@ begin
   act:=GetActor();
   owner:=GetOwner(wpn);
 
+  if (owner<>act) and (act<>nil) then begin
+    result:=true;
+    exit;
+  end;
+
 
   if not (WpnCanShoot(PChar(GetClassName(wpn)))) then begin
     result:=true;

@@ -44,6 +44,7 @@ const
   kfFIRE:cardinal=$200;
   kfLASER:cardinal=$400;
   kfTACTICALTORCH:cardinal=$800;
+  kfNEXTAMMO:cardinal = $1000;
 
 
 
@@ -74,6 +75,7 @@ procedure UpdateSlots(act:pointer);
 procedure UpdateFOV(act:pointer);
 function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
 procedure ActivateActorSlot(slot:cardinal); stdcall;
+procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
 
 procedure SetFOV(fov:single); stdcall;
 function GetFOV():single; stdcall;
@@ -303,6 +305,32 @@ asm
   popfd
 end;
 
+procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
+asm
+  pushad
+
+  call GetActor        //получаем актора
+
+  test eax, eax
+  je @finish
+
+  mov eax, [eax+$2e4]   //получаем его CInventory
+  test eax, eax
+  je @finish
+
+  movzx ebx, forced
+  push ebx
+  movzx ebx, slot
+  push ebx
+  mov ecx, eax
+  mov eax, xrgame_addr
+  add eax, $2a8070
+  call eax
+
+  @finish:
+  popad
+end;
+
 
 function GetActorTargetSlot():integer; stdcall;
 asm
@@ -423,6 +451,12 @@ begin
     end;
   end;
 
+  if (_keyflags and kfNEXTAMMO)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kWPN_NEXT, kActPress);
+      SetActorKeyRepeatFlag(kfNEXTAMMO, false);
+    end;
+  end;
 
   if (_keyflags and kfGLAUNCHSWITCH)<>0 then begin
     if CanStartAction(wpn) then begin
@@ -540,7 +574,7 @@ begin
   if det <> nil then begin
     if GetActorActionState(act, actShowDetectorNow) and (GetActiveDetector(act)=nil) then begin
       SetDetectorForceUnhide(det, true);
-    end else if GetCurrentState(det)=2 then begin //мы собрались убирать детектор. Назначим аниму рукам, если оружие не выполняет сейчас какое-то действие.
+    end else if (GetCurrentState(det)=2) then begin //мы собрались убирать детектор. Назначим аниму рукам, если оружие не выполняет сейчас какое-то действие.
       itm:=GetActorActiveItem();
       if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
         hud_sect:=GetHUDSection(itm);
@@ -711,7 +745,7 @@ begin
     itm:=ItemInSlot(act, 4);
     if (itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'supports_quick_throw', false) then begin
       SetForcedQuickthrow(true);
-      ActivateActorSlot(4);
+      ActivateActorSlot__CInventory(4, false);
     end;
   end;
 
