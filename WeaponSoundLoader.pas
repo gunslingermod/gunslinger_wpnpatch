@@ -6,7 +6,7 @@ procedure HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION:pointer; section:
 
 
 implementation
-uses BaseGameData, GameWrappers, wpnutils;
+uses BaseGameData, gunsl_config, HudItemUtils;
 
 var
   sound_load_magazined_addr:cardinal;
@@ -88,6 +88,9 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_laser_off', 'sndLaserOff', 1, $80040000);
 
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_open_weapon_empty', 'sndOpenEmpty', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_only', 'sndReloadOnly', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_only_detector', 'sndReloadOnlyDetector', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_light_misfire', 'sndLightMisfire', 1, $80040000);
 end;
 
 procedure LoadSounds_Knife(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;

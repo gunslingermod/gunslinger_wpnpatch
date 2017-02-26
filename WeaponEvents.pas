@@ -6,18 +6,16 @@ function Init:boolean;
 procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
 function OnWeaponHide(wpn:pointer):boolean;stdcall;
 procedure OnWeaponHideAnmStart(wpn:pointer);stdcall;
-function OnWeaponShow(wpn:pointer):boolean;stdcall;
+procedure OnWeaponShow(wpn:pointer);stdcall;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, Cartridge;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge;
 
 var
   upgrade_weapon_addr:cardinal;
-
-  force_moving_update:boolean;
 
 //-------------------------------Разряжание магазина-----------------------------
 procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
@@ -31,7 +29,7 @@ procedure OnUnloadInMiddleAnim(wpn:pointer; param:integer);stdcall;
 begin
   virtual_CWeaponMagazined__UnloadMagazine(wpn);
   ForceWpnHudBriefUpdate(wpn);
-  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)));
+  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
   SetAnimForceReassignStatus(wpn, true);
 end;
 
@@ -62,10 +60,10 @@ begin
   end;
 
   if WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_unload_mag', 'sndUnload') then begin
-    curanm:=WpnUtils.GetActualCurrentAnim(wpn);
+    curanm:=GetActualCurrentAnim(wpn);
     StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
     //анима начала играться. Посмотрим, когда надо разряжаться
-    if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+WpnUtils.GetActualCurrentAnim(wpn))) then begin
+    if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+GetActualCurrentAnim(wpn))) then begin
       //разряжание идет по схеме визуального отображения патронов (в середине анимации)
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+curanm), false, OnUnloadInMiddleAnim);
     end else if game_ini_line_exist(hud_sect, PChar('lock_time_end_'+curanm)) then begin
@@ -318,7 +316,7 @@ begin
   result:=true;
 end;
 //------------------------------------------------------------------------------
-function OnCWeaponNetSpawn_middle(wpn:pointer):boolean;stdcall;
+procedure OnCWeaponNetSpawn_middle(wpn:pointer);stdcall;
 begin
   if WpnCanShoot(PChar(GetClassName(wpn))) then begin
     //буфер может уже быть создан в load'e - проверим это
@@ -328,7 +326,7 @@ begin
   end;
 end;
 
-function OnCWeaponNetSpawn_end(wpn:pointer):boolean;stdcall;
+procedure OnCWeaponNetSpawn_end(wpn:pointer);stdcall;
 var
   buf:WpnBuf;
   i:word;
@@ -339,7 +337,7 @@ begin
   if WpnCanShoot(PChar(GetClassName(wpn))) then begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
-      if (length(buf.ammos)>0) and (length(buf.ammos)=GetAmmoInMagCount(wpn)) then begin
+      if (length(buf.ammos)>0) and (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
         for i:=0 to length(buf.ammos)-1 do begin
           sect:=GetMainCartridgeSectionByType(wpn, buf.ammos[i]);
           if sect<>nil then begin
@@ -350,7 +348,7 @@ begin
       end else begin
        if (length(buf.ammos)>0) then begin
         log('There is NO ammotype data in the save???', true)
-       end else if (length(buf.ammos)=GetAmmoInMagCount(wpn)) then begin
+       end else if (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
         log('Count of ammotypes in the save is not equal to count of ammo in weapon', true);
        end;
       end;
@@ -392,7 +390,7 @@ asm
     ret
 end;
 //------------------------------------------------------------------------------
-function OnCWeaponNetDestroy(wpn:pointer):boolean;stdcall;
+procedure OnCWeaponNetDestroy(wpn:pointer);stdcall;
 var buf:WpnBuf;
 begin
   buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
@@ -400,8 +398,7 @@ begin
 end;
 
 procedure CWeapon_NetDestroy_Patch();
-begin
-  asm
+asm
 
     pushad
     pushfd
@@ -415,7 +412,6 @@ begin
     lea edi, [esi+$338];
 
     ret
-  end;
 end;
 
 
@@ -445,12 +441,9 @@ var
   firemode:integer;
   anm_name:string;
   det_anim:PChar;
-  act:pointer;
   res:boolean;
 begin
   //возвратить false, если нельзя сейчас менять режим огня
-  act:=GetActor();
-
   if isPrev then
     result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfPREVFIREMODE)
   else
@@ -557,52 +550,103 @@ begin
   alife_release(get_server_object_by_id(GetID(wpn)));
 end;
 
-procedure OnWeaponJam(wpn:pointer);stdcall;
+function OnWeaponJam(wpn:pointer):boolean;stdcall;
+//сейчас с оружием произойдет что-то нехорошее...
+//вернуть false, если не стрелять перед клином, true - если стрелять
 var sect:PChar;
     owner:pointer;
+    startcond, endcond, curcond, startprob, endprob, curprob:single;
+    anm:string;
 begin
+  result:=true;
+  SetWeaponMisfireStatus(wpn, true);
   SetAnimForceReassignStatus(wpn, true);
   owner := GetOwner(wpn);
   if (owner=nil) or (owner<>GetActor()) then exit;
   sect:=GetSection(wpn);
-  if game_ini_line_exist(sect, 'can_explose') and game_ini_r_bool(sect, 'can_explose') then begin
-    if GetCurrentCondition(wpn)<game_ini_r_single(sect, 'explode_start_condition') then begin
-      if random < game_ini_r_single(sect, 'explode_probability') then begin
+  curcond:=GetCurrentCondition(wpn);
+
+  if game_ini_r_bool_def(sect, 'can_explose', false) then begin
+    if curcond<game_ini_r_single_def(sect, 'explode_start_condition', 1) then begin
+      if random < game_ini_r_single_def(sect, 'explode_probability', 1) then begin
+        //Сейчас оружие взорвется в руках :)
+        result:=true;
         SetExplosed(wpn, true);
         if game_ini_line_exist(sect, 'explode_flame_particles') then SetCurrentParticles(wpn, game_ini_read_string(sect, 'explode_flame_particles'), OFFSET_PARTICLE_WEAPON_CURFLAME);
         if game_ini_line_exist(sect, 'explode_shell_particles') then SetCurrentParticles(wpn, game_ini_read_string(sect, 'explode_shell_particles'), OFFSET_PARTICLE_WEAPON_CURSHELLS);
         if game_ini_line_exist(sect, 'explode_smoke_particles') then SetCurrentParticles(wpn, game_ini_read_string(sect, 'explode_smoke_particles'), OFFSET_PARTICLE_WEAPON_CURSMOKE);
+        exit;
       end;
     end;
   end;
+
+  if game_ini_r_bool_def(sect, 'use_light_misfire', false) then begin
+    startcond:=game_ini_r_single_def(sect, 'light_misfire_start_condition', 1);   //при каком состоянии начнутся осечки
+    endcond:=game_ini_r_single_def(sect, 'light_misfire_end_condition', 0);       //при каком закончатся
+    startprob:=game_ini_r_single_def(sect, 'light_misfire_start_probability', 1); //какую долю от клинов при начальном состоянии будут составлять осечки
+    endprob:=game_ini_r_single_def(sect, 'light_misfire_end_probability', 0);     //какую долю от всех клинов осечки будут составлять в конце
+
+    if (curcond<endcond) then
+      curprob:=endprob
+    else if (curcond>startcond) then
+      curprob:=0
+    else
+      curprob:=endprob+curcond*(startprob-endprob)/(startcond-endcond);
+
+    if (random<curprob) then begin
+      //Осечка! Сбрасываем флаг клина, а стрелять не даем
+      SetWeaponMisfireStatus(wpn, false);
+      result:=false;
+
+      //начало названия метки - обязательно anm_shoot, иначе будет отрубаться по таймеру выстрела - не сработает антибаг
+      anm:='anm_shoot_lightmisfire';
+      if IsAimNow(wpn) or IsHolderInAimState(wpn) then anm:=anm+'_aim';
+      anm:= ModifierStd(wpn, anm);
+      PlayHUDAnim(wpn, PChar(anm), true);
+      StartCompanionAnimIfNeeded(rightstr(anm, length(anm)-4), wpn, false);
+      anm:='lock_time_'+anm;
+      MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar(anm), true);
+      CHudItem_Play_Snd(wpn, 'sndLightMisfire');
+      SendMessage('gunsl_light_misfire', gd_novice);
+      exit;
+    end;
+  end;
+
+  //Клин оружия. Посмотрим, до выстрела он или после
+  result:= not game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false);
+  //если до выстрела - играем аниму перехода в клин вручную
+  if not result then PlayHUDAnim(wpn, anm_shots_selector(wpn, true), true);
 end;
 
 procedure WeaponJammed_Patch(); stdcall;
 //у нас оружие должно было заклинить при данном выстреле
-//мы сделаем хитрее - выставим флаг клина, но игре сообщим, что все нормально, и выстрел при этом произойдет
+//мы сделаем хитрее - если понадобится, то выставим флаг клина, но игре сообщим, что все нормально, и выстрел при этом произойдет
 //Аниму выстрела в заклинившем состоянии выставляем отличную от обычного выстрела в WeaponAnims.pas
 asm
-  mov byte ptr [esi+$45A],01
+  mov eax, 1
   pushad
-  pushfd
     push esi
     call OnWeaponJam
-  popfd
+    cmp al, 0
   popad
-  xor eax, eax
+
+  je @finish    //если OnWeaponJam вернула false (не стрелять сейчас) - переходим
+  xor eax, eax  //говорим, что осечки нет
+  
+  @finish:
 end;
 
 //--------------Отображение сообщения о клине----------------------------------
 
 procedure OnJammedHintShow(); stdcall
-var
-  wpn:pointer;
+//var
+//  wpn:pointer;
 begin
-{  wpn:=GetActorActiveItem();
-  if (wpn=nil) or not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
-  if not (IsExplosed(wpn) or (IsActionProcessing(wpn) and (leftstr(GetCurAnim(wpn), length('anm_fakeshoot'))<>'anm_fakeshoot'))) then begin
-    Messenger.SendMessage('gun_jammed', gd_novice);
-  end;}
+//  wpn:=GetActorActiveItem();
+//  if (wpn=nil) or not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
+//  if not (IsExplosed(wpn) or (IsActionProcessing(wpn) and (leftstr(GetCurAnim(wpn), length('anm_fakeshoot'))<>'anm_fakeshoot'))) then begin
+//    Messenger.SendMessage('gun_jammed', gd_novice);
+//  end;
 end;
 
 procedure OnJammedHintShow_Patch(); stdcall
@@ -617,7 +661,7 @@ procedure OnEmptyClick(wpn:pointer);stdcall;
 var
   anm_started:boolean;
   txt:PChar;
-  act, detector:pointer;
+  act:pointer;
   det_anm:PChar;
 begin
   anm_started:=false;
@@ -715,7 +759,7 @@ begin
 end;
 
 
-function OnWeaponShow(wpn:pointer):boolean;stdcall;
+procedure OnWeaponShow(wpn:pointer);stdcall;
 var
   act, owner, det:pointer;
 begin
@@ -749,7 +793,6 @@ end;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 var
   act:pointer;
-  anm_name:string;
 begin
   result:=CanAimNow(wpn);
   act:=GetActor();
@@ -880,7 +923,7 @@ var
 begin
   buf:=GetBuffer(wpn);
   buf.SetLaserEnabledStatus(not buf.IsLaserEnabled());
-  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)));
+  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
 end;
 
 procedure OnLaserButton(wpn:pointer);
@@ -888,8 +931,6 @@ var
   buf:WpnBuf;
   res:boolean;
   curanm:PChar;
-
-  c:pCCartridge;
 begin
   buf:=GetBuffer(wpn);
   if (buf<>nil) and buf.IsLaserInstalled() then begin
@@ -902,7 +943,7 @@ begin
       end;
     end;
 
-    curanm:=WpnUtils.GetActualCurrentAnim(wpn);
+    curanm:=GetActualCurrentAnim(wpn);
     if res then  begin
       StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
       MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, LaserSwitch);

@@ -1,6 +1,6 @@
 unit WeaponAmmoCounter;
 
-{$define DISABLE_AUTOAMMOCHANGE}  //отключает автоматическую смену типа патронов по нажатию клавиши релоада при отсутсвии патронов текущего типа
+{$define DISABLE_AUTOAMMOCHANGE}  //отключает автоматическую смену типа патронов по нажатию клавиши релоада при отсутсвии патронов текущего типа; при андефе поломаются двустволы, когда в инвентаре последний патрон!
 {$define NEW_BRIEF_MODE}//в случае неактивности иконка типа патронов на худе будет показывать тип заряженного патрона, если же активно - будет показывать тип патронов, заряжаемых в оружие
 
 interface
@@ -10,7 +10,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers, WeaponAdditionalBuffer, WpnUtils, Cartridge, ActorUtils;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils;
 
 
 procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
@@ -19,7 +19,7 @@ var
   tmp:CCartridge;
   cnt:cardinal;
 begin
-  if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then exit;
+  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
   cnt:=GetAmmoInMagCount(wpn);
   if cnt>1 then begin
     cnt:=cnt-1;
@@ -37,7 +37,7 @@ var
   tmp:CCartridge;
   cnt:cardinal;
 begin
-  if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then exit;
+  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
   cnt:=GetAmmoInMagCount(wpn);
   if cnt>1 then begin
     cnt:=cnt-1;
@@ -60,7 +60,7 @@ begin
   //если буфера нет или мы уже перезарядилимь или у нас режим подствола - ничего особенного не делаем
   if (buf=nil) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
   if buf.IsReloaded() then begin buf.SetReloaded(false); exit; end;
-  if (((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
+  if (((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 
   //посмотрим, каков размер магазина у оружия и сколько патронов в нем сейчас
   def_magsize:=GetMagCapacityInCurrentWeaponMode(wpn);
@@ -70,6 +70,8 @@ begin
   if IsWeaponJammed(wpn) then begin
     SetAmmoTypeChangingStatus(wpn, $FF);
     mod_magsize:=curammocnt;
+  end else if (GetClassName(wpn)='WP_BM16') and (leftstr(GetActualCurrentAnim(wpn), length('anm_reload_only'))='anm_reload_only') then begin
+    mod_magsize:=1;
   end else if buf.IsAmmoInChamber() and ((curammocnt=0) or ((GetAmmoTypeChangingStatus(wpn)<>$FF) and not buf.SaveAmmoInChamber() )) then begin
     mod_magsize:=def_magsize-1;
   end else begin
@@ -79,7 +81,7 @@ begin
   //изменим емкость магазина, отрелоадимся до нее и восстановим старое значение
   SetMagCapacityInCurrentWeaponMode(wpn, mod_magsize);
   virtual_CWeaponMagazined__ReloadMagazine(wpn);
-  SetMagCapacityInCurrentWeaponMode(wpn, def_magsize);  
+  SetMagCapacityInCurrentWeaponMode(wpn, def_magsize);
 end;
 
 

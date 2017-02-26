@@ -14,7 +14,7 @@ const
 		EMissileStates__eThrowEnd:cardinal = 8;
 
 implementation
-uses BaseGameData, WeaponSoundLoader, ActorUtils, WpnUtils, GameWrappers, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils;
+uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils;
 
 var _activate_key_state:TKeyHoldState;
 

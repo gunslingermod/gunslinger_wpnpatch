@@ -5,7 +5,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, sysutils, windows;
+uses BaseGameData, gunsl_config, HudItemUtils, sysutils, windows;
 
 var
   drawhud_patch:cardinal;

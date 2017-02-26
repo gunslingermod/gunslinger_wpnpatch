@@ -1,4 +1,4 @@
-unit keybinding;
+unit xr_keybinding;
 
 {$define DISABLE_UNUSED_COMMANDS}
 
@@ -27,7 +27,7 @@ const
   _keygroup_mp:cardinal=5;
 
 implementation
-uses BaseGameData, KeyUtils, GameWrappers, sysutils, windows, gunsl_config;
+uses BaseGameData, KeyUtils, sysutils, windows, gunsl_config;
 const
   _max_actions_size:cardinal=100;
   _max_keybinding_size:cardinal=100;

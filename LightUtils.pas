@@ -8,7 +8,7 @@ procedure SetPos(light:pointer; x:single; y:single; z:single); stdcall;
 procedure SetDir(light:pointer; x:single; y:single; z:single); stdcall;
 
 implementation
-uses BaseGameData, GameWrappers;
+uses BaseGameData;
 
 var
   xrAPI_Render_ptr:cardinal;

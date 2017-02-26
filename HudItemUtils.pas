@@ -1,4 +1,4 @@
-unit WpnUtils;
+unit HudItemUtils;
 
 interface
 function Init():boolean;
@@ -12,11 +12,6 @@ procedure PlayAnimIdle(wpn: pointer); stdcall;
 //function GetPositionVector(obj:pointer):pointer;
 //function GetCurrentHud(wpn: pointer):pointer; stdcall;
 procedure PlayHudAnim(wpn: pointer; anim_name:PChar; bMixIn:boolean); stdcall;
-procedure SetWorldModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
-procedure SetHudModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
-procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
-procedure SetWeaponMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
-procedure SetWorldModelMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
 function IsScopeAttached(wpn:pointer):boolean; stdcall;
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
 function IsGLAttached(wpn:pointer):boolean; stdcall;
@@ -28,8 +23,6 @@ function GetInstalledUpgradeSection(wpn:pointer; index:cardinal):PChar; stdcall;
 function GetSection(wpn:pointer):PChar; stdcall;
 function GetID(wpn:pointer):word; stdcall;
 function GetHUDSection(wpn:pointer):PChar; stdcall;
-function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
-procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
 function GetScopeStatus(wpn:pointer):cardinal; stdcall;
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
 function GetGLStatus(wpn:pointer):cardinal; stdcall;
@@ -88,6 +81,15 @@ function IsAimToggle():boolean; stdcall;
 
 function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdcall;
 function virtual_IKinematicsAnimated__LL_MotionID(IKinematicsAnimated:pointer; name:PChar):integer; stdcall;
+procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr:pointer); stdcall;
+procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
+
+procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
+procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
+procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
+function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
+
+function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -111,6 +113,13 @@ const
   EMissileStates__eThrow:cardinal = $7;
   EMissileStates__eThrowEnd:cardinal = $8;
 
+  CHUDState__eIdle:cardinal = 0;
+	CHUDState__eShowing:cardinal = 1;
+	CHUDState__eHiding:cardinal = 2;
+	CHUDState__eHidden:cardinal = 3;
+	CHUDState__eBore:cardinal = 4;
+	CHUDState__eLastBaseState:cardinal = 4;
+
 
   EWeaponSubStates__eSubStateReloadBegin:byte = $0;
   EWeaponSubStates__eSubStateReloadInProcess:byte = $1;
@@ -123,11 +132,9 @@ const
 
 
 implementation
-uses BaseGameData, GameWrappers, sysutils, ActorUtils;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc;
 var
-  GetCurrentHud_Func:cardinal;
   PlayHudAnim_Func:cardinal;
-  SetWorldModelBoneStatus_internal1_func:cardinal;
 
 
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
@@ -158,9 +165,8 @@ begin
 end;
 
 procedure SetWpnVisual (obj:pointer; name:pchar);stdcall;
-begin
-  //Будем мимикрировать под скрипт
-  asm
+//Будем мимикрировать под скрипт
+asm
     pushad
     pushfd
 
@@ -176,7 +182,6 @@ begin
 
     popfd
     popad
-  end
 end;
 
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
@@ -320,82 +325,47 @@ begin
 end;
 
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$468]
     mov @result, eax
-  end;
 end;
 
+
 function GetScopeStatus(wpn:pointer):cardinal; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$464]
     mov @result, eax
-  end;
-end;
-
-function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
-begin
-  asm
-    mov eax, wpn
-    mov al, byte ptr [eax+$6C7]
-    mov @result, al
-  end;
-end;
-
-procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
-begin
-  asm
-    push eax
-    push ecx
-
-    mov eax, wpn
-    mov cl, status
-    mov byte ptr [eax+$6C7], cl
-
-    pop ecx
-    pop eax
-  end;
 end;
 
 function IsWeaponJammed(wpn:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov al, [eax+$45A]
     mov @result, al
-  end;
 end;
 
 function CurrentQueueSize(wpn:pointer):integer; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$770]
     mov @result, eax
-  end;
 end;
 
 function QueueFiredCount(wpn:pointer):integer; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$774]
     mov @result, eax
-  end;
 end;
 
 function GetSection(wpn:pointer):PChar; stdcall;
-begin
-  asm
+asm
     mov eax, [wpn]
     mov eax, [eax+$90]
     add eax, $10
     mov @result, eax
-  end;
 end;
 
 function GetID(wpn:pointer):word; stdcall;
@@ -406,18 +376,15 @@ asm
 end;
 
 function GetHUDSection(wpn:pointer):PChar; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$314]
     add eax, $10
     mov @result, eax
-  end;
 end;
 
 function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$2FC]
 
@@ -428,12 +395,10 @@ begin
 
     @finish:
     mov @result, eax
-  end;
 end;
 
 function IsScopeAttached(wpn:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$460]
     test eax, 1
@@ -443,12 +408,10 @@ begin
     @noaddon:
     mov @result, 0
     @finish:
-  end;
 end;
 
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$460]
     test eax, 4
@@ -458,12 +421,10 @@ begin
     @noaddon:
     mov @result, 0
     @finish:
-  end;
 end;
 
 function IsGLAttached(wpn:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$460]
     test eax, 2
@@ -473,117 +434,20 @@ begin
     @noaddon:
     mov @result, 0
     @finish:
-  end;
 end;
 
 function IsGLEnabled(wpn:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov @result, 0
     mov eax, wpn
     cmp byte ptr [eax+$7F8], 0;
     je @finish
     mov @result, 1
     @finish:
-  end;
-end;
-
-function GetCurrentHud(wpn: pointer):pointer; stdcall;
-begin
-  asm
-    pushad
-    pushf
-
-    add wpn, $2e0
-    mov ecx, wpn
-    call GetCurrentHud_Func
-    mov @result, eax
-
-    popf
-    popad
-  end;
-end;
-
-procedure SetWeaponMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
-var
-  bones_string:string;
-  bone:string;
-begin
-  bones_string:=bones;
-  while (GetNextSubStr(bones_string, bone, ',')) do begin
-    SetWeaponModelBoneStatus(wpn, PChar(bone), status);
-  end;
-end;
-
-procedure SetWorldModelMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
-var
-  bones_string:string;
-  bone:string;
-begin
-  bones_string:=bones;
-  while (GetNextSubStr(bones_string, bone, ',')) do begin
-    SetWorldModelBoneStatus(wpn, PChar(bone), status);
-  end;
-end;
-
-procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
-begin
-  if (ActorUtils.GetActor()<>nil) and (ActorUtils.GetActorActiveItem() = wpn) then begin
-    SetHudModelBoneStatus(wpn, bone_name, status);
-  end;
-  SetWorldModelBoneStatus(wpn, bone_name, status);
-end;
-
-procedure SetHudModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
-begin
-  asm
-    pushad
-    pushfd
-
-    //Получим основной объект attachable_hud_item
-    push wpn
-    call GetCurrentHud
-    test eax, eax
-    je @finish
-    mov esi, eax
-    //Поместим bone_name в str_container
-    push bone_name
-    call str_container_dock
-    test eax, eax
-    je @finish
-    push eax
-    push esp //сразу загнали в стек аргумент - указатель на указатель на объект-строку с именем кости
-
-    //Далее найдем и вызовем функцию определения индекса кости
-    mov eax, [esi+$0C]
-    mov ecx, [eax]
-    mov edx, [ecx+$10]
-    push eax
-    call edx
-    add esp, 4
-    movzx edi, ax
-    cmp di, $FFFF
-    je @finish
-
-    //Теперь вызовем функцию установки статуса для найденной кости
-    push 00
-    movzx eax, status
-    push eax
-    push edi
-    mov ecx, [esi+$0C]
-    mov eax, [ecx]
-    mov edx, [eax+$60]
-    call edx
-
-    @finish:
-    popfd
-    popad
-  end;
 end;
 
 procedure PlayHudAnim(wpn: pointer; anim_name:PChar; bMixIn:boolean); stdcall;
-begin
-  asm
+asm
     pushad
     pushfd
 
@@ -611,63 +475,6 @@ begin
     @finish:
     popfd
     popad
-  end;
-end;
-
-procedure SetWorldModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
-begin
-  asm
-    pushad
-    pushfd
-    //Получим индекс кости в скелете
-    push bone_name
-    call str_container_dock
-    test eax, eax
-    je @finish
-    push eax
-    push esp //сохранили указатель на указатель на объект-строку с именем кости
-
-    mov edi, wpn
-    test edi, edi
-    je @before_finish
-    mov esi, [edi+$178]   //Помещаем pVisual в esi
-    test esi, esi
-    je @before_finish
-    push esi
-    call SetWorldModelBoneStatus_internal1_func
-    add esp, 4  //снимаем со стека аргумент функции
-    mov esi, eax
-    push esi
-    mov edx, [esi]
-    mov edx, [edx+$10]
-    call edx  //получаем индекс интересующей нас кости (в ax)
-    add esp, 4  //снимаем нашу сохраненную "строку"
-    movzx ebx, ax
-    cmp ebx, $FFFF //Проверяем, обнаружена ли такая кость вообще
-    je @finish
-
-    //получим адрес нашей функции, показывающей/скрывающей кость
-    mov edx, [esi]
-    mov edx, [edx+$60]
-    //а теперь выполним операцию сокрытия\отображения
-    movzx eax, status
-
-    push 01
-    push eax
-    push ebx
-
-    mov ecx, esi
-    call edx
-
-    jmp @finish
-
-    @before_finish:
-    add esp, 8
-
-    @finish:
-    popfd
-    popad
-  end;
 end;
 
 function GetClassName(wpn:pointer):string; stdcall;
@@ -916,8 +723,7 @@ begin
 end;
 
 procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
-begin
-  asm
+asm
     push eax
     push eax
     movss [esp], xmm0
@@ -929,15 +735,11 @@ begin
     movss xmm0, [esp]
     add esp, 4
     pop eax
-  end;
 end;
 
 function Init():boolean;
 begin
-  GetCurrentHud_Func:=xrGame_addr+$2F97A0;
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
-
-  SetWorldModelBoneStatus_internal1_func:=xrGame_addr+$3483C0;
   result:=true;
 end;
 
@@ -1293,6 +1095,122 @@ asm
   mov eax, wpn
   mov al, byte ptr [eax+$459]
   mov @result, al
+end;
+
+
+procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
+//все наследники имеют CHudItem по смещению 2e0, так что делаем сразу на всех.
+asm
+  pushad
+
+  mov ecx, Weapon
+  add ecx, $2e0
+
+  push state
+
+  mov edx, [ecx]
+  mov edx, [edx]
+  call edx
+
+  popad
+end;
+
+procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr:pointer); stdcall;
+asm
+  pushad
+
+  mov ecx, CHudItem
+
+  push position_ptr
+  push alias
+
+
+  mov edx, [ecx]
+  mov edx, [edx+$30]
+  call edx
+
+  popad
+end;
+
+function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
+asm
+  pushad
+
+    push cnt
+    mov ecx, wpn
+
+    mov eax, xrgame_addr
+    add eax, $2de7b0
+    call eax
+    mov @result, al
+  popad
+end;
+
+procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
+asm
+    pushad
+    pushfd
+
+
+    push cnt
+    mov ecx, wpn
+
+    mov edx, [ecx]
+    mov edx, [edx+$248]
+    call edx
+
+    popfd
+    popad
+end;
+
+procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
+begin
+  asm
+    pushad
+    pushfd
+
+    push 01
+    mov ecx, wpn
+
+    mov edx, [ecx]
+    mov edx, [edx+$20c]
+    call edx
+
+    popfd
+    popad
+  end;
+end;
+
+procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
+asm
+    pushad
+    pushfd
+
+    mov ecx, wpn
+
+    mov edx, [ecx]
+    mov edx, [edx+$1FC]
+    call edx
+
+    popfd
+    popad
+end;
+
+function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
+asm
+    pushad
+    pushf
+
+    add CHudItem, $2e0
+    mov ecx, CHudItem
+
+    mov eax, xrgame_addr
+    add eax, $2F97A0
+    call eax
+    mov @result, eax
+
+    popf
+    popad
 end;
 
 end.

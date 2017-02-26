@@ -1,7 +1,7 @@
-unit ScriptParticles;
+unit xr_ScriptParticles;
 
 interface
-uses GameWrappers;
+uses MatVectors;
 
 type CScriptParticles = packed record
   vftable:pointer;

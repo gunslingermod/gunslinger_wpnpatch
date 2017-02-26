@@ -1,4 +1,4 @@
-unit Cartridge;
+unit xr_Cartridge;
 
 interface
 type CCartridge = packed record
@@ -31,9 +31,15 @@ function GetCartridgeFromMagVector(wpn:pointer; index:cardinal):pCCartridge; std
 function GetMainAmmoTypesCount(wpn:pointer):integer; stdcall;
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
+function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
+procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
+function GetAmmoTypeIndex(wpn:pointer):byte; stdcall;
+function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
+function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
+
 
 implementation
-uses  math, WpnUtils, BaseGameData;
+uses  math, HudItemUtils, BaseGameData;
 
 
 procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
@@ -72,7 +78,7 @@ var
 begin
   result:=nil;
   if (wpn=nil) or (index>=GetAmmoInMagCount(wpn)) then exit;
-  if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then
+  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then
     ptr:= PChar(wpn)+$7EC
   else
     ptr:= PChar(wpn)+$6C8;
@@ -88,7 +94,7 @@ begin
   result:=nil;
   if (wpn=nil) or (ammotype>=GetMainAmmoTypesCount(wpn)) then exit;
 
-  if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then
+  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then
     ptr:= PChar(wpn)+$7D8
   else
     ptr:= PChar(wpn)+$6A4;
@@ -131,6 +137,54 @@ asm
     mov @result, eax
 
   popfd
+  popad
+end;
+
+function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
+begin
+  result:=GetAmmoTypeChangingStatus(wpn);
+  if result=$FF then result:=GetAmmoTypeIndex(wpn);
+end;
+
+function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
+asm
+    mov eax, wpn
+    mov al, byte ptr [eax+$6C7]
+    mov @result, al
+end;
+
+procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
+asm
+    push eax
+    push ecx
+
+    mov eax, wpn
+    mov cl, status
+    mov byte ptr [eax+$6C7], cl
+
+    pop ecx
+    pop eax
+end;
+
+function GetAmmoTypeIndex(wpn:pointer):byte; stdcall;
+asm
+    mov eax, wpn
+    mov al, byte ptr [eax+$6C4]
+    mov @result, al
+end;
+
+function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
+asm
+  pushad
+    movzx eax, ammo_type
+    push eax
+    mov ecx, wpn
+
+    mov eax, xrgame_addr
+    add eax, $2BE0D0
+    call eax
+
+    mov @result, eax
   popad
 end;
 

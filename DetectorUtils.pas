@@ -15,7 +15,7 @@ function StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_l
 
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils, Messenger, gunsl_config;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, ActorUtils, Misc, sysutils, strutils, Messenger, gunsl_config;
 
 var
   _was_detector_hidden_manually:boolean; //должен быть всегда true, кроме случаев, когда идет быстрое использование какого-то предмета (юзейбла, грены, ножа),  не поддерживающего детектор-компаньон, а перед быстрым использованием детектор был активен и скрылся автоматом

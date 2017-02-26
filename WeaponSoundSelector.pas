@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses ActorUtils, BaseGameData, WpnUtils, GameWrappers;
+uses ActorUtils, BaseGameData, HudItemUtils, gunsl_config, xr_Cartridge;
 
 function MagazinedWeaponReloadSoundSelector(wpn:pointer):PChar; stdcall;
 var
@@ -40,10 +40,19 @@ begin
   end else if GetAmmoInMagCount(wpn)<=0 then begin
 
 
-    if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_empty_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_empty_detector_snd') then
-      result:='sndReloadEmptyDetector'
-    else
-      result:='sndReloadEmpty';
+    if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_empty_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_empty_detector_snd') then begin
+      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+        result:='sndReloadOnlyDetector'
+      end else begin
+        result:='sndReloadEmptyDetector'
+      end;
+    end else begin
+      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+        result:='sndReloadOnly'
+      end else begin
+        result:='sndReloadEmpty';
+      end
+    end;
 
 
   end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
@@ -53,6 +62,9 @@ begin
     else
       result:='sndChangeCartridgeType';
   end;
+
+
+
 end;
 
 procedure MagazinedWeaponReloadSoundPatch; stdcall;
@@ -72,12 +84,29 @@ asm
   ret
 end;
 
+procedure CWeaponBM16__PlayReloadSound(wpn:pointer); stdcall;
+//переопределяем функцию
+begin
+  CHudItem_Play_Snd(wpn, MagazinedWeaponReloadSoundSelector(wpn));
+end;
+
+procedure CWeaponBM16__PlayReloadSound_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    call CWeaponBM16__PlayReloadSound
+  popad
+end;
+
 function Init:boolean;
 var jmp_addr:cardinal;
 begin
   result:=false;
   jmp_addr:=xrGame_addr+$2CCE6F;
   if not WriteJump(jmp_addr, cardinal(@MagazinedWeaponReloadSoundPatch), 5, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2E0060;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponBM16__PlayReloadSound_Patch), 9, false) then exit;
   result:=true;
 end;
 

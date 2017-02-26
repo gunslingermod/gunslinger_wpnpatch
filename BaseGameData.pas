@@ -16,6 +16,12 @@ function GetGameTickCount:cardinal;
 function GetTimeDeltaSafe(starttime:cardinal):cardinal;
 function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
 
+function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
+procedure Log(text:string; IsError:boolean = false);stdcall;
+function Is16x9():boolean;stdcall;
+function str_container_dock(str:PChar):pointer; stdcall;
+
+
 var
   xrGame_addr:cardinal;
   xrCore_addr:cardinal;
@@ -32,7 +38,7 @@ const
   W_RPG7:word=$F56C;
 
 implementation
-uses windows;
+uses windows, strutils, sysutils;
 
 const
   xrGame:PChar='xrGame';
@@ -97,6 +103,106 @@ begin
   if result>curtime then result:=$FFFFFFFF-starttime+curtime;
 end;
 
+function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
+var p, i:integer;
+begin
+  p:=0;
+  for i:=1 to length(data) do begin
+    if data[i]=separator then begin
+      p:=i;
+      break;
+    end;
+  end;
+
+  if p>0 then begin
+    buf:=leftstr(data, p-1);
+    buf:=trim(buf);
+    data:=rightstr(data, length(data)-p);
+    data:=trim(data);
+    result:=true;
+  end else begin
+    if trim(data)<>'' then begin
+      buf:=trim(data);
+      data:='';
+      result:=true;
+    end else result:=false;
+  end;
+end;
+
+procedure Log(text:string; IsError:boolean = false);stdcall;
+var
+  paramText:PChar;
+begin
+  try
+    text:='GNSLWP: '+text;
+    if IsError then
+      text:= '! ' + text
+    else
+      text:= '~ ' + text;
+
+    paramText:=PChar(text);
+    asm
+      pushad
+      pushf
+
+      push text
+
+      mov eax, xrCore_addr
+      add eax, $158B0
+      call eax
+      add esp, 4
+
+      popf
+      popad
+    end;
+  except
+  end;
+end;
+
+function Is16x9():boolean;stdcall;
+asm
+    pushad
+    pushfd
+
+    mov eax, xrgame_addr
+    add eax, $43c830
+    call eax
+    
+    mov @result, al
+
+    popfd
+    popad
+end;
+
+
+function GetStrContainer():pointer;stdcall;
+asm
+  mov eax, xrgame_addr
+  mov eax, [eax+$512814]
+  mov eax, [eax]
+  mov @result, eax
+end;
+
+function str_container_dock(str:PChar):pointer; stdcall
+asm
+    pushad
+    pushfd
+
+    push str
+
+    call GetStrContainer
+    mov eax, ecx
+
+    mov eax, xrcore_addr
+    add eax, $20690
+    call eax
+    mov @Result, eax
+
+    popfd
+    popad
+end;
+
+
 
 function Init:boolean;
 begin
@@ -123,4 +229,6 @@ begin
   xrRender_R4_addr := (xrRender_R4_addr shr 16) shl 16;
   result:=true;
 end;
+
+
 end.

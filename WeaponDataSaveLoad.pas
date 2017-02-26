@@ -4,12 +4,8 @@ interface
 function Init:boolean;
 
 implementation
-uses GameWrappers, BaseGameData, WpnUtils, WeaponAdditionalBuffer, sysutils, Cartridge;
+uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge, Misc, WeaponEvents;
 
-var
-  cweapon_loaddata_in_netspawn_patch_addr:cardinal;
-  cweapon_netdestroy_patch_addr:cardinal;
-  cweapon_netdestroy_clipped_function_addr:cardinal;
 //-----------------------------------------------------------------------------------------------------------
 procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
 asm
@@ -63,6 +59,7 @@ begin
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
   buf.SetExplosed(tmp_bool);
 
+
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
   SetLength(buf.ammos, ammos_in_mag);
 
@@ -76,6 +73,9 @@ begin
     cnt_total:=cnt_total+cnt;
   end;
 
+  if (IsExplosed(wpn)) then begin
+    OnWeaponExplode_AfterAnim(wpn, 0);
+  end;
 end;
 
 procedure CWeapon__save(wpn:pointer; packet:pointer); stdcall;

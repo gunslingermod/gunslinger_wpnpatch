@@ -5,7 +5,7 @@ interface
 procedure SendMessage(msg:PChar; max_difficulty:cardinal=$FFFFFFFF{all difficulties});
 
 implementation
-uses UIUtils, GameWrappers, gunsl_config;
+uses UIUtils, gunsl_config;
 
 procedure SendMessage(msg:PChar; max_difficulty:cardinal);
 var data:pointer;

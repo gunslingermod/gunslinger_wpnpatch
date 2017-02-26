@@ -5,7 +5,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils;
+uses BaseGameData, gunsl_config, HudItemUtils;
 var rpm_loading_patch_addr:cardinal;
 
 const

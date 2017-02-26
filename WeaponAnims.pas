@@ -6,8 +6,10 @@ interface
 function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
 
+function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
+
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -689,7 +691,7 @@ begin
       fun:=OnWeaponExplode_AfterAnim;
     end else if IsWeaponJammed(wpn) then begin
       modifier:=modifier+'_jammed';
-    end else if GetAmmoInMagCount(wpn)=1 then begin
+    end else if (GetAmmoInMagCount(wpn)=1) and (GetClassName(wpn) <> 'WP_BM16') then begin
       modifier:=modifier+'_last';
     end;
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then modifier:=modifier+'_sil';
@@ -720,8 +722,7 @@ begin
 end;
 
 procedure anm_shots_std_patch();stdcall;
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -734,7 +735,6 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 //---------------------------------------------------------anm_reload------------------------------------------------
@@ -771,7 +771,11 @@ begin
       if GetAmmoInMagCount(wpn)=0 then anim_name:=anim_name+'_last';
       SetAmmoTypeChangingStatus(wpn, $FF);
     end else if GetAmmoInMagCount(wpn)<=0 then begin
-      if GetClassName(wpn)<>'WP_BM16' then anim_name:=anim_name+'_empty'; //у двустволок и так _0 потом модификатор прибавит
+      if GetClassName(wpn)<>'WP_BM16' then begin
+        anim_name:=anim_name+'_empty'; //у двустволок и так _0 потом модификатор прибавит
+      end else if(CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+        anim_name:=anim_name+'_only';
+      end;
     end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
       anim_name:=anim_name+'_ammochange';
     end;
@@ -1761,6 +1765,10 @@ begin
   jump_addr:=xrGame_addr+$2CD0B2;//anm_shots - other
   if not WriteJump(jump_addr, cardinal(@anm_shots_std_patch), 5, true) then exit;
   jump_addr:=xrGame_addr+$2D196C;//anm_shots_w_gl
+  if not WriteJump(jump_addr, cardinal(@anm_shots_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E0151;//anm_shot_1 - BM16
+  if not WriteJump(jump_addr, cardinal(@anm_shots_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E01AF;//anm_shot_2 - BM16
   if not WriteJump(jump_addr, cardinal(@anm_shots_std_patch), 5, true) then exit;
   ////////////////////////////////////////////////////////////////////////////////
   jump_addr:=xrGame_addr+$2DE462;//anm_open

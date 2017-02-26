@@ -1,7 +1,7 @@
 unit WeaponAdditionalBuffer;
 
 interface
-uses ScriptParticles;
+uses xr_ScriptParticles;
 
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
@@ -106,7 +106,7 @@ type
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 
 implementation
-uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math, strutils, DetectorUtils;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, MatVectors;
 
 { WpnBuf }
 

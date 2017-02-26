@@ -77,7 +77,7 @@ function GetTargetDist():single;
 
 
 implementation
-uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate;
 
 var
   _keyflags:cardinal;
@@ -204,7 +204,7 @@ function IsHolderInSprintState(wpn:pointer):boolean;stdcall;
 var actor:pointer;
     holder:pointer;
 begin
-  holder:=WpnUtils.GetOwner(wpn);
+  holder:=GetOwner(wpn);
   actor:=GetActor();
   if (actor<>nil) and (actor=holder) and (GetActorActionState(holder, actSprint) or GetActorActionState(holder, actModSprintStarted)) then begin
     result:=true;
@@ -216,7 +216,7 @@ function IsHolderInAimState(wpn:pointer):boolean;stdcall;
 var actor:pointer;
     holder:pointer;
 begin
-  holder:=WpnUtils.GetOwner(wpn);
+  holder:=GetOwner(wpn);
   actor:=GetActor();
   if (actor<>nil) and (actor=holder) and (GetActorActionState(holder, actAimStarted)) then begin
     result:=true;
@@ -228,7 +228,7 @@ function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
 var
   holder:pointer;
 begin
-  holder:=WpnUtils.GetOwner(wpn);
+  holder:=GetOwner(wpn);
   if (holder<>nil) then begin
     result:=(DetectorUtils.GetActiveDetector(holder)<>nil);
   end else

@@ -2,12 +2,11 @@ unit WeaponUpdate;
 
 interface
 function Init:boolean;
-//function WpnUpdate(wpn:pointer):boolean; stdcall;
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils;
 
 
 
@@ -268,7 +267,7 @@ begin
     anm:='wanm_holster';
   end else if state=EWeaponStates__eFire then begin
     anm:='wanm_shoot';
-    if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then begin
+    if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
       anm:=anm+'_gl';
     end else if GetAmmoInMagCount(wpn)<=0 then begin
       rest_anm:=anm;
@@ -327,7 +326,7 @@ begin
       if not buf.Update then Log('Failed to update wpn: '+inttohex(cardinal(wpn), 8));
     end;    
 
-    if ((GetActor()=nil) or (GetOwner(wpn)<>GetActor())) then begin
+    if ((GetActor()=nil) or (GetOwner(wpn)<>GetActor())) or (GetActorActiveItem()<>wpn) then begin
       if IsExplosed(wpn) then OnWeaponExplode_AfterAnim(wpn, 0);
       if leftstr(GetCurAnim(wpn), length('anm_attach_scope_'))='anm_attach_scope_' then DetachAddon(wpn, 1);
       if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
