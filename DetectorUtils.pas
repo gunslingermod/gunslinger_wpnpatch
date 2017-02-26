@@ -7,7 +7,7 @@ procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 function GetActiveDetector(act:pointer):pointer; stdcall;   
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
-procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; immediate:boolean=false; use_companion_section:boolean=false); stdcall;
+procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; bMixIn:boolean=true; use_companion_section:boolean=false); stdcall;
 
 implementation
 uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils, Messenger, gunsl_config;
@@ -385,9 +385,22 @@ asm
 end;
 
 procedure CCustomDetector__OnAnimationEnd(det:pointer); stdcall;
+var
+  companion, act:pointer;
+  state:cardinal;
 begin
   PlayAnimIdle(det);
   //PlayHudAnim(det, GetActualCurrentAnim(det), true); //для отключения микшера
+
+  //проверка на необходимость играть идловую аниму с замахом
+  act:=GetActor();
+  if (act<>nil) and (GetOwner(det)=act) then begin
+    companion:= GetActorActiveItem();
+    if (companion<>nil) and WpnIsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
+    if (state<>0) and ((state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady)) then begin
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_idle'), true, true);
+    end
+  end;
 end;
 
 procedure CCustomDetector__OnAnimationEnd_Patch(); stdcall;
@@ -463,7 +476,7 @@ asm
 end;
 
 
-procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; immediate:boolean=false; use_companion_section:boolean=false); stdcall;
+procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; bMixIn:boolean=true; use_companion_section:boolean=false); stdcall;
 var
   tmp:string;
   companion:pointer;
@@ -472,6 +485,7 @@ var
   ahi_c:pointer; //attachable_hud_item for companion
 begin
   if (det=nil) or (GetCurrentState(det)<>CHUDState__eIdle) then exit;
+
 
   //проверяем, в руках ли этот детектор сейчас
   ahi_d:=GetAttachableHudItem(1);
@@ -496,7 +510,7 @@ begin
   if game_ini_line_exist(section, PChar(tmp)) then begin
     //подменим в нашем детекторе attachable_hud_item  m_animations детектора на компаньоновские
     if use_companion_section then SwapAHI(ahi_c, ahi_d);
-    PlayHudAnim(det, PChar(anm_alias), immediate);
+    PlayHudAnim(det, PChar(anm_alias), bMixIn);
     if use_companion_section  then SwapAHI(ahi_c, ahi_d);
   end else begin
     log('Section ['+section+'] has no motion alias defined ['+tmp+']');
@@ -522,6 +536,12 @@ begin
   if not WriteJump(jmp_addr, cardinal(@WeaponDispersionPatch), 8, true) then exit;
   jmp_addr:=xrGame_addr+$2ECB6F;
   if not WriteJump(jmp_addr, cardinal(@CCustomDetector__OnAnimationEnd_Patch), 5, false) then exit;
+
+  //отключим убирание детектора при перезарядке и переключении режимов подствола
+  if not nop_code(xrGame_addr+$2ECF12, 8) then exit;
+  jmp_addr:=$EB;
+  if not WriteBufAtAdr(xrGame_addr+$2ECF1A, @jmp_addr, 1) then exit;
+
   result:=true;
 end;
 

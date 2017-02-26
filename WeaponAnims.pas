@@ -93,6 +93,8 @@ var
   actor:pointer;
   canshoot, isdetector, isgrenorbolt:boolean;
   cls:string;
+{  companion:pointer;
+  state:cardinal;  }
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_idle';
@@ -103,6 +105,24 @@ begin
     canshoot:=WpnCanShoot(PChar(cls));
     isgrenorbolt:=IsThrowable(PChar(cls));
     isdetector :=WpnIsDetector(PChar(cls));
+
+
+  { Ушло в DetectorUtils.CCustomDetector__OnAnimationEnd
+    if isdetector then begin
+      //проверка на необходимость играть идловую аниму с замахом
+      companion:= GetActorActiveItem();
+      if (companion<>nil) and WpnIsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
+      if (state<>0) and ((state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady)) then begin
+        anim_name:=ANM_LEFTHAND+GetSection(wpn)+'_wpn_throw_idle';
+        if (not game_ini_line_exist(hud_sect, PChar(anim_name))) then begin
+          log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
+          if IsDebug then Messenger.SendMessage('Animation not found, see log!');
+          anim_name:='anm_idle';
+        end;
+        result:=PChar(anim_name);
+      end;
+    end;     }
+
     //--------------------------Модификаторы движения/состояния актора---------------------------------------
 
     //если актор в режиме прицеливания
@@ -335,7 +355,7 @@ begin
 
     pushad
       push esi
-      call OnWeaponShowAnmStart
+      call OnWeaponHideAnmStart
     popad
 
     pushad
@@ -610,7 +630,7 @@ begin
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     detector:=GetActiveDetector(actor);
     if detector<>nil then begin
-      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+'_shoot'+modifier), false, GetHUDSection(detector));
+      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+'_shoot'+modifier), true, true);
     end;
   end;
 
@@ -671,7 +691,8 @@ end;
 function anm_reload_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
-  actor:pointer;
+  actor, det:pointer;
+  det_anim:string;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
@@ -703,6 +724,20 @@ begin
   end;
 
   ModifierBM16(wpn, anim_name);
+
+  if (actor<>nil) and (actor=GetOwner(wpn)) then begin
+    //назначим аниму детектору при необходимости
+    det:=GetActiveDetector(actor);
+    if det<>nil then begin
+
+      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn'+rightstr(anim_name, length(anim_name)-3); //без anm
+      if game_ini_line_exist(hud_sect, PChar(det_anim)) then begin
+        AssignDetectorAnim(det, PChar(det_anim), true, true);
+      end;
+    end;
+  end;
+
+
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
     if IsDebug then Messenger.SendMessage('Animation not found, see log!');
@@ -1255,8 +1290,33 @@ end;
 
 //---------------------------------------------------------------------------------------------------------------------
 
+procedure CWeapon__OnAnimationEnd(wpn:pointer); stdcall;
+var
+  act:pointer;
+begin
+  act:=GetActor();
+  //пофиксим рассинхрон аним ствола и детектора в беге
+  if (act<>nil) and (act=GetOwner(wpn)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))='anm_idle') then begin
+    SetActorActionState(act, actModNeedMoveReassign, true);
+  end;
+end;
+
+procedure CWeapon__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CWeapon__OnAnimationEnd
+  popad
+
+  mov eax, xrgame_addr //джампим на предка - исходное.
+  add eax, $2F9640
+  jmp eax
+end;
 
 
+
+//---------------------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
   buf:byte;
@@ -1265,6 +1325,10 @@ begin
 
   movreass_remain_time:=0;
   movreass_last_update:=0;
+
+  //исправляем рассинхрон с детектором
+  jump_addr:=xrGame_addr+$2bc7e0;
+  if not WriteJump(jump_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
   
   //фиксим баг (мгновенная смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;
@@ -1422,7 +1486,7 @@ begin
 
   jump_addr:=xrGame_addr+$2C519D;//anm_show_empty
   if not WriteJump(jump_addr, cardinal(@anm_show_sub_patch), 5, true) then exit;
-{  jump_addr:=xrGame_addr+$2C75A5;//anm_show - grenades
+{  jump_addr:=xrGame_addr+$2C75A5;//anm_show - grenades  ; moved to throwable
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;}
   jump_addr:=xrGame_addr+$2CCED2;//anm_show - spas12, rg6, knife
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
@@ -1444,6 +1508,8 @@ begin
   jump_addr:=xrGame_addr+$2CCF42;//anm_hide - spas12, rg6
   if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
   jump_addr:=xrGame_addr+$2D182A;//anm_hide - assault
+  if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2D4FB5;//anm_hide - knife
   if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
 {  jump_addr:=xrGame_addr+$2E3A6D;//anm_hide - artefacts
   if not WriteJump(jump_addr, cardinal(@anm_hide_sub_patch), 5, true) then exit;

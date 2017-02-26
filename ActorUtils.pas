@@ -64,7 +64,7 @@ procedure SetHudFOV(fov:single); stdcall;
 
 
 implementation
-uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable;
+uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster;
 
 var
   _keyflags:cardinal;
@@ -194,13 +194,23 @@ begin
 end;
 
 function GetActorActiveItem():pointer; stdcall;
-asm
+var
+  act:pointer;
+begin
+  result:=nil;
+  act:=GetActor;
+  if act=nil then exit;
+  result:=ItemInSlot(act, GetActorActiveSlot());
+end;
+
+
+{asm
   pushfd
 
   mov eax, xrGame_addr
   add eax, $64F0E4
-  mov eax, [eax]
-  mov eax, [eax+$94]
+  mov eax, [eax]              //g_player_hud
+  mov eax, [eax+$94]          //first attachable_item
   cmp eax, 0
   je @finish
   mov eax, [eax+4]
@@ -209,7 +219,7 @@ asm
   @finish:
   popfd
   mov @result, eax
-end;
+end; }
 
 function GetActorActiveSlot():integer; stdcall;
 asm
@@ -478,6 +488,8 @@ function CActor__OnKeyboardPress(dik:cardinal):boolean; stdcall;
 var
   act:pointer;
   wpn:pointer;
+  iswpnthrowable:boolean;
+  state:cardinal;
 begin
 
   //возвратить false, чтобы забыть про данное нажатие
@@ -486,12 +498,24 @@ begin
   act:=GetActor();
   if dik = kDETECTOR then begin
     wpn:=GetActorActiveItem();
-    if (act<>nil) and (GetActorActionState(act, actSprint) or GetActorActionState(act, actModSprintStarted)) then begin
-//      if (wpn<>nil) and WpnCanShoot(PChar(GetClassName(wpn))) then begin
+    if (act<>nil) then begin
+      if (wpn<>nil) then begin
+        iswpnthrowable:=WpnIsThrowable(PChar(GetClassName(wpn)));
+        state:=GetCurrentState(wpn);
+
+        if
+          (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)))
+          or
+          (not iswpnthrowable and ((state=EWeaponStates__eReload) or (state=EWeaponStates__eSwitch) or (state=EWeaponStates__eFire) or (state=EWeaponStates__eFire2)))
+        then begin
+          result:=false;
+        end;
+      end;
+
+      if (GetActorActionState(act, actSprint) or GetActorActionState(act, actModSprintStarted)) then begin
         SetActorKeyRepeatFlag(kfDETECTOR, true);
         SetActorActionState(act, actSprint, false, mState_WISHFUL);
-//      end;
-//      result:=false;
+      end;
     end else begin
       if (wpn<>nil) and WpnCanShoot(PChar(GetClassName(wpn))) and not CanStartAction(wpn) then begin
         result:=false;

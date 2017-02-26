@@ -4,12 +4,14 @@ interface
 function Init():boolean;
 
 function GetPlayerHud():pointer; stdcall;
+procedure player_hud__attach_item(wpn:pointer); stdcall;
+
 function GetAttachableHudItem(index:cardinal):pointer; stdcall;
 function GetCHudItemFromAttachableHudItem(ahi:pointer):pointer; stdcall;
 procedure PlayAnimIdle(wpn: pointer); stdcall;
 //function GetPositionVector(obj:pointer):pointer;
 //function GetCurrentHud(wpn: pointer):pointer; stdcall;
-procedure PlayHudAnim(wpn: pointer; anim_name:PChar; immediatly:boolean); stdcall;
+procedure PlayHudAnim(wpn: pointer; anim_name:PChar; bMixIn:boolean); stdcall;
 procedure SetWorldModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetHudModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
@@ -41,6 +43,7 @@ function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetClassName(wpn:pointer):string; stdcall;
 function WpnCanShoot(cls:PChar):boolean;stdcall;
 function WpnIsDetector(cls:PChar):boolean;stdcall;
+function WpnIsThrowable(cls:PChar):boolean;stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall
@@ -96,6 +99,10 @@ const
   EHudStates__eHidden:cardinal = $3;
   EHudStates__eBore:cardinal = $4;
   EHudStates__eLastBaseState:cardinal = $4;
+  EMissileStates__eThrowStart:cardinal = $5;
+  EMissileStates__eReady:cardinal = $6;
+  EMissileStates__eThrow:cardinal = $7;
+  EMissileStates__eThrowEnd:cardinal = $8;
 
   ANM_LEFTHAND:string='anm_lefthand_';
 
@@ -562,7 +569,7 @@ begin
   end;
 end;
 
-procedure PlayHudAnim(wpn: pointer; anim_name:PChar; immediatly:boolean); stdcall;
+procedure PlayHudAnim(wpn: pointer; anim_name:PChar; bMixIn:boolean); stdcall;
 begin
   asm
     pushad
@@ -582,7 +589,7 @@ begin
 
     push 0
     push 0
-    movzx edx, immediatly
+    movzx edx, bMixIn
     push edx              //резкий ли будет переход к ней
     push eax              //указатель на имя анимы
     call PlayHudAnim_Func
@@ -994,6 +1001,11 @@ begin
   result:=(cls='DET_SIMP') or (cls='DET_ADVA') or (cls='DET_ELIT') or (cls='DET_SCIE');
 end;
 
+function WpnIsThrowable(cls:PChar):boolean;stdcall;
+begin
+  result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
+end;
+
 procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
 asm
   push eax
@@ -1161,11 +1173,32 @@ end;
 
 function GetCHudItemFromAttachableHudItem(ahi:pointer):pointer; stdcall;
 asm
+  mov @result, 0
+  cmp ahi, 0
+  je @finish
   pushad
     mov eax, ahi
     mov eax, [eax+$4]
     sub eax, $2e0
     mov @result, eax
+  popad
+  @finish:
+end;
+
+procedure player_hud__attach_item(wpn:pointer); stdcall;
+asm
+  pushad
+  call GetPlayerHud
+  mov ecx, eax
+  mov eax, xrgame_addr
+  add eax, $2ffcd0
+
+  mov ebx, wpn
+  add ebx, $2e0
+  push ebx
+  
+  call eax;
+
   popad
 end;
 

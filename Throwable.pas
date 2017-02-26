@@ -15,7 +15,7 @@ const
 		EMissileStates__eThrowEnd:cardinal = 8;
 
 implementation
-uses BaseGameData, WeaponSoundLoader, ActorUtils, WpnUtils, GameWrappers, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils;
+uses BaseGameData, WeaponSoundLoader, ActorUtils, WpnUtils, GameWrappers, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils;
 
 var _activate_key_state:TKeyHoldState;
 
@@ -190,7 +190,7 @@ end;
 
 function CMissile__State_anm_show_selector(CMissile:pointer):PChar; stdcall;
 var
-  act:pointer;
+  act, det:pointer;
   snd, sect:PChar;
   curslot:integer;
 begin
@@ -199,6 +199,7 @@ begin
 
   act:=GetActor();
   if (act<>nil) and (GetOwner(CMissile)=act) then begin
+    player_hud__attach_item(CMissile); //для гарантии и нормального отыгрыша детектора
     ResetActorFlags(act);
 //    UpdateSlots(act);
     if _activate_key_state.IsActive and _activate_key_state.IsHoldContinued then begin
@@ -212,18 +213,28 @@ begin
         SetupQuickThrowForceParams(CMissile);
       end;
     end;
+
+    det:=GetActiveDetector(act);
+    if det <> nil then begin
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_draw'), true, true);
+    end;
   end;
   Throwable_Play_Snd(CMissile, snd);
 end;
 
 function CMissile__State_anm_hide_selector(CMissile:pointer):PChar; stdcall;
 var
-  act:pointer;
+  act, det:pointer;
 begin
   result:='anm_hide';
   act:=GetActor();
   if (act<>nil) and (GetOwner(CMissile)=act) then begin
     ResetActorFlags(act);
+
+    det:=GetActiveDetector(act);
+    if det <> nil then begin
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_hide'), true, true);
+    end;    
   end;
   Throwable_Play_Snd(CMissile, 'sndHide');
 end;
@@ -231,19 +242,31 @@ end;
 
 
 function CMissile__State_anm_selector_dispatcher(CMissile:pointer; ret_addr:cardinal):PChar; stdcall;
+var
+  det, act:pointer;
 begin
   result:='anm_unknown';
   ret_addr:=ret_addr and $0000FFFF;
+
+  act:=GetActor();
+  if (act<>nil) and (GetOwner(CMissile)=act) then begin
+    det:=GetActiveDetector(act);
+  end else begin
+    det:=nil;
+  end;
+
   case ret_addr of
     $75AA:result:=CMissile__State_anm_show_selector(CMissile);
     $7629:result:=CMissile__State_anm_hide_selector(CMissile);
     $76B4:begin
             result:='anm_throw_begin';
             Throwable_Play_Snd(CMissile, 'sndThrowBegin');
+            if det <> nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_begin'), true, true);
           end;
     $7740:begin
             result:='anm_throw';
             Throwable_Play_Snd(CMissile, 'sndThrow');
+            if det <> nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_end'), true, true);            
           end;
   else
     log('CMissile__State_anm_selector_dispatcher: unknown call detected!', true);

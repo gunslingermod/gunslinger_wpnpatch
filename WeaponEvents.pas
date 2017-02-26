@@ -595,7 +595,7 @@ begin
       modif:='_fakeshoot';
       if IsAimNow(wpn) or IsHolderInAimState(wpn) then modif:=modif+'_aim';
       if IsWeaponJammed(wpn) then modif:=modif+'_jammed';
-      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+modif), false, true);
+      AssignDetectorAnim(detector, PChar(ANM_LEFTHAND+GetSection(detector)+modif), true, true);
     end;
     Messenger.SendMessage(txt);
   end;
@@ -650,10 +650,10 @@ begin
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     SetActorActionState(act, actSprint, false, mState_REAL);
 
-{    det:=GetActiveDetector(act);
+    det:=GetActiveDetector(act);
     if det <> nil then begin
-      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_hide'), false, true);
-    end;  }
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_hide'), true, true);
+    end;
   end;
 end;
 
@@ -665,6 +665,10 @@ begin
   act:=GetActor();
   owner:=GetOwner(wpn);
   if (owner<>nil) and (owner=act) then begin
+    //фикс бага с доставанием предмета без смены худовой секции, когда анима доставания не игралась
+    player_hud__attach_item(wpn);
+
+
     ClearActorKeyRepeatFlags();
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     ResetActorFlags(act);
@@ -673,12 +677,12 @@ begin
       SetDetectorForceUnhide(det, false);
       SetActorActionState(act, actShowDetectorNow, false);
     end;
-
-{    det:=GetActiveDetector(act);
+    
+    det:=GetActiveDetector(act);
     //если детектор не только в слоте, но и активен
     if det <> nil then begin
-      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_draw'), false, true);
-    end;  }
+      AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_draw'), true, true);
+    end;
   end;
 end;
 
@@ -768,8 +772,8 @@ begin
   if det=nil then exit;
 
   case kick_type of
-    1:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack'), false, true);
-    2:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack2'), false, true);
+    1:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack'), true, true);
+    2:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack2'), true, true);
   end;
 end;
 
