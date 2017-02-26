@@ -28,7 +28,6 @@ function IsSprintOnHoldEnabled():boolean; stdcall;
 function IsDebug():boolean; stdcall;
 function GetBaseFOV():single; stdcall;
 function GetBaseHudFOV():single; stdcall;
-function GetLaserPointDrawingDistance(viewdistance:single):single; stdcall;
 function GetCurrentDifficulty():cardinal; stdcall;
 function GetDefaultActionDOF():FVector3; stdcall;
 function GetDefaultZoomDOF():FVector3; stdcall;
@@ -46,12 +45,6 @@ uses BaseGameData, sysutils, ConsoleUtils;
 var
   fov:single;
   hud_fov:single;
-
-  laser_hide_dist:single; //дальше этой дистанции луч лазера будет скрываться
-  laser_max_dist:single;  //максимальное расстояние, на котором рисуется точка
-  laser_min_dist:single; //ближе этого значения луч будет выставлен на laser_min_override
-  laser_min_dist_override:single; //если точка получается дальше, чем laser_max_dist, то рисоваться будет на этой
-  laser_max_dist_override:single;
 
   def_zoom_dof:FVector3;
   def_act_dof:FVector3;
@@ -230,21 +223,6 @@ begin
 end;
 
 
-function GetLaserPointDrawingDistance(viewdistance:single):single; stdcall;
-begin
-  if viewdistance<laser_min_dist then begin
-    result:=laser_min_dist_override;
-  end else if viewdistance>laser_hide_dist then begin
-    result:=-10;
-    exit;
-  end else if viewdistance>laser_max_dist then begin
-    result:=laser_max_dist_override;
-  end else begin
-    result:=laser_min_dist_override+((laser_max_dist_override-laser_min_dist_override)/(laser_max_dist-laser_min_dist))*(viewdistance-laser_min_dist);
-  end;
-
-end;
-
 function GetCurrentDifficulty():cardinal; stdcall;
 asm
   mov eax, xrgame_addr
@@ -317,6 +295,7 @@ begin
   result:=((val and r2_dof_enable)>0);
 end;
 
+
 function Init:boolean;
 const
   GUNSL_BASE_SECTION:PChar='gunslinger_base';
@@ -331,13 +310,6 @@ begin
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
   hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);
-  laser_min_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_min_dist', 0.7);
-  laser_min_dist_override:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_min_dist_override', laser_min_dist);
-  laser_max_dist_override:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_max_dist_override', laser_min_dist);
-  laser_max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_max_dist', 15);
-  laser_max_dist_override:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_max_dist_override', laser_max_dist);
-  laser_hide_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_hide_dist',25);
-
 
   def_zoom_dof.x:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_near', 0.5);
   def_zoom_dof.y:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_focus', 0.8);

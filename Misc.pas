@@ -11,6 +11,7 @@ function get_server_object_by_id(id:cardinal):pointer;stdcall;
 function alife():pointer;stdcall;
 function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
 function alife_release(srv_obj:pointer):boolean;stdcall;
+function xrMemory__allocate(count:cardinal):pointer;stdcall;
 
 
 implementation
@@ -168,5 +169,20 @@ begin
   jmp_addr:=xrGame_addr+$4CCD0E;
   if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
   result:=true;
+end;
+
+function xrMemory__allocate(count:cardinal):pointer;stdcall;
+asm
+  pushad
+  push count
+
+  mov ecx, xrEngine_addr
+  mov ecx, [ecx+$6F538]
+
+  mov eax, xrCore_addr
+  add eax, $1AF00
+  call eax
+  mov @result, eax
+  popad
 end;
 end.

@@ -6,63 +6,107 @@ procedure ReassignWorldAnims(wpn:pointer); stdcall;
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles;
 
 
 
 var patch_addr:cardinal;
   tst_light:pointer;
 
-//вызывается в случае наличия ЛЦУ на оружии
-procedure ProcessLaserDot(wpn: pointer; laser_bones:PChar; laser_particle:PChar);
+function tst():boolean;stdcall;
+asm
+  mov @result, false
+end;
+
+procedure ProcessLaserdot(wpn:pointer);
 var
-  act:pointer;
   buf:WpnBuf;
-  pos:FVector3;
-  dir:FVector3;
+  laserdot_data:laserdot_params;
+  dotpos, dotdir, zerovec, viewdir, viewpos:FVector3;
+  dist:single;
+  HID:pointer;
 
-  koef:single;
+  rd:collide__ray_defs;
+  pp:SPickParam;
 begin
-  buf:=GetBuffer(wpn);
-  if buf=nil then exit;
-  buf.SetLaserInstalledStatus(true);
+  zerovec.x:=0;
+  zerovec.y:=0;
+  zerovec.z:=0;
 
-  act:=GetActor();
-  if not buf.IsLaserEnabled() then begin
-    SetWeaponMultipleBonesStatus(wpn, laser_bones, false);
-  end else begin
-    SetWeaponMultipleBonesStatus(wpn, laser_bones, true);
-  end;
-//TODO:добавить проверку на то, отрисовывается ли сейчас худ или нет
-  if (not CHudItem__GetHUDMode(wpn)) or  (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
-//  if (act=nil) or (act<>GetOwner(wpn)) then begin// or (GetCurrentState(wpn)=CHUDState__eHidden) or (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
-//    log(inttostr(cardinal(wpn)));
-    if buf.IsLaserDotInited() then begin
-      buf.SetLaserDotParticle(nil);
-    end;
+
+  buf:=GetBuffer(wpn);
+  HID :=CHudItem__HudItemData(wpn);
+  if HID=nil then begin
+    buf.StopLaserdotParticle();
     exit;
   end;
 
 
+  laserdot_data:=buf.GetLaserDotData();
 
-  if not buf.IsLaserDotInited() then begin
-    buf.SetLaserDotParticle(laser_particle);
-//    log('playing at '+floattostr((psingle(GetPosition(wpn)))^));
+  if (buf.IsLaserEnabled()) then begin
+    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
+  end else begin
+    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);  
   end;
 
+  if (buf.IsLaserEnabled()) and (GetActorActiveItem()=wpn)then begin // and (not IsDemoRecord()) then begin
+    if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
+      //в режиме прицеливания привязываемся к камере - иначе при настроке прицеливания у оружия будем проводить прямую через 3 точки :(
+      viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+      viewpos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+      attachable_hud_item__GetBoneOffsetPosDir(HID, laserdot_data.bone_name, @dotpos, @dotdir, @laserdot_data.offset);
 
-  pos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  dir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+      v_sub(@viewdir, @dotdir); //считаем разностный вектор направления
+      v_mul(@viewdir, GetAimFactor(wpn)-1.0); //величина добавки зависит от того, насколько сильно мы вошли в режим прицела
+      dotdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+      v_add(@dotdir, @viewdir);
+      v_normalize(@dotdir);
 
-  koef:=GetLaserPointDrawingDistance(GetTargetDist());
-//  log (floattostr(koef));
+      v_sub(@viewpos, @dotpos);
+      v_mul(@viewpos, GetAimFactor(wpn)-1.0);
+      dotpos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+      v_add(@dotpos, @viewpos);
 
-  pos.x:=pos.x+koef*dir.x;
-  pos.y:=pos.y+koef*dir.y;
-  pos.z:=pos.z+koef*dir.z;
+    end else begin
+      attachable_hud_item__GetBoneOffsetPosDir(HID, laserdot_data.bone_name, @dotpos, @dotdir, @laserdot_data.offset);
+    end;
 
-  buf.PlayLaserDotParticleAt(@pos);
 
+    //позаимствовано из CHudTarget, вместе с колбэком
+    rd.dir:= dotdir;
+    rd.start:=dotpos;
+    rd.range:=500;
+    rd.flags:=1;
+    rd.tgt:=rq_target__rqtBoth;
+
+    pp.RQ.O:=nil;
+    pp.RQ.range:=500;
+    pp.RQ.element:=-1;
+    pp.power:=1.0;
+    pp.pass:=0;
+
+    Level_RayQuery(@rd, pointer(xrgame_addr+$4d8940), @pp, nil, dynamic_cast(GetActor(), 0, RTTI_CActor, RTTI_CObject, false));
+    dist:=pp.RQ.range*0.85;
+    dotpos.x:=dotpos.x+dotdir.x*dist;
+    dotpos.y:=dotpos.y+dotdir.y*dist;
+    dotpos.z:=dotpos.z+dotdir.z*dist;
+
+//    Messenger.SendMessage(PChar('wpn dot dist:'+Floattostr(pp.RQ.range)));
+    buf.PlayLaserdotParticle(@dotpos, dist);
+
+
+    if laserdot_data.always_world then
+      buf.SetLaserDotParticleHudStatus(false)
+    else if laserdot_data.always_hud then
+      buf.SetLaserDotParticleHudStatus(true)
+    else begin
+      viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+      buf.SetLaserDotParticleHudStatus(GetAngleCos(@viewdir, @dotdir)<laserdot_data.hud_treshold);
+    end;
+  end else begin
+    buf.StopLaserdotParticle();
+  end;
 end;
 
 procedure ProcessAmmoAdv(wpn: pointer);
@@ -188,8 +232,10 @@ var all_upgrades:string;
     section:PChar;
     up_gr_sect:string;
     i:integer;
+    buf:WpnBuf;
 begin
   section:=GetSection(wpn);
+  buf:=GetBuffer(wpn);
   //Скроем все кости, которые надо скрыть, исходя из данных секции оружия
   if game_ini_line_exist(section, 'def_hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones'), false);
   if game_ini_line_exist(section, 'def_show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_show_bones'), true);  
@@ -215,8 +261,8 @@ begin
       SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
     end;
 
-    if game_ini_line_exist(section, 'laser') and game_ini_r_bool(section, 'laser') then begin
-      ProcessLaserDot(wpn, game_ini_read_string(section, 'laser_ray_bones'), game_ini_read_string(section, 'laser_particle'));
+    if (buf<>nil) and not buf.IsLaserInstalled() and game_ini_r_bool_def(section, 'laser_installed', false) then begin
+      buf.InstallLaser(section)
     end;
   end;
 end;
@@ -328,6 +374,8 @@ var
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
 
+    sect:=GetSection(wpn);
+
     if (GetActorActiveItem=wpn) and DOFChanged() and (not IsAimNow(wpn)) and (not IsHolderInAimState(wpn)) and (GetAnimTimeState(wpn, ANM_TIME_CUR)>0) then begin
       offset:=ReadActionDOFTimeOffset(wpn, GetActualCurrentAnim(wpn));
       if (offset>0) then begin
@@ -345,6 +393,9 @@ begin
     buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
     if buf<>nil then begin
       if not buf.Update then Log('Failed to update wpn: '+inttohex(cardinal(wpn), 8));
+      if not buf.IsLaserInstalled() and game_ini_r_bool_def(sect, 'laser_installed', false) then begin
+        buf.InstallLaser(sect)
+      end;
     end;    
 
     if ((GetActor()=nil) or (GetOwner(wpn)<>GetActor())) or (GetActorActiveItem()<>wpn) then begin
@@ -353,6 +404,7 @@ begin
       if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
       if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
     end;
+
 
     //Обработаем установленные апгрейды
     ProcessUpgrade(wpn);
@@ -363,10 +415,13 @@ begin
     //анимы от 3-го лица
     ReassignWorldAnims(wpn);
 
-    sect:=GetSection(wpn);
-    if game_ini_line_exist(sect, 'laser') and game_ini_r_bool(sect, 'laser') then begin
-      ProcessLaserDot(wpn, game_ini_read_string(sect, 'laser_ray_bones'), game_ini_read_string(sect, 'laser_particle'));
+    if (buf<>nil) and buf.IsLaserInstalled() then begin
+      ProcessLaserDot(wpn);
     end;
+
+
+
+
 
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
@@ -432,21 +487,15 @@ asm
   @all_ok:
 end;
 
-function AdditionalCrosshairHideConditions(wpn:pointer):boolean; stdcall;
+function WeaponAdditionalCrosshairHideConditions(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
 begin
   //вернуть true, если прицел все же показывать
-
-
-  if GetCurrentDifficulty()>=gd_veteran then begin
-    result:=false;
-    exit;
-  end;
   buf:=GetBuffer(wpn);
   if (buf<>nil) and buf.IsLaserInstalled() and buf.IsLaserEnabled() then begin
     result:=false;
-    exit;  
+    exit;
   end;
   result:=true;
 end;
@@ -455,7 +504,7 @@ procedure CWeapon__show_crosshair_Patch(); stdcall;
 asm
   pushad
     push esi
-    call AdditionalCrosshairHideConditions
+    call WeaponAdditionalCrosshairHideConditions
     cmp al, 1
   popad
   je @show
@@ -464,6 +513,26 @@ asm
   @show:
   mov eax, 1
   ret
+end;
+
+function CanDrawCrosshairNow():boolean; stdcall;
+begin
+  result:=true;
+  if gunsl_config.GetCurrentDifficulty()>gunsl_config.gd_veteran then begin
+    result:=false;
+  end;
+end;
+
+
+procedure CHudTarget__Render_Patch(); stdcall;
+asm
+  pushad
+    call CanDrawCrosshairNow
+    cmp al, 1
+  popad
+  jne @finish
+  cmp ecx, $221
+  @finish:
 end;
 
 function Init:boolean;
@@ -481,6 +550,10 @@ begin
   //патч CWeapon::show_crosshair, чтобы при установленном ЛЦУ перекрестие скрывалось
   patch_addr:=xrGame_addr+$2bd1e5;
   if not WriteJump(patch_addr, cardinal(@CWeapon__show_crosshair_Patch), 5, true) then exit;
+
+  //общий патч сокрытия прицела от уровня сложности
+  patch_addr:=xrGame_addr+$4d8c43;
+  if not WriteJump(patch_addr, cardinal(@CHudTarget__Render_Patch), 6, true) then exit;
 
   result:=true;
 end;

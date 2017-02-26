@@ -7,7 +7,7 @@ procedure SetHudModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); 
 procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetWeaponMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
 procedure SetWorldModelMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
-function IKinematics__LL_BoneID(IKinematics:pointer; name:PChar):word;
+function IKinematics__LL_BoneID(IKinematics:pointer; name:PChar):word; stdcall;
 
 implementation
 uses BaseGameData, ActorUtils, HudItemUtils;
@@ -144,7 +144,7 @@ asm
     popad
 end;
 
-function IKinematics__LL_BoneID(IKinematics:pointer; name:PChar):word;
+function IKinematics__LL_BoneID(IKinematics:pointer; name:PChar):word; stdcall;
 asm
   mov @result, $FFFF
   pushad
@@ -154,17 +154,19 @@ asm
   test eax, eax
   je @finish
 
-  mov ebx, IKinematics
+  push eax
+  push esp
 
+  mov eax, IKinematics
+  mov ecx, [eax]
+  mov edx, [ecx+$10]
+  push eax
+  call edx
+  add esp, 4
+  mov @result, ax
 
   @finish:
   popad
-end;
-
-
-function GetBonePos(visual:pointer; name:PChar):pointer;
-asm
-
 end;
 
 

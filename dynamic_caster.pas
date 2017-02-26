@@ -15,6 +15,7 @@ const
   RTTI_CHudItem:cardinal = $635F48;
   RTTI_CWeapon:cardinal = $637268;
   RTTI_CObject:cardinal = $616020;
+  RTTI_CActor:cardinal = $635AB8;  
 
 implementation
 uses BaseGameData;

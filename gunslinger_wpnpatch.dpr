@@ -37,7 +37,10 @@ uses
   Misc in 'Misc.pas',
   MatVectors in 'MatVectors.pas',
   xr_BoneUtils in 'xr_BoneUtils.pas',
-  ActorDOF in 'ActorDOF.pas';
+  ActorDOF in 'ActorDOF.pas',
+  RayPick in 'RayPick.pas',
+  BallisticsCorrection in 'BallisticsCorrection.pas',
+  Level in 'Level.pas';
 
 {$R *.res}
 
@@ -71,6 +74,8 @@ begin
   hud_transp_r2.Init();
   hud_transp_r3.Init();
   hud_transp_r4.Init();
+
+  RayPick.Init();
 //  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;

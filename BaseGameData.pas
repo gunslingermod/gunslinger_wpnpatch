@@ -27,6 +27,7 @@ var
   xrGame_addr:cardinal;
   xrCore_addr:cardinal;
   xrEngine_addr:cardinal;
+  xrCDB_addr:cardinal;
   xrRender_R1_addr:cardinal;
   xrRender_R2_addr:cardinal;
   xrRender_R3_addr:cardinal;
@@ -45,6 +46,7 @@ const
   xrGame:PChar='xrGame';
   xrCore:PChar='xrCore';
   xrEngine:PChar='xrEngine.exe';
+  xrCDB:PChar='xrCDB';  
   xrRender_R1:PChar='xrRender_R1';  
   xrRender_R2:PChar='xrRender_R2';
   xrRender_R3:PChar='xrRender_R3';
@@ -219,7 +221,8 @@ begin
   xrGame_addr := GetModuleHandle(xrGame);
   xrCore_addr := GetModuleHandle(xrCore);
   xrEngine_addr:=GetModuleHandle(xrEngine);
-  xrRender_R1_addr:=GetModuleHandle(xrRender_R1);  
+  xrCDB_addr:=GetModuleHandle(xrCDB);
+  xrRender_R1_addr:=GetModuleHandle(xrRender_R1);
   xrRender_R2_addr:=GetModuleHandle(xrRender_R2);
   xrRender_R3_addr:=GetModuleHandle(xrRender_R3);
   xrRender_R4_addr:=GetModuleHandle(xrRender_R4);      
@@ -231,7 +234,8 @@ begin
   //в младших 16 битах GetModuleHandle может возвращать флаги - поэтому обнуляем их для получения адреса загрузки модуля 
   xrGame_addr := (xrGame_addr shr 16) shl 16;
   xrCore_addr := (xrCore_addr shr 16) shl 16;
-  xrRender_R1_addr := (xrRender_R1_addr shr 16) shl 16;  
+  xrCDB_addr:=(xrCDB_addr shr 16) shl 16;
+  xrRender_R1_addr := (xrRender_R1_addr shr 16) shl 16;
   xrRender_R2_addr := (xrRender_R2_addr shr 16) shl 16;
   xrRender_R3_addr := (xrRender_R3_addr shr 16) shl 16;
   xrRender_R4_addr := (xrRender_R4_addr shr 16) shl 16;

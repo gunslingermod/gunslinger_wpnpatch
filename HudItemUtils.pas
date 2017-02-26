@@ -1,6 +1,8 @@
 unit HudItemUtils;
 
 interface
+uses MatVectors;
+
 function Init():boolean;
 
 function GetPlayerHud():pointer; stdcall;
@@ -94,6 +96,13 @@ function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):bo
 function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
 function CHudItem__GetHUDMode(CHudItem:pointer):boolean; stdcall;
 
+procedure attachable_hud_item__GetBoneOffsetPosDir(this:pointer; bone:PChar;dest_pos:pFVector3; dest_dir:pFVector3; bone_offset:pFVector3);stdcall;
+
+procedure CShootingObject__UpdateParticles(wpn:pointer; CParticlesObject:pointer; pos:pFVector3; vel:pFVector3);stdcall;
+procedure CShootingObject__StartParticles(wpn:pointer; CParticlesObject:pointer; particles_name:PChar; pos:pFVector3; vel:pFVector3; auto_remove_flag:boolean);stdcall;
+procedure CShootingObject__StopParticles(wpn:pointer; CParticlesObject:pointer); stdcall;
+procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -139,7 +148,7 @@ const
 
 
 implementation
-uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils;
 var
   PlayHudAnim_Func:cardinal;
 
@@ -1223,6 +1232,233 @@ asm
   add eax, what
   mov eax, [eax]
   mov @result, eax
+end;
+
+procedure attachable_hud_item__GetBoneOffsetPosDir(this:pointer; bone:PChar;dest_pos:pFVector3; dest_dir:pFVector3; bone_offset:pFVector3);stdcall;stdcall;
+const
+  f_one:single=1.0;
+asm
+  pushad
+  push bone
+  mov ecx, this
+  push 0
+  mov eax, xrgame_addr
+  add eax, $2fd430
+  call eax
+
+  mov esi, this
+  push [esi+$0C]
+  call IKinematics__LL_BoneID
+  cmp ax, $FFFF
+  je @allbad
+
+  mov edi, dest_pos
+  mov esi, this
+  movzx edx, ax
+  mov eax,[esi+$0C] //mov eax, this->m_model
+  mov ecx,[eax]
+  push edx
+  push eax
+  mov eax,[ecx+$3C]
+  call eax         //call this->m_model->LL_GetTransform(bone_id)
+
+  //Fmatrix& fire_mat = this->m_model->LL_GetTransform(bone_id)
+  //fire_mat.transform_tiny(dest_pos, offset);
+  mov esi, bone_offset
+
+  movss xmm0,[eax+$10]
+  mulss xmm0,[esi+$04]
+  movss xmm1,[eax+$20]
+  mulss xmm1,[esi+$08]
+  addss xmm0,xmm1
+  movss xmm1,[esi+$00]
+  mulss xmm1,[eax]
+  addss xmm0,xmm1
+  addss xmm0,[eax+$30]
+  movss [edi+$00],xmm0
+
+  movss xmm0,[eax+$14]
+  mulss xmm0,[esi+$04]
+  movss xmm1,[eax+$04]
+  mulss xmm1,[esi+$00]
+  addss xmm0,xmm1
+  movss xmm1,[eax+$24]
+  mulss xmm1,[esi+$08]
+  addss xmm0,xmm1
+  addss xmm0,[eax+$34]
+  movss [edi+$04],xmm0
+
+  movss xmm0,[eax+$18]
+  mulss xmm0,[esi+$04]
+  movss xmm1,[eax+$08]
+  mulss xmm1,[esi+$00]
+  addss xmm0,xmm1
+  movss xmm1,[eax+$28]
+  mulss xmm1,[esi+$08]
+  addss xmm0,xmm1
+  addss xmm0,[eax+$38]
+  movss [edi+$08],xmm0
+
+  //m_item_transform.transform_tiny(dest_pos);
+  mov esi, this
+  movss xmm4,[edi+$04]
+  movss xmm1,[esi+$116]
+  movss xmm5,[edi+$00]
+  movss xmm2,[esi+$10A]
+  movaps xmm3,xmm0
+  movss xmm0,[esi+$106]
+  mulss xmm1,xmm3
+  mulss xmm0,xmm4
+  addss xmm0,xmm1
+  movss xmm1,[esi+$F6]
+  mulss xmm1,xmm5
+  mulss xmm2,xmm4
+  addss xmm0,xmm1
+  movss xmm1,[esi+$FA]
+  addss xmm0,[esi+$126]
+  mulss xmm1,xmm5
+  addss xmm1,xmm2
+  movss xmm2,[esi+$11A]
+  mulss xmm2,xmm3
+  addss xmm1,xmm2
+  movss xmm2,[esi+$FE]
+  addss xmm1,[esi+$12A]
+  mulss xmm2,xmm5
+  movss xmm5,[esi+$10E]
+  mulss xmm5,xmm4
+  movss xmm4,[esi+$11E]
+  addss xmm2,xmm5
+  mulss xmm4,xmm3
+  addss xmm2,xmm4
+  addss xmm2,[esi+$12E]
+  movss [edi+$00],xmm0
+  movss [edi+$04],xmm1
+  movss [edi+$08],xmm2
+
+  //dest_dir.set(0.f,0.f,1.f);
+  mov edi, dest_dir
+  movss xmm4,f_one
+  xorps xmm0,xmm0
+  movss [edi+$00],xmm0
+  movss [edi+$04],xmm0
+  movss [edi+$08],xmm4
+
+  //m_item_transform.transform_dir(dest_dir);
+  movss xmm1,[esi+$106]
+  movss xmm2,[esi+$116]
+  movaps xmm6,xmm0
+  movaps xmm5,xmm4
+  movaps xmm7,xmm0
+  mulss xmm1,xmm6
+  movss xmm3,[esi+$10A]
+  mulss xmm2,xmm5
+  addss xmm1,xmm2
+  movss xmm2,[esi+$F6]
+  mulss xmm2,xmm7
+  mulss xmm3,xmm6
+  addss xmm1,xmm2
+  movss xmm2,[esi+$FA]
+  mulss xmm2,xmm7
+  addss xmm2,xmm3
+  movss xmm3,[esi+$11A]
+  mulss xmm3,xmm5
+  addss xmm2,xmm3
+  movss xmm3,[esi+$FE]
+  mulss xmm3,xmm7
+  movss xmm7,[esi+$10E]
+  mulss xmm7,xmm6
+  movss xmm6,[esi+$11E]
+  movss [edi+$00],xmm1
+  movss [edi+$04],xmm2
+  addss xmm3,xmm7
+  mulss xmm6,xmm5
+  addss xmm3,xmm6
+  movss [edi+$08],xmm3 
+  jmp @finish
+
+  @allbad:
+  mov eax, dest_pos;
+  mov [eax], 0
+  mov [eax+4], 0
+  mov [eax+8], 0
+
+  mov eax, dest_dir;
+  xorps xmm0,xmm0
+  movss [eax], xmm0
+  movss [eax+4], xmm0
+  movss xmm0, f_one
+  movss [eax+8], xmm0
+
+  @finish:
+  popad
+end;
+
+procedure CShootingObject__UpdateParticles(wpn:pointer; CParticlesObject:pointer; pos:pFVector3; vel:pFVector3);stdcall;
+asm
+  pushad
+  push vel
+  push pos
+  push CParticlesObject
+  mov ecx, wpn
+  add ecx, $338
+  mov eax, xrgame_addr
+  add eax, $2bb5d0
+  call eax
+  popad
+end;
+
+procedure CShootingObject__StartParticles(wpn:pointer; CParticlesObject:pointer; particles_name:PChar; pos:pFVector3; vel:pFVector3; auto_remove_flag:boolean);stdcall;
+asm
+  pushad
+  movzx eax, auto_remove_flag
+  push eax
+  push vel
+  push pos
+  push particles_name
+  push CParticlesObject
+  mov ecx, wpn
+  add ecx, $338
+  mov eax, xrgame_addr
+  add eax, $2bbaa0
+  call eax
+  popad
+end;
+
+procedure CShootingObject__StopParticles(wpn:pointer; CParticlesObject:pointer); stdcall;
+asm
+  pushad
+  push CParticlesObject
+  mov ecx, wpn
+  add ecx, $338
+  mov eax, xrgame_addr
+  add eax, $2BA610
+  call eax
+  popad
+end;
+
+procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdcall;
+asm
+  pushad
+    mov edi, ecx
+    mov eax, [edi+$80] //this->renderable.visual
+    test eax, eax
+    je @finish
+    push eax
+    mov eax, xrgame_addr
+    add eax, $348590
+    call eax          //cast to IParticleCustom
+    add esp, 4
+    test eax, eax
+    je @finish
+
+    mov ecx, eax
+    mov edx, [eax]
+    mov edx, [edx+$30]
+    movzx eax, status
+    push eax
+    call edx
+    @finish:
+  popad
 end;
 
 end.

@@ -90,7 +90,6 @@ begin
   end else begin
     CScriptParticles__PlayAtPos(this, pos);
   end;
-
 end;
 
 function CScriptParticles__IsPlaying(this:pointer):boolean;stdcall;

@@ -1,7 +1,22 @@
 unit WeaponAdditionalBuffer;
 
 interface
-uses xr_ScriptParticles;
+uses MatVectors;
+
+type dist_switch = record
+  name:PChar;
+  startdist:single;
+end;
+
+type laserdot_params = packed record
+    particles_cur:PChar;
+    bone_name:PChar;
+    ray_bones:PChar;
+    offset:FVector3;
+    always_hud:boolean;
+    always_world:boolean;
+    hud_treshold:single;
+end;
 
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
@@ -26,21 +41,24 @@ type
 
     _wanim_force_assign:boolean;
 
-    _laserdot:CScriptParticles;
     _laser_enabled:boolean;
     _laser_installed:boolean;
+    _laserdot:laserdot_params;
+    _laserdot_particle_object:pointer;
+    _laserdot_particles_distwitch:array of dist_switch;
+
 
     _is_ammo_in_chamber:boolean;
     _save_cartridge_in_chamber:boolean;
     _add_cartridge_in_open:boolean;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
-    procedure _DestructLaserDot();
 
     public
 
     ammos:array of byte;
     is_firstlast_ammo_swapped:boolean;
+
 
     constructor Create(wpn:pointer);
     destructor Destroy; override;
@@ -67,14 +85,15 @@ type
     procedure SetLockTime(time:cardinal);
     procedure MakeLockByConfigParam(section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
 
-    procedure SetLaserDotParticle(particlename: PChar);
-    procedure PlayLaserDotParticleAt(vector:pointer);
-    procedure StopLaserParticle();
     function IsLaserEnabled():boolean;
     function IsLaserInstalled():boolean;
-    procedure SetLaserInstalledStatus(status:boolean);
-    procedure SetLaserEnabledStatus(status:boolean);    
-    function IsLaserDotInited():boolean;
+    function GetLaserDotData():laserdot_params;
+    procedure InstallLaser(params_section:PChar);
+    procedure SetLaserEnabledStatus(status:boolean);
+    procedure PlayLaserdotParticle(pos:pFVector3; dist:single);
+    procedure StopLaserdotParticle();
+    procedure SetLaserDotParticleHudStatus(status:boolean);
+
     function IsAmmoInChamber():boolean;
     function SaveAmmoInChamber():boolean;
     function AddCartridgeAfterOpen():boolean;
@@ -103,9 +122,8 @@ type
   function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
-
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, MatVectors, ActorDOF;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils;
 
 { WpnBuf }
 
@@ -133,9 +151,11 @@ begin
   _needs_unzoom:=false;
   _wanim_force_assign:=false;
 
-  InitCScriptParticles(_laserdot);
   _laser_enabled:= (Random>0.5);
   _laser_installed:=false;
+  _laserdot_particle_object:=nil;
+  _laserdot.particles_cur:=nil;
+  SetLength(self._laserdot_particles_distwitch, 0);
 
   setlength(ammos, 0);
   is_firstlast_ammo_swapped:=false;
@@ -149,9 +169,10 @@ end;
 
 destructor WpnBuf.Destroy;
 begin
+  StopLaserdotParticle();
+  setlength(self._laserdot_particles_distwitch, 0);
   setlength(ammos, 0);
   _SetWpnBufPtr(_my_wpn, nil);
-  _DestructLaserDot();
   inherited;
 end;
 
@@ -384,6 +405,7 @@ function CanAimNow(wpn:pointer):boolean;stdcall;
 var
   tmp:pointer;
 begin
+  result:=true;
   if leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim' then
     //на случай, если мы недовышли из прицеливания
     result:=true
@@ -392,7 +414,7 @@ begin
   else begin
     if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
       tmp:=GetActiveDetector(GetActor());
-      if (tmp<>nil) and (GetCurrentState(tmp)<>EHudStates__eIdle) then
+      if (tmp<>nil) and (cardinal(GetCurrentState(tmp))<>EHudStates__eIdle) then
         result:=false
       else
         result:=true;
@@ -499,7 +521,7 @@ begin
 
     act:=GetActor;
     det := GetActiveDetector(act);
-    if (det<>nil) and (GetCurrentState(det)=CHUDState__eShowing) then result:=false;
+    if (det<>nil) and (cardinal(GetCurrentState(det))=CHUDState__eShowing) then result:=false;
   end;
 end;
 
@@ -597,48 +619,10 @@ begin
     result:=false;
 end;
 
-procedure WpnBuf._DestructLaserDot;
-begin
-//  log('Destruct laserdot');
-  if IsLaserDotInited then begin
-//    log ('vftable == '+inttohex(cardinal(_laserdot.vftable),8));
-    CScriptParticles__destructor(@_laserdot);
-  end;
-  InitCScriptParticles(_laserdot);
-end;
-
-procedure WpnBuf.SetLaserDotParticle(particlename: PChar);
-begin
-//  log('SetLaserDotParticle');
-  if IsLaserDotInited then _DestructLaserDot;
-  if particlename<>nil then CScriptParticles__constructor(@_laserdot, particlename);
-end;
 
 function WpnBuf.IsLaserEnabled: boolean;
 begin
   result:=_laser_enabled;
-end;
-
-function WpnBuf.IsLaserDotInited: boolean;
-begin
-  result:=_laserdot.vftable<>nil;
-end;
-
-procedure WpnBuf.PlayLaserDotParticleAt(vector: pointer);
-var
-  zerovec:FVector3;
-begin
-  if not IsLaserDotInited() then exit;
-  CScriptParticles__Stop(@_laserdot);
-  CScriptParticles__PlayAtPos(@_laserdot, vector);
-{  if not CScriptParticles__IsPlaying(@_laserdot) then begin
-    CScriptParticles__PlayAtPos(@_laserdot, vector);
-  end else begin
-    zerovec.x:=0;
-    zerovec.y:=0;
-    zerovec.z:=0;
-    CScriptParticles__MoveTo(@_laserdot, vector, @zerovec);
-  end;}
 end;
 
 function WpnBuf.IsLaserInstalled: boolean;
@@ -651,10 +635,6 @@ begin
   self._laser_enabled:=status;
 end;
 
-procedure WpnBuf.SetLaserInstalledStatus(status: boolean);
-begin
-  self._laser_installed:=status;
-end;
 
 function WpnBuf.IsAmmoInChamber: boolean;
 begin
@@ -671,10 +651,87 @@ begin
   result:=self._add_cartridge_in_open;
 end;
 
-procedure WpnBuf.StopLaserParticle;
+procedure WpnBuf.InstallLaser(params_section: PChar);
+var
+  i:integer;
+  len:integer;
 begin
-  if IsLaserDotInited and CScriptParticles__IsPlaying(@_laserdot) then begin
-    CScriptParticles__Stop(@_laserdot);
+  if IsLaserInstalled() then exit;
+  _laserdot_particle_object:=nil;
+  _laserdot.particles_cur:=nil;
+
+  len:=game_ini_r_int_def(params_section, 'particles_count', 1);
+  if len<1 then len:=1;
+
+  setlength(self._laserdot_particles_distwitch, len);
+  for i:=0 to len-1 do begin
+    _laserdot_particles_distwitch[i].name:=game_ini_read_string(params_section, PChar('laserdot_particle_'+inttostr(i)));
+    if i=0 then begin
+      _laserdot_particles_distwitch[i].startdist:=0;
+    end else begin
+      _laserdot_particles_distwitch[i].startdist:=game_ini_r_single_def(params_section, PChar('laserdot_dist_'+inttostr(i)), -1);
+      if _laserdot_particles_distwitch[i].startdist<_laserdot_particles_distwitch[i-1].startdist then _laserdot_particles_distwitch[i].startdist:=_laserdot_particles_distwitch[i-1].startdist;
+    end;
+  end;
+
+  _laserdot.ray_bones:=game_ini_read_string(params_section, 'laser_ray_bones');
+  _laserdot.bone_name:=game_ini_read_string(params_section, 'laserdot_attach_bone');
+  _laserdot.offset.x:=game_ini_r_single_def(params_section, 'laserdot_attach_offset_x', 0.0);
+  _laserdot.offset.y:=game_ini_r_single_def(params_section, 'laserdot_attach_offset_y', 0.0);
+  _laserdot.offset.z:=game_ini_r_single_def(params_section, 'laserdot_attach_offset_z', 0.0);
+
+  _laserdot.always_hud:=game_ini_r_bool_def(GetHUDSection(_my_wpn), 'laserdot_always_hud', false);
+  _laserdot.always_world:=game_ini_r_bool_def(GetHUDSection(_my_wpn), 'laserdot_always_world', false);
+  _laserdot.hud_treshold:=cos(game_ini_r_single_def(GetHUDSection(_my_wpn), 'laserdot_hud_treshold', 10)*pi/180);
+  self._laser_installed:=true;
+end;
+
+function WpnBuf.GetLaserDotData: laserdot_params;
+begin
+  result:=self._laserdot;
+end;
+
+procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single);
+var
+  zero_vel:FVector3;
+  index, i:integer;
+begin
+  if (not self.IsLaserInstalled) or (not self.IsLaserEnabled) then exit;
+
+  if length(self._laserdot_particles_distwitch)>1 then begin
+    index:=-1;
+    for i:=0 to length(self._laserdot_particles_distwitch)-2 do begin
+      if (dist>=_laserdot_particles_distwitch[i].startdist) and (dist<=_laserdot_particles_distwitch[i+1].startdist) then begin
+        index:=i;
+        break;
+      end;
+    end;
+    if index=-1 then index := length(self._laserdot_particles_distwitch)-1;
+  end else index:=0;
+
+  if _laserdot.particles_cur<>self._laserdot_particles_distwitch[index].name then begin
+    StopLaserdotParticle();
+  end;
+  zero_vel.x:=0;
+  zero_vel.y:=0;
+  zero_vel.z:=0;
+  _laserdot.particles_cur:=_laserdot_particles_distwitch[index].name;
+  CShootingObject__StartParticles(self._my_wpn, @self._laserdot_particle_object, _laserdot.particles_cur, pos, @zero_vel, false);
+
+end;
+
+procedure WpnBuf.StopLaserdotParticle;
+begin
+  CShootingObject__StopParticles(self._my_wpn, @self._laserdot_particle_object);
+  _laserdot.particles_cur := nil;
+end;
+
+
+
+procedure WpnBuf.SetLaserDotParticleHudStatus(status: boolean);
+begin
+  if self._laserdot_particle_object<>nil then begin
+    SetParticlesHudStatus(self._laserdot_particle_object, status);
   end;
 end;
 
