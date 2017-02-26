@@ -77,12 +77,14 @@ function GetTargetDist():single;
 
 
 implementation
-uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster;
+uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate;
 
 var
   _keyflags:cardinal;
   _last_act_slot:integer;
   _prev_act_slot:integer;
+
+  _last_act_item:pointer;
 
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:boolean;
@@ -529,6 +531,12 @@ begin
   ProcessKeys(act);
   UpdateFOV(act);
 
+  itm:=GetActorActiveItem();
+  if (_last_act_item<>nil) and (_last_act_item<>itm) then begin
+    if (GetBuffer(_last_act_item)<>nil) then CWeapon__ModUpdate(_last_act_item);
+  end;
+  _last_act_item:=itm;
+
 end;
 
 procedure ActorUpdate_Patch(); stdcall
@@ -702,7 +710,8 @@ begin
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}  
   _prev_act_slot:=-1;
-  _last_act_slot:=-1;  
+  _last_act_slot:=-1;
+  _last_act_item:=nil; 
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;

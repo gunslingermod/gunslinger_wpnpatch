@@ -66,7 +66,7 @@ procedure SetCurrentParticles(wpn:pointer; name:PChar; part_type:cardinal); stdc
 function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
 procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
-procedure JamWeapon(wpn:pointer); stdcall;
+procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
 function IsThrowable(cls:PChar):boolean;stdcall;
 function IsBino(cls:PChar):boolean;stdcall;
@@ -693,7 +693,7 @@ end;
 function WpnCanShoot(cls:PChar):boolean;stdcall;
 begin
 //  result:=not((cls='G_RGD5_S') or (cls='II_BOLT') or (cls='DET_SIMP') or (cls='DET_ADVA') or (cls = 'DET_ELIT') or (cls = 'G_F1_S') or (cls = 'DET_ELIT') or (cls = 'WP_BINOC') or (cls = 'WP_KNIFE') or (cls = 'ARTEFACT') or (cls='D_FLARE'));
-  result:=(cls='WP_AK74') or (cls='WP_LR300') or (cls='WP_BM16') or (cls='WP_PM') or (cls='WP_GROZA') or (cls='WP_SVD') or (cls='WP_HPSA') or (cls='WP_ASHTG') or (cls='WP_RG6') or (cls='WP_RPG7') or (cls='WP_VAL') or (cls='WP_VAL');
+  result:=(cls='WP_AK74') or (cls='WP_LR300') or (cls='WP_BM16') or (cls='WP_PM') or (cls='WP_GROZA') or (cls='WP_SVD') or (cls='WP_HPSA') or (cls='WP_ASHTG') or (cls='WP_RG6') or (cls='WP_RPG7') or (cls='WP_VAL') or (cls='WP_SHOTG');
 end;
 
 function IsThrowable(cls:PChar):boolean;stdcall;
@@ -1116,13 +1116,17 @@ asm
   mov eax, [eax+$690]
   mov @result, eax
 end;
+procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
+asm
+  push eax
+  push ebx
 
-procedure JamWeapon(wpn:pointer); stdcall;
-begin
-  asm
-    mov eax, wpn
-    mov byte ptr [eax+$45A], 1
-  end;
+  mov eax, wpn
+  mov bl, status
+  mov byte ptr [eax+$45A], bl
+
+  pop ebx
+  pop eax
 end;
 
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;

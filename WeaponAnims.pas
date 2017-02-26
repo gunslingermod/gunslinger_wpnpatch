@@ -602,8 +602,28 @@ var
   buf:WpnBuf;
   hud_sect:PChar;
 begin
+  if IsWeaponJammed(wpn) then begin
+    anim_name := ModifierStd(wpn, 'anm_reload');
+    if GetAmmoInMagCount(wpn)=0 then anim_name:=anim_name+'_last';
+
+    if GetAmmoInMagCount(wpn)>0 then begin
+      CHudItem_Play_Snd(wpn, 'sndReloadJammed');
+    end else begin
+      CHudItem_Play_Snd(wpn, 'sndReloadJammedLast');
+    end;
+
+    result:=PChar(anim_name);
+    exit;
+  end;
+
   anim_name := ModifierStd(wpn, 'anm_open');
   result:=PChar(anim_name);
+
+  if GetCurrentAmmoCount(wpn)>0 then begin
+    CHudItem_Play_Snd(wpn, 'sndOpen');
+  end else begin
+    CHudItem_Play_Snd(wpn, 'sndOpenEmpty');
+  end;
 
   buf:=GetBuffer(wpn);
   if buf <> nil then begin
@@ -1613,7 +1633,8 @@ begin
   jump_addr:=xrGame_addr+$2F977F;
   if not WriteJump(jump_addr, cardinal(@CHudItem__OnMovementChanged_Patch), 18, true) then exit;
 
-
+  //глушим звук sndOpen у дробовиков, т.к. теперь он полностью под нашим контролем
+  nop_code(xrGame_addr+$2DE6D5, 8);
 
   //теперь прописываем обработчики анимаций
   jump_addr:=xrGame_addr+$2F9FBC; //anm_idle
@@ -1771,9 +1792,6 @@ begin
   //CWeaponPistol::PlayAnimShoot
   jump_addr:=xrGame_addr+$2C5597;
   if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
-
-  //удалим условие, которое не дает расклинивать оружие, если патронов к нему нет ни в инвентаре, ни в магазине
-  nop_code(xrGame_addr+$2D00B4,2);
 
   result:=true;
 end;

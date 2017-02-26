@@ -4,9 +4,12 @@ interface
 function Init:boolean;
 //function WpnUpdate(wpn:pointer):boolean; stdcall;
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
+procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 
 implementation
 uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils;
+
+
 
 var patch_addr:cardinal;
   tst_light:pointer;
@@ -31,15 +34,17 @@ begin
   end else begin
     SetWeaponMultipleBonesStatus(wpn, laser_bones, true);
   end;
-
 //TODO:добавить проверку на то, отрисовывается ли сейчас худ или нет
-
-  if (act=nil) or (act<>GetOwner(wpn)) or (GetActorActiveItem()<>wpn) or not buf.IsLaserEnabled() or IsDemoRecord() then begin
+  if (act=nil) or (act<>GetOwner(wpn)) or (GetActorActiveItem()<>wpn) or (GetNextState(wpn)=EHudStates__eHidden) or  (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
+//  if (act=nil) or (act<>GetOwner(wpn)) then begin// or (GetCurrentState(wpn)=CHUDState__eHidden) or (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
+//    log(inttostr(cardinal(wpn)));
     if buf.IsLaserDotInited() then begin
       buf.SetLaserDotParticle(nil);
     end;
     exit;
   end;
+
+
 
   if not buf.IsLaserDotInited() then begin
     buf.SetLaserDotParticle(laser_particle);
@@ -309,9 +314,7 @@ begin
   SetAnimForceReassignStatus(wpn, false);
 end;
 
-procedure CWeapon__UpdateCL(wpn:pointer); stdcall;
-const
-  a:single = 1.0;
+procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
   sect:PChar;
@@ -376,11 +379,10 @@ procedure CWeapon__UpdateCL_Patch();stdcall;
 asm
     pushad
       push esi
-      call CWeapon__UpdateCL
+      call CWeapon__ModUpdate
     popad
     mov eax, [esi+$338]
 end;
-
 
 
 function AdditionalCrosshairHideConditions(wpn:pointer):boolean; stdcall;
@@ -425,6 +427,7 @@ begin
   patch_addr:=xrGame_addr+$2C04A0;
   if not WriteJump(patch_addr, cardinal(@CWeapon__UpdateCL_Patch), 6, true) then exit;
 
+
   //патч CWeapon::show_crosshair, чтобы при установленном ЛЦУ перекрестие скрывалось
   patch_addr:=xrGame_addr+$2bd1e5;
   if not WriteJump(patch_addr, cardinal(@CWeapon__show_crosshair_Patch), 5, true) then exit;
@@ -432,3 +435,4 @@ begin
   result:=true;
 end;
 end.
+

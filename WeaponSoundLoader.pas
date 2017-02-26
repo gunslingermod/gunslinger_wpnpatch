@@ -86,6 +86,8 @@ begin
 
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_laser_on', 'sndLaserOn', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_laser_off', 'sndLaserOff', 1, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_open_weapon_empty', 'sndOpenEmpty', 1, $80040000);
 end;
 
 procedure LoadSounds_Knife(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;

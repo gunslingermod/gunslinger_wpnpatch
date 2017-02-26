@@ -227,7 +227,7 @@ end;
 //-----------------------------------------anm_close в случае ручного прерывания релоада----------------------------
 procedure CWeaponShotgun__Action_OnStopReload(wpn:pointer); stdcall;
 begin
-  if GetSubState(wpn)=EWeaponSubStates__eSubStateReloadEnd then exit;
+  if (GetSubState(wpn)=EWeaponSubStates__eSubStateReloadEnd) or (IsWeaponJammed(wpn)) then exit;
   if not IsActionProcessing(wpn) then begin
     SetSubState(wpn, EWeaponSubStates__eSubStateReloadEnd);
     virtual_CHudItem_SwitchState(wpn,EWeaponStates__eReload);
@@ -249,11 +249,19 @@ procedure CWeaponMagazined__OnAnimationEnd_anm_open(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
 begin
+  if IsWeaponJammed(wpn) then begin
+    SetWeaponMisfireStatus(wpn, false);
+    SetSubState(wpn, EWeaponSubStates__eSubStateReloadBegin);
+    virtual_CHudItem_SwitchState(wpn, EHudStates__eIdle);
+    exit;
+  end;
+
   SetSubState(wpn, EWeaponSubStates__eSubStateReloadInProcess); //вырезанное
   buf:=GetBuffer(wpn);
   if (buf<>nil) and buf.AddCartridgeAfterOpen() then begin
     CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn);
   end;
+  virtual_CHudItem_SwitchState(wpn, EWeaponStates__eReload);
 end;
 
 procedure CWeaponMagazined__OnAnimationEnd_anm_open_Patch(); stdcall;
@@ -262,6 +270,30 @@ asm
   sub esi, $2e0
   push esi
   call CWeaponMagazined__OnAnimationEnd_anm_open
+  popad
+end;
+
+//-------------------------------------------------------Условие на расклин без патронов в инвентаре-----------------------------------------
+function CWeaponShotgun_Needreload(wpn:pointer):boolean; stdcall;
+begin
+  result:= (IsWeaponJammed(wpn) or CWeaponShotgun__HaveCartridgeInInventory(wpn, 1));
+end;
+
+procedure CWeaponShotgun__TriStateReload_Needreload_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CWeaponShotgun_Needreload
+    test al, al
+  popad
+end;
+
+procedure CWeaponShotgun__OnStateSwitch_Needreload_Patch(); stdcall;
+asm
+  pushad
+    push edi
+    call CWeaponShotgun_Needreload
+    test al, al
   popad
 end;
 
@@ -288,8 +320,8 @@ begin
   if not WriteJump(addr, cardinal(@CWeaponMagazined__OnAnimationEnd_DoReload_Patch), 20, true) then exit;
 
   //опциональное добавление патрона после anm_open
-  addr:=xrGame_addr+$2DE422;
-  if not WriteJump(addr, cardinal(@CWeaponMagazined__OnAnimationEnd_anm_open_Patch), 7, true) then exit;
+  addr:=xrGame_addr+$2DE41C;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__OnAnimationEnd_anm_open_Patch), 15, true) then exit;
 
   //При смене типа патронов магазин разряжается - заставляем оставить последний патрон неразряженным
   nop_code(xrGame_addr+$2D10D8, 2); //убираем условие на неравенство секций последнего патрона и заряжаемого
@@ -315,6 +347,20 @@ begin
   //патрон в патроннике+анимация расклинивания+отвечает за добавление патрона в магазин
   addr:=xrGame_addr+$2DE3ED;
   if not WriteJump(addr, cardinal(@CWeaponShotgun__OnAnimationEnd_OnAddCartridge_Patch), 22, true) then exit;
+
+  //удалим условие, которое не дает расклинивать CWeaponMagazined, если патронов к нему нет ни в инвентаре, ни в магазине
+  nop_code(xrGame_addr+$2D00B4,2);
+
+  //дадим возможность расклинивать дробовик, когда в инвентаре нет патронов
+  addr:=xrGame_addr+$2DE94A;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__TriStateReload_Needreload_Patch), 11, true) then exit;
+  addr:=xrGame_addr+$2DE9D1;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__OnStateSwitch_Needreload_Patch), 11, true) then exit;
+  addr:=xrGame_addr+$2DEA19;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__OnStateSwitch_Needreload_Patch), 11, true) then exit;
+  //addr:=xrGame_addr+$2DEA00;
+  //if not WriteJump(addr, cardinal(@CWeaponShotgun__OnStateSwitch_Needreload_Patch), 11, true) then exit;
+
 
 {$ifdef DISABLE_AUTOAMMOCHANGE}
   addr:=xrGame_addr+$2D00FF;

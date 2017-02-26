@@ -71,6 +71,7 @@ type
 
     procedure SetLaserDotParticle(particlename: PChar);
     procedure PlayLaserDotParticleAt(vector:pointer);
+    procedure StopLaserParticle();
     function IsLaserEnabled():boolean;
     function IsLaserInstalled():boolean;
     procedure SetLaserInstalledStatus(status:boolean);
@@ -659,6 +660,13 @@ end;
 function WpnBuf.AddCartridgeAfterOpen: boolean;
 begin
   result:=self._add_cartridge_in_open;
+end;
+
+procedure WpnBuf.StopLaserParticle;
+begin
+  if IsLaserDotInited and CScriptParticles__IsPlaying(@_laserdot) then begin
+    CScriptParticles__Stop(@_laserdot);
+  end;
 end;
 
 end.
