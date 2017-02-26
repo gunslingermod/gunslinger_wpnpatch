@@ -18,7 +18,6 @@ type
     _do_action_after_anim_played:TAnimationEffector;
     _action_param:integer;
     _my_wpn:pointer;
-    _ammo_count_for_reload:integer;
 
     _last_update_time:cardinal;
     _lock_remain_time:cardinal;
@@ -31,6 +30,10 @@ type
     _laser_enabled:boolean;
     _laser_installed:boolean;
 
+    _is_ammo_in_chamber:boolean;
+    _save_cartridge_in_chamber:boolean;
+    _add_cartridge_in_open:boolean;
+
 
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
@@ -38,14 +41,15 @@ type
 
     public
 
+    ammos:array of byte;
+    is_firstlast_ammo_swapped:boolean;
+
     constructor Create(wpn:pointer);
     destructor Destroy; override;
     function PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
 
     function Update():boolean;
 
-    procedure SetReloadAmmoCnt(cnt:integer);
-    function GetReloadAmmoCnt():integer;
 
     procedure SetBeforeReloadAmmoCnt(cnt:integer);
     function GetBeforeReloadAmmoCnt():integer;
@@ -72,6 +76,9 @@ type
     procedure SetLaserInstalledStatus(status:boolean);
     procedure SetLaserEnabledStatus(status:boolean);    
     function IsLaserDotInited():boolean;
+    function IsAmmoInChamber():boolean;
+    function SaveAmmoInChamber():boolean;
+    function AddCartridgeAfterOpen():boolean;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -114,7 +121,6 @@ begin
   _my_wpn := wpn;
   _lock_remain_time:=0;
   self._current_anim:='';
-  _ammo_count_for_reload:=-1;
   _is_weapon_explosed:=false;
   _owner:=GetOwner(wpn);
 
@@ -131,11 +137,20 @@ begin
   _laser_enabled:= (Random>0.5);
   _laser_installed:=false;
 
+  setlength(ammos, 0);
+  is_firstlast_ammo_swapped:=false;
+
+  _is_ammo_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'ammo_in_chamber', false);
+  _save_cartridge_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'save_cartridge_in_ammochange', true);
+
+  _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
+
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
 
 destructor WpnBuf.Destroy;
 begin
+  setlength(ammos, 0);
   _SetWpnBufPtr(_my_wpn, nil);
   _DestructLaserDot();
   inherited;
@@ -180,16 +195,6 @@ begin
     result:=self._current_anim;
   end else begin
     result:=GetActualCurrentAnim(self._my_wpn);
-  end;
-end;
-
-function WpnBuf.GetReloadAmmoCnt: integer;
-begin
-  if self._ammo_count_for_reload>=0 then begin
-    result:=self._ammo_count_for_reload;
-  end else begin
-    result:=0;
-    log('WpnBuf.GetReloadAmmoCnt: negative value found; uninitialized?');
   end;
 end;
 
@@ -294,11 +299,6 @@ begin
   self._lock_remain_time:=time;
 end;
 
-procedure WpnBuf.SetReloadAmmoCnt(cnt: integer);
-begin
-  self._ammo_count_for_reload:=cnt;
-end;
-
 procedure WpnBuf.SetReloaded(status: boolean);
 begin
   self._reloaded:=status;
@@ -376,14 +376,23 @@ begin
 end;
 
 function CanAimNow(wpn:pointer):boolean;stdcall;
+var
+  tmp:pointer;
 begin
   if leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim' then
     //на случай, если мы недовышли из прицеливания
     result:=true
-  else if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsHolderHasActiveDetector(wpn) then
+  else if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'disable_aim_with_detector', false) {or IsHolderHasActiveDetector(wpn)} then
     result:=false
-  else
-    result:=true;
+  else begin
+    if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
+      tmp:=GetActiveDetector(GetActor());
+      if (tmp<>nil) and (GetCurrentState(tmp)<>EHudStates__eIdle) then
+        result:=false
+      else
+        result:=true;
+    end;
+  end;
 end;
 
 function CanLeaveAimNow(wpn:pointer):boolean;stdcall;
@@ -427,7 +436,7 @@ begin
     result:=false
   else begin
     hud_sect:=GetHUDSection(wpn);
-    if game_ini_line_exist(PChar(hud_sect), 'disable_bore') and game_ini_r_bool(PChar(hud_sect), 'disable_bore') then
+    if game_ini_r_bool_def(PChar(hud_sect), 'disable_bore', true) then
       result:=false
     else
       result:=true;
@@ -635,6 +644,21 @@ end;
 procedure WpnBuf.SetLaserInstalledStatus(status: boolean);
 begin
   self._laser_installed:=status;
+end;
+
+function WpnBuf.IsAmmoInChamber: boolean;
+begin
+  result:=self._is_ammo_in_chamber;
+end;
+
+function WpnBuf.SaveAmmoInChamber: boolean;
+begin
+  result:=self._save_cartridge_in_chamber;
+end;
+
+function WpnBuf.AddCartridgeAfterOpen: boolean;
+begin
+  result:=self._add_cartridge_in_open;
 end;
 
 end.

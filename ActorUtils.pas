@@ -10,7 +10,7 @@ const
   actMovingBack:cardinal = $2;
   actMovingLeft:cardinal = $4;
   actMovingRight:cardinal = $8;
-  actCrounch:cardinal = $10;
+  actCrouch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
 
@@ -19,6 +19,7 @@ const
   actModSprintStarted:cardinal = $10000000;
   actModNeedMoveReassign:cardinal = $20000000;
   actModDetectorSprintStarted:cardinal = $40000000;
+  actModDetectorAimStarted:cardinal = $80000000;
 
   mState_WISHFUL:cardinal = $58c;
   mState_OLD:cardinal = $590;
@@ -329,7 +330,6 @@ begin
   end else if (not WpnCanShoot(PChar(GetClassName(wpn)))) then begin
     //Реактивация после блока у болта, грены, ножа, вызванного доставанием детектора.
     if (IsThrowable(PChar(GetClassName(wpn))) or IsKnife(PChar(GetClassName(wpn)))) then begin
-
       if ((_keyflags and kfFIRE)<>0) then
         action:=kWPN_FIRE
       else if ((_keyflags and kfZOOM)<>0) then
@@ -345,9 +345,15 @@ begin
           SetActorKeyRepeatFlag(kfZOOM, false);
         end;
       end;
+
     end;
 
     wpn:=nil;
+  end else begin
+    if not IsActionProcessing(wpn) and ((_keyflags and kfFIRE)<>0) then begin
+      virtual_Action(wpn, kWPN_FIRE, kActPress);
+      SetActorKeyRepeatFlag(kfFIRE, false);
+    end;
   end;
 
   if IsSprintOnHoldEnabled() and (not IsActionKeyPressedInGame(kWPN_ZOOM)) and (_keyflags=0) and (CDialogHolder__TopInputReceiver()=nil) then begin
@@ -600,7 +606,7 @@ function CActor__OnKeyboardPress(dik:cardinal):boolean; stdcall;
 var
   act:pointer;
   wpn, det:pointer;
-  iswpnthrowable:boolean;
+  iswpnthrowable, canshoot, is_bino:boolean;
   state:cardinal;
   cls:PChar;
 begin
@@ -612,26 +618,34 @@ begin
   if act = nil then exit;
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
+  if (wpn<>nil) then begin
+    iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
+    canshoot:=WpnCanShoot(PChar(GetClassName(wpn)));
+    is_bino:=IsBino(PChar(GetClassName(wpn)));
+    state:=GetCurrentState(wpn);
+  end;
 
   if dik = kDETECTOR then begin
       if (wpn<>nil) then begin
-        iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
-        state:=GetCurrentState(wpn);
         if
           (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)))
           or
           (not iswpnthrowable and ((state=EWeaponStates__eReload) or (state=EWeaponStates__eSwitch) or (state=EWeaponStates__eFire) or (state=EWeaponStates__eFire2)))
           or
           (IsActionProcessing(wpn))
+          or
+          (canshoot or is_bino) and (IsAimNow(wpn) or IsHolderinAimState(wpn))
+          or
+          GetActorActionState(act, actModDetectorSprintStarted)
         then begin
           result:=false;
         end;
       end;
 
-      if (GetActorActionState(act, actSprint) or GetActorActionState(act, actModSprintStarted)) then begin
-        SetActorKeyRepeatFlag(kfDETECTOR, true);
+      {if (GetActorActionState(act, actSprint) or GetActorActionState(act, actModSprintStarted)) then begin
+        SetActorKeyRepeatFlag(kfDETECTOR, true);  //не сработает с детектором :(
         SetActorActionState(act, actSprint, false, mState_WISHFUL);
-      end;
+      end;}
   end else if ((dik=kWPN_FIRE) or (dik=kWPN_ZOOM)) then begin
     if (det<>nil) and (wpn<>nil) then begin
       cls:=PChar(GetClassName(wpn));
@@ -646,12 +660,12 @@ begin
     end;
   end else if ((dik=kWPN_1) or (dik=kWPN_2) or (dik=kWPN_3) or (dik=kWPN_4) or (dik=kWPN_5) or (dik=kWPN_6) or (dik=kARTEFACT)) then begin
     if (det<>nil) and (wpn<>nil) then begin
-      cls:=PChar(GetClassName(wpn));
-      state:=GetCurrentState(wpn);
-      if IsThrowable(cls) then begin
-        if (state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) then begin
-          result:=false;
-        end;
+      if iswpnthrowable then begin
+        if (state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) then result:=false;
+      end else if canshoot or is_bino then begin
+        if IsAimNow(wpn) or IsHolderinAimState(wpn) then result:=false;
+      end else begin
+        if GetActorActionState(act, actModDetectorSprintStarted) then result:=false;
       end;
     end;
   end;

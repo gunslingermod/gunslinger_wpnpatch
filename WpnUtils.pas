@@ -36,7 +36,7 @@ function GetGLStatus(wpn:pointer):cardinal; stdcall;
 function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
 procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
-function GetAmmoInMagCount(wpn:pointer):integer; stdcall;
+function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
 function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
 function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
@@ -63,15 +63,19 @@ function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
 procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
 procedure CSE_SetAngle(swpn:pointer; ang:pointer); stdcall;
 procedure SetCurrentParticles(wpn:pointer; name:PChar; part_type:cardinal); stdcall;
-procedure ReloadMag(wpn:pointer); stdcall;
 function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
 procedure JamWeapon(wpn:pointer); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
 function IsThrowable(cls:PChar):boolean;stdcall;
+function IsBino(cls:PChar):boolean;stdcall;
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
 function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
+
+procedure SetSubState(wpn:pointer; substate:byte); stdcall;
+function GetSubState(wpn:pointer):byte; stdcall;
 
 {function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
 function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;}
@@ -107,6 +111,11 @@ const
   EMissileStates__eThrow:cardinal = $7;
   EMissileStates__eThrowEnd:cardinal = $8;
 
+
+  EWeaponSubStates__eSubStateReloadBegin:byte = $0;
+  EWeaponSubStates__eSubStateReloadInProcess:byte = $1;
+  EWeaponSubStates__eSubStateReloadEnd:byte = $2;
+  
   ANM_LEFTHAND:string='anm_lefthand_';
 
 
@@ -222,7 +231,7 @@ begin
   end;
 end;
 
-function GetAmmoInMagCount(wpn:pointer):integer; stdcall;
+function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
 begin
   asm
     pushad
@@ -692,6 +701,11 @@ begin
   result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
 end;
 
+function IsBino(cls:PChar):boolean;stdcall;
+begin
+  result:=(cls='WP_BINOC');
+end;
+
 function GetCurrentState(wpn:pointer):integer; stdcall;
 asm
     mov eax, wpn
@@ -1078,21 +1092,22 @@ asm
 
 end;
 
-procedure ReloadMag(wpn:pointer); stdcall;
-asm
-  pushad
-    mov ecx, wpn
-    mov eax, xrgame_addr
-    add eax, $2d0f10
-    call eax
-  popad
-end;
-
 function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
 asm
   mov eax, wpn
   mov eax, [eax+$694]
   mov @result, eax
+end;
+
+procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;
+asm
+  push eax
+  push ebx
+    mov eax, wpn
+    mov ebx, cnt
+    mov [eax+$694], ebx
+  pop ebx
+  pop eax
 end;
 
 function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
@@ -1251,6 +1266,29 @@ asm
   @null:
   mov @result, 0
   @finish:
+end;
+
+
+procedure SetSubState(wpn:pointer; substate:byte); stdcall;
+asm
+  push eax
+  push ebx
+  mov ebx, wpn
+  cmp ebx, 0
+  je @finish
+
+  movzx eax, substate
+  mov [ebx+$459], eax
+  @finish:
+  pop ebx
+  pop eax
+end;
+
+function GetSubState(wpn:pointer):byte; stdcall;
+asm
+  mov eax, wpn
+  mov al, byte ptr [eax+$459]
+  mov @result, al
 end;
 
 end.

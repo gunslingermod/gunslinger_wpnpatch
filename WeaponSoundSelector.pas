@@ -14,7 +14,7 @@ begin
 
 
   //default
-  if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_reload_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_reload_detector_snd') then
+  if detector_now and game_ini_r_bool_def(GetHUDSection(wpn), 'use_reload_detector_snd', false) then
     result:='sndReloadDetector'
   else
     result:='sndReload';

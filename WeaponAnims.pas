@@ -4,7 +4,7 @@ unit WeaponAnims;
 
 interface
 function Init:boolean;
-function ModifierStd(wpn:pointer; base_anim:string):string; stdcall;
+function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
 
 implementation
 uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger;
@@ -90,10 +90,10 @@ function anm_idle_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
-  canshoot, isdetector, isgrenorbolt, is_knife:boolean;
+  canshoot, isdetector, isgrenorbolt, is_knife, is_bino:boolean;
+  companion:pointer;
+  assign_detector_anim:boolean;
   cls:string;
-{  companion:pointer;
-  state:cardinal;  }
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_idle';
@@ -103,12 +103,15 @@ begin
   isgrenorbolt:=IsThrowable(PChar(cls));
   isdetector :=WpnIsDetector(PChar(cls));
   is_knife:=IsKnife(PChar(cls));
+  is_bino:=IsBino(PChar(cls));
+  assign_detector_anim:=false;
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
+    if isdetector then companion:=GetActorActiveItem() else companion:=GetActiveDetector(actor);
     //--------------------------Модификаторы движения/состояния актора---------------------------------------
 
     //если актор в режиме прицеливания
-    if (canshoot or (cls='WP_BINOC')) and IsAimNow(wpn) then begin
+    if (canshoot or is_bino) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
       if GetActorActionState(actor, actAimStarted) then begin
         ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
@@ -117,10 +120,12 @@ begin
         if canshoot then CHudItem_Play_Snd(wpn, 'sndAimStart');
         SetActorActionState(actor, actAimStarted, true);
       end;
-    end else if (canshoot or (cls='WP_BINOC')) and GetActorActionState(actor, actAimStarted) then begin
+      if companion<>nil then assign_detector_anim:=true;
+    end else if (canshoot or is_bino) and GetActorActionState(actor, actAimStarted) then begin
       anim_name:=anim_name+'_aim_end';
       if canshoot then CHudItem_Play_Snd(wpn, 'sndAimEnd');
       SetActorActionState(actor, actAimStarted, false);
+      if companion<>nil then assign_detector_anim:=true;
 
     //посмотрим на передвижение актора:
     end else if GetActorActionState(actor, actSprint) then begin
@@ -146,8 +151,8 @@ begin
 
     end else begin
       ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
-      if GetActorActionState(actor, actCrounch) then begin
-        anim_name:=anim_name+'_crounch';
+      if GetActorActionState(actor, actCrouch) then begin
+        anim_name:=anim_name+'_crouch';
       end;
       if GetActorActionState(actor, actSlow) then begin
         anim_name:=anim_name+'_slow';
@@ -183,6 +188,12 @@ begin
     anim_name:='anm_idle';
     ModifierBM16(wpn, anim_name);
   end;
+
+  if assign_detector_anim then begin
+//    log('assigning ');
+    StartCompanionAnimIfNeeded(rightstr(anim_name, length(anim_name)-4), wpn, true);
+  end;
+    
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
 end;
@@ -225,7 +236,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------anm_show/hide/bore/switch_*-----------------------
-function ModifierStd(wpn:pointer; base_anim:string):string;stdcall;
+function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
@@ -237,7 +248,7 @@ begin
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
   //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     //Если магазин пуст - всегда играем empty, если можем
-    cls:=GetClassName(wpn);    
+    cls:=GetClassName(wpn);
     if WpnCanShoot(PChar(cls)) then begin
       if leftstr(base_anim, 18)<>'anm_changefiremode' then base_anim:=base_anim + GetFireModeStateMark(wpn);
       if IsWeaponJammed(wpn) then begin
@@ -261,11 +272,13 @@ begin
   end;
 
   ModifierBM16(wpn, base_anim);
-  if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
-    log('Section ['+hud_sect+'] has no motion alias defined ['+base_anim+']');
-    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
-    base_anim:='anm_reload';
-    ModifierBM16(wpn, base_anim);
+  if not disable_noanim_hint then begin
+    if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
+      log('Section ['+hud_sect+'] has no motion alias defined ['+base_anim+']');
+      if IsDebug then Messenger.SendMessage('Animation not found, see log!');
+      base_anim:='anm_reload';
+      ModifierBM16(wpn, base_anim);
+    end;
   end;
   result:=base_anim;
 end;
@@ -498,24 +511,7 @@ begin
   end;
 end;
 
-procedure anm_open_std_patch();stdcall;
-const anm_open:PChar = 'anm_open';
-begin
-  asm
-    push 0                  //забиваем место под название анимы
-    pushad
-    pushfd
-    push anm_open
-    push esi
-    call anm_std_selector  //получаем строку с именем анимы
-    mov ecx, [esp+$28]      //запоминаем адрес возврата
-    mov [esp+$28], eax      //кладем на его место результирующую строку
-    mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
-    popfd
-    popad
-    ret
-  end;
-end;
+
 
 procedure anm_close_std_patch();stdcall;
 const anm_close:PChar = 'anm_close';
@@ -535,17 +531,100 @@ begin
     ret
   end;
 end;
+//------------------------------------------------------------add_cartridge-----------------------------------------
+procedure OnAddCartridge(wpn:pointer; param:integer);stdcall;
+var
+  hud_sect:PChar;
+begin
+  if (GetActor()<>nil) and (GetOwner(wpn)=GetActor()) and (leftstr(GetCurAnim(wpn), length('anm_add_cartridge'))='anm_add_cartridge') then begin
+    hud_sect:=GetHUDSection(wpn);
+    GetBuffer(wpn).SetReloaded(false);
+    CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn);
+    GetBuffer(wpn).SetReloaded(true);
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+GetCurAnim(wpn)));
+  end;
+end;
+
+
+function anm_add_cartridge_selector(wpn:pointer):pchar;stdcall;
+var
+  buf:WpnBuf;
+  hud_sect:PChar;
+begin
+  anim_name := ModifierStd(wpn, 'anm_add_cartridge');
+  result:=PChar(anim_name);
+  buf:=GetBuffer(wpn);
+
+  if buf <> nil then begin
+    buf.SetReloaded(false);
+    hud_sect:=GetHUDSection(wpn);
+    if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAddCartridge);
+    end else begin
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+    end;
+  end;
+end;
+
 
 procedure anm_add_cartridge_std_patch();stdcall;
-const anm_add_cartridge:PChar = 'anm_add_cartridge';
+asm
+    push 0                  //забиваем место под название анимы
+    pushad
+    pushfd
+    push esi
+    call anm_add_cartridge_selector  //получаем строку с именем анимы
+    mov ecx, [esp+$28]      //запоминаем адрес возврата
+    mov [esp+$28], eax      //кладем на его место результирующую строку
+    mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
+    popfd
+    popad
+    ret
+end;
+
+//------------------------------------------------------------anm_open-----------------------------------------------
+
+procedure OnAddCartridgeInOpen(wpn:pointer; param:integer);stdcall;
+var
+  hud_sect:PChar;
+begin
+  if (GetActor()<>nil) and (GetOwner(wpn)=GetActor()) and (leftstr(GetCurAnim(wpn), length('anm_open'))='anm_open') then begin
+    hud_sect:=GetHUDSection(wpn);
+    GetBuffer(wpn).SetReloaded(false);
+    CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn);
+    GetBuffer(wpn).SetReloaded(true);
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+GetCurAnim(wpn)));
+  end;
+end;
+
+function anm_open_selector(wpn:pointer):pchar;stdcall;
+var
+  buf:WpnBuf;
+  hud_sect:PChar;
+begin
+  anim_name := ModifierStd(wpn, 'anm_open');
+  result:=PChar(anim_name);
+
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    buf.SetReloaded(false);
+    hud_sect:=GetHUDSection(wpn);
+    if buf.AddCartridgeAfterOpen() then begin
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAddCartridgeInOpen);
+    end else begin
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+    end;
+  end;
+end;
+
+procedure anm_open_std_patch();stdcall;
 begin
   asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
-    push anm_add_cartridge
     push esi
-    call anm_std_selector  //получаем строку с именем анимы
+    call anm_open_selector  //получаем строку с именем анимы
     mov ecx, [esp+$28]      //запоминаем адрес возврата
     mov [esp+$28], eax      //кладем на его место результирующую строку
     mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
@@ -554,6 +633,7 @@ begin
     ret
   end;
 end;
+
 //----------------------------------------------------------anm_shots------------------------------------------------
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 var
@@ -638,22 +718,15 @@ begin
 end;
 
 //---------------------------------------------------------anm_reload------------------------------------------------
-
-procedure OnFinishReload(wpn:pointer; param:integer);stdcall;
-begin
-  GetBuffer(wpn).SetReloaded(false);
-end;
-
 procedure OnAmmoTimer(wpn:pointer; param:integer);stdcall;
 var
   hud_sect:PChar;
 begin
-//TODO: предусмотреть механизм разряжания оружия при неоконченной аниме
-//  log (GetHUDSection(wpn)+': reloading...');
+  //TODO: предусмотреть механизм разряжания оружия при неоконченной аниме
   if (GetCurrentState(wpn)=7) and (GetActor()<>nil) and (GetOwner(wpn)=GetActor()) and (leftstr(GetCurAnim(wpn), length('anm_reload'))='anm_reload') then begin
     hud_sect:=GetHUDSection(wpn);
-    SelectAmmoInMagCount(wpn, GetMagCapacityInCurrentWeaponMode(wpn));
-    ReloadMag(wpn);
+    GetBuffer(wpn).SetReloaded(false);
+    CWeaponMagazined__OnAnimationEnd_DoReload(wpn);
     GetBuffer(wpn).SetReloaded(true);
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+GetCurAnim(wpn)));
   end;
@@ -663,10 +736,12 @@ function anm_reload_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
+  buf:WpnBuf;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
   actor:=GetActor();
+  buf:=GetBuffer(wpn);
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
@@ -686,7 +761,7 @@ begin
       anim_name:=anim_name+'_detector';
     end;
 
-    if game_ini_line_exist(hud_sect, PChar('immediate_unhide_'+anim_name)) and game_ini_r_bool(hud_sect, PChar('immediate_unhide_'+anim_name)) then begin
+    if game_ini_r_bool_def(hud_sect, PChar('immediate_unhide_'+anim_name), false) then begin
       //если выставлен такой параметр - не надо проигрывать аниму преддоставания детектора, тупо достаем его после окончания анимы (?)
       SetActorActionState(actor, actShowDetectorNow, true);
     end;
@@ -707,7 +782,7 @@ begin
   end;
   result:=PChar(anim_name);
 
-  GetBuffer(wpn).SetReloaded(false);
+  if buf <> nil then buf.SetReloaded(false);
   if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAmmoTimer);
     //log('lock-start, anm = '+anim_name);
@@ -722,10 +797,12 @@ var
   hud_sect:PChar;
   actor:pointer;
   snd:string;
+  buf:WpnBuf;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
   actor:=GetActor();
+  buf:=GetBuffer(wpn);
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
@@ -760,7 +837,7 @@ begin
 
   CHudItem_Play_Snd(wpn, PChar(snd));
 
-  GetBuffer(wpn).SetReloaded(false);
+  if buf <> nil then buf.SetReloaded(false);
   if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAmmoTimer);
     //log('lock-start, anm = '+anim_name);
@@ -936,7 +1013,7 @@ function CanReAssignIdleNow(CHudItem:pointer):boolean; stdcall;
 var
   act, wpn:pointer;
   state:cardinal;
-  iswpnthrowable:boolean;
+  iswpnthrowable, is_bino, canshoot:boolean;
 begin
   result:=true;
   if WpnIsDetector(PChar(GetClassName(CHudItem))) then begin
@@ -945,10 +1022,14 @@ begin
       wpn:=GetActorActiveItem();
       if wpn<>nil then begin
         iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
+        canshoot:=WpnCanShoot(PChar(GetClassName(wpn)));
+        is_bino:=IsBino(PChar(GetClassName(wpn)));
         state:=GetCurrentState(wpn);
 
         if (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd))) then begin
           result:=false;
+        end else if canshoot or is_bino then begin
+          if IsAimNow(wpn) or IsHolderinAimState(wpn) then result:=false;
         end;
       end;
     end;
@@ -985,7 +1066,7 @@ begin
     or GetActorActionState(act, actMovingBack)<>GetActorActionState(act, actMovingBack, mState_OLD)
     or GetActorActionState(act, actMovingLeft)<>GetActorActionState(act, actMovingLeft, mState_OLD)
     or GetActorActionState(act, actMovingRight)<>GetActorActionState(act, actMovingRight, mState_OLD)
-    or GetActorActionState(act, actCrounch)<>GetActorActionState(act, actCrounch, mState_OLD)
+    or GetActorActionState(act, actCrouch)<>GetActorActionState(act, actCrouch, mState_OLD)
     or GetActorActionState(act, actSlow)<>GetActorActionState(act, actSlow, mState_OLD)
   then begin
     result:=true;
@@ -1196,47 +1277,24 @@ asm
 end;
 //---------------------------------------Отключение автоматической перезарядки, когда она не нужна-------------------------------------------------
 
-procedure AutoReloadAssaultLockFix; stdcall;
-asm
-  cmp byte ptr[ecx+$4C0], 0
-  jne @finish
-  
-  pushad
-    push esi
-    call WeaponAdditionalBuffer.CanAutoReload
-    cmp eax, 1
-  popad
-
-
-  @finish:
-end;
-
-procedure AutoReloadPistolsLockFix; stdcall;
+procedure CWeaponMagazined__switch2_Empty_Patch(); stdcall;
 asm
   pushad
+    push 00
     push esi
-    call WeaponAdditionalBuffer.CanAutoReload
-    cmp eax, 0
+    call virtual_CHudItem_SwitchState
   popad
-  je @finish
-    lea ecx, [esi+$2E0]
-    push 09
-    call edx
-  @finish:
+  mov eax, 0
 end;
 
-procedure AutoReloadPistols2LockFix; stdcall;
+
+procedure CWeaponMagazined__FireEnd_Patch(); stdcall;
 asm
-  pushad
-    push esi
-    call WeaponAdditionalBuffer.CanAutoReload
-    cmp eax, 1
-  popad
-  jb @finish
-    xorps xmm0, xmm0
-    comiss xmm0, [ecx+$58]
-  @finish:
+  //делаем сравнение всегда истинным
+  xor esi, esi
+  test esi, esi
 end;
+
 //--------------------------------------------------------------------------------------------------------------------
 //Микширование аним выстрела
 function NeedShootMix(wpn:pointer):boolean; stdcall;
@@ -1495,13 +1553,19 @@ begin
   jump_addr:=xrGame_addr+$2CE821;
   if not WriteJump(jump_addr, cardinal(@ReloadAnimPlayingPatch), 12, true) then exit;
 
+//----------------------------------------------------------
   //Отключим автоматическую перезарядку, когда она не нужна
-  jump_addr:=xrGame_addr+$2CCB2F;
-  if not WriteJump(jump_addr, cardinal(@AutoReloadPistolsLockFix), 10, true) then exit;
-  jump_addr:=xrGame_addr+$2C5070;
-  if not WriteJump(jump_addr, cardinal(@AutoReloadPistols2LockFix), 7, true) then exit;
-  jump_addr:=xrGame_addr+$2D14E0;
-  if not WriteJump(jump_addr, cardinal(@AutoReloadAssaultLockFix), 7, true) then exit;
+  jump_addr:=xrGame_addr+$2D07BF;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__switch2_Empty_Patch), 5, true) then exit;
+
+  jump_addr:=xrGame_addr+$2CFFBE;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__FireEnd_Patch), 7, true) then exit;
+
+  if not nop_code(xrGame_addr+$2D3ACE, 10) then exit;
+//----------------------------------------------------------
+
+
+
 
   jump_addr:=xrGame_addr+$2becd9;
   if not WriteJump(jump_addr, cardinal(@AmmoChangePlayingPatch), 5, true) then exit;

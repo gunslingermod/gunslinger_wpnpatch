@@ -11,7 +11,7 @@ function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
 //procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; bMixIn:boolean=true; use_companion_section:boolean=false); stdcall;
 function WasLastDetectorHiddenManually():boolean; stdcall;
 procedure ForgetDetectorAutoHide(); stdcall;
-procedure StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_line_not_exist:boolean=true);
+function StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_line_not_exist:boolean=true):boolean;
 
 
 implementation
@@ -212,9 +212,9 @@ begin
       param := GetCurAnim(itm);
       if param = '' then param:=GetActualCurrentAnim(itm);
       param:='disable_detector_'+param;
-      if IsHolderInAimState(itm) or ( WpnCanShoot(PChar(GetClassName(itm))) and IsAimNow(itm)) then begin
+{      if IsHolderInAimState(itm) or ( WpnCanShoot(PChar(GetClassName(itm))) and IsAimNow(itm)) then begin
         result:=false;
-      end else if game_ini_line_exist(GetHUDSection(itm), PChar(param)) then begin
+      end else }if game_ini_line_exist(GetHUDSection(itm), PChar(param)) then begin
         result:=not game_ini_r_bool(GetHUDSection(itm), PChar(param));
       end else begin
         result:=true
@@ -229,7 +229,8 @@ asm
   //делаем вырезанное
   mov ecx, [eax+$2e4]
   //если игра уже решила скрыть детектор - то не вмешиваемся
-  jne @finish
+  //отставить - перед врезаемой нами выполняется проверка на то, не находится ли оружие-компаньон в режиме прицеливания, а это мы проверим и сами.
+  //jne @finish
   //Проверим, не выполняется ли какое-либо действие
   pushad
     call CanShowDetector
@@ -532,11 +533,12 @@ asm
   popad
 end;
 
-procedure StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_line_not_exist:boolean=true);
+function StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_line_not_exist:boolean=true):boolean;
 var
   det, act:pointer;
   det_anm:string;
 begin
+  result:=false;
   act:=GetActor();
   if (act=nil) or (act<>GetOwner(wpn)) or (wpn<>GetActorActiveItem()) then exit;
 
@@ -547,7 +549,10 @@ begin
     if not show_msg_if_line_not_exist then begin
       if not game_ini_line_exist(GetHUDSection(wpn), PChar(det_anm)) then exit;
     end;
+
+    //if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))<>'anm_idle') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint'))<>'anm_idle_sprint') then exit;
     AssignDetectorAnim(det, PChar(det_anm), true, true);
+    result:=true;
   end;
 end;
 

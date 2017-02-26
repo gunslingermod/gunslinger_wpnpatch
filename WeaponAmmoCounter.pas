@@ -1,115 +1,159 @@
 unit WeaponAmmoCounter;
 
 {$define DISABLE_AUTOAMMOCHANGE}  //отключает автоматическую смену типа патронов по нажатию клавиши релоада при отсутсвии патронов текущего типа
+{$define NEW_BRIEF_MODE}//в случае неактивности иконка типа патронов на худе будет показывать тип заряженного патрона, если же активно - будет показывать тип патронов, заряжаемых в оружие
+
 interface
+  procedure CWeaponMagazined__OnAnimationEnd_DoReload(wpn:pointer); stdcall;
+  function CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn:pointer):boolean; stdcall;  
+
 function Init:boolean;
-procedure SelectAmmoInMagCount(wpn:pointer; default_value:integer); stdcall;
 
 implementation
-uses BaseGameData, GameWrappers, windows, WeaponAdditionalBuffer, WpnUtils;
+uses BaseGameData, GameWrappers, WeaponAdditionalBuffer, WpnUtils, Cartridge, ActorUtils;
 
+
+procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
 var
-  addr:cardinal;
-
-procedure SelectAmmoInMagCount(wpn:pointer; default_value:integer); stdcall;
-var curammocnt:integer;
+  cs, ce:pCCartridge;
+  tmp:CCartridge;
+  cnt:cardinal;
 begin
-  if default_value < 0 then begin
-    WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(0);
-    exit;
-  end;
-  WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(default_value);
-  WeaponAdditionalBuffer.GetBuffer(wpn).SetBeforeReloadAmmoCnt(GetAmmoInMagCount(wpn));
-
   if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then exit;
-
-  curammocnt:=WpnUtils.GetAmmoInMagCount(wpn);
-
-  if WpnUtils.IsWeaponJammed(wpn) then begin
-    WpnUtils.SetAmmoTypeChangingStatus(wpn, $FF);
-    WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(curammocnt);
-    exit;
-  end;
-
-  if  (not game_ini_line_exist(GetSection(wpn), 'ammo_in_chamber')) or (game_ini_r_bool(GetSection(wpn), 'ammo_in_chamber')=false) then exit;
-
-  if (curammocnt=0) or (WpnUtils.GetAmmoTypeChangingStatus(wpn)<>$FF) then begin
-    WeaponAdditionalBuffer.GetBuffer(wpn).SetReloadAmmoCnt(default_value-1);
-    exit;
+  cnt:=GetAmmoInMagCount(wpn);
+  if cnt>1 then begin
+    cnt:=cnt-1;
+    cs:=GetCartridgeFromMagVector(wpn,0);
+    ce:=GetCartridgeFromMagVector(wpn,cnt);
+    CopyCartridge(cs^, tmp);
+    CopyCartridge(ce^, cs^);
+    CopyCartridge(tmp, ce^);
   end;
 end;
 
-
-procedure SelectAmmoInMagCount_Patch; stdcall;
-//В конфиге указывать емкость на 1 большую, чем в магазине!
+procedure SwapLastPrevAmmo(wpn:pointer);stdcall;
+var
+  cs, ce:pCCartridge;
+  tmp:CCartridge;
+  cnt:cardinal;
 begin
-  asm
-    lea ecx, [esi-$2E0]
-
-    pushad
-    pushfd
-
-    push ecx
-
-    push ecx
-    call WeaponAdditionalBuffer.IsReloaded
-    pop ecx
-
-    cmp al, 1
-    je @noreload
-
-    push [ecx+$694]
-    jmp @doselect
-
-    @noreload:
-    push -1
-
-    @doselect:
-    push ecx
-    call SelectAmmoInMagCount
-
-    popfd
-    popad
-    ret
-
+  if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then exit;
+  cnt:=GetAmmoInMagCount(wpn);
+  if cnt>1 then begin
+    cnt:=cnt-1;
+    cs:=GetCartridgeFromMagVector(wpn,cnt-1);
+    ce:=GetCartridgeFromMagVector(wpn,cnt);
+    CopyCartridge(cs^, tmp);
+    CopyCartridge(ce^, cs^);
+    CopyCartridge(tmp, ce^);
   end;
 end;
 
-//--------------------------------Проверка сохраненного значения----------------
 
-function GetSavedValue(wpn:pointer):cardinal;stdcall;
+//---------------------------------------------------Свое число патронов в релоаде-------------------------
+procedure CWeaponMagazined__OnAnimationEnd_DoReload(wpn:pointer); stdcall;
+var
+  buf: WpnBuf;
+  def_magsize, mod_magsize, curammocnt:integer;
 begin
-  result:=WeaponAdditionalBuffer.GetBuffer(wpn).GetReloadAmmoCnt;
+  buf:=GetBuffer(wpn);
+  //если буфера нет или мы уже перезарядилимь или у нас режим подствола - ничего особенного не делаем
+  if (buf=nil) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
+  if buf.IsReloaded() then begin buf.SetReloaded(false); exit; end;
+  if (((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
+
+  //посмотрим, каков размер магазина у оружия и сколько патронов в нем сейчас
+  def_magsize:=GetMagCapacityInCurrentWeaponMode(wpn);
+  curammocnt:=GetCurrentAmmoCount(wpn);
+
+  //теперь посмотрим на состояние оружия и подумаем, сколько патронов в него запихнуть
+  if IsWeaponJammed(wpn) then begin
+    SetAmmoTypeChangingStatus(wpn, $FF);
+    mod_magsize:=curammocnt;
+  end else if buf.IsAmmoInChamber() and ((curammocnt=0) or ((GetAmmoTypeChangingStatus(wpn)<>$FF) and not buf.SaveAmmoInChamber() )) then begin
+    mod_magsize:=def_magsize-1;
+  end else begin
+    mod_magsize:=def_magsize;
+  end;
+
+  //изменим емкость магазина, отрелоадимся до нее и восстановим старое значение
+  SetMagCapacityInCurrentWeaponMode(wpn, mod_magsize);
+  virtual_CWeaponMagazined__ReloadMagazine(wpn);
+  SetMagCapacityInCurrentWeaponMode(wpn, def_magsize);  
 end;
 
-procedure DoCompareMagCapacity(count:cardinal);stdcall;
-//Ничего не возвращает, но выставляет флаги!
-//в esi ожидает адрес ствола
-begin
-  asm
-    pushad
 
+procedure CWeaponMagazined__OnAnimationEnd_DoReload_Patch(); stdcall;
+asm
+  pushad
+    sub esi, $2e0
     push esi
-    call GetSavedValue
-    cmp count, eax
-
-    popad
-  end;
+    call CWeaponMagazined__OnAnimationEnd_DoReload
+  popad
 end;
 
 
-procedure OnCartridgeAdded; stdcall;
+//---------------------------------------------------Несмена типа патрона в патроннике в релоаде-------------------------
+procedure NeedNotUnloadLastCartridge(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
 begin
-  asm
-    //TODO:При смене типа патронов поменять местами новый патрон и патрон в патроннике
-    
-    //выполним вырезанную проверку
-    push eax //[esi+$690]
-    call DoCompareMagCapacity
-    ret
+  buf:=GetBuffer(wpn);
+  if
+    not(((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn))
+  and
+    (buf<>nil)    
+  and
+    buf.IsAmmoInChamber()
+  and
+    buf.SaveAmmoInChamber()
+
+  then begin
+    SwapFirstLastAmmo(wpn);
+    buf.is_firstlast_ammo_swapped:=true;
+    ChangeAmmoVectorStart(wpn, sizeof(CCartridge));
+    virtual_CWeaponMagazined__UnloadMagazine(wpn);
+    ChangeAmmoVectorStart(wpn, (-1)*sizeof(CCartridge));    
+  end else begin
+    if buf <> nil then begin
+      buf.is_firstlast_ammo_swapped:=false;
+    end;
+    virtual_CWeaponMagazined__UnloadMagazine(wpn);
   end;
 end;
-//------------------------------------------------------------------------------
+
+procedure CWeaponMagazined__ReloadMagazine_OnUnloadMag_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call NeedNotUnloadLastCartridge
+  popad
+  @finish:
+end;
+
+procedure CWeaponMagazined__ReloadMagazine_OnFinish(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and (buf.is_firstlast_ammo_swapped) then begin
+    buf.is_firstlast_ammo_swapped:=false;
+    SwapFirstLastAmmo(wpn);
+  end;
+end;
+
+procedure CWeaponMagazined__ReloadMagazine_OnFinish_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CWeaponMagazined__ReloadMagazine_OnFinish
+  popad
+
+  pop esi
+  pop ebp
+  add esp, $48
+end;
+
 
 {$ifdef DISABLE_AUTOAMMOCHANGE}
 procedure CWeaponmagazined__TryReload_Patch();stdcall;
@@ -126,67 +170,165 @@ asm
   test al, al
   ret
 end;
+
+procedure CWeaponShotgun__HaveCartridgeInInventory_Patch(); stdcall;
+asm
+  cmp byte ptr [esi+$6c7], $FF
+  je @false
+
+  mov [esi+$6C7], bl
+  mov eax, 1
+  jmp @finish
+
+  @false:
+  xor eax, eax
+  
+  @finish:
+  pop ebx
+  cmp edi, ebp  //??? Но так в оригинале
+  pop edi
+  pop ebp
+  pop esi
+  ret 4
+end;
 {$endif}
 
+//---------------------------------Патроны в патроннике для дробовиков----------------------------
+
+function CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn:pointer):boolean; stdcall;
+//возвращает, стоит ли продолжать набивать патроны в TriStateReload, или хватит уже :)
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then begin
+    if not buf.IsReloaded then begin
+      virtual_CWeaponShotgun__AddCartridge(wpn, 1);
+      if buf.IsAmmoInChamber() and buf.SaveAmmoInChamber() then begin
+        SwapLastPrevAmmo(wpn);
+      end;
+    end;
+  end else begin
+    virtual_CWeaponShotgun__AddCartridge(wpn, 1); //дань оригинальному коду ;)
+  end;
+  result:=CWeaponShotgun__HaveCartridgeInInventory(wpn, 1);
+end;
+
+procedure CWeaponShotgun__OnAnimationEnd_OnAddCartridge_Patch(); stdcall;
+asm
+  pushad
+    sub esi, $2e0
+    push esi
+    call CWeaponShotgun__OnAnimationEnd_OnAddCartridge
+    cmp al, 01
+  popad
+end;
+
+//-----------------------------------------anm_close в случае ручного прерывания релоада----------------------------
+procedure CWeaponShotgun__Action_OnStopReload(wpn:pointer); stdcall;
+begin
+  if GetSubState(wpn)=EWeaponSubStates__eSubStateReloadEnd then exit;
+  if not IsActionProcessing(wpn) then begin
+    SetSubState(wpn, EWeaponSubStates__eSubStateReloadEnd);
+    virtual_CHudItem_SwitchState(wpn,EWeaponStates__eReload);
+  end else begin
+    SetActorKeyRepeatFlag(kfFIRE, true);
+  end;
+end;
+
+procedure CWeaponShotgun__Action_OnStopReload_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call CWeaponShotgun__Action_OnStopReload
+  popad
+end;
+
+//----------------------------------------------добавление патрона в open-------------------------------------------
+procedure CWeaponMagazined__OnAnimationEnd_anm_open(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  SetSubState(wpn, EWeaponSubStates__eSubStateReloadInProcess); //вырезанное
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and buf.AddCartridgeAfterOpen() then begin
+    CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn);
+  end;
+end;
+
+procedure CWeaponMagazined__OnAnimationEnd_anm_open_Patch(); stdcall;
+asm
+  pushad
+  sub esi, $2e0
+  push esi
+  call CWeaponMagazined__OnAnimationEnd_anm_open
+  popad
+end;
+
+//------------------------------------------------------------------------------------------------------------------
 function Init:boolean;
-var rb:cardinal;
+var
     debug_bytes:array of byte;
-    debug_addr:cardinal;
+    addr:cardinal;
 begin
   result:=false;
-  setlength(debug_bytes, 8);
+  setlength(debug_bytes, 6);
   ////////////////////////////////////////////////////
   //отключаем баг с моментальной сменой типа патронов при перезарядке, когда у нас не хватает патронов текущего типа до полного магазина
   //Оно же проявляется, если у оружия, у которого неполный магазин одного типа патронов, и такого типа в инвентаре больше нет, попробовать сменить тип и, не дожидаясь окончания анимы,  выбросить
   //после подъема оружие не будет реагировать на клавишу смены типа
   // причина в том, что в CWeaponMagazined::TryReload мы присваиваем значение члену m_ammoType вместо m_set_next_ammoType_on_reload
   debug_bytes[0]:=$C7;
-  debug_addr:=xrGame_addr+$2D0185;
-  writeprocessmemory(hndl, PChar(debug_addr), @debug_bytes[0], 1, rb);
-  if rb<>1 then exit;
-  ////////////////////////////////////////////////////
-  //Вырубаем смену патронов при клине
-  debug_bytes[0]:=$EB;
-  debug_addr:=xrGame_addr+$2D0FF8;
-  writeprocessmemory(hndl, PChar(debug_addr), @debug_bytes[0], 1, rb);
-  if rb<>1 then exit;
-  ////////////////////////////////////////////////////
-  //Запишем вызовы функции сравнения, заменив соответствующие mov'ы на push'ы
-  debug_bytes[0]:=$FF; debug_bytes[1]:=$B6; debug_bytes[2]:=$90; debug_bytes[3]:=$06; debug_bytes[4]:=$00; debug_bytes[5]:=$00;
-  debug_bytes[6]:=$90; debug_bytes[7]:=$7D;
-  //----------------------------------------------------
-  addr:=xrGame_addr+$2D1150;
-  writeprocessmemory(hndl, PChar(addr), debug_bytes, 6, rb);
-  if rb<>6 then exit;
-  addr:=addr+6;
-  if not WriteJump(addr, cardinal(@DoCompareMagCapacity), 5, true) then exit;
-  writeprocessmemory(hndl, PChar(addr), @debug_bytes[6], 1, rb);
-  if rb<>1 then exit;
-  //----------------------------------------------------
-  addr:=xrGame_addr+$2D1214;
-  writeprocessmemory(hndl, PChar(addr), debug_bytes, 6, rb);
-  if rb<>6 then exit;
-  addr:=addr+6;
-  if not WriteJump(addr, cardinal(@DoCompareMagCapacity), 5, true) then exit;
-  writeprocessmemory(hndl, PChar(addr), @debug_bytes[6], 2, rb);
-  if rb<>2 then exit;
-  //----------------------------------------------------
+  if not WriteBufAtAdr(xrGame_addr+$2D0185, @debug_bytes[0],1) then exit;
+  if not WriteBufAtAdr(xrGame_addr+$2DE84B, @debug_bytes[0],1) then exit;  //CWeaponShotgun::HaveCarteidgeInInventory, потом все равно перезаписываем, но пусть будет
 
 
-  addr:=xrGame_addr+$2CCDA0;
-  if not WriteJump(addr, cardinal(@SelectAmmoInMagCount_Patch), 6, true) then exit;
+  //решает, сколько патронов надо зарядить в релоаде и делает сам релоад
+  addr:=xrGame_addr+$2CCD94;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__OnAnimationEnd_DoReload_Patch), 20, true) then exit;
 
-  addr:=xrGame_addr+$2D11DA;
-  if not WriteJump(addr, cardinal(@OnCartridgeAdded), 6, true) then exit;
+  //опциональное добавление патрона после anm_open
+  addr:=xrGame_addr+$2DE422;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__OnAnimationEnd_anm_open_Patch), 7, true) then exit;
 
+  //При смене типа патронов магазин разряжается - заставляем оставить последний патрон неразряженным
+  nop_code(xrGame_addr+$2D10D8, 2); //убираем условие на неравенство секций последнего патрона и заряжаемого
+  addr:=xrGame_addr+$2D1106;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__ReloadMagazine_OnUnloadMag_Patch), 6, true) then exit;
+  //свопим первый и последний патрон, если у нас была смена типа 
+  addr:=xrGame_addr+$2D125F;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__ReloadMagazine_OnFinish_Patch), 6, false) then exit;
+
+{$ifdef NEW_BRIEF_MODE}
+  //изменяем CWeaponMagazined::GetBriefInfo так, чтобы на экране показывался не текущий тип заряженного патрона, и тип, которым будем заряжать
+  debug_bytes[0]:=$e9; debug_bytes[1]:=$BD; debug_bytes[2]:=$00; debug_bytes[3]:=$00; debug_bytes[4]:=$00; debug_bytes[5]:=$90;
+  if not WriteBufAtAdr(xrGame_addr+$2CE5B2, @debug_bytes[0],6) then exit;
+  //аналогично для CWeaponMagazinedWGrenade
+  debug_bytes[0]:=$e9; debug_bytes[1]:=$CC; debug_bytes[2]:=$00; debug_bytes[3]:=$00; debug_bytes[4]:=$00; debug_bytes[5]:=$90;
+  if not WriteBufAtAdr(xrGame_addr+$2d2361, @debug_bytes[0],6) then exit;
+{$endif}
+
+  //отключаем добавление "лишнего" патрона при прерывании релоада дробовика +заставляем играться anm_close (в CWeaponShotgun::Action)
+  addr:=xrGame_addr+$2DE374;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__Action_OnStopReload_Patch), 30, true) then exit;
+
+  //патрон в патроннике+анимация расклинивания+отвечает за добавление патрона в магазин
+  addr:=xrGame_addr+$2DE3ED;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__OnAnimationEnd_OnAddCartridge_Patch), 22, true) then exit;
 
 {$ifdef DISABLE_AUTOAMMOCHANGE}
   addr:=xrGame_addr+$2D00FF;
-  if not WriteJump(addr, cardinal(@CWeaponmagazined__TryReload_Patch), 5, true) then exit;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__TryReload_Patch), 5, true) then exit;
+
+  addr:=xrGame_addr+$2DE849;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__HaveCartridgeInInventory_Patch), 6, false) then exit;
 {$endif}
 
-  result:=true;
-end;
 
+
+  setlength(debug_bytes, 0);  
+  result:=true;
+
+end;
 
 end.

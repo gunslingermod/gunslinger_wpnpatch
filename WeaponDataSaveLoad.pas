@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses GameWrappers, BaseGameData, WpnUtils, WeaponAdditionalBuffer, sysutils;
+uses GameWrappers, BaseGameData, WpnUtils, WeaponAdditionalBuffer, sysutils, Cartridge;
 
 var
   cweapon_loaddata_in_netspawn_patch_addr:cardinal;
@@ -47,6 +47,8 @@ procedure CWeapon__load(wpn:pointer; packet:pointer); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
+  ammos_in_mag, i, cnt, cnt_total:word;
+  ammotype:byte;
 begin
 
   if not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
@@ -60,12 +62,30 @@ begin
 
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
   buf.SetExplosed(tmp_bool);
+
+  ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
+  SetLength(buf.ammos, ammos_in_mag);
+
+  cnt_total:=0;
+  while cnt_total<ammos_in_mag do begin
+    ReadFromReader(packet, @cnt, sizeof(cnt));
+    ReadFromReader(packet, @ammotype, sizeof(ammotype));
+    for i:=cnt_total to cnt_total+cnt-1 do begin
+      buf.ammos[i]:=ammotype;
+    end;
+    cnt_total:=cnt_total+cnt;
+  end;
+
 end;
 
 procedure CWeapon__save(wpn:pointer; packet:pointer); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
+
+  i, cnt, max_in_mag:word;
+  ammotype:byte;
+  c:pCCartridge;
 begin
   if not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
   buf:=GetBuffer(wpn);
@@ -74,6 +94,32 @@ begin
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_bool:=buf.IsExplosed();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
+
+  //сохраняем типы патронов в магазине, про подствол забываем
+  max_in_mag:=GetAmmoInMagCount(wpn);
+  WriteToPacket (packet, @max_in_mag, sizeof(max_in_mag));
+  if max_in_mag>0 then begin
+    max_in_mag:=max_in_mag-1;
+    c:=GetCartridgeFromMagVector(wpn, 0);
+    cnt:=1;
+    ammotype:=c^.m_local_ammotype;
+
+    for i:=1 to max_in_mag do begin
+      c:=GetCartridgeFromMagVector(wpn, i);
+      if ammotype<>c^.m_local_ammotype then begin
+        WriteToPacket(packet, @cnt, sizeof(cnt));
+        WriteToPacket(packet, @ammotype, sizeof(ammotype));
+
+        ammotype:=c^.m_local_ammotype;
+        cnt:=1;
+      end else begin
+        cnt:=cnt+1;
+      end;
+    end;
+
+    WriteToPacket(packet, @cnt, sizeof(cnt));
+    WriteToPacket(packet, @ammotype, sizeof(ammotype));
+  end;
 end;
 
 

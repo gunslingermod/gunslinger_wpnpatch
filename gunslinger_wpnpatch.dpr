@@ -7,7 +7,6 @@ uses
   BaseGameData in 'BaseGameData.pas',
   WeaponSoundLoader in 'WeaponSoundLoader.pas',
   WeaponSoundSelector in 'WeaponSoundSelector.pas',
-  WeaponAmmoCounter in 'WeaponAmmoCounter.pas',
   collimator in 'collimator.pas',
   WpnUtils in 'WpnUtils.pas',
   AN94Patch in 'AN94Patch.pas',
@@ -34,7 +33,9 @@ uses
   ArchiveProtect in 'ArchiveProtect.pas',
   LensDoubleRender in 'LensDoubleRender.pas',
   ScriptParticles in 'ScriptParticles.pas',
-  keybinding in 'keybinding.pas';
+  keybinding in 'keybinding.pas',
+  Cartridge in 'Cartridge.pas',
+  WeaponAmmoCounter in 'WeaponAmmoCounter.pas';
 
 {$R *.res}
 

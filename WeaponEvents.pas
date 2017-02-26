@@ -12,7 +12,7 @@ function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, Cartridge;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -22,14 +22,14 @@ var
 //-------------------------------Разряжание магазина-----------------------------
 procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
 begin
-  unload_magazine(wpn);
+  virtual_CWeaponMagazined__UnloadMagazine(wpn);
   ForceWpnHudBriefUpdate(wpn);
   SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure OnUnloadInMiddleAnim(wpn:pointer; param:integer);stdcall;
 begin
-  unload_magazine(wpn);
+  virtual_CWeaponMagazined__UnloadMagazine(wpn);
   ForceWpnHudBriefUpdate(wpn);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)));
   SetAnimForceReassignStatus(wpn, true);
@@ -317,24 +317,56 @@ begin
   if not WriteJump(address, cardinal(@AttachAddon_Patch), 0, true) then exit;
   result:=true;
 end;
-
-function OnCWeaponNetSpawn(wpn:pointer):boolean;stdcall;
+//------------------------------------------------------------------------------
+function OnCWeaponNetSpawn_middle(wpn:pointer):boolean;stdcall;
 begin
-  //буфер может уже быть создан в load'e - проверим это
-  if (GetBuffer(wpn)=nil) and WpnCanShoot(PChar(GetClassName(wpn))) then begin
-    WpnBuf.Create(wpn);
+  if WpnCanShoot(PChar(GetClassName(wpn))) then begin
+    //буфер может уже быть создан в load'e - проверим это
+    if (GetBuffer(wpn)=nil) then begin
+      WpnBuf.Create(wpn);
+    end;
   end;
 end;
 
-procedure CWeapon_NetSpawn_Patch();
+function OnCWeaponNetSpawn_end(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+  i:word;
+  c:pointer;
+  sect:PChar;
 begin
-  asm
+  //выставим сохраненные типы патронов
+  if WpnCanShoot(PChar(GetClassName(wpn))) then begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) then begin
+      if (length(buf.ammos)>0) and (length(buf.ammos)=GetAmmoInMagCount(wpn)) then begin
+        for i:=0 to length(buf.ammos)-1 do begin
+          sect:=GetMainCartridgeSectionByType(wpn, buf.ammos[i]);
+          if sect<>nil then begin
+            c:=GetCartridgeFromMagVector(wpn, i);
+            CCartridge__Load(c, sect, buf.ammos[i]);
+          end;
+        end;
+      end else begin
+       if (length(buf.ammos)>0) then begin
+        log('There is NO ammotype data in the save???', true)
+       end else if (length(buf.ammos)=GetAmmoInMagCount(wpn)) then begin
+        log('Count of ammotypes in the save is not equal to count of ammo in weapon', true);
+       end;
+      end;
+      setlength(buf.ammos, 0);
+    end;
+  end;
+end;
+
+procedure CWeapon_NetSpawn_Patch_middle();
+asm
 
     pushad
     pushfd
 
     push esi
-    call OnCWeaponNetSpawn
+    call OnCWeaponNetSpawn_middle
 
     popfd
     popad
@@ -343,7 +375,21 @@ begin
     mov [esp+$14], eax
 
     ret
-  end;
+end;
+
+
+procedure CWeapon_NetSpawn_Patch_end();
+asm
+    mov [esi+$6a0], al
+    pushad
+    pushfd
+
+    push esi
+    call OnCWeaponNetSpawn_end
+
+    popfd
+    popad
+    ret
 end;
 //------------------------------------------------------------------------------
 function OnCWeaponNetDestroy(wpn:pointer):boolean;stdcall;
@@ -436,7 +482,7 @@ begin
   if res then begin
     SetAnimForceReassignStatus(wpn, true);     //for world model
     det_anim:=GetActualCurrentAnim(wpn);
-    StartCompanionAnimIfNeeded(rightstr(det_anim, length(det_anim)-4), wpn, true);
+    StartCompanionAnimIfNeeded(rightstr(det_anim, length(det_anim)-4), wpn, false);
   end;
 end;
 
@@ -842,6 +888,8 @@ var
   buf:WpnBuf;
   res:boolean;
   curanm:PChar;
+
+  c:pCCartridge;
 begin
   buf:=GetBuffer(wpn);
   if (buf<>nil) and buf.IsLaserInstalled() then begin
@@ -936,7 +984,10 @@ begin
 
   //спавн и дестрой
   jmp_addr:=xrGame_addr+$2C120B;
-  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch),6, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch_middle),6, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2C1328;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch_end),6, true) then exit;  
 
   jmp_addr:=xrGame_addr+$2BEFE9;
   if not WriteJump(jmp_addr, cardinal(@CWeapon_NetDestroy_Patch),6, true) then exit;

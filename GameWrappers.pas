@@ -16,13 +16,21 @@ interface
 
   function Init:boolean;
   function str_container_dock(str:PChar):pointer; stdcall;
-  procedure unload_magazine(wpn:pointer);stdcall;
+  procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
+  procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
+  procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
+  function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
+
+
   function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
   function game_ini_read_string(section:PChar; key:PChar):PChar;stdcall;
   function get_server_object_by_id(id:cardinal):pointer;stdcall;
   function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
   function game_ini_r_single(section:PChar; key:PChar):single;stdcall;
   function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
+  function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean):boolean;stdcall;
+  function game_ini_r_int_def(section:PChar; key:PChar; def:integer):integer; stdcall;
+
   function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
   procedure Log(text:string; IsError:boolean = false);stdcall;
   function Is16x9():boolean;stdcall;
@@ -66,7 +74,6 @@ var
   alife_ptr:cardinal;
   alife_create_ptr:cardinal;
   alife_release_ptr:cardinal;
-  cweaponmagazined_unload_mag:cardinal;
 
   game_object_GetScriptGameObject_ptr:cardinal;
 
@@ -83,7 +90,6 @@ begin
   CIniFile_r_bool:=xrCore_addr+$18970;
   CIniFile_ReadStringPtr:=xrCore_addr+$18530;
   alife_object_ptr:=xrGame_addr+$99450;
-  cweaponmagazined_unload_mag:=xrGame_addr+$2CF660;
   is16x9_addr:=xrGame_addr+$43c830;
   alife_ptr:=xrGame_addr+$97780;
   alife_create_ptr:=xrGame_addr+$96eb0;
@@ -223,7 +229,7 @@ begin
   end
 end;
 
-procedure unload_magazine(wpn:pointer);stdcall;
+procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
 begin
   asm
     pushad
@@ -231,11 +237,46 @@ begin
 
     push 01
     mov ecx, wpn
-    call cweaponmagazined_unload_mag
+
+    mov edx, [ecx]
+    mov edx, [edx+$20c]
+    call edx
 
     popfd
     popad
   end;
+end;
+
+procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
+asm
+    pushad
+    pushfd
+
+    mov ecx, wpn
+
+    mov edx, [ecx]
+    mov edx, [edx+$1FC]
+    call edx
+
+    popfd
+    popad
+end;
+
+procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
+asm
+    pushad
+    pushfd
+
+
+    push cnt
+    mov ecx, wpn
+
+    mov edx, [ecx]
+    mov edx, [edx+$248]
+    call edx
+
+    popfd
+    popad
 end;
 
 function game_ini_r_single(section:PChar; key:PChar):single;stdcall;
@@ -507,5 +548,37 @@ begin
   result.x:=a;
   result.y:=b;
   result.z:=c;
+end;
+
+
+function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean):boolean;stdcall;
+begin
+  if game_ini_line_exist(section, key) then
+    result:=game_ini_r_bool(section, key)
+  else
+    result:=def;
+end;
+
+function game_ini_r_int_def(section:PChar; key:PChar; def:integer):integer; stdcall;
+begin
+  if game_ini_line_exist(section, key) then
+    result:=strtointdef(game_ini_read_string(section, key), def)
+  else
+    result:=def;
+end;
+
+
+function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
+asm
+  pushad
+
+    push cnt
+    mov ecx, wpn
+
+    mov eax, xrgame_addr
+    add eax, $2de7b0
+    call eax
+    mov @result, al
+  popad
 end;
 end.
