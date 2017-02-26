@@ -10,6 +10,8 @@ type
     _reloaded:boolean;
     _ammocnt_before_reload:integer;
 
+    _needs_unzoom:boolean;
+
     _light:pointer;
     _do_action_after_anim_played:TAnimationEffector;
     _action_param:integer;
@@ -69,7 +71,7 @@ type
   procedure SetBeforeReloadAmmoCnt(wpn:pointer; cnt:integer);stdcall;
   function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
 implementation
-uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math;
+uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math, strutils;
 
 { WpnBuf }
 
@@ -332,7 +334,10 @@ end;
 
 function CanAimNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsHolderHasActiveDetector(wpn) then
+  if leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim' then
+    //на случай, если мы недовышли из прицеливания
+    result:=true
+  else if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsHolderHasActiveDetector(wpn) then
     result:=false
   else
     result:=true;
@@ -356,13 +361,23 @@ function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
 var anm_name:string;
   hud_sect:PChar;
   act:pointer;
+  cur_param:string;
+  buf:WpnBuf;
 begin
-  if IsActionProcessing(wpn) then
-    result:=false
-  else begin
+  hud_sect:=GetHUDSection(wpn);
+
+  if IsActionProcessing(wpn) then begin
+    cur_param:='autoshoot_'+GetActualCurrentAnim(wpn);
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) and (buf._lock_remain_time>0) and game_ini_line_exist(hud_sect, PChar(cur_param)) and game_ini_r_bool(hud_sect, PChar(cur_param)) then begin
+      SetShootLockTime(wpn, buf._lock_remain_time/1000);
+      result:=true;
+    end else begin
+      result:=false;
+    end;
+  end else begin
     result:=true;
     if IsHolderInSprintState(wpn) then begin
-      hud_sect:=GetHUDSection(wpn);
       act:=GetActor();
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
@@ -413,8 +428,6 @@ begin
 end;
 
 function CanAutoReload(wpn:pointer):boolean;stdcall;
-var
-  buf:WpnBuf;
 begin
   result:=false;
 {  if not CanStartAction(wpn) then exit;

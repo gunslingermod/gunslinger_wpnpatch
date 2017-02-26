@@ -11,6 +11,7 @@ interface
 var
   xrGame_addr:cardinal;
   xrCore_addr:cardinal;
+  xrEngine_addr:cardinal;
   hndl:cardinal;
 
 const
@@ -24,6 +25,7 @@ uses windows;
 const
   xrGame:PChar='xrGame';
   xrCore:PChar='xrCore';
+  xrEngine:PChar='xrEngine.exe';
 
 function Init:boolean;
 begin
@@ -31,6 +33,7 @@ begin
   hndl:=GetCurrentProcess;
   xrGame_addr := GetModuleHandle(xrGame);
   xrCore_addr := GetModuleHandle(xrCore);
+  xrEngine_addr:=GetModuleHandle(xrEngine);
   if (xrGame_addr = 0) or (xrCore_addr = 0) then exit;
   xrGame_addr := (xrGame_addr shr 16) shl 16;
   xrCore_addr := (xrCore_addr shr 16) shl 16;

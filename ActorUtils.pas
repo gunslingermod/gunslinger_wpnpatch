@@ -28,7 +28,7 @@ const
 
 
 implementation
-uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils;
+uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils;
 
 function GetActor():pointer; stdcall;
 begin
@@ -176,6 +176,19 @@ asm
   mov @result, eax
 end;
 
+procedure ProcessZoomIn(act:pointer);
+var
+  itm:pointer;
+begin
+  //itm:=GetActorActiveItem();
+  //if (itm=nil) or not WpnCanShoot(PChar(GetClassName(itm))) then exit;
+
+  if IsActionKeyPressed(kWPN_ZOOM) then begin
+    //SetZoomStatus(itm, true);
+    log('ForceZoomIn!');
+  end;
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det:pointer;
@@ -191,13 +204,17 @@ begin
       if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
         hud_sect:=GetHUDSection(itm);
         if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
-          if CanStartAction(itm) and (not IsHolderInSprintState(itm)) then PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
+          if CanStartAction(itm) and (not IsHolderInSprintState(itm)) then
+            PlayCustomAnimStatic(itm, 'anm_finish_detector', 'sndFinishDet');
         end;
       end;
     end;
   end else begin
     SetActorActionState(act, actShowDetectorNow, false);
   end;
+
+
+  ProcessZoomIn(act);
 end;
 
 procedure ActorUpdate_Patch(); stdcall

@@ -21,7 +21,8 @@ uses
   DetectorUtils in 'DetectorUtils.pas',
   CommonUpdate in 'CommonUpdate.pas',
   Messenger in 'Messenger.pas',
-  UIUtils in 'UIUtils.pas';
+  UIUtils in 'UIUtils.pas',
+  KeyUtils in 'KeyUtils.pas';
 
 {$R *.res}
 

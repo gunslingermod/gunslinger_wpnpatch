@@ -424,7 +424,7 @@ begin
   tmpstr:=base_anim;
   actor:=GetActor();
   //Если у нас владелец - не актор, то и смысла работать дальше нет
-  if (actor<>nil) and (actor=GetOwner(wpn)) and IsAimNow(wpn) then begin
+  if (actor<>nil) and (actor=GetOwner(wpn)) and (IsAimNow(wpn) or IsHolderInAimState(wpn)) then begin
     tmpstr:=tmpstr+'_aim';
   end;
   result:=anm_std_selector(wpn, PChar(tmpstr));
@@ -549,7 +549,7 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
-    if IsAimNow(wpn) then anim_name:=anim_name+'_aim';
+    if IsAimNow(wpn) or IsHolderInAimState(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     anim_name:=anim_name + GetFireModeStateMark(wpn);                                         
     if IsExplosed(wpn) then begin

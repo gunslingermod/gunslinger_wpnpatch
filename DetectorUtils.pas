@@ -131,7 +131,7 @@ begin
       param := GetCurAnim(itm);
       if param = '' then param:=GetActualCurrentAnim(itm);
       param:='disable_detector_'+param;
-      if IsHolderInAimState(itm) or IsAimNow(itm) then begin
+      if IsHolderInAimState(itm) or (WpnCanShoot(PChar(GetClassName(itm))) and IsAimNow(itm)) then begin
         result:=false;
       end else if game_ini_line_exist(GetHUDSection(itm), PChar(param)) then begin
         result:=not game_ini_r_bool(GetHUDSection(itm), PChar(param));

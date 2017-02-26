@@ -29,6 +29,7 @@ function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
 procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 function GetAmmoInMagCount(wpn:pointer):integer; stdcall;
+function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
 function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetClassName(wpn:pointer):string; stdcall;
@@ -56,6 +57,11 @@ function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
 procedure JamWeapon(wpn:pointer); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
+
+procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
+procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
+
+procedure SetZoomStatus(wpn:pointer; status:boolean); stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -189,12 +195,10 @@ begin
 end;
 
 function IsAimNow(wpn:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov ecx, wpn
     mov al, [ecx+$496]
     mov @result, al
-  end;
 end;
 
 function GetOwner(wpn:pointer):pointer; stdcall;
@@ -597,12 +601,50 @@ begin
 end;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$2E4]
     mov @result, eax
-  end
+end;
+
+procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
+asm
+    push eax
+    push ecx
+
+    mov eax, wpn
+    mov ecx, status
+    mov [eax+$2e4], ecx
+
+    pop ecx
+    pop eax
+end;
+
+
+procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
+asm
+    push eax
+    push ecx
+
+    mov eax, wpn
+    mov ecx, status
+    mov [eax+$2e8], ecx
+
+    pop ecx
+    pop eax
+end;
+
+procedure SetZoomStatus(wpn:pointer; status:boolean); stdcall;
+asm
+    push eax
+    push ecx
+
+    mov eax, wpn
+    mov cl, status
+    mov byte ptr [eax+$496], cl
+
+    pop ecx
+    pop eax
 end;
 
 function GetNextState(wpn:pointer):integer; stdcall;
@@ -956,6 +998,13 @@ function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
 asm
   mov eax, wpn
   mov eax, [eax+$694]
+  mov @result, eax
+end;
+
+function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
+asm
+  mov eax, wpn
+  mov eax, [eax+$690]
   mov @result, eax
 end;
 
