@@ -6,6 +6,7 @@ interface
 
 function Init():boolean;
 procedure ResetActivationHoldState(); stdcall;
+procedure SetForcedQuickthrow(status:boolean);
 
 const
 		EMissileStates__eThrowStart:cardinal = 5;
@@ -16,10 +17,13 @@ const
 implementation
 uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils;
 
-var _activate_key_state:TKeyHoldState;
+var
+  _activate_key_state:TKeyHoldState;
+  _quick_throw_forced:boolean;
 
 const
   CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
+  GRENADE_KEY_HOLD_TIME_DELTA:cardinal = 350; //период времени, нажатость клавиши в течение которого означает ее удержание в нажатом состоянии
 
 function CMissile__GetFakeMissile(CMissile:pointer):pointer; stdcall;
 asm
@@ -186,7 +190,7 @@ begin
     if _activate_key_state.IsActive and _activate_key_state.IsHoldContinued then begin
       _activate_key_state.IsActive:=false;
       sect:=GetSection(CMissile);
-      if game_ini_line_exist(sect, 'supports_quick_throw') and game_ini_r_bool(sect, 'supports_quick_throw') then begin
+      if game_ini_r_bool_def(sect, 'supports_quick_throw', false) then begin
         //надо выполнить быстрый бросок
         isquickthrow:=true;
         result:='anm_throw_quick';
@@ -272,15 +276,11 @@ function CMissile__OnActiveItem(CMissile:pointer):boolean; stdcall;
 var
   curslot: integer;
   act:pointer;
-const
-  GRENADE_KEY_HOLD_TIME_DELTA:cardinal = 350; //период времени, нажатость клавиши в течение которого означает ее удержание в нажатом состоянии
 begin
-
   result:=true;
 
   act:=GetActor();
   if (act=nil) or (act<>GetOwner(CMissile)) then exit;
-
 
   curslot:=GetActorActiveSlot();
   if curslot<>GetSlotOfActorHUDItem(act, CMissile) then begin
@@ -289,8 +289,19 @@ begin
     exit;
   end;
 
+  if _quick_throw_forced then begin
+    _activate_key_state.IsActive:=true;
+    _activate_key_state.ActivationStart := GetGameTickCount();
+    _activate_key_state.HoldDeltaTimePeriod:=GRENADE_KEY_HOLD_TIME_DELTA;    
+    _activate_key_state.IsHoldContinued:=true;
+    SetForcedQuickthrow(false);     
+    result:=true;
+    exit;
+  end;
+
   if (curslot<0) or (curslot>6) then begin
     ResetActivationHoldState();
+    SetForcedQuickthrow(false);
     exit;
   end;
 
@@ -632,6 +643,11 @@ asm
   @finish:
 end;
 
+procedure SetForcedQuickthrow(status:boolean);
+begin
+  _quick_throw_forced:=status;
+end;
+
 ////////////////////////////////////////////////////////
 function Init():boolean;
 var
@@ -639,6 +655,7 @@ var
 begin
   result:=false;
   ResetActivationHoldState();
+  SetForcedQuickthrow(false);
   
   jump_addr:=xrGame_addr+$2C6C76;
   if not WriteJump(jump_addr, cardinal(@CMissile__Load_Patch), 6, true) then exit;

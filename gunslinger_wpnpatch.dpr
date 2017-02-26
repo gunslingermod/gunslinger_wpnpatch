@@ -40,7 +40,9 @@ uses
   ActorDOF in 'ActorDOF.pas',
   RayPick in 'RayPick.pas',
   BallisticsCorrection in 'BallisticsCorrection.pas',
-  Level in 'Level.pas';
+  Level in 'Level.pas',
+  CrosshairInertion in 'CrosshairInertion.pas',
+  WeaponInertion in 'WeaponInertion.pas';
 
 {$R *.res}
 
@@ -77,6 +79,7 @@ begin
 
   RayPick.Init();
   BallisticsCorrection.Init();
+  WeaponInertion.Init();
 //  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;

@@ -18,6 +18,7 @@ function IsScopeAttached(wpn:pointer):boolean; stdcall;
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
 function IsGLAttached(wpn:pointer):boolean; stdcall;
 function IsGLEnabled(wpn:pointer):boolean; stdcall;       //перед вызовом - обязательно убедиться, что гранатомет на оружии вообще ЕСТЬ! Некоторые классы оружия не поддерживают гранатомет, и тогда функция может возвратить мусор или даже сгенерировать вылет!
+procedure SetGLEnabled(wpn:pointer; state:boolean); stdcall;
 function IsWeaponJammed(wpn:pointer):boolean; stdcall;
 function CurrentQueueSize(wpn:pointer):integer; stdcall;
 function GetInstalledUpgradesCount(wpn:pointer):cardinal; stdcall;
@@ -106,6 +107,8 @@ procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdca
 function GetLastFP(wpn:pointer):FVector3;
 function GetLastFD(wpn:pointer):FVector3;
 function GetXFORM(wpn:pointer):pFMatrix4x4;stdcall;
+
+procedure AllowWeaponInertion(wpn:pointer; status:boolean);stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -447,6 +450,15 @@ asm
     je @finish
     mov @result, 1
     @finish:
+end;
+
+procedure SetGLEnabled(wpn:pointer; state:boolean); stdcall;
+asm
+    pushad
+    mov eax, wpn
+    mov bl, state
+    mov byte ptr [eax+$7F8], bl;
+    popad
 end;
 
 procedure PlayHudAnim(wpn: pointer; anim_name:PChar; bMixIn:boolean); stdcall;
@@ -1460,6 +1472,22 @@ asm
     movzx eax, status
     push eax
     call edx
+    @finish:
+  popad
+end;
+
+procedure AllowWeaponInertion(wpn:pointer; status:boolean);stdcall;
+asm
+  pushad
+    mov esi, wpn
+    add esi, $2f4
+    mov al, status
+    cmp al, 0
+    je @noinert
+    or dword ptr [esi], $4
+    jmp @finish
+    @noinert:
+    and dword ptr [esi], $FFFB
     @finish:
   popad
 end;

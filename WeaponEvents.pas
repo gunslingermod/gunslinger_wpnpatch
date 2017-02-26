@@ -333,10 +333,13 @@ var
   c:pointer;
   sect:PChar;
 begin
+
   //выставим сохраненные типы патронов
   if WpnCanShoot(PChar(GetClassName(wpn))) then begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
+//      if (IsGLAttached(wpn))  then log(booltostr(ISGLEnabled(wpn), true));
+
       if (length(buf.ammos)>0) and (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
         for i:=0 to length(buf.ammos)-1 do begin
           sect:=GetMainCartridgeSectionByType(wpn, buf.ammos[i]);
@@ -668,7 +671,7 @@ begin
   anm_started:=false;
 
   //При патчинге мы вырезали воспроизведение звука. Исправим это недоразумение одновременно с проигрыванием анимы.
-  if IsWeaponJammed(wpn) then begin
+  if not (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and IsWeaponJammed(wpn) then begin
     txt := 'gunsl_msg_weapon_jammed';
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       anm_started:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndJammedClick', nil, 0, false, true)
@@ -727,6 +730,7 @@ begin
   end;
 
   result:=CanHideWeaponNow(wpn);
+
   if (act<>nil) and (owner=act) then begin
     if result then begin
       ResetActorFlags(act);
@@ -774,6 +778,7 @@ begin
 
   if (owner<>nil) and (owner=act) then begin
     //фикс бага с доставанием предмета без смены худовой секции, когда анима доставания не игралась
+
     player_hud__attach_item(wpn);
 
     ClearActorKeyRepeatFlags();
@@ -1084,7 +1089,7 @@ end;
 //---------------------------------------------------------------------------------------------------------------------
 
 
-procedure CHudItem__OnAnimationEnd_Patch(); stdcall;
+procedure CHudItem__SendHiddenItem_Patch(); stdcall;
 asm
   pushad
     sub ecx, $2e0
@@ -1135,6 +1140,38 @@ asm
     call CWeaponShotgun__OnAnimationEnd_OnClose
   popad
   mov [esi+$179], al
+end;
+
+procedure CEatableItemObject__OnH_A_Independent_Patch(); stdcall;
+asm
+  pushad
+    lea ecx, [esi+$F0]
+    mov eax, xrgame_addr
+    call [eax+$512c88] //вырезанное - CPhysicItem::OnH_A_Independent
+  popad
+  pushad
+    //скрываем бесполезный предмет
+    mov ecx, esi
+    mov eax, [esi]
+    mov edx, [eax+$3c]
+    call edx   //this->Useful()
+    test al, al
+    jne @finish
+      mov ecx, [esi+$d4]
+      push 00
+      mov eax, xrEngine_addr
+      add eax, $196b0
+      call eax //SetVisible(false)
+
+      mov ecx, [esi+$d4]
+      push 00
+      mov eax, xrEngine_addr
+      add eax, $19670
+      call eax //SetEnabled(false)
+    @finish:
+  popad
+
+  pop esi //вырезанное
 end;
 
 //----------------------------------------------------------------------------------------------------------
@@ -1226,7 +1263,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
   //фикс убирания оружия для пианистов
   jmp_addr:=xrGame_addr+$2F96A0;
-  if not WriteJump(jmp_addr, cardinal(@CHudItem__OnAnimationEnd_Patch), 5, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CHudItem__SendHiddenItem_Patch), 5, true) then exit;
   jmp_addr:=xrGame_addr+$2d4f30;
   if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnAnimationEnd_Patch), 7, true) then exit;
   jmp_addr:=xrGame_addr+$2CCD86;
@@ -1234,35 +1271,12 @@ begin
   jmp_addr:=xrGame_addr+$2DE3DB;
   if not WriteJump(jmp_addr, cardinal(@CWeaponShotgun__OnAnimationEnd_OnClose_Patch), 6, true) then exit;
 
+  //фикс показа в руке аптеки при съедении перед дестроем
+  jmp_addr:=xrGame_addr+$2AC678;
+  if not WriteJump(jmp_addr, cardinal(@CEatableItemObject__OnH_A_Independent_Patch), 14, false) then exit;
 
   result:=true;
 end;
 
 
 end.
-
-
-{  asm
-    or byte ptr [ebp+$460],01
-
-    pushad
-    pushfd
-
-    call CreateLight
-    mov ebx, eax
-
-    push [ebp+$170]
-    push [ebp+$16C]
-    push [ebp+$168]
-    push ebx
-    call LightUtils.SetPos
-
-    push 01
-    push ebx
-    call LightUtils.Enable
-
-
-    popfd
-    popad
-    ret
-  end;}

@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -694,6 +694,8 @@ begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_shoot';
   modifier:='';
+
+  ProcessAmmo(wpn, true);
   actor:=GetActor();
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
@@ -951,8 +953,7 @@ begin
 end;
 //--------------------------------------------Фикс для перехода анимаций подствола------------------------------
 procedure GrenadeLauncherBugFix(); stdcall;
-begin
-  asm
+asm
     //Заменяем один аргумент в стеке
     mov [esp+4], 1
     // делаем вырезанное
@@ -960,12 +961,10 @@ begin
     push ecx
     lea ecx, [esp+$1C];
     mov [esp+4], ecx
-  end;
 end;
 
 procedure GrenadeAimBugFix(); stdcall;
-begin
-  asm
+asm
     //Заменяем один аргумент в стеке
     mov [esp+4], 1
     // делаем вырезанное
@@ -973,29 +972,31 @@ begin
     push ecx
     lea ecx, [esp+$18];
     mov [esp+4], ecx
-  end;
 end;
 //---------------------------------Фикс для недопущения расклинивания при перезарядке подствола-----------------------
 procedure JammedBugFix(); stdcall;
-begin
-  asm
+asm
     cmp byte ptr [esi+$7f8], 1
     je @finish
     mov [esi+$45a], 0
     @finish:
-  end;
 end;
 //------------Фикс для перезарядки - чтобы он даже не пытался перезарядиться когда не надо------
-procedure ReloadAnimPlayingPatch; stdcall;
-begin
-  asm
-    pushad
-      //push 0
-      //call WeaponAdditionalBuffer.CanStartAction
 
-      push kfRELOAD
+function CanReloadNow(wpn:pointer):boolean; stdcall;
+begin
+  if (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and (GetCurrentAmmoCount(wpn)>0) then begin
+    result:=false;
+  end else begin
+    result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfRELOAD);
+  end;
+end;
+
+procedure ReloadAnimPlayingPatch; stdcall;
+asm
+    pushad
       push esi
-      call WeaponEvents.Weapon_SetKeyRepeatFlagIfNeeded
+      call CanReloadNow
       cmp al, 1
     popad
     jne @finish
@@ -1006,12 +1007,10 @@ begin
     call eax
     @finish:
     ret
-  end;
 end;
 
 procedure AmmoChangePlayingPatch; stdcall;
-begin
-  asm
+asm
     pushad
       push 0
       push esi
@@ -1028,51 +1027,43 @@ begin
 
     @finish:
     ret 4
-  end;
 end;
 //--------------------------Аналогичный фикс для аним переключения режимов подствола----------------------------------
-//Выставляем состояние идла вручную и сразу  
-procedure SwitchAnimPlayingPatch; stdcall;
-begin
-  asm
+//Выставляем состояние идла вручную и сразу
+//чтобы не было переназначения анимы идла
+procedure CWeaponMagazined__OnStateSwitch_Patch; stdcall;
+asm
     lea esi, [esi-$2e0];
     mov [esi+$2e8], 0
     mov [esi+$2e4], 0
     ret
+end;
+
+function CanSwitchGL(wpn:pointer):boolean; stdcall;
+begin
+
+  if (GetGLStatus(wpn)=0) or not(IsGLAttached(wpn)) then begin
+    result:=false;
+  end else begin
+    result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn,kfGLAUNCHSWITCH);
   end;
 end;
 
 //а этот -  не дает переключаться, когда не надо
-procedure SwitchAnimPlayingPatch2; stdcall;
-begin
-  asm
-    //Проверяем возможность переключения
+procedure CWeaponMagazined__Action_Patch; stdcall;
+asm
     pushad
-//      push 0
-//      push esi
-//      call WeaponAdditionalBuffer.CanStartAction
-      push kfGLAUNCHSWITCH
       push esi
-      call WeaponEvents.Weapon_SetKeyRepeatFlagIfNeeded
-      cmp al, 1
+      call WeaponEvents.CanSwitchGL
+      cmp al, 0
     popad
-
-    je @switch_ok
-    //Переключаться сейчас нельзя. Выходим из текущей и _ВЫЗЫВАЮЩЕЙ_ процедур сразу
-    xor al, al
-    mov [esi+$2e8], 0
-    mov [esi+$2e4], 0
-    pop esi     //игнорируем текущий адрес возврата
-    pop esi
-    ret
-    
-    @switch_ok:
-    //делаем вырезанное
-    mov edx,[eax+$168]
-    //выходим в вызывающую процедуру
-    ret
-  end;
+    je @finish
+    lea ecx, [esi+$2E0]
+    push $0A
+    call edx  
+    @finish:
 end;
+
 //-----------------------------------------Проверка на необходимость назначения идла----------------------------------
 function CanReAssignIdleNow(CHudItem:pointer):boolean; stdcall;
 var
@@ -1502,8 +1493,6 @@ begin
   //отключим звук движкового удара ножом, т.к. теперь полностью контролируем его в WeaponEvents.OnKnifeKick
   nop_code(xrGame_addr+$2d7503, 8);
 
-
-
   //фиксим баг (мгновенная смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;
   if not WriteJump(jump_addr, cardinal(@GrenadeLauncherBugFix), 5, true) then exit;
@@ -1552,10 +1541,10 @@ begin
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__FireEnd_Patch), 7, true) then exit;
 
   if not nop_code(xrGame_addr+$2D3ACE, 10) then exit;
+
+  //CWeaponMagazinedWGrenade::OnAnimationEnd - отключаем релоад после стрельбы
+  if not nop_code(xrGame_addr+$2D15D2, 2) then exit;
 //----------------------------------------------------------
-
-
-
 
   jump_addr:=xrGame_addr+$2becd9;
   if not WriteJump(jump_addr, cardinal(@AmmoChangePlayingPatch), 5, true) then exit;
@@ -1563,9 +1552,10 @@ begin
 
   //аналогично с переключениями на подствол и обратно
   jump_addr:=xrGame_addr+$2D1545;
-  if not WriteJump(jump_addr, cardinal(@SwitchAnimPlayingPatch), 10, true) then exit;
-  jump_addr:=xrGame_addr+$2D3DC4;
-  if not WriteJump(jump_addr, cardinal(@SwitchAnimPlayingPatch2), 6, true) then exit;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__OnStateSwitch_Patch), 10, true) then exit;
+
+  jump_addr:=xrGame_addr+$2D3B26;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__Action_Patch), 10, true) then exit;
 
   //для скуки
   jump_addr:=xrGame_addr+$2F9ED1;
@@ -1686,6 +1676,18 @@ begin
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
   jump_addr:=xrGame_addr+$2D1721;//anm_show_w_gl
   if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
+  //bm16
+  jump_addr:=xrGame_addr+$2E024b;
+  if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E0287;
+  if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E02C3;
+  if not WriteJump(jump_addr, cardinal(@anm_show_std_patch), 5, true) then exit;
+
+  //фикс миксовки у анимы доставания ружья - выключаем ее
+  if not nop_code(xrGame_addr+$2E0262, 1, CHR(0)) then exit;
+  if not nop_code(xrGame_addr+$2E029E, 1, CHR(0)) then exit;
+  if not nop_code(xrGame_addr+$2E02DA, 1, CHR(0)) then exit;
   ///////////////////////////////////////////////////////////////////////////////////
   jump_addr:=xrGame_addr+$2C54FD;//anm_hide_empty
   if not WriteJump(jump_addr, cardinal(@anm_hide_sub_patch), 5, true) then exit;
@@ -1704,6 +1706,13 @@ begin
   jump_addr:=xrGame_addr+$2D17FE;//anm_hide_g
   if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
   jump_addr:=xrGame_addr+$2D17E1;//anm_show_w_gl
+  if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
+  //bm16
+  jump_addr:=xrGame_addr+$2E034B;
+  if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E0387;
+  if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
+  jump_addr:=xrGame_addr+$2E03C3;
   if not WriteJump(jump_addr, cardinal(@anm_hide_std_patch), 5, true) then exit;
   //////////////////////////////////////////////////////////////////////////////////
   jump_addr:=xrGame_addr+$2F9BC4;//anm_bore
@@ -1755,6 +1764,9 @@ begin
 
   jump_addr:=xrGame_addr+$2C5451;//reload - pistols
   if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 14, true) then exit;
+
+  jump_addr:=xrGame_addr+$2d94f2;//reload - RPG7
+  if not WriteJump(jump_addr, cardinal(@anm_reload_std_patch), 5, true) then exit;
 
 
   //микшировние выстрелов:

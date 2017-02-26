@@ -415,7 +415,7 @@ procedure DetectorUpdate(det: pointer);stdcall;
 var
   act:pointer;
   HID:pointer;
-  pos, dir, tmp, zerovec:FVector3;
+  pos, dir, tmp, zerovec, omnidir, omnipos:FVector3;
   params:torchlight_params;
   light_time_treshold_f:single;
   light_cur_time:cardinal;
@@ -448,9 +448,10 @@ begin
       end;
       //log(floattostr(pos.x)+' '+floattostr(pos.y)+' '+floattostr(pos.z));
       //log(floattostr(dir.x)+' '+floattostr(dir.y)+' '+floattostr(dir.z));
-      SetTorchlightPosAndDir(@params, @pos, @dir);
+      attachable_hud_item__GetBoneOffsetPosDir(HID, params.light_bone, @omnipos, @omnidir, @params.omni_offset);
+      SetTorchlightPosAndDir(@params, @pos, @dir, true, @omnipos, @dir);
     end else begin
-      SetTorchlightPosAndDir(@params, GetPosition(det), GetOrientation(det))
+      SetTorchlightPosAndDir(@params, GetPosition(det), GetOrientation(det), false)
     end;
 
     if leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show' then begin

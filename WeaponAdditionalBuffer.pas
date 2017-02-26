@@ -428,7 +428,7 @@ end;
 
 function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or IsHolderInAimState(wpn) or IsAimNow(wpn) then
+  if IsActionProcessing(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))= 'anm_switch') or IsHolderInSprintState(wpn) or IsHolderInAimState(wpn) or IsAimNow(wpn) then
     result:=false
   else
     result:=true;
@@ -873,7 +873,8 @@ end;
 procedure WpnBuf.UpdateTorch;
 var
   HID:pointer;
-  pos, dir, tmp, zerovec:FVector3;
+  pos, dir, tmp, zerovec, omnipos, omnidir:FVector3;
+  hudmode:boolean;
 begin
 
   if not self._torch_installed then exit;
@@ -903,6 +904,7 @@ begin
     exit;
   end else if (HID<>nil) and (GetActorActiveItem()=_my_wpn)then begin
     //1st person view
+    hudmode:=true;
     attachable_hud_item__GetBoneOffsetPosDir(HID, _torch_params.light_bone, @pos, @dir, @_torch_params.offset);
     if _torch_params.is_lightdir_by_bone then begin
       //направление света задается через разность позиций 2х костей оружия
@@ -910,13 +912,19 @@ begin
       v_sub(@dir, @pos);
       v_normalize(@dir);
     end;
+    attachable_hud_item__GetBoneOffsetPosDir(HID, _torch_params.light_bone, @omnipos, @omnidir, @_torch_params.omni_offset);
   end else begin
     //world view
+    hudmode:=false;
     dir:=_torch_params.world_offset;
     transform_tiny(GetXFORM(_my_wpn), @pos, @dir);
+
+    dir:=_torch_params.omni_world_offset;
+    transform_tiny(GetXFORM(_my_wpn), @omnipos, @dir);
+
     dir:=GetLastFD(_my_wpn);
   end;
-  SetTorchlightPosAndDir(@_torch_params, @pos, @dir);
+  SetTorchlightPosAndDir(@_torch_params, @pos, @dir, hudmode, @omnipos, @dir);
 end;
 
 function WpnBuf.IsTorchEnabled: boolean;

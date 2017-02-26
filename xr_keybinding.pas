@@ -133,7 +133,7 @@ begin
   _add_action('skin_menu', kSKIN, _keygroup_mp);
   _add_action('team_menu', kTEAM, _keygroup_mp);
 {$endif}  
-  _add_action('active_jobs', kACTIVE_JOBS, _keygroup_sp);
+  _add_action('active_jobs', kACTIVE_JOBS, _keygroup_sp); //PDA
 
 
 {$ifndef DISABLE_UNUSED_COMMANDS}
@@ -159,10 +159,10 @@ begin
 
   _add_action('quick_save', kQUICK_SAVE, _keygroup_sp);
   _add_action('quick_load', kQUICK_LOAD, _keygroup_sp);
-//  _add_action('quick_grenade', kQUICK_GRENADE, _keygroup_both);  
 
   _add_action('wpn_laser', kLASER, _keygroup_both);
-  _add_action('wpn_torch', kTACTICALTORCH, _keygroup_both);  
+  _add_action('wpn_torch', kTACTICALTORCH, _keygroup_both);
+  _add_action('quick_grenade', kQUICK_GRENADE, _keygroup_both);    
 //  _add_action('alife_command', kALIFE_CMD, _keygroup_sp); //восстанавливаем ЧНовское
 
 //  _add_action('not_binded', $45, _keygroup_sp);

@@ -11,7 +11,7 @@ end;
 
 function Init:boolean;
 function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
-function nop_code(addr:cardinal; count:cardinal):boolean;
+function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
 function GetGameTickCount:cardinal;
 function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
 function GetTimeDeltaSafe(starttime:cardinal; endtime:cardinal):cardinal; overload;
@@ -52,8 +52,7 @@ const
   xrRender_R3:PChar='xrRender_R3';
   xrRender_R4:PChar='xrRender_R4';    
 
-function nop_code(addr:cardinal; count:cardinal):boolean;
-const opcode:char=CHR($90);
+function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
 var rb:cardinal;
     i:cardinal;
 begin

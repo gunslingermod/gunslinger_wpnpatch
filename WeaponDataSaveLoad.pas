@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge, Misc, WeaponEvents;
+uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge, Misc, WeaponEvents, ActorUtils;
 
 //-----------------------------------------------------------------------------------------------------------
 procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
@@ -96,6 +96,7 @@ begin
   if not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
   buf:=GetBuffer(wpn);
   if buf = nil then exit;
+
   tmp_bool:=buf.IsLaserEnabled();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_bool:=buf.IsTorchEnabled();
@@ -116,6 +117,7 @@ begin
 
     for i:=1 to max_in_mag do begin
       c:=GetCartridgeFromMagVector(wpn, i);
+      //if wpn = GetActorActiveItem() then log(inttostr(c^.m_local_ammotype));
       if ammotype<>c^.m_local_ammotype then begin
         WriteToPacket(packet, @cnt, sizeof(cnt));
         WriteToPacket(packet, @ammotype, sizeof(ammotype));

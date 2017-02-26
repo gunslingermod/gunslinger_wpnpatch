@@ -86,7 +86,7 @@ function GetLefthandedTorchParams():torchlight_params; stdcall;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils;
 
 var
   _keyflags:cardinal;
@@ -481,6 +481,7 @@ procedure OnActorNewSlotActivated(act:pointer; slot:integer); stdcall;
 begin
   ResetActorFlags(act);
   ResetActivationHoldState();
+  if slot<>4 then SetForcedQuickthrow(false);
 
   //TODO: перенести еду
 
@@ -523,7 +524,7 @@ end;
 
 procedure ActorUpdate(act:pointer); stdcall;
 var
-  itm, det:pointer;
+  itm, det, wpn:pointer;
   hud_sect:PChar;
 begin
   UpdateSlots(act);
@@ -550,6 +551,8 @@ begin
 
   ProcessKeys(act);
   UpdateFOV(act);
+  UpdateInertion(GetActorActiveItem());
+
 
   if (_lefthanded_torch.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
 //    log('Destroy lefthand light');
@@ -634,7 +637,7 @@ end;
 function CActor__OnKeyboardPress(dik:cardinal):boolean; stdcall;
 var
   act:pointer;
-  wpn, det:pointer;
+  wpn, det, itm:pointer;
   iswpnthrowable, canshoot, is_bino:boolean;
   state:cardinal;
   cls:PChar;
@@ -697,6 +700,13 @@ begin
         if GetActorActionState(act, actModDetectorSprintStarted) then result:=false;
       end;
     end;
+  end else if (dik=kQUICK_GRENADE) then begin
+    if GetActorActiveSlot()=4 then exit;
+    itm:=ItemInSlot(act, 4);
+    if (itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'supports_quick_throw', false) then begin
+      SetForcedQuickthrow(true);
+      ActivateActorSlot(4);
+    end;
   end;
 
 end;
@@ -727,6 +737,7 @@ begin
   ClearActorKeyRepeatFlags();
   ResetActorFlags(CActor);
   ResetActivationHoldState();
+  SetForcedQuickthrow(false);
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}  
@@ -804,7 +815,7 @@ end;
 
 procedure UpdateFOV(act:pointer);
 var
-    fov:single;
+    fov, zoom_fov, hud_fov, af:single;
     wpn:pointer;
 begin
   //ћожно манипулировать FOV и HudFOV
@@ -817,7 +828,19 @@ begin
   SetFOV(fov);
 
   fov:=GetBaseHudFOV();
-  if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'hud_fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'hud_fov_factor');  
+  if (wpn<>nil) then begin
+    hud_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_factor', 1.0);
+    if IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then begin
+      if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
+        zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_zoom_factor', hud_fov);
+      end else begin
+        zoom_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_zoom_factor', hud_fov);
+      end;
+      af :=GetAimFactor(wpn);
+      hud_fov:=hud_fov-(hud_fov-zoom_fov)*af;
+    end;
+    fov := fov*hud_fov;
+  end;
   SetHudFOV(fov);
 end;
 

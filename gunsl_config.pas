@@ -3,7 +3,16 @@ unit gunsl_config;
 interface
 uses MatVectors;
 
+type weapon_inertion_params = record
+  pitch_offset_r:single;
+  pitch_offset_n:single;
+  pitch_offset_d:single;
+  origin_offset:single;
+  speed:single;
+end;
+
 function Init:boolean;
+function GetStdInertion(aim:boolean):weapon_inertion_params;
 
 const
   gd_novice:cardinal=0;
@@ -46,6 +55,8 @@ implementation
 uses BaseGameData, sysutils, ConsoleUtils;
 
 var
+  std_inertion:weapon_inertion_params;
+  aim_inertion:weapon_inertion_params;
   fov:single;
   hud_fov:single;
 
@@ -355,8 +366,26 @@ begin
 
   dof_def_timeoffset:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_dof_time_offset', -0.4); //время выключения дофа
 
+//----------------------------------------------------------------------------------------------------------------------------
+
+  std_inertion.pitch_offset_r:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_default_pitch_offset_r', -0.017);
+  std_inertion.pitch_offset_n:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_default_pitch_offset_n', -0.012);
+  std_inertion.pitch_offset_d:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_default_pitch_offset_d', -0.02);
+  std_inertion.origin_offset:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_default_origin_offset', 0.05);
+  std_inertion.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_default_speed', 5);
+
+  aim_inertion.pitch_offset_r:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_pitch_offset_r', std_inertion.pitch_offset_r);
+  aim_inertion.pitch_offset_n:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_pitch_offset_n', std_inertion.pitch_offset_n);
+  aim_inertion.pitch_offset_d:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_pitch_offset_d', std_inertion.pitch_offset_d);
+  aim_inertion.origin_offset:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_origin_offset', std_inertion.origin_offset);
+  aim_inertion.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_speed', std_inertion.speed);
 
   result:=true;
+end;
+
+function GetStdInertion(aim:boolean):weapon_inertion_params;
+begin
+  if aim then result:=aim_inertion else result:=std_inertion;
 end;
 
 end.

@@ -4,9 +4,10 @@ interface
 function Init:boolean;
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
+procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge;
 
 
 
@@ -30,7 +31,7 @@ begin
 
   zerovec.x:=0;
   zerovec.y:=0;
-  zerovec.z:=0;  
+  zerovec.z:=0;
   laserdot_data:=buf.GetLaserDotData();
 
   //если в собственности Ќѕ—а и в консоли выставлено не использовать лазер - отключим
@@ -43,7 +44,7 @@ begin
   end else begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
     buf.StopLaserdotParticle();
-    exit; 
+    exit;
   end;
 
 
@@ -83,11 +84,11 @@ begin
       b:=(GetAngleCos(@viewdir, @dotdir)<laserdot_data.hud_treshold);
     end;
 
-    if (not IsLaserdotCorrection()) then dist:=dist*0.85;    
+    if (not IsLaserdotCorrection()) then dist:=dist*0.85;
 
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
-    dotpos.z:=dotpos.z+dotdir.z*dist;    
+    dotpos.z:=dotpos.z+dotdir.z*dist;
 
     buf.PlayLaserdotParticle(@dotpos, dist, true, b);
     buf.SetLaserDotParticleHudStatus(b);
@@ -108,15 +109,43 @@ begin
   end;
 end;
 
-procedure ProcessAmmoAdv(wpn: pointer);
+procedure ProcessAmmoAdv(wpn: pointer; forced:boolean=false);
 var
   hud_sect:PChar;
   bones_sect:PChar;
   bones:PChar;
-  cnt:integer;
+  cnt, ammotype:integer;
+  sect_w_ammotype:string;
+  cls:string;
 begin
   hud_sect:=GetHUDSection(wpn);
-  bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
+
+  if (GetCurrentState(wpn)=cardinal(EWeaponStates__eFire)) and not forced and game_ini_r_bool_def(hud_sect, 'ammo_params_toggle_shooting', false) then begin
+    //во врем€ стрельбы не производить обновление костей - нужно дл€ корректных гильз у дробовиков
+    exit;
+  end;
+
+  if (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) and game_ini_r_bool_def(hud_sect, 'ammo_params_changing_when_reload_starts', false) then begin
+    //обновление нужно производить в начале перезар€дки - дл€ дробашей
+    ammotype:=GetAmmoTypeToReload(wpn);
+  end else if (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) then begin
+    //обновление в перезар€дке синхронно со счетчиком
+    ammotype:=GetAmmoTypeIndex(wpn);
+  end else if game_ini_r_bool_def(hud_sect, 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
+    //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
+    ammotype:=GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype;
+  end else begin
+    //за тип секции отвечает общий тип оружи€
+    ammotype:=GetAmmoTypeIndex(wpn);
+  end;
+
+  sect_w_ammotype:='ammo_params_section_'+inttostr(ammotype);
+  if game_ini_line_exist(hud_sect, PChar(sect_w_ammotype)) then begin
+    bones_sect:= game_ini_read_string(hud_sect, PChar(sect_w_ammotype));
+  end else begin
+    bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
+  end;
+
   cnt:=GetAmmoInMagCount(wpn);
 
   if IsWeaponJammed(wpn) and game_ini_line_exist(bones_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(bones_sect, 'additional_ammo_bone_when_jammed') then
@@ -132,19 +161,19 @@ begin
 end;
 
 
-procedure ProcessAmmo(wpn: pointer);
+procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 var hud_sect:PChar;
     prefix, prefix_hide, prefix_var:string;
     i:integer;
     start_index, finish_index, limitator:integer;
 begin
   hud_sect:=GetHUDSection(wpn);
-  if game_ini_line_exist(hud_sect, 'use_advanced_ammo_bones') and game_ini_r_bool(hud_sect, 'use_advanced_ammo_bones') then begin
-    ProcessAmmoAdv(wpn);
+  if game_ini_r_bool_def(hud_sect, 'use_advanced_ammo_bones', false) then begin
+    ProcessAmmoAdv(wpn, forced);
     exit;
   end;
 
-  if not game_ini_line_exist(hud_sect, 'use_ammo_bones') or (game_ini_r_bool(hud_sect, 'use_ammo_bones')=false) then exit;
+  if not game_ini_r_bool_def(hud_sect, 'use_ammo_bones', false) then exit;
   prefix:= game_ini_read_string(hud_sect, 'ammo_bones_prefix');
 
   if game_ini_line_exist(hud_sect, 'ammo_hide_bones_prefix') then
@@ -382,7 +411,6 @@ var
   offset:integer;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
-
     sect:=GetSection(wpn);
 
     if (GetActorActiveItem=wpn) and DOFChanged() and (not IsAimNow(wpn)) and (not IsHolderInAimState(wpn)) and (GetAnimTimeState(wpn, ANM_TIME_CUR)>0) then begin

@@ -15,6 +15,8 @@ type torchlight_params = packed record
   is_lightdir_by_bone:boolean;
   offset:FVector3;
   world_offset:FVector3;
+  omni_offset:FVector3;
+  omni_world_offset:FVector3;
   color:Fvector4;
   omni_color:FVector4;
 end;
@@ -27,6 +29,7 @@ procedure light__destroy(light:pointer);stdcall;
 procedure glow__destroy(glow:pointer);stdcall;
 procedure light__set_type(light:pointer; ltype:cardinal);stdcall;
 procedure light__set_shadow(light:pointer; status:boolean);stdcall;
+procedure light__set_hud_mode(light:pointer; status:boolean);stdcall;
 procedure light__set_enabled(light:pointer; state:boolean); stdcall;
 procedure glow__set_enabled(glow:pointer; state:boolean); stdcall;
 procedure light__set_direction(light:pointer; dir,right:pFVector3); stdcall;
@@ -45,7 +48,7 @@ procedure light__set_texture(light:pointer; t:pChar); stdcall;
 procedure NewTorchlight(_torch_params:ptorchlight_params; params_section:PChar);
 procedure DelTorchlight(_torch_params:ptorchlight_params);
 procedure SwitchTorchlight(_torch_params:ptorchlight_params; status:boolean);
-procedure SetTorchlightPosAndDir(_torch_params:ptorchlight_params; pos:pFVector3; dir:pFVector3);
+procedure SetTorchlightPosAndDir(_torch_params:ptorchlight_params; pos:pFVector3; dir:pFVector3; hud_mode:boolean=true; pos_omni:pFVector3=nil; dir_omni:pFVector3=nil);
 
 const
   IRender_Light__DIRECT:cardinal = 0;
@@ -143,6 +146,18 @@ asm
   mov ecx, light
   mov edx, [ecx]
   mov eax, [edx+$0C]
+  movzx ebx, status
+  push ebx
+  call eax
+  popad
+end;
+
+procedure light__set_hud_mode(light:pointer; status:boolean);stdcall;
+asm
+  pushad
+  mov ecx, light
+  mov edx, [ecx]
+  mov eax, [edx+$44]
   movzx ebx, status
   push ebx
   call eax
@@ -322,10 +337,11 @@ begin
   _torch_params.render:=light__create();
   _torch_params.omni:=light__create();
   _torch_params.glow:=glow__create();
-  light__set_type(_torch_params.render, IRender_Light__SPOT);
-  light__set_type(_torch_params.omni, IRender_Light__POINT);
-  light__set_shadow(_torch_params.render, true);
-  light__set_shadow(_torch_params.omni, false);
+
+  light__set_type(_torch_params.render, game_ini_r_int_def(params_section, 'torch_render_type', IRender_Light__SPOT));
+  light__set_type(_torch_params.omni, game_ini_r_int_def(params_section, 'torch_omni_type', IRender_Light__POINT));
+  light__set_shadow(_torch_params.render, game_ini_r_bool_def(params_section, 'torch_render_shadow', true));
+  light__set_shadow(_torch_params.omni, game_ini_r_bool_def(params_section, 'torch_omni_shadow', false));
 
   _torch_params.light_bone:=game_ini_read_string(params_section, 'torch_light_bone');
   _torch_params.light_cone_bones:=game_ini_read_string(params_section, 'torch_cone_bones');
@@ -337,6 +353,14 @@ begin
   _torch_params.world_offset.x:=game_ini_r_single_def(params_section, 'torch_world_attach_offset_x', 0.0);
   _torch_params.world_offset.y:=game_ini_r_single_def(params_section, 'torch_world_attach_offset_y', 0.0);
   _torch_params.world_offset.z:=game_ini_r_single_def(params_section, 'torch_world_attach_offset_z', 0.0);
+
+  _torch_params.omni_offset.x:=game_ini_r_single_def(params_section, 'torch_omni_attach_offset_x', _torch_params.offset.x);
+  _torch_params.omni_offset.y:=game_ini_r_single_def(params_section, 'torch_omni_attach_offset_y', _torch_params.offset.y);
+  _torch_params.omni_offset.z:=game_ini_r_single_def(params_section, 'torch_omni_attach_offset_z', _torch_params.offset.z);
+
+  _torch_params.omni_world_offset.x:=game_ini_r_single_def(params_section, 'torch_omni_world_attach_offset_x', _torch_params.world_offset.x);
+  _torch_params.omni_world_offset.y:=game_ini_r_single_def(params_section, 'torch_omni_world_attach_offset_y', _torch_params.world_offset.y);
+  _torch_params.omni_world_offset.z:=game_ini_r_single_def(params_section, 'torch_omni_world_attach_offset_z', _torch_params.world_offset.z);
 
   if (xrRender_R1_addr>0) then begin
     _torch_params.color.x:=game_ini_r_single_def(params_section, 'torch_color_r', 1.0);
@@ -398,15 +422,24 @@ begin
   _torch_params.enabled:=status;
 end;
 
-procedure SetTorchlightPosAndDir(_torch_params:ptorchlight_params; pos:pFVector3; dir:pFVector3);
+procedure SetTorchlightPosAndDir(_torch_params:ptorchlight_params; pos:pFVector3; dir:pFVector3; hud_mode:boolean=true; pos_omni:pFVector3=nil; dir_omni:pFVector3=nil);
 var
   up, right:FVector3;
 begin
   generate_orthonormal_basis_normalized(dir, @up, @right);
   light__set_position(_torch_params.render, pos);
   light__set_direction(_torch_params.render, dir, @right);
-  light__set_position(_torch_params.omni, pos);
-  light__set_direction(_torch_params.omni, dir, @right);
+  light__set_hud_mode(_torch_params.render, hud_mode);
+
+  if pos_omni=nil then pos_omni := pos;
+  if dir_omni=nil then dir_omni := dir;
+  generate_orthonormal_basis_normalized(dir_omni, @up, @right);
+
+  light__set_position(_torch_params.omni, pos_omni);
+  light__set_direction(_torch_params.omni, dir_omni, @right);
+  light__set_hud_mode(_torch_params.render, hud_mode);
+
+
   glow__set_position(_torch_params.glow, pos);
   glow__set_direction(_torch_params.glow, dir);
 end;
