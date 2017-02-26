@@ -28,10 +28,12 @@ uses
   Throwable in 'Throwable.pas',
   dynamic_caster in 'dynamic_caster.pas',
   HitUtils in 'HitUtils.pas',
-  hud_transp_r1 in 'hud_transp_r1.pas',  
+  hud_transp_r1 in 'hud_transp_r1.pas',
   hud_transp_r2 in 'hud_transp_r2.pas',
   hud_transp_r3 in 'hud_transp_r3.pas',
-  hud_transp_r4 in 'hud_transp_r4.pas';
+  hud_transp_r4 in 'hud_transp_r4.pas',
+  LensDoubleRender in 'LensDoubleRender.pas';
+
 {$R *.res}
 
 begin
@@ -55,6 +57,7 @@ begin
   ActorUtils.Init;
   ConsoleUtils.Init;
   Throwable.Init();
+  //LensDoubleRender.Init();
 
   hud_transp_r1.Init();
   hud_transp_r2.Init();

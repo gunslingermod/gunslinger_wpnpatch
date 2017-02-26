@@ -6,10 +6,33 @@ function WpnUpdate(wpn:pointer):boolean; stdcall;
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math;
 
 var patch_addr:cardinal;
   tst_light:pointer;
+
+procedure ProcessAmmoAdv(wpn: pointer);
+var
+  hud_sect:PChar;
+  bones_sect:PChar;
+  bones:PChar;
+  cnt:integer;
+begin
+  hud_sect:=GetHUDSection(wpn);
+  bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
+  cnt:=GetAmmoInMagCount(wpn);
+
+  if IsWeaponJammed(wpn) and game_ini_line_exist(bones_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(bones_sect, 'additional_ammo_bone_when_jammed') then
+    cnt:=cnt+1;
+
+  //скрываем все
+  bones:= game_ini_read_string(bones_sect, 'all_bones');
+  SetWeaponMultipleBonesStatus(wpn, bones, false);
+
+  //отображаем нужные
+  bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
+  SetWeaponMultipleBonesStatus(wpn, bones, true);
+end;
 
 
 procedure ProcessAmmo(wpn: pointer);
@@ -19,6 +42,11 @@ var hud_sect:PChar;
     start_index, finish_index, limitator:integer;
 begin
   hud_sect:=GetHUDSection(wpn);
+  if game_ini_line_exist(hud_sect, 'use_advanced_ammo_bones') and game_ini_r_bool(hud_sect, 'use_advanced_ammo_bones') then begin
+    ProcessAmmoAdv(wpn);
+    exit;
+  end;
+
   if not game_ini_line_exist(hud_sect, 'use_ammo_bones') or (game_ini_r_bool(hud_sect, 'use_ammo_bones')=false) then exit;
   prefix:= game_ini_read_string(hud_sect, 'ammo_bones_prefix');
 
@@ -45,13 +73,17 @@ begin
 
   finish_index:=start_index+GetAmmoInMagCount(wpn)-1;
 
-
-  if game_ini_line_exist(hud_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(hud_sect, 'additional_ammo_bone_when_jammed') then
+  if IsWeaponJammed(wpn) and game_ini_line_exist(hud_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(hud_sect, 'additional_ammo_bone_when_jammed') then
     finish_index:=finish_index+1;
+
+  if game_ini_line_exist(hud_sect, 'ammo_divisor_up') then
+    finish_index:=ceil(finish_index/strtoint(game_ini_read_string(hud_sect, 'ammo_divisor_up')))
+  else if game_ini_line_exist(hud_sect, 'ammo_divisor_down') then
+    finish_index:=floor(finish_index/strtoint(game_ini_read_string(hud_sect, 'ammo_divisor_down')));
 
   if finish_index>limitator then finish_index:=limitator;
 
-  //SendMessage(PChar(inttostr(start_index)+' '+PChar(inttostr(finish_index))+' '+PChar(inttostr(limitator))));
+//  if wpn=GetActorActiveItem() then SendMessage(PChar(inttostr(start_index)+' '+PChar(inttostr(finish_index))+' '+PChar(inttostr(limitator))));
 
   for i:=start_index to finish_index do begin
     SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), true);

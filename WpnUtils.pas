@@ -73,8 +73,8 @@ procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
 function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
 
-function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
-function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;
+{function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
+function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;}
 
 procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
 procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
@@ -83,6 +83,7 @@ procedure SetZoomStatus(wpn:pointer; status:boolean); stdcall;
 function IsAimToggle():boolean; stdcall;
 
 function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdcall;
+function virtual_IKinematicsAnimated__LL_MotionID(IKinematicsAnimated:pointer; name:PChar):integer; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -1229,13 +1230,27 @@ asm
   pop eax
 end;
 
-function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
+{function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
 begin
 end;
 
 
 function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;
 begin
+end;   }
+
+function virtual_IKinematicsAnimated__LL_MotionID(IKinematicsAnimated:pointer; name:PChar):integer; stdcall;
+asm
+  cmp IKinematicsAnimated, 0
+  je @null
+    mov eax, IKinematicsAnimated
+    mov eax, [eax]
+    mov eax, [eax+$40]
+
+
+  @null:
+  mov @result, 0
+  @finish:
 end;
 
 end.

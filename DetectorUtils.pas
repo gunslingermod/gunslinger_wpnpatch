@@ -390,7 +390,7 @@ var
   state:cardinal;
 begin
   act:=GetActor();
-  if (act<>nil) and (act=GetOwner(det)) and (leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show') then begin
+  if (act<>nil) and (act=GetOwner(det)) and (leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show') and GetActorActionState(act, actModDetectorSprintStarted, mstate_REAL) and GetActorActionState(act, actSprint, mstate_REAL) then begin
     SetActorActionState(act, actModNeedMoveReassign, true);
   end;
   
@@ -403,7 +403,7 @@ begin
     if (companion<>nil) and IsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
     if (state<>0) and ((state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady)) then begin
       AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_idle'), true, true);
-    end else if leftstr(GetActualCurrentAnim(det), length('anm_idle'))='anm_idle' then begin
+    end else if (leftstr(GetActualCurrentAnim(det), length('anm_idle'))='anm_idle') and GetActorActionState(act, actModDetectorSprintStarted, mstate_REAL) and GetActorActionState(act, actSprint, mstate_REAL) then begin
       SetActorActionState(act, actModNeedMoveReassign, true);
     end;
   end;

@@ -173,9 +173,12 @@ var
   snd, sect:PChar;
   curslot:integer;
   det_anim:string;
+  isquickthrow:boolean;
 begin
   result:='anm_show';
   snd:='sndDraw';
+  isquickthrow:=false;
+
 
   act:=GetActor();
   if (act<>nil) and (GetOwner(CMissile)=act) then begin
@@ -187,6 +190,7 @@ begin
       sect:=GetSection(CMissile);
       if game_ini_line_exist(sect, 'supports_quick_throw') and game_ini_r_bool(sect, 'supports_quick_throw') then begin
         //надо выполнить быстрый бросок
+        isquickthrow:=true;
         result:='anm_throw_quick';
         snd:='sndThrowQuick';
         CMissile__spawn_fake_missile(CMissile);
@@ -196,7 +200,11 @@ begin
 
     det:=GetActiveDetector(act);
     if det <> nil then begin
-      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_draw';
+      if isquickthrow then begin
+        det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_quickthrow';      
+      end else begin
+        det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn_draw';
+      end;
       if game_ini_line_exist(GetHUDSection(CMissile), PChar(det_anim)) then begin
         AssignDetectorAnim(det, PChar(det_anim), true, true);
       end;

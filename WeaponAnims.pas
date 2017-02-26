@@ -106,22 +106,6 @@ begin
     isdetector :=WpnIsDetector(PChar(cls));
 
 
-  { ”шло в DetectorUtils.CCustomDetector__OnAnimationEnd
-    if isdetector then begin
-      //проверка на необходимость играть идловую аниму с замахом
-      companion:= GetActorActiveItem();
-      if (companion<>nil) and WpnIsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
-      if (state<>0) and ((state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady)) then begin
-        anim_name:=ANM_LEFTHAND+GetSection(wpn)+'_wpn_throw_idle';
-        if (not game_ini_line_exist(hud_sect, PChar(anim_name))) then begin
-          log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
-          if IsDebug then Messenger.SendMessage('Animation not found, see log!');
-          anim_name:='anm_idle';
-        end;
-        result:=PChar(anim_name);
-      end;
-    end;     }
-
     //--------------------------ћодификаторы движени€/состо€ни€ актора---------------------------------------
 
     //если актор в режиме прицеливани€
@@ -144,9 +128,7 @@ begin
       anim_name:=anim_name+'_sprint';
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
-        if canshoot then
-          CHudItem_Play_Snd(wpn, 'sndSprintStart')
-        else if isgrenorbolt then
+        if canshoot or isgrenorbolt then
           CHudItem_Play_Snd(wpn, 'sndSprintStart');
         if isdetector then
           SetActorActionState(actor, actModDetectorSprintStarted, true)
@@ -156,10 +138,9 @@ begin
 
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
-      if canshoot then
-        CHudItem_Play_Snd(wpn, 'sndSprintEnd')
-      else if isgrenorbolt then
+      if canshoot or isgrenorbolt then
         CHudItem_Play_Snd(wpn, 'sndSprintEnd');
+        
       if isdetector then
         SetActorActionState(actor, actModDetectorSprintStarted, false)
       else
@@ -503,25 +484,6 @@ begin
   end;
 end;
 
-procedure anm_reload_g_std_patch();stdcall;
-const anm_reload_g:PChar = 'anm_reload';
-begin
-  asm
-    push 0                  //забиваем место под название анимы
-    pushad
-    pushfd
-    push anm_reload_g
-    push esi
-    call anm_std_selector  //получаем строку с именем анимы
-    mov ecx, [esp+$28]      //запоминаем адрес возврата
-    mov [esp+$28], eax      //кладем на его место результирующую строку
-    mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
-    popfd
-    popad
-    ret
-  end;
-end;
-
 procedure anm_open_std_patch();stdcall;
 const anm_open:PChar = 'anm_open';
 begin
@@ -756,6 +718,66 @@ begin
 end;
 
 
+function anm_reload_g_selector(wpn:pointer):pchar;stdcall;
+var
+  hud_sect:PChar;
+  actor, det:pointer;
+  det_anim, snd:string;
+begin
+  hud_sect:=GetHUDSection(wpn);
+  anim_name:='anm_reload';
+  actor:=GetActor();
+  //≈сли у нас владелец - не актор, то и смысла работать дальше нет
+  if (actor<>nil) and (actor=GetOwner(wpn)) then begin
+    //----------------------------------ћодификаторы состо€ни€ оружи€----------------------------------------------------
+    if (GetCurrentAmmoCount(wpn)>0) and  (GetAmmoTypeChangingStatus(wpn)<>$FF) then begin
+      anim_name:=anim_name+'_ammochange';
+      snd:='sndChangeGrenade';
+    end else snd := 'sndLoadGrenade';
+
+    if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
+       //log ('det+rel');
+      anim_name:=anim_name+'_detector';
+      snd:=snd+'Detector';
+    end;
+
+    if game_ini_line_exist(hud_sect, PChar('immediate_unhide_'+anim_name)) and game_ini_r_bool(hud_sect, PChar('immediate_unhide_'+anim_name)) then begin
+      //если выставлен такой параметр - не надо проигрывать аниму преддоставани€ детектора, тупо достаем его после окончани€ анимы (?)
+      SetActorActionState(actor, actShowDetectorNow, true);
+    end;
+
+    ModifierGL(wpn, anim_name);
+
+    //назначим аниму детектору при необходимости
+    det:=GetActiveDetector(actor);
+    if det<>nil then begin
+      det_anim:=ANM_LEFTHAND+GetSection(det)+'_wpn'+rightstr(anim_name, length(anim_name)-3); //без anm
+      if game_ini_line_exist(hud_sect, PChar(det_anim)) then begin
+        AssignDetectorAnim(det, PChar(det_anim), true, true);
+      end;
+    end;    
+  end;
+
+  if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
+    log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
+    if IsDebug then Messenger.SendMessage('Animation not found, see log!');
+    anim_name:='anm_reload';
+    ModifierBM16(wpn, anim_name);
+  end;
+  result:=PChar(anim_name);
+
+  CHudItem_Play_Snd(wpn, PChar(snd));
+
+  GetBuffer(wpn).SetReloaded(false);
+  if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAmmoTimer);
+    //log('lock-start, anm = '+anim_name);
+  end else begin
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+  end;
+end;
+
+
 procedure anm_reload_std_patch();stdcall;
 begin
   asm
@@ -764,6 +786,27 @@ begin
     pushfd
     push esi
     call anm_reload_selector  //получаем строку с именем анимы
+    mov ecx, [esp+$28]      //запоминаем адрес возврата
+    mov [esp+$28], eax      //кладем на его место результирующую строку
+    mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
+    popfd
+    popad
+    ret
+  end;
+end;
+
+
+procedure anm_reload_g_std_patch();stdcall;
+const anm_reload_g:PChar = 'anm_reload';
+begin
+  asm
+    push 0                  //забиваем место под название анимы
+    pushad
+    pushfd
+//    push anm_reload_g
+    push esi
+//    call anm_std_selector  //получаем строку с именем анимы
+    call anm_reload_g_selector
     mov ecx, [esp+$28]      //запоминаем адрес возврата
     mov [esp+$28], eax      //кладем на его место результирующую строку
     mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
@@ -983,8 +1026,8 @@ begin
 
     mov eax, [ebx+$590]
     mov ebx, [ebx+$594]
-    and eax, $3F
-    and ebx, $3F
+    and eax, $0000003F
+    and ebx, $0000003F
     cmp eax, ebx
 
     pop ebx
@@ -1340,7 +1383,11 @@ var
 begin
   act:=GetActor();
   //пофиксим рассинхрон аним ствола и детектора в беге
-  if (act<>nil) and (act=GetOwner(wpn)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))='anm_idle') then begin
+  //делаем это принудительным переназначением аним идла
+  if (act<>nil) and (act=GetOwner(wpn)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))='anm_idle')
+    //если бег уже кончилс€ - то забываем
+    and GetActorActionState(act, actModSprintStarted, mstate_REAL) and GetActorActionState(act, actSprint, mstate_REAL)
+  then begin
     SetActorActionState(act, actModNeedMoveReassign, true);
   end;
 end;
@@ -1362,6 +1409,7 @@ end;
 procedure CWeaponKnife__OnAnimationEnd(wpn:pointer); stdcall;
 begin
   //¬Ќ»ћјЌ»≈! «ачастую CWeapon__OnAnimationEnd и так вызоветс€ из-за передачи управлени€ методу родител€, см. код игры
+  //
   CWeapon__OnAnimationEnd(wpn);
 end;
 
@@ -1398,7 +1446,6 @@ asm
   mov eax, $4014
   ret
 end;
-
 //---------------------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
@@ -1417,7 +1464,7 @@ begin
   if not WriteJump(jump_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
   jump_addr:=xrGame_addr+$2d4f30;
   if not WriteJump(jump_addr, cardinal(@CWeaponKnife__OnAnimationEnd_Patch), 7, true) then exit;
-  
+
   //фиксим баг (мгновенна€ смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;
   if not WriteJump(jump_addr, cardinal(@GrenadeLauncherBugFix), 5, true) then exit;

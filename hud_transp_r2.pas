@@ -111,11 +111,14 @@ asm
     mov hud_render_phase, 1
 
     mov ebx, xrRender_R2_addr
+
     lea eax, [ebx+$CE270]
     push eax
     add ebx, $20730
     call ebx //void r_dsgraph_structure::r_dsgraph_render_hud(), в ней выставленный выше флаг заставит рендерить sorted
     mov hud_render_phase, 0
+
+    mov ebx, xrRender_R2_addr
 
   popad
 

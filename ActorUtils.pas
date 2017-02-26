@@ -42,6 +42,7 @@ function GetActorTargetSlot():integer; stdcall;
 function GetActorActiveSlot():integer; stdcall;
 function GetActorPreviousSlot():integer; stdcall;
 function GetActorActionState(stalker:pointer; mask:cardinal; state:cardinal=$594):boolean; stdcall;
+function GetActorActionStateInt(stalker:pointer; mask:cardinal; state:cardinal=$594):integer; stdcall;
 procedure CreateObjectToActor(section:PChar); stdcall;
 function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только для актора, для других всегда вернет false!
 function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
@@ -102,6 +103,28 @@ asm
   pop edx
   pop ecx
 end;
+
+function GetActorActionStateInt(stalker:pointer; mask:cardinal; state:cardinal=$594):integer; stdcall;
+asm
+  push ecx
+  push edx
+  mov edx, state
+
+  @body:
+  mov ecx, mask
+  mov @result, 0
+  mov eax, stalker
+  mov eax, [eax+edx]
+  and eax, ecx
+  mov @result, eax
+
+
+  @finish:
+  pop edx
+  pop ecx
+end;
+
+
 
 procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; state:cardinal=$594); stdcall;
 asm
