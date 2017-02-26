@@ -7,6 +7,7 @@ function Init():boolean;
 
 function GetPlayerHud():pointer; stdcall;
 procedure player_hud__attach_item(wpn:pointer); stdcall;
+procedure ChangeParticles(wpn:pointer; name:PChar; particle_type:cardinal); stdcall;
 
 function GetAttachableHudItem(index:cardinal):pointer; stdcall;
 function GetCHudItemFromAttachableHudItem(ahi:pointer):pointer; stdcall;
@@ -30,6 +31,9 @@ function GetScopeStatus(wpn:pointer):cardinal; stdcall;
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
 function GetGLStatus(wpn:pointer):cardinal; stdcall;
 function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
+function GetScopesCount(wpn:pointer):cardinal; stdcall;
+function GetCurrentScopeIndex(wpn:pointer):integer; stdcall;
+function GetScopeSection(wpn:pointer; index:cardinal):PChar; stdcall;
 procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
@@ -149,6 +153,12 @@ const
   EWeaponSubStates__eSubStateReloadEnd:byte = $2;
   
   ANM_LEFTHAND:string='anm_lefthand_';
+
+  CWEAPON_SHELL_PARTICLES:cardinal=$410;
+  CWEAPON_FLAME_PARTICLES_CURRENT:cardinal=$42C;  
+  CWEAPON_FLAME_PARTICLES:cardinal=$430;
+  CWEAPON_SMOKE_PARTICLES_CURRENT:cardinal=$438;  
+  CWEAPON_SMOKE_PARTICLES:cardinal=$43C;    
 
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
@@ -302,7 +312,49 @@ asm
     mov @result, eax
 end;
 
-function GetCurrentScopeSection(wpn:pointer):PChar;
+function GetScopesCount(wpn:pointer):cardinal; stdcall;
+asm
+  pushad
+    mov edi, wpn
+    mov ebx, [edi+$6b4]
+    sub ebx, [edi+$6b0]
+    shr ebx, 2
+    mov @result, ebx
+  popad
+end;
+
+function GetCurrentScopeIndex(wpn:pointer):integer; stdcall;
+asm
+  pushad
+    mov edi, wpn
+    movzx eax, byte ptr [edi+$6bc]
+    mov @result, eax
+  popad
+end;
+
+function GetScopeSection(wpn:pointer; index:cardinal):PChar; stdcall;
+asm
+  pushad
+    mov @result, 0
+    mov edi, wpn
+    mov eax, [edi+$6B0]
+
+    mov ebx, index
+    shl ebx, 2
+    add eax, ebx
+
+    cmp eax, [edi+$6B4]
+    jae @finish
+
+    mov eax, [eax]
+    add eax, $10
+    mov @result, eax
+
+    @finish:
+  popad
+end;
+
+function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
 asm
     pushad
     pushfd
@@ -1508,6 +1560,32 @@ asm
   mov eax, wpn
   add eax, $138
   mov @result, eax
+end;
+
+procedure ChangeParticles(wpn:pointer; name:PChar; particle_type:cardinal); stdcall;
+asm
+  pushad
+  push name
+  call str_container_dock
+
+  mov ecx, wpn
+  add ecx, particle_type
+
+  mov edx, [ecx]
+  cmp edx, 0
+  je @addcnt
+  sub [edx], 1
+
+  @addcnt:
+  cmp eax, 0
+  je @dochange
+  add [eax], 1
+
+  @dochange:
+  mov [ecx], eax
+  
+  @finish:
+  popad
 end;
 
 

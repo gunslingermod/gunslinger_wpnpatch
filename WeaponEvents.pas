@@ -604,7 +604,10 @@ begin
 
       //начало названия метки - обязательно anm_shoot, иначе будет отрубаться по таймеру выстрела - не сработает антибаг
       anm:='anm_shoot_lightmisfire';
-      if IsAimNow(wpn) or IsHolderInAimState(wpn) then anm:=anm+'_aim';
+      if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
+        anm:=anm+'_aim';
+        if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(GetHUDSection(wpn), 'aim_scope_anims', true) then anm:=anm+'_scope'
+      end;
       anm:= ModifierStd(wpn, anm);
       PlayHUDAnim(wpn, PChar(anm), true);
       StartCompanionAnimIfNeeded(rightstr(anm, length(anm)-4), wpn, false);

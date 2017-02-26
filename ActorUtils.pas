@@ -86,7 +86,7 @@ function GetLefthandedTorchParams():torchlight_params; stdcall;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math;
 
 var
   _keyflags:cardinal;
@@ -812,6 +812,28 @@ asm
   popad
 end;
 
+function RecalcZoomFOV(scope_factor:single):single; stdcall;
+var
+  fov:single;
+begin
+  fov:=(GetBaseFOV()/2)*pi/180;
+  result:=2*arctan(tan(fov)/scope_factor)*180/pi;
+  //log(floattostr(fov));
+  //log(floattostr(result));
+end;
+
+procedure ZoomFOV_Patch(); stdcall;
+asm
+  pushad
+    push [esi+$498]
+    call RecalcZoomFOV
+  popad
+
+  pop edi
+  pop esi
+  push edi
+end;
+
 
 procedure UpdateFOV(act:pointer);
 var
@@ -1097,6 +1119,10 @@ begin
 
   jmp_addr:= xrgame_addr+$4b1b59;
   if not WriteJump(jmp_addr, cardinal(@CUIGameCustom__Render_drawingame_Patch), 5, true) then exit;
+
+  //фов в прицеливании
+  jmp_addr:= xrgame_addr+$2605d6;
+  if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 7, true) then exit;
 
   result:=true;
 end;

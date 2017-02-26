@@ -28,7 +28,7 @@ end;
 procedure UpdateInertion (wpn:pointer);
 var
   koef:single;
-  sect:PChar;
+  sect, scp:PChar;
   def_inert, aim_inert:weapon_inertion_params;
 begin
   if (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'hud_inertion', true) then begin
@@ -37,7 +37,7 @@ begin
 
   def_inert:=GetStdInertion(false);
   if wpn<>nil then begin
-    sect:=GetHUDSection(wpn); 
+    sect:=GetHUDSection(wpn);
     def_inert.pitch_offset_r:=game_ini_r_single_def(sect, 'inertion_pitch_offset_r', def_inert.pitch_offset_r);
     def_inert.pitch_offset_n:=game_ini_r_single_def(sect, 'inertion_pitch_offset_n', def_inert.pitch_offset_n);
     def_inert.pitch_offset_d:=game_ini_r_single_def(sect, 'inertion_pitch_offset_d', def_inert.pitch_offset_d);
@@ -46,11 +46,21 @@ begin
 
     if IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim')  then begin
       aim_inert:=GetStdInertion(true);
+
       aim_inert.pitch_offset_r:=game_ini_r_single_def(sect, 'inertion_aim_pitch_offset_r', aim_inert.pitch_offset_r);
       aim_inert.pitch_offset_n:=game_ini_r_single_def(sect, 'inertion_aim_pitch_offset_n', aim_inert.pitch_offset_n);
       aim_inert.pitch_offset_d:=game_ini_r_single_def(sect, 'inertion_aim_pitch_offset_d', aim_inert.pitch_offset_d);
       aim_inert.origin_offset:=game_ini_r_single_def(sect, 'inertion_aim_origin_offset', aim_inert.origin_offset);
       aim_inert.speed:=game_ini_r_single_def(sect, 'inertion_aim_speed', aim_inert.speed);
+
+      if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
+        scp:=GetCurrentScopeSection(wpn);
+        aim_inert.pitch_offset_r:=game_ini_r_single_def(scp, 'inertion_aim_pitch_offset_r', aim_inert.pitch_offset_r);
+        aim_inert.pitch_offset_n:=game_ini_r_single_def(scp, 'inertion_aim_pitch_offset_n', aim_inert.pitch_offset_n);
+        aim_inert.pitch_offset_d:=game_ini_r_single_def(scp, 'inertion_aim_pitch_offset_d', aim_inert.pitch_offset_d);
+        aim_inert.origin_offset:=game_ini_r_single_def(scp, 'inertion_aim_origin_offset', aim_inert.origin_offset);
+        aim_inert.speed:=game_ini_r_single_def(scp, 'inertion_aim_speed', aim_inert.speed);
+      end;
 
       koef:=GetAimFactor(wpn);
       def_inert.pitch_offset_r:= def_inert.pitch_offset_r - (def_inert.pitch_offset_r-aim_inert.pitch_offset_r)*koef;

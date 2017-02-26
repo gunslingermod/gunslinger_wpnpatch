@@ -116,6 +116,7 @@ begin
     if (canshoot or is_bino) and IsAimNow(wpn) then begin
       anim_name:=anim_name+'_aim';
       if GetActorActionState(actor, actAimStarted) then begin
+        if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(hud_sect, 'aim_scope_anims', true) and game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'use_scope_anims', false) and game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'use_scope_anims', false) then anim_name:=anim_name+'_scope';
         ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
       end else begin
         anim_name:=anim_name+'_start';
@@ -700,7 +701,10 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
-    if IsAimNow(wpn) or IsHolderInAimState(wpn) then modifier:=modifier+'_aim';
+    if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
+      modifier:=modifier+'_aim';
+      if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(hud_sect, 'aim_scope_anims', true) and game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'use_scope_anims', false) then modifier:=modifier+'_scope'
+    end;
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     modifier:=modifier + GetFireModeStateMark(wpn);
     if IsExplosed(wpn) then begin

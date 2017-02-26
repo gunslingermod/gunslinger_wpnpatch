@@ -116,7 +116,6 @@ var
   bones:PChar;
   cnt, ammotype:integer;
   sect_w_ammotype:string;
-  cls:string;
 begin
   hud_sect:=GetHUDSection(wpn);
 
@@ -294,6 +293,16 @@ begin
     if (buf<>nil) and not buf.IsTorchInstalled() and game_ini_r_bool_def(section, 'torch_installed', false) then begin
       buf.InstallTorch(section);
     end;
+
+    if game_ini_line_exist(section, 'flame_particles') then begin
+      ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES);
+      if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES_CURRENT);
+    end;
+    if game_ini_line_exist(section, 'smoke_particles') then begin
+      ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES);
+      if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES_CURRENT);
+    end;
+    if game_ini_line_exist(section, 'shell_particles') then ChangeParticles(wpn, game_ini_read_string(section, 'shell_particles'), CWEAPON_SHELL_PARTICLES);            
   end;
 
  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
@@ -307,23 +316,30 @@ begin
 end;
 
 procedure ProcessScope(wpn:pointer); stdcall;
-var section:PChar;
-    curscope:string;
-    scopes:string;
+var //section:PChar;
+
     tmp:string;
     status:boolean;
+    cur_index, i:integer;
+    total_scope_cnt:cardinal;
 begin
-  section:=GetSection(wpn);
-  if not game_ini_line_exist(section, 'scopes_sect') then exit;
-  scopes:=game_ini_read_string(section, 'scopes_sect');
-  if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then curscope:=GetCurrentScopeSection(wpn) else curscope:='';
-  while (GetNextSubStr(scopes, tmp, ',')) do begin
-    if tmp=curscope then status:=true else status:=false;
+
+  if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then cur_index:=GetCurrentScopeIndex(wpn) else cur_index:=-1;
+  total_scope_cnt:=GetScopesCount(wpn);
+
+  for i:=0 to total_scope_cnt-1 do begin
+    tmp:=GetScopeSection(wpn, i);
+//    if wpn=GetActorActiveItem() then log('scp: '+tmp);
+    if i=cur_index then status:=true else status:=false;
+
     if game_ini_line_exist(PChar(tmp), 'bones') then begin;
       SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'bones'), status);
     end;
     if game_ini_line_exist(PChar(tmp), 'hide_bones') then begin
       SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'hide_bones'), not status);
+    end;
+    if status and game_ini_line_exist(PChar(tmp), 'overriding_hide_bones') then begin
+      SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'overriding_hide_bones'), false);
     end;
   end;
 end;
