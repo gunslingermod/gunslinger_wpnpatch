@@ -154,6 +154,7 @@ begin
     end else begin
       if is_knife and (GetActualCurrentAnim(wpn)='anm_prepare_suicide') then begin
         anim_name:='anm_stop_suicide';
+
       end else begin
         ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
         if GetActorActionState(actor, actCrouch) then begin
@@ -1241,6 +1242,47 @@ begin
     ret;
   end;
 end;
+
+
+procedure HideAnimLockFix_Knife; stdcall;
+asm
+    lea ecx, [esi-$2e0]
+    pushad
+      push ecx
+      call OnWeaponHide
+      cmp al, 1
+    popad
+    je @no_lock
+    mov [esi-$2e0+$2e4], 05
+    mov [esi-$2e0+$2e8], 05
+    ret
+    @no_lock: 
+    call edx
+    ret;
+end;
+
+procedure IdleStoppingSuicideLockFix_Knife; stdcall;
+asm
+    lea ecx, [esi-$2e0]
+    pushad
+      push ecx
+      call IsSuicideAnimPlaying
+      cmp al, 0
+    popad
+    je @no_lock
+      pushad
+        and byte ptr [esi+$14], $FE //SetPending(false)
+        mov ecx, esi
+        mov eax, xrgame_addr
+        add eax, $2D5C50
+        push 05
+        call eax
+      popad
+    ret
+    @no_lock:
+    call edx
+    ret;
+end;
 //------------------------------------------Отключаем стрельбу с подствола при локе-----------------------------------
 procedure ShootGLAnimLockFix; stdcall;
 begin
@@ -1589,6 +1631,13 @@ begin
   //для убирания
   jump_addr:=xrGame_addr+$2D02FF;
   if not WriteJump(jump_addr, cardinal(@HideAnimLockFix), 8, true) then exit;
+  jump_addr:=xrGame_addr+$2D5CAC;
+  if not WriteJump(jump_addr, cardinal(@HideAnimLockFix_Knife), 8, true) then exit;
+
+  //во время суицида нож не должен переходить в идл!
+  jump_addr:=xrGame_addr+$2D5C7A;
+  if not WriteJump(jump_addr, cardinal(@IdleStoppingSuicideLockFix_Knife), 8, true) then exit;
+
 
   //для выстрела с подствола
   jump_addr:=xrGame_addr+$2D3ABE;

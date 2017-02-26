@@ -17,7 +17,8 @@ const
   RTTI_CObject:cardinal = $616020;
   RTTI_CActor:cardinal = $635AB8;
   RTTI_CTorch:cardinal = $61844C;
-  RTTI_CAttachableItem:cardinal = $6274B4;    
+  RTTI_CAttachableItem:cardinal = $6274B4;
+  RTTI_CInventoryItemOwner:cardinal = $618484;      
 
 implementation
 uses BaseGameData;

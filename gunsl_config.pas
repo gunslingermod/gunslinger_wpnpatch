@@ -25,6 +25,13 @@ type jitter_params = record
   rot_amplitude:single;
 end;
 
+type phantoms_params = record
+  min_cnt:cardinal;
+  max_cnt:cardinal;
+  min_radius:single;
+  max_radius:single;  
+end;
+
 function Init:boolean;
 
 const
@@ -76,6 +83,11 @@ function GetCamLandingParams():landing_params;
 function GetControllerTime():cardinal; stdcall;
 function GetBaseJitterParams():jitter_params; stdcall;
 function GetCurJitterParams(hud_sect:PChar):jitter_params; stdcall;
+function GetControllerPhantomsParams():phantoms_params; stdcall;
+
+function GetMaxCorpseWeight():single;
+function IsCorpseCollisionEnabled():boolean; stdcall;
+
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
@@ -98,6 +110,10 @@ var
   _weaponmove_enabled:boolean;
   _collimaim_enabled:boolean;
   _controller_time:cardinal;
+  _controller_phantoms:phantoms_params;
+
+  _max_corpse_weight:single;
+  _enable_corpse_collision:boolean;
 
 //данные консольных команд
 //булевские флаги
@@ -460,6 +476,14 @@ begin
   _jitter.pos_amplitude:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'base_jitter_pos_amplitude', 0.001);
   _jitter.rot_amplitude:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'base_jitter_rot_amplitude', 0.1);
 
+  _max_corpse_weight:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_corpse_weight', 100.0);
+  _enable_corpse_collision:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_corpse_collision', true);;
+
+  _controller_phantoms.min_cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min', 0);
+  _controller_phantoms.max_cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max', 0);
+  _controller_phantoms.max_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max_radius', 10);
+  _controller_phantoms.min_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min_radius', 0);  
+
   result:=true;
 end;
 
@@ -502,6 +526,21 @@ function GetCurJitterParams(hud_sect:PChar):jitter_params; stdcall;
 begin
   result.pos_amplitude:=game_ini_r_single_def(hud_sect, 'jitter_pos_amplitude', _jitter.pos_amplitude);
   result.rot_amplitude:=game_ini_r_single_def(hud_sect, 'jitter_rot_amplitude', _jitter.rot_amplitude);
+end;
+
+function GetMaxCorpseWeight():single;
+begin
+  result:=_max_corpse_weight;
+end;
+
+function IsCorpseCollisionEnabled():boolean; stdcall;
+begin
+  result:=_enable_corpse_collision;
+end;
+
+function GetControllerPhantomsParams():phantoms_params; stdcall;
+begin
+  result:=_controller_phantoms;
 end;
 
 end.

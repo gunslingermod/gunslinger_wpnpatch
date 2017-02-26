@@ -443,7 +443,7 @@ end;
 
 function CanSprintNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
+  if IsActionProcessing(wpn) or IsActorPlanningSuicide() or IsActorSuicideNow() or IsSuicideAnimPlaying(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
     result:=false
   else
     result:=true;

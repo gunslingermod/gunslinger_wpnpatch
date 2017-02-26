@@ -76,6 +76,7 @@ procedure UpdateFOV(act:pointer);
 function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
 procedure ActivateActorSlot(slot:cardinal); stdcall;
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
+function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
 
 procedure SetFOV(fov:single); stdcall;
 function GetFOV():single; stdcall;
@@ -96,6 +97,9 @@ procedure CEntity__KillEntity(this:pointer; who:word); stdcall;
 
 procedure CActor__set_inventory_disabled(this:pointer; status:boolean); stdcall;
 function CActor__get_inventory_disabled(this:pointer):boolean; stdcall;
+
+function CInventory__CalcTotalWeight(this:pointer):single; stdcall;
+function CInventoryOwner__GetInventory(this:pointer):pointer; stdcall;
 
 
 implementation
@@ -118,6 +122,23 @@ var
 
   _last_update_time:cardinal;
 
+
+function CInventory__CalcTotalWeight(this:pointer):single; stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    add eax, $2A7460
+    call eax
+  popad
+  fstp @result
+end;
+
+function CInventoryOwner__GetInventory(this:pointer):pointer; stdcall;
+asm
+  mov eax, this
+  mov eax, [eax+$1c]
+  mov @result, eax
+end;
 
 procedure CActor__set_inventory_disabled(this:pointer; status:boolean); stdcall;
 asm
@@ -352,6 +373,32 @@ asm
 
   mov ax, [eax+$40]     //получаем текущий активный слот актора
   movzx eax, ax
+  mov @result, eax
+
+  @finish:
+  popfd
+end;
+
+function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
+asm
+  mov @result, 0;
+  pushfd
+  sub slot, 1
+  cmp slot, 12
+  jge @finish
+
+  call GetActor        //получаем актора
+
+  test eax, eax
+  je @finish
+
+  mov eax, [eax+$2e4]   //получаем его CInventory
+  test eax, eax
+  je @finish
+
+  lea eax, [eax+$135]
+  add eax, slot
+  movzx eax, byte ptr [eax]
   mov @result, eax
 
   @finish:
@@ -629,6 +676,7 @@ begin
   dt:=GetTimeDeltaSafe(_last_update_time, ct);
   _last_update_time:=ct;
 
+//  log(inttohex(cardinal(dynamic_cast(act, 0, RTTI_CActor, RTTI_CInventoryItemOwner, false)), 8));
 
   UpdateSlots(act);
 
@@ -811,7 +859,7 @@ begin
       end;
     end;
   end else if (dik=kQUICK_GRENADE) then begin
-    if (GetActorActiveSlot()=4) or (IsActorSuicideNow()) or (IsActorPlanningSuicide()) then exit;
+    if (GetActorActiveSlot()=4) or (GetActorSlotBlockedCounter(4)>0) or (IsActorSuicideNow()) or (IsActorPlanningSuicide()) then exit;
 
     itm:=ItemInSlot(act, 4);
     if (itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'supports_quick_throw', false) then begin
@@ -1220,6 +1268,49 @@ asm
   @finish:
 end;
 
+procedure CActor__ActorUse_Patch_deadbodies(); stdcall;
+//чтобы инвентарь не открывался при попытке тащить труп
+asm
+  mov edi, [esi+$54c]
+  cmp byte ptr [edi+$71], 0
+  jne @finish
+  pushad
+    push $2A //DIK_LSHIFT
+    call IsKeyPressed
+    cmp al, 00
+  popad
+
+  @finish:
+end;
+
+function CanMoveItem(CObject:pointer):boolean; stdcall;
+begin
+  result:=true;
+  CObject:=dynamic_cast(CObject, 0, RTTI_CObject, RTTI_CInventoryItemOwner, false);
+  if CObject=nil then exit;
+  CObject:=CInventoryOwner__GetInventory(CObject);
+  if CObject=nil then exit;
+  result:=(CInventory__CalcTotalWeight(CObject)<GetMaxCorpseWeight);
+  if not result then SendMessage('gunsl_corpse_overweighted', gd_stalker);
+
+end;
+
+procedure CActor__ActorUse_Patch_deadbodies_weight(); stdcall;
+//чтобы нельзя было накидать кучу лута в труп, а потом тащить
+asm
+  mov eax, xrgame_addr
+  add eax, $4fec00
+  call eax
+  test eax, eax
+  jne @finish
+  pushad
+    push ebp
+    call CanMoveItem
+    cmp al, 01
+  popad
+  @finish:
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -1267,6 +1358,22 @@ begin
   //отключение анимаций камеры в движении
   jmp_addr:= xrgame_addr+$269b97;
   if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
+
+
+  //[bug] баг - чтобы при попытке тащить труп не открывался инвентарь
+  //внимание - подозрение на то, что приводит к другому багу: в скрипты подается сигнал об открытии инвентаря трупа, когда сам инвентарь не открывался!
+  jmp_addr:= xrgame_addr+$27820d;
+  if not WriteJump(jmp_addr, cardinal(@CActor__ActorUse_Patch_deadbodies), 10, true) then exit;
+
+  //баг - возможность таскать тяжелые трупы
+  jmp_addr:= xrgame_addr+$27832e;
+  if not WriteJump(jmp_addr, cardinal(@CActor__ActorUse_Patch_deadbodies_weight), 7, true) then exit;
+
+  //включаем коллизию
+  if IsCorpseCollisionEnabled() then begin
+    nop_code(xrgame_addr+$4e2160, 2);
+    nop_code(xrgame_addr+$4e20c0, 2);
+  end;
 
   result:=true;
 end;

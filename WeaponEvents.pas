@@ -736,6 +736,12 @@ begin
   if not (WpnCanShoot(PChar(GetClassName(wpn)))) then begin
     result:=true;
     state:=GetCurrentState(wpn);
+
+    if (IsActorSuicideNow() or IsSuicideAnimPlaying(wpn)) then begin
+      result:=false;
+      exit;
+    end;
+
     if (act<>nil) and (owner=act) and IsThrowable(PChar(GetClassName(wpn))) and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)) then begin
       result:=false;
     end;
@@ -903,10 +909,17 @@ begin
 
     if IsActorPlanningSuicide() then begin
       if not IsActorSuicideNow() then begin
+        CHudItem_Play_Snd(knife, 'sndPrepareSuicide');
         result:='anm_prepare_suicide';
       end else begin
-        result:='anm_selfkill';      
+        result:='anm_selfkill';
+        CHudItem_Play_Snd(knife, 'sndSelfKill');
       end;
+      exit;
+    end else if IsSuicideAnimPlaying(knife) then begin
+      SetExitKnifeSuicide(false);
+      CHudItem_Play_Snd(knife, 'sndStopSuicide');
+      result:='anm_stop_suicide';
       exit;
     end;
   end;
@@ -1118,7 +1131,7 @@ var
 begin
   act:=GetActor;
   if (wpn=GetActorActiveItem) and (GetActualCurrentAnim(wpn)='anm_selfkill') then begin
-      CActor__Die(act, act);
+    CActor__Die(act, act);
   end;
   
   //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры

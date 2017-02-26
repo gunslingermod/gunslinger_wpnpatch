@@ -8,6 +8,8 @@ function IsActorSuicideNow():boolean; stdcall;
 function IsSuicideAnimPlaying(wpn:pointer):boolean; stdcall;
 function IsActorPlanningSuicide():boolean; stdcall;
 function IsSuicideInreversible():boolean; stdcall;
+function IsKnifeSuicideExit():boolean; stdcall;
+function SetExitKnifeSuicide(status:boolean):boolean; stdcall;  //установить флаг необходимости проиграть аниму выхода из суицида ножом
 procedure ResetActorControl(); stdcall;
 procedure Update(dt:cardinal); stdcall;
 procedure DoSuicideShot(); stdcall;
@@ -17,7 +19,7 @@ function CanUseItemForSuicide(wpn:pointer):boolean;
 //todo: переключение с подствола в обычный режим, не давать стрелять под контролем с некоторой вероятность. заблокировать действия в режиме суицида, направление камеры на контролера, если он видим
 //todo: две схемы: через сдвиг худа и контроль достижения конечной точки и через анимацию (по моменту); дрожание рук через сдвиг худа
 implementation
-uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils;
+uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors;
 
 var
   _controlled_time_remains:cardinal;
@@ -26,6 +28,7 @@ var
   _lastshot_done_time:cardinal;
   _death_action_started:boolean;
   _inventory_disabled_set:boolean;
+  _knife_suicide_exit:boolean;
 
 function IsActorControlled():boolean;stdcall;
 begin
@@ -57,6 +60,7 @@ begin
   _lastshot_done_time:=0;
   _planning_suicide:=false;
   _death_action_started:=false;
+  _knife_suicide_exit:=false;
 end;
 
 function IsSuicideInreversible():boolean; stdcall;
@@ -79,15 +83,16 @@ begin
 
   if _controlled_time_remains>dt then _controlled_time_remains:=_controlled_time_remains-dt else _controlled_time_remains:=0;
   if (_controlled_time_remains=0) and (_lastshot_done_time=0) and not _death_action_started then begin
-    if _inventory_disabled_set then CActor__set_inventory_disabled(act, false);
-    _inventory_disabled_set:=false;      
+    if _inventory_disabled_set then begin
+      CActor__set_inventory_disabled(act, false);
+      _inventory_disabled_set:=false;
+    end;
     ResetActorControl();
   end else if (wpn<>nil) and IsKnife(PChar(GetClassName(wpn))) then begin
     if _planning_suicide and (GetActualCurrentAnim(wpn)='anm_prepare_suicide') then begin
       _suicide_now:=true;
-    end else if _suicide_now and (GetActualCurrentAnim(wpn)<>'anm_selfkill') then begin
+    end else if _suicide_now and (GetActualCurrentAnim(wpn)='anm_selfkill') then begin
       _death_action_started:=true;
-      virtual_CHudItem_SwitchState(wpn, EWeaponStates__eFire);
     end;
   end else if _lastshot_done_time>0 then begin
     if (act<>nil) then begin
@@ -102,27 +107,28 @@ begin
     end;
   end;
 
-  if (act<>nil) then begin
-    if (det<>nil) and (_controlled_time_remains>0) then begin
+  if (act<>nil) and (_controlled_time_remains>0)  then begin
+    if (det<>nil) then begin
       if (GetCurrentState(det)<>EHudStates__eHiding) and (GetCurrentState(det)<>EHudStates__eHidden) then virtual_CHudItem_SwitchState(det, EHudStates__eHiding);
     end;
 
-    if (_controlled_time_remains>0) and (wpn<>nil) and (WpnCanShoot(PChar(GetClassName(wpn))) or IsBino(PChar(GetClassName(wpn)))) and (IsAimNow(wpn)) then begin
+    if (wpn<>nil) and (WpnCanShoot(PChar(GetClassName(wpn))) or IsBino(PChar(GetClassName(wpn)))) and (IsAimNow(wpn)) then begin
       SetActorKeyRepeatFlag(kfUNZOOM, true, true);
     end;
 
-    if (_controlled_time_remains>0) and (wpn<>nil) and IsThrowable(PChar(GetClassName(wpn))) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+    if (wpn<>nil) and IsThrowable(PChar(GetClassName(wpn))) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
       _planning_suicide:=true;
       ActivateActorSlot__CInventory(1, false);
-    end else if (_controlled_time_remains>0) then begin
+    end else begin
       _planning_suicide:=CanUseItemForSuicide(wpn);
-      if (GetActorActiveSlot()<>0) and not CanUseItemForSuicide(wpn) then begin
+      if (GetActorActiveSlot()<>0) and not _planning_suicide then begin
         if (GetCurrentDifficulty()>=gd_veteran) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
           ActivateActorSlot__CInventory(1, false);
+          _planning_suicide:=true;
         end else begin
           ActivateActorSlot__CInventory(0, false);
         end;
-      end else if (_controlled_time_remains>0) and (wpn=nil) and (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+      end else if (wpn=nil) and (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
         _planning_suicide:=true;
         ActivateActorSlot__CInventory(1, false);
       end;
@@ -159,7 +165,7 @@ end;
 
 function PsiEffects():boolean; stdcall;
 var
-  act, det, wpn, itm:pointer;
+  act, det, wpn:pointer;
   buf:WpnBuf;
 begin
   //true в результате означает, что мы использовали кастомный эффект и обычную атаку играть не надо
@@ -237,6 +243,10 @@ function PsiStart():boolean; stdcall;
 var
   wpn, act:pointer;
   scream:string;
+  v, va:FVector3;
+  i,j:cardinal;
+  radius:single;
+  p:phantoms_params;
 begin
   result:=PsiEffects;
   act:=GetActor();
@@ -250,6 +260,23 @@ begin
     if (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'suicide_by_animation', false) and (IsKnife(PChar(GetClassName(wpn))) or WpnCanShoot(PChar(GetClassName(wpn)))) then begin
       scream:='sndScream'+inttostr(random(3)+1);
       CHudItem_Play_Snd(wpn, PChar(scream));
+    end;
+  end;
+
+  //фантомчики
+  if GetCurrentDifficulty()>=gd_stalker then begin
+    p:=GetControllerPhantomsParams();
+    i:=random(p.max_cnt-p.min_cnt)+p.min_cnt;
+    va:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+
+    for j:=1 to i do begin
+      v.x:=random(1000)-500;
+      v.y:=random(200);
+      v.z:=random(1000)-500;
+      radius:= ((p.max_radius-p.min_radius)*random(1000)/1000)+p.min_radius;
+      v_setlength(@v, radius);
+      v_add(@v, @va);
+      spawn_phantom(@v);
     end;
   end;
 end;
@@ -333,6 +360,16 @@ asm
   add eax, $2FA560
   call eax
   @finish:
+end;
+
+function IsKnifeSuicideExit():boolean; stdcall;
+begin
+  result:=_knife_suicide_exit;
+end;
+
+function SetExitKnifeSuicide(status:boolean):boolean; stdcall;
+begin
+  _knife_suicide_exit:=status;
 end;
 
 
