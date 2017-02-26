@@ -131,12 +131,12 @@ begin
         ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
       end else begin
         anim_name:=anim_name+'_start';
-        if canshoot then MagazinedWpnPlaySnd(wpn, 'sndAimStart');
+        if canshoot then CHudItem_Play_Snd(wpn, 'sndAimStart');
         SetActorActionState(actor, actAimStarted, true);
       end;
     end else if (canshoot or (cls='WP_BINOC')) and GetActorActionState(actor, actAimStarted) then begin
       anim_name:=anim_name+'_aim_end';
-      if canshoot then MagazinedWpnPlaySnd(wpn, 'sndAimEnd');
+      if canshoot then CHudItem_Play_Snd(wpn, 'sndAimEnd');
       SetActorActionState(actor, actAimStarted, false);
 
     //посмотрим на передвижение актора:
@@ -145,9 +145,9 @@ begin
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
         if canshoot then
-          MagazinedWpnPlaySnd(wpn, 'sndSprintStart')
+          CHudItem_Play_Snd(wpn, 'sndSprintStart')
         else if isgrenorbolt then
-          Throwable_Play_Snd(wpn, 'sndSprintStart');
+          CHudItem_Play_Snd(wpn, 'sndSprintStart');
         if isdetector then
           SetActorActionState(actor, actModDetectorSprintStarted, true)
         else
@@ -157,9 +157,9 @@ begin
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
       if canshoot then
-        MagazinedWpnPlaySnd(wpn, 'sndSprintEnd')
+        CHudItem_Play_Snd(wpn, 'sndSprintEnd')
       else if isgrenorbolt then
-        Throwable_Play_Snd(wpn, 'sndSprintEnd');
+        CHudItem_Play_Snd(wpn, 'sndSprintEnd');
       if isdetector then
         SetActorActionState(actor, actModDetectorSprintStarted, false)
       else
@@ -591,11 +591,11 @@ begin
 
   if play_breech_snd then begin
     if IsExplosed(wpn) then begin
-      MagazinedWpnPlaySnd(wpn, 'sndExplose');
+      CHudItem_Play_Snd(wpn, 'sndExplose');
     end else if IsWeaponJammed(wpn) then begin
-      MagazinedWpnPlaySnd(wpn, 'sndJam');
+      CHudItem_Play_Snd(wpn, 'sndJam');
     end else begin
-      MagazinedWpnPlaySnd(wpn, 'sndBreechblock');
+      CHudItem_Play_Snd(wpn, 'sndBreechblock');
     end
   end;
 
@@ -1332,7 +1332,6 @@ asm
   ret 4
 end;
 
-
 //---------------------------------------------------------------------------------------------------------------------
 
 procedure CWeapon__OnAnimationEnd(wpn:pointer); stdcall;
@@ -1358,6 +1357,27 @@ asm
   add eax, $2F9640
   jmp eax
 end;
+
+//---------------------------------------------------------------------------------------------------------------------
+procedure CWeaponKnife__OnAnimationEnd(wpn:pointer); stdcall;
+begin
+  //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры
+  CWeapon__OnAnimationEnd(wpn);
+end;
+
+procedure CWeaponKnife__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CWeaponKnife__OnAnimationEnd
+  popad
+
+  mov eax, [esp+8]
+  cmp eax, 6
+  ret
+end;
+
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -1389,9 +1409,14 @@ begin
   movreass_remain_time:=0;
   movreass_last_update:=0;
 
+  //отключим звук движкового удара ножом, т.к. теперь полностью контролируем его в WeaponEvents.OnKnifeKick
+  nop_code(xrGame_addr+$2d7503, 8);
+
   //исправляем рассинхрон с детектором
   jump_addr:=xrGame_addr+$2bc7e0;
   if not WriteJump(jump_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
+  jump_addr:=xrGame_addr+$2d4f30;
+  if not WriteJump(jump_addr, cardinal(@CWeaponKnife__OnAnimationEnd_Patch), 7, true) then exit;
   
   //фиксим баг (мгновенная смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;

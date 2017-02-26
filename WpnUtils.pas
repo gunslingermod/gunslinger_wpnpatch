@@ -47,7 +47,7 @@ function WpnCanShoot(cls:PChar):boolean;stdcall;
 function WpnIsDetector(cls:PChar):boolean;stdcall;
 function IsKnife(cls:PChar):boolean;stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
-procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
+procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall
 function GetGameVertexID(wpn:pointer):cardinal; stdcall
 function GetSilencerSection(wpn:pointer):PChar; stdcall;
@@ -747,20 +747,24 @@ begin
   end
 end;
 
-procedure MagazinedWpnPlaySnd(wpn:pointer; sndLabel:PChar); stdcall;
+procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
 asm
-    pushad
+  pushad
+  mov esi, itm
 
-    mov esi, wpn
-    lea eax, [esi+$5b1]
-    push eax        //vector3d& position
-    push sndLabel
-    add esi, $2e0
-    push esi        //CHudItem
 
-    call virtual_CHudItem_PlaySound
+  push esi
+  call GetPosition
+  push eax
 
-    popad
+  push alias
+
+  add esi, $2e0
+  push esi          //CHudItem
+
+  call virtual_CHudItem_PlaySound
+
+  popad
 end;
 
 ////////////////////////////////////////////////////////////////////////////////

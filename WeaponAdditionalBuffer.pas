@@ -237,7 +237,7 @@ begin
   anm_name:=ModifierStd(_my_wpn, base_anm);
 
   PlayHudAnim(_my_wpn, PChar(anm_name), true);
-  if (snd_label<>nil) then MagazinedWpnPlaySnd(_my_wpn, snd_label);
+  if (snd_label<>nil) then CHudItem_Play_Snd(_my_wpn, snd_label);
   self.MakeLockByConfigParam(hud_sect, PChar('lock_time_'+anm_name), lock_shooting, effector, eff_param);
   if self._lock_remain_time>0 then begin
     self._current_anim:=anm_name;
@@ -438,7 +438,7 @@ begin
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
       PlayHudAnim(wpn, PChar(anm_name), true);
-      MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
+      CHudItem_Play_Snd(wpn, 'sndSprintEnd');
       SetActorActionState(act, actModSprintStarted, false);
       SetActorActionState(act, actSprint, false, mState_WISHFUL);
     end;

@@ -6,10 +6,11 @@ procedure HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION:pointer; section:
 
 
 implementation
-uses BaseGameData, GameWrappers;
+uses BaseGameData, GameWrappers, wpnutils;
 
 var
-  sound_load_addr:cardinal;
+  sound_load_magazined_addr:cardinal;
+  sound_load_knife_addr:cardinal;
 
 procedure HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION:pointer; section:PChar; config_name:PChar; internal_name:PChar; exclusive:cardinal; snd_type:cardinal);stdcall;
 begin
@@ -31,7 +32,7 @@ begin
   end;
 end;
 
-procedure LoadSounds(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;
+procedure LoadSounds_WeaponMagazined(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;
 begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype', 'sndChangeCartridgeType', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_empty', 'sndReloadEmpty', 1, $80040000);
@@ -71,39 +72,67 @@ begin
 
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_jam', 'sndJam', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_breechblock', 'sndBreechblock', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_explose', 'sndExplose', 1, $80040000);  
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_explose', 'sndExplose', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_prepare_detector', 'sndPrepareDet', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_finish_detector', 'sndFinishDet', 1, $80040000);  
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_finish_detector', 'sndFinishDet', 1, $80040000);
 
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_aim_start', 'sndAimStart', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_aim_end', 'sndAimEnd', 1, $80040000);
 end;
 
-procedure SoundLoaderPatch; stdcall;
+procedure LoadSounds_Knife(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;
+begin
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_draw', 'sndShow', 1, $80200000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_holster', 'sndHide', 1, $80200000);  
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_kick_1', 'sndKick1', 1, $80200000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_kick_2', 'sndKick2', 1, $80200000);
+end;
+
+procedure SoundLoader_Knife_Patch; stdcall;
+const
+  sndShot:PChar='sndShot';
+asm
+    pushad
+    pushfd
+
+    push edi //section
+    lea ecx, [esi+$324]
+    push ecx //snd_collection
+    call LoadSounds_Knife
+
+    popfd
+    popad
+
+    push sndShot
+    jmp sound_load_knife_addr
+end;
+
+
+procedure SoundLoader_Magazined_Patch; stdcall;
 const
   sndReload:PChar='sndReload';
-begin
-  asm
+asm
     pushad
     pushfd
 
     push ebx
     push edi
-    call LoadSounds
+    call LoadSounds_WeaponMagazined
 
     popfd
     popad
 
     push sndReload
-    jmp sound_load_addr
-  end;
+    jmp sound_load_magazined_addr
 end;
 
 function Init:boolean;
 begin
   result:=false;
-  sound_load_addr:=xrGame_addr+$2CFADE;
-  if not WriteJump(sound_load_addr, cardinal(@SoundLoaderPatch), 5) then exit;
+  sound_load_magazined_addr:=xrGame_addr+$2CFADE;
+  if not WriteJump(sound_load_magazined_addr, cardinal(@SoundLoader_Magazined_Patch), 5) then exit;
+  sound_load_knife_addr:=xrGame_addr+$2D4DC2;
+  if not WriteJump(sound_load_knife_addr, cardinal(@SoundLoader_Knife_Patch), 5) then exit;
   result:=true;
 end;
 

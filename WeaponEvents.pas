@@ -667,6 +667,11 @@ var
   act, det, owner:pointer;
   det_anim:string;
 begin
+  //У ножа нет звука убирания. Воспроизведем.
+  if IsKnife(PChar(GetClassName(wpn))) then begin
+    CHudItem_Play_Snd(wpn, 'sndHide');
+  end;
+
   act:=GetActor();
   owner:=GetOwner(wpn);
   if (act<>nil) and (owner=act) then begin
@@ -690,8 +695,14 @@ var
   act, owner, det:pointer;
   det_anim:string;
 begin
+  //У ножа нет звука доставания. Воспроизведем.
+  if IsKnife(PChar(GetClassName(wpn))) then begin
+    CHudItem_Play_Snd(wpn, 'sndShow');
+  end;
+
   act:=GetActor();
   owner:=GetOwner(wpn);
+
   if (owner<>nil) and (owner=act) then begin
     //фикс бага с доставанием предмета без смены худовой секции, когда анима доставания не игралась
     player_hud__attach_item(wpn);
@@ -705,7 +716,7 @@ begin
       SetDetectorForceUnhide(det, false);
       SetActorActionState(act, actShowDetectorNow, false);
     end;
-    
+
     //если детектор не только в слоте, но и активен
     det:=GetActiveDetector(act);
     if det <> nil then begin
@@ -806,13 +817,20 @@ var
   det:pointer;
 begin
   act:=GetActor();
-  if (act=nil) or (act<>GetOwner(knife)) then exit;
-  det:=GetActiveDetector(act);
-  if det=nil then exit;
+  if (act=nil) or (act<>GetOwner(knife)) then det:=nil else begin
+    SetActorActionState(act, actModSprintStarted, false);
+    det:=GetActiveDetector(act);
+  end;
 
   case kick_type of
-    1:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack'), true, true);
-    2:AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack2'), true, true);
+    1:begin
+        if det<>nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack'), true, true);
+        CHudItem_Play_Snd(knife, 'sndKick1');
+      end;
+    2:begin
+        if det<>nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_knife_attack2'), true, true);
+        CHudItem_Play_Snd(knife, 'sndKick2');
+      end;
   end;
 end;
 

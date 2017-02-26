@@ -6,7 +6,6 @@ interface
 
 function Init():boolean;
 procedure ResetActivationHoldState(); stdcall;
-procedure Throwable_Play_Snd(itm:pointer; alias:PChar); stdcall;
 
 const
 		EMissileStates__eThrowStart:cardinal = 5;
@@ -21,26 +20,6 @@ var _activate_key_state:TKeyHoldState;
 
 const
   CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
-
-procedure Throwable_Play_Snd(itm:pointer; alias:PChar); stdcall;
-asm
-  pushad
-  mov esi, itm
-
-
-  push esi
-  call GetPosition
-  push eax
-
-  push alias
-
-  add esi, $2e0
-  push esi          //CHudItem
-
-  call virtual_CHudItem_PlaySound
-
-  popad
-end;
 
 function CMissile__GetFakeMissile(CMissile:pointer):pointer; stdcall;
 asm
@@ -223,7 +202,7 @@ begin
       end;
     end;
   end;
-  Throwable_Play_Snd(CMissile, snd);
+  CHudItem_Play_Snd(CMissile, snd);
 end;
 
 function CMissile__State_anm_hide_selector(CMissile:pointer):PChar; stdcall;
@@ -244,7 +223,7 @@ begin
       end;
     end;
   end;
-  Throwable_Play_Snd(CMissile, 'sndHide');
+  CHudItem_Play_Snd(CMissile, 'sndHide');
 end;
 
 
@@ -268,12 +247,12 @@ begin
     $7629:result:=CMissile__State_anm_hide_selector(CMissile);
     $76B4:begin
             result:='anm_throw_begin';
-            Throwable_Play_Snd(CMissile, 'sndThrowBegin');
+            CHudItem_Play_Snd(CMissile, 'sndThrowBegin');
             if det <> nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_begin'), true, true);
           end;
     $7740:begin
             result:='anm_throw';
-            Throwable_Play_Snd(CMissile, 'sndThrow');
+            CHudItem_Play_Snd(CMissile, 'sndThrow');
             if det <> nil then AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_end'), true, true);            
           end;
   else
