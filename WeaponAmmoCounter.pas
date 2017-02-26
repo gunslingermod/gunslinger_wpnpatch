@@ -10,7 +10,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils, ActorDOF;
 
 
 procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
@@ -57,8 +57,9 @@ var
   def_magsize, mod_magsize, curammocnt:integer;
 begin
   buf:=GetBuffer(wpn);
-  //если буфера нет или мы уже перезарядилимь или у нас режим подствола - ничего особенного не делаем
+  //если буфера нет или мы уже перезарядилиcь или у нас режим подствола - ничего особенного не делаем
   if (buf=nil) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
+
   if buf.IsReloaded() then begin buf.SetReloaded(false); exit; end;
   if (((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 

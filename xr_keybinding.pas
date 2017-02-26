@@ -1,6 +1,6 @@
 unit xr_keybinding;
 
-{$define DISABLE_UNUSED_COMMANDS}
+{//$define DISABLE_UNUSED_COMMANDS}
 
 interface
 

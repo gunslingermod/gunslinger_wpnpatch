@@ -3,6 +3,7 @@ unit collimator;
 
 interface
 function Init:boolean;
+function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
 
 implementation
 uses BaseGameData, gunsl_config, HudItemUtils, sysutils, windows;
@@ -13,36 +14,34 @@ var
   restoreoffsets_patch_addr:cardinal;
   IsAimingEdited:boolean;
 
-function IsCollimatorInstalled(wpn:pointer):cardinal;stdcall;
-var scope:PChar;
+function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
+var
+  scope:PChar;
 begin
-  result:=0;
+  result:=false;
   if not IsScopeAttached(wpn) then exit;
   scope:=GetCurrentScopeSection(wpn);
   scope:=game_ini_read_string(scope, 'scope_name');
-  if game_ini_line_exist(scope, 'collimator') then begin
-    if game_ini_r_bool(scope, 'collimator') then result:=1;
-  end;
+  result:=game_ini_r_bool_def(scope, 'collimator', false)
 end;
 
 procedure PatchHudVisibility(); stdcall;
-begin
-  asm
+asm
     pushfd
     pushad
 
 
     push esi
     call IsCollimatorInstalled;
+    and eax, 1
     mov [esp+$1C], eax //загоним сохрaненные значения
 
     popad
     popfd
-    
+
     pop edi
     pop esi
     ret
-  end;
 end;
 
 procedure ChangeAimOffsets(wpn:pointer; hud_data:pointer; isrestore:boolean); stdcall;

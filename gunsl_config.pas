@@ -1,6 +1,8 @@
 unit gunsl_config;
 
 interface
+uses MatVectors;
+
 function Init:boolean;
 
 const
@@ -19,20 +21,27 @@ const
   function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
   function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean):boolean;stdcall;
   function game_ini_r_int_def(section:PChar; key:PChar; def:integer):integer; stdcall;
-  function translate(text:PChar):PChar;stdcall;    
+  function translate(text:PChar):PChar;stdcall;
 
-
-//---------------------------специфические функции конфигурации ганса--------------------------------------
+  //---------------------------специфические функции конфигурации ганса--------------------------------------
 function IsSprintOnHoldEnabled():boolean; stdcall;
 function IsDebug():boolean; stdcall;
 function GetBaseFOV():single; stdcall;
 function GetBaseHudFOV():single; stdcall;
 function GetLaserPointDrawingDistance(viewdistance:single):single; stdcall;
 function GetCurrentDifficulty():cardinal; stdcall;
-
+function GetDefaultActionDOF():FVector3; stdcall;
+function GetDefaultZoomDOF():FVector3; stdcall;
+function IsDynamicDOF():boolean; stdcall;
+function GetDefaultDOFSpeed():single; stdcall;
+function GetDefaultDOFSpeed_In():single; stdcall;
+function GetDefaultDOFSpeed_Out():single; stdcall;
+function GetDefaultDOFTimeOffset():single;
+function IsConstZoomDOF():boolean; stdcall;
+function IsDofEnabled():boolean; stdcall;
 
 implementation
-uses BaseGameData, sysutils;
+uses BaseGameData, sysutils, ConsoleUtils;
 
 var
   fov:single;
@@ -43,6 +52,28 @@ var
   laser_min_dist:single; //ближе этого значения луч будет выставлен на laser_min_override
   laser_min_dist_override:single; //если точка получается дальше, чем laser_max_dist, то рисоваться будет на этой
   laser_max_dist_override:single;
+
+  def_zoom_dof:FVector3;
+  def_act_dof:FVector3;
+  dof_def_speed:single;
+  dof_def_speed_in:single;
+  dof_def_speed_out:single;
+  dof_def_timeoffset:single;
+
+//данные консольных команд
+//булевские флаги
+  _console_bool_flags:cardinal;
+
+
+
+//Сами консольные команды
+  CCC_dyndof:CCC_Mask;
+  CCC_constzoomdof:CCC_Mask;
+
+//маски для флагов
+const
+  _mask_dyndof:cardinal=$1;
+  _mask_constzoomdof:cardinal=$2;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -221,61 +252,108 @@ asm
   mov @result, eax
 end;
 
+function IsDynamicDOF():boolean; stdcall;
+begin
+  result:=IsDofEnabled() and ((_console_bool_flags and _mask_dyndof)>0);
+end;
+
+function IsConstZoomDOF():boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_constzoomdof)>0);
+end;
+
+function GetDefaultActionDOF():FVector3; stdcall;
+begin
+  result:=def_act_dof;
+end;
+
+function GetDefaultZoomDOF():FVector3; stdcall;
+begin
+  result:=def_zoom_dof;
+end;
+
+function GetDefaultDOFSpeed():single; stdcall;
+begin
+  result:=dof_def_speed;
+end;
+
+function GetDefaultDOFSpeed_In():single; stdcall;
+begin
+  result:=dof_def_speed_in;
+end;
+
+function GetDefaultDOFSpeed_Out():single; stdcall;
+begin
+  result:=dof_def_speed_out;
+end;
+
+function GetDefaultDOFTimeOffset():single;
+begin
+  result:=dof_def_timeoffset;
+end;
+
+function IsDofEnabled():boolean; stdcall;
+var
+  addr:cardinal;
+  val:cardinal;
+const
+  r2_dof_enable:cardinal = $800000;
+begin
+  if xrRender_R1_addr>0 then
+    addr:=xrRender_R1_addr+$A4728
+  else if xrRender_R2_addr>0 then
+    addr:=xrRender_R2_addr+$CB9C8
+  else if xrRender_R3_addr>0 then
+    addr:=xrRender_R3_addr+$E7C4C
+  else if xrRender_R4_addr>0 then
+    addr:=xrRender_R4_addr+$F4C54;
+
+  asm
+    mov eax, addr
+    mov eax, [eax]
+    mov val, eax
+  end;
+
+  result:=((val and r2_dof_enable)>0);
+end;
+
 function Init:boolean;
+const
+  GUNSL_BASE_SECTION:PChar='gunslinger_base';
 begin
   result:=false;
-
-  if game_ini_line_exist('gunslinger_base', 'fov') then begin
-    fov:=game_ini_r_single('gunslinger_base', 'fov');
-  end else begin
-    fov:=65;
-  end;
-
-  if game_ini_line_exist('gunslinger_base', 'hud_fov') then begin;
-    hud_fov:=game_ini_r_single('gunslinger_base', 'hud_fov');
-  end else begin
-    hud_fov:=30;
-  end;
-
-
-  if game_ini_line_exist('gunslinger_base', 'laser_min_dist') then begin;
-    laser_min_dist:=game_ini_r_single('gunslinger_base', 'laser_min_dist');
-  end else begin
-    laser_min_dist:=0.7;
-  end;
-
-  if game_ini_line_exist('gunslinger_base', 'laser_min_dist_override') then begin;
-    laser_min_dist_override:=game_ini_r_single('gunslinger_base', 'laser_min_dist_override');
-  end else begin
-    laser_min_dist_override:=laser_min_dist;
-  end;
-
-  if game_ini_line_exist('gunslinger_base', 'laser_max_dist_override') then begin;
-    laser_max_dist_override:=game_ini_r_single('gunslinger_base', 'laser_max_dist_override');
-  end else begin
-    laser_max_dist_override:=laser_min_dist;
-  end;
+  _console_bool_flags:=0;
+//-----------------------------------------------------------------------------------------------------------------
+  CCC_Mask__CCC_Mask(@CCC_dyndof, 'r2_dynamic_dof', @_console_bool_flags, _mask_dyndof);
+  CConsole__AddCommand(@(CCC_dyndof.base));
+  CCC_Mask__CCC_Mask(@CCC_constzoomdof, 'r2_const_zoomdof', @_console_bool_flags, _mask_constzoomdof);
+  CConsole__AddCommand(@(CCC_constzoomdof.base));
+//-----------------------------------------------------------------------------------------------------------------
+  fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
+  hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);
+  laser_min_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_min_dist', 0.7);
+  laser_min_dist_override:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_min_dist_override', laser_min_dist);
+  laser_max_dist_override:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_max_dist_override', laser_min_dist);
+  laser_max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_max_dist', 15);
+  laser_max_dist_override:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_max_dist_override', laser_max_dist);
+  laser_hide_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'laser_hide_dist',25);
 
 
-  if game_ini_line_exist('gunslinger_base', 'laser_max_dist') then begin;
-    laser_max_dist:=game_ini_r_single('gunslinger_base', 'laser_max_dist');
-  end else begin
-    laser_max_dist:=15;
-  end;
+  def_zoom_dof.x:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_near', 0.5);
+  def_zoom_dof.y:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_focus', 0.8);
+  def_zoom_dof.z:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_far', 10000);
 
-  if game_ini_line_exist('gunslinger_base', 'laser_max_dist_override') then begin;
-    laser_max_dist_override:=game_ini_r_single('gunslinger_base', 'laser_max_dist_override');
-  end else begin
-    laser_max_dist_override:=laser_max_dist;
-  end;
+  def_act_dof.x:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_action_dof_near', 0);
+  def_act_dof.y:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_action_dof_focus', 0.5);
+  def_act_dof.z:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_action_dof_far', 5);
+  dof_def_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_dof_speed', 5); //для оригинального зума (pick mode)
+  dof_def_speed_in:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_dof_speed_in', 3); //для входа в аниму
+  dof_def_speed_out:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_dof_speed_out', 1); //для выхода из анимы
 
+  dof_def_timeoffset:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_dof_time_offset', -0.4); //время выключения дофа
 
-  if game_ini_line_exist('gunslinger_base', 'laser_hide_dist') then begin;
-    laser_hide_dist:=game_ini_r_single('gunslinger_base', 'laser_hide_dist');
-  end else begin
-    laser_hide_dist:=25;
-  end;
 
   result:=true;
 end;
+
 end.

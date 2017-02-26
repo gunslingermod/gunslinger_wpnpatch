@@ -6,7 +6,7 @@ procedure ReassignWorldAnims(wpn:pointer); stdcall;
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF;
 
 
 
@@ -34,7 +34,7 @@ begin
     SetWeaponMultipleBonesStatus(wpn, laser_bones, true);
   end;
 //TODO:добавить проверку на то, отрисовывается ли сейчас худ или нет
-  if (act=nil) or (act<>GetOwner(wpn)) or (GetActorActiveItem()<>wpn) or (GetNextState(wpn)=EHudStates__eHidden) or  (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
+  if (not CHudItem__GetHUDMode(wpn)) or  (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
 //  if (act=nil) or (act<>GetOwner(wpn)) then begin// or (GetCurrentState(wpn)=CHUDState__eHidden) or (not buf.IsLaserEnabled()) or IsDemoRecord() then begin
 //    log(inttostr(cardinal(wpn)));
     if buf.IsLaserDotInited() then begin
@@ -317,8 +317,24 @@ procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
   sect:PChar;
+
+  offset:integer;
+  dof_end_time:cardinal;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
+
+    if (GetActorActiveItem=wpn) and DOFChanged() and (not IsAimNow(wpn)) and (not IsHolderInAimState(wpn)) and (GetAnimTimeState(wpn, ANM_TIME_CUR)>0) then begin
+      offset:=ReadActionDOFTimeOffset(wpn, GetActualCurrentAnim(wpn));
+      if (offset>0) then begin
+        if GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR))>cardinal(offset) then begin
+          ResetDOF(ReadActionDOFSpeed_Out(wpn, GetActualCurrentAnim(wpn)));
+        end;
+      end else if (offset<0) then begin
+        if GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_CUR), GetAnimTimeState(wpn, ANM_TIME_END))<cardinal(-1*offset) then begin
+          ResetDOF(ReadActionDOFSpeed_Out(wpn, GetActualCurrentAnim(wpn)));
+        end;
+      end;
+    end;
 
     //апдейт буфера
     buf:=WeaponAdditionalBuffer.GetBuffer(wpn);

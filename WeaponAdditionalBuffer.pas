@@ -34,8 +34,6 @@ type
     _save_cartridge_in_chamber:boolean;
     _add_cartridge_in_open:boolean;
 
-
-
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
     procedure _DestructLaserDot();
 
@@ -80,6 +78,7 @@ type
     function IsAmmoInChamber():boolean;
     function SaveAmmoInChamber():boolean;
     function AddCartridgeAfterOpen():boolean;
+
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -106,7 +105,7 @@ type
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, MatVectors;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, MatVectors, ActorDOF;
 
 { WpnBuf }
 
@@ -145,7 +144,6 @@ begin
   _save_cartridge_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'save_cartridge_in_ammochange', true);
 
   _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
-
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
 
@@ -249,6 +247,7 @@ var
   actor:pointer;
   hud_sect:PChar;
   anm_name:string;
+  v:FVector3;
 begin
   result:=false;
 
@@ -271,6 +270,11 @@ begin
   if self._lock_remain_time>0 then begin
     self._current_anim:=anm_name;
   end;
+
+  if ReadActionDOFVector(_my_wpn, v, anm_name, false) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(_my_wpn, anm_name));
+  end;
+    
   result:=true;
 end;
 
@@ -370,7 +374,7 @@ end;
 
 function CanSprintNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
+  if IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
     result:=false
   else
     result:=true;

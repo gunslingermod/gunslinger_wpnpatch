@@ -36,8 +36,8 @@ uses
   WeaponAmmoCounter in 'WeaponAmmoCounter.pas',
   Misc in 'Misc.pas',
   MatVectors in 'MatVectors.pas',
-  xr_BoneUtils in 'xr_BoneUtils.pas';
-
+  xr_BoneUtils in 'xr_BoneUtils.pas',
+  ActorDOF in 'ActorDOF.pas';
 
 {$R *.res}
 
@@ -46,6 +46,7 @@ begin
 
   decimalseparator:='.';
   BaseGameData.Init;
+  ConsoleUtils.Init;  
   gunsl_config.Init;
   xr_keybinding.Init;
 
@@ -62,9 +63,10 @@ begin
   WeaponAnims.Init;
   DetectorUtils.Init;
   ActorUtils.Init;
-  ConsoleUtils.Init;
   Throwable.Init();
+  ActorDOF.Init();
   //LensDoubleRender.Init();
+
 
   hud_transp_r1.Init();
   hud_transp_r2.Init();

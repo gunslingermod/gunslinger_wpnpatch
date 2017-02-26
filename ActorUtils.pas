@@ -77,7 +77,7 @@ function GetTargetDist():single;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF;
 
 var
   _keyflags:cardinal;
@@ -711,7 +711,8 @@ begin
 {$endif}  
   _prev_act_slot:=-1;
   _last_act_slot:=-1;
-  _last_act_item:=nil; 
+  _last_act_item:=nil;
+  ResetDOF(1000);
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
@@ -760,31 +761,6 @@ asm
   popad
 end;
 
-
-function Init():boolean; stdcall;
-var jmp_addr:cardinal;
-begin
-  ClearActorKeyRepeatFlags();
-
-  _prev_act_slot:=-1;
-  _last_act_slot:=-1;
-
-{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
-  _was_unprocessed_use_of_usable_huditem:=false;
-{$endif}
-
-  result:=false;
-  jmp_addr:=xrGame_addr+$261DF6;
-  if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
-
-  jmp_addr:= xrgame_addr+$2783F9;  //CActor::IR_OnKeyboardPress
-  if not WriteJump(jmp_addr, cardinal(@OnKeyPressPatch1), 7, true) then exit;
-
-  jmp_addr:= xrgame_addr+$26D115;
-  if not WriteJump(jmp_addr, cardinal(@CActor__netSpawn_Patch), 8) then exit;
-    
-  result:=true;
-end;
 
 procedure UpdateFOV(act:pointer);
 var
@@ -844,7 +820,6 @@ begin
     pop eax
   end;
 end;
-
 
 procedure DropItem(act:pointer; item:pointer); stdcall;
 asm
@@ -908,6 +883,32 @@ asm
 
   @finish:
   popad
+end;
+
+
+function Init():boolean; stdcall;
+var jmp_addr:cardinal;
+begin
+  ClearActorKeyRepeatFlags();
+
+  _prev_act_slot:=-1;
+  _last_act_slot:=-1;
+
+{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
+  _was_unprocessed_use_of_usable_huditem:=false;
+{$endif}
+
+  result:=false;
+  jmp_addr:=xrGame_addr+$261DF6;
+  if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
+
+  jmp_addr:= xrgame_addr+$2783F9;  //CActor::IR_OnKeyboardPress
+  if not WriteJump(jmp_addr, cardinal(@OnKeyPressPatch1), 7, true) then exit;
+
+  jmp_addr:= xrgame_addr+$26D115;
+  if not WriteJump(jmp_addr, cardinal(@CActor__netSpawn_Patch), 8) then exit;
+
+  result:=true;
 end;
 
 end.

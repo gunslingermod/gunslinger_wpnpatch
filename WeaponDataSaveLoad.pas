@@ -57,6 +57,9 @@ begin
   buf.SetLaserEnabledStatus(tmp_bool);
 
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
+  SetWeaponMisfireStatus(wpn, tmp_bool);
+
+  ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
   buf.SetExplosed(tmp_bool);
 
 
@@ -91,6 +94,8 @@ begin
   buf:=GetBuffer(wpn);
   if buf = nil then exit;
   tmp_bool:=buf.IsLaserEnabled();
+  WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
+  tmp_bool:=IsWeaponJammed(wpn);
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_bool:=buf.IsExplosed();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));

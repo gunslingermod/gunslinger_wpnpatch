@@ -13,7 +13,8 @@ function Init:boolean;
 function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
 function nop_code(addr:cardinal; count:cardinal):boolean;
 function GetGameTickCount:cardinal;
-function GetTimeDeltaSafe(starttime:cardinal):cardinal;
+function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
+function GetTimeDeltaSafe(starttime:cardinal; endtime:cardinal):cardinal; overload;
 function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
 
 function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
@@ -93,7 +94,7 @@ asm
 end;
 
 
-function GetTimeDeltaSafe(starttime:cardinal):cardinal;
+function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
 var
   curtime:cardinal;
 begin
@@ -101,6 +102,13 @@ begin
   result:=curtime-starttime;
   //обработаем переполнение
   if result>curtime then result:=$FFFFFFFF-starttime+curtime;
+end;
+
+function GetTimeDeltaSafe(starttime:cardinal; endtime:cardinal):cardinal; overload;
+begin
+  result:=endtime-starttime;
+  //обработаем переполнение
+  if result>endtime then result:=$FFFFFFFF-starttime+endtime;
 end;
 
 function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;

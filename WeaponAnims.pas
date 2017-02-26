@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -286,8 +286,13 @@ begin
 end;
 
 function anm_std_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
+var
+  v:FVector3;
 begin
   anim_name := ModifierStd(wpn, base_anim);
+  if ReadActionDOFVector(wpn, v, anim_name, false) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;  
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anim_name));
 end;
@@ -603,6 +608,7 @@ function anm_open_selector(wpn:pointer):pchar;stdcall;
 var
   buf:WpnBuf;
   hud_sect:PChar;
+  v:FVector3;
 begin
   if IsWeaponJammed(wpn) then begin
     anim_name := ModifierStd(wpn, 'anm_reload');
@@ -615,6 +621,10 @@ begin
     end;
 
     result:=PChar(anim_name);
+
+    if ReadActionDOFVector(wpn, v, anim_name, true) then begin
+      SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+    end;
     exit;
   end;
 
@@ -637,6 +647,10 @@ begin
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
     end;
   end;
+
+  if ReadActionDOFVector(wpn, v, anim_name, true) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;  
 end;
 
 procedure anm_open_std_patch();stdcall;
@@ -663,6 +677,7 @@ var
   actor:pointer;
   fun:TAnimationEffector;
   modifier:string;
+  v:FVector3;
 begin
   fun:=nil;
 
@@ -714,6 +729,10 @@ begin
     anim_name:='anm_reload';
     ModifierBM16(wpn, anim_name);
   end;
+
+  if ReadActionDOFVector(wpn, v, anim_name, false) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name), true, fun, 0);
 
@@ -757,6 +776,7 @@ var
   hud_sect:PChar;
   actor:pointer;
   buf:WpnBuf;
+  v:FVector3;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
@@ -813,6 +833,10 @@ begin
   end else begin
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
   end;
+
+  if ReadActionDOFVector(wpn, v, anim_name, true) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;
 end;
 
 
@@ -822,6 +846,7 @@ var
   actor:pointer;
   snd:string;
   buf:WpnBuf;
+  v:FVector3;
 begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_reload';
@@ -860,6 +885,10 @@ begin
   result:=PChar(anim_name);
 
   CHudItem_Play_Snd(wpn, PChar(snd));
+
+  if ReadActionDOFVector(wpn, v, anim_name, true) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;
 
   if buf <> nil then buf.SetReloaded(false);
   if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
@@ -1448,78 +1477,7 @@ asm
   ret 4
 end;
 
-//---------------------------------------------------------------------------------------------------------------------
 
-procedure CWeapon__OnAnimationEnd(wpn:pointer); stdcall;
-var
-  act:pointer;
-begin
-  act:=GetActor();
-  //пофиксим рассинхрон аним ствола и детектора в беге
-  //делаем это принудительным переназначением аним идла
-  if (act<>nil) and (act=GetOwner(wpn)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))='anm_idle')
-    //если бег уже кончился - то забываем
-    and GetActorActionState(act, actModSprintStarted, mstate_REAL) and GetActorActionState(act, actSprint, mstate_REAL)
-  then begin
-    SetActorActionState(act, actModNeedMoveReassign, true);
-  end;
-end;
-
-procedure CWeapon__OnAnimationEnd_Patch(); stdcall;
-asm
-  pushad
-    sub ecx, $2e0
-    push ecx
-    call CWeapon__OnAnimationEnd
-  popad
-
-  mov eax, xrgame_addr //джампим на предка - исходное.
-  add eax, $2F9640
-  jmp eax
-end;
-
-//---------------------------------------------------------------------------------------------------------------------
-procedure CWeaponKnife__OnAnimationEnd(wpn:pointer); stdcall;
-begin
-  //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры
-  //
-  CWeapon__OnAnimationEnd(wpn);
-end;
-
-procedure CWeaponKnife__OnAnimationEnd_Patch(); stdcall;
-asm
-  pushad
-    sub ecx, $2e0
-    push ecx
-    call CWeaponKnife__OnAnimationEnd
-  popad
-
-  mov eax, [esp+8]
-  cmp eax, 6
-  ret
-end;
-
-
-//---------------------------------------------------------------------------------------------------------------------
-
-
-procedure CHudItem__OnAnimationEnd_Patch(); stdcall;
-asm
-  pushad
-    sub ecx, $2e0
-    push ecx
-    call WeaponEvents.OnWeaponHide
-    cmp al, 1
-  popad
-  je @finish
-    //выходим из текущей и вызывающей сразу
-    pop eax
-    ret
-  @finish:
-  mov eax, $4014
-  ret
-end;
-//---------------------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
   buf:byte;
@@ -1532,11 +1490,7 @@ begin
   //отключим звук движкового удара ножом, т.к. теперь полностью контролируем его в WeaponEvents.OnKnifeKick
   nop_code(xrGame_addr+$2d7503, 8);
 
-  //исправляем рассинхрон с детектором
-  jump_addr:=xrGame_addr+$2bc7e0;
-  if not WriteJump(jump_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
-  jump_addr:=xrGame_addr+$2d4f30;
-  if not WriteJump(jump_addr, cardinal(@CWeaponKnife__OnAnimationEnd_Patch), 7, true) then exit;
+
 
   //фиксим баг (мгновенная смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;
@@ -1608,8 +1562,6 @@ begin
   //для убирания
   jump_addr:=xrGame_addr+$2D02FF;
   if not WriteJump(jump_addr, cardinal(@HideAnimLockFix), 8, true) then exit;
-  jump_addr:=xrGame_addr+$2F96A0;
-  if not WriteJump(jump_addr, cardinal(@CHudItem__OnAnimationEnd_Patch), 5, true) then exit;
 
   //для выстрела с подствола
   jump_addr:=xrGame_addr+$2D3ABE;

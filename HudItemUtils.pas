@@ -67,6 +67,8 @@ procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
 function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
 
+function GetAnimTimeState(wpn:pointer; what:cardinal=$2FC):cardinal; stdcall;
+
 procedure SetSubState(wpn:pointer; substate:byte); stdcall;
 function GetSubState(wpn:pointer):byte; stdcall;
 
@@ -90,11 +92,16 @@ procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcal
 function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
 
 function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
+function CHudItem__GetHUDMode(CHudItem:pointer):boolean; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
   OFFSET_PARTICLE_WEAPON_CURSMOKE:cardinal = $438;
+
+  ANM_TIME_START:cardinal=$304;
+  ANM_TIME_CUR:cardinal=$300;
+  ANM_TIME_END:cardinal=$308;
 
   EWeaponStates__eFire:cardinal = $5;
   EWeaponStates__eFire2:cardinal = $6;
@@ -138,8 +145,7 @@ var
 
 
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
-begin
-  asm
+asm
     pushad
     pushfd
     mov edi, wpn
@@ -161,7 +167,6 @@ begin
     @finish:
     popfd
     popad
-  end;
 end;
 
 procedure SetWpnVisual (obj:pointer; name:pchar);stdcall;
@@ -185,8 +190,7 @@ asm
 end;
 
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
-begin
-  asm
+asm
     pushad
     pushfd
 
@@ -204,12 +208,10 @@ begin
 
     popfd
     popad
-  end
 end;
 
 function GetInstalledUpgradeSection(wpn:pointer; index:cardinal):PChar; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$D8]
     mov ecx, index
@@ -217,12 +219,10 @@ begin
     mov eax, [eax]
     add eax, $10
     mov @result, eax;
-  end;
 end;
 
 function GetInstalledUpgradesCount(wpn:pointer):cardinal; stdcall;
-begin
-  asm
+asm
     mov ecx, wpn
 {    mov eax, [ecx+$DE]
     cmp eax, 0
@@ -233,12 +233,10 @@ begin
     shr eax, 2
     mov @result, eax
     @finish:
-  end;
 end;
 
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
-begin
-  asm
+asm
     pushad
     pushfd
     mov ebx, wpn
@@ -272,7 +270,6 @@ begin
 
     popfd
     popad
-  end;
 end;
 
 function IsAimNow(wpn:pointer):boolean; stdcall;
@@ -283,17 +280,14 @@ asm
 end;
 
 function GetOwner(wpn:pointer):pointer; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$19c]
     mov @result, eax
-  end;
 end;
 
 function GetCurrentScopeSection(wpn:pointer):PChar;
-begin
-  asm
+asm
     pushad
     pushfd
     mov @result, 0
@@ -312,16 +306,13 @@ begin
     @finish:
     popfd
     popad
-  end;
 end;
 
 function GetGLStatus(wpn:pointer):cardinal; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$46c]
     mov @result, eax
-  end;
 end;
 
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
@@ -1211,6 +1202,27 @@ asm
 
     popf
     popad
+end;
+
+function CHudItem__GetHUDMode(CHudItem:pointer):boolean; stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    add eax, $2F9C80
+    mov ecx, CHudItem
+    add ecx, $2e0
+    call eax      //CHudItem::GetHUDMode
+    mov @result, al
+  popad
+end;
+
+
+function GetAnimTimeState(wpn:pointer; what:cardinal=$2FC):cardinal; stdcall;
+asm
+  mov eax, wpn
+  add eax, what
+  mov eax, [eax]
+  mov @result, eax
 end;
 
 end.

@@ -12,7 +12,7 @@ function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -874,6 +874,7 @@ end;
 procedure OnKnifeKick(knife:pointer; kick_type:cardinal); stdcall;
 var
   act:pointer;
+  v:FVector3;
 begin
   act:=GetActor();
   if (act<>nil) and (act=GetOwner(knife)) then begin
@@ -885,10 +886,16 @@ begin
     1:begin
         StartCompanionAnimIfNeeded('knife_attack', knife, true);
         CHudItem_Play_Snd(knife, 'sndKick1');
+        if ReadActionDOFVector(knife, v, 'anm_attack', false) then begin
+          SetDOF(v, ReadActionDOFSpeed_In(knife,'anm_attack'));
+        end;
       end;
     2:begin
         StartCompanionAnimIfNeeded('knife_attack2', knife, true);
         CHudItem_Play_Snd(knife, 'sndKick2');
+        if ReadActionDOFVector(knife, v, 'anm_attack2', false) then begin
+          SetDOF(v, ReadActionDOFSpeed_In(knife, 'anm_attack2'));
+        end;
       end;
   end;
 end;
@@ -978,6 +985,119 @@ asm
   ret
 end;
 
+
+//---------------------------------------------------------------------------------------------------------------------
+
+procedure CWeapon__OnAnimationEnd(wpn:pointer); stdcall;
+var
+  act:pointer;
+  anm:PChar;
+begin
+  act:=GetActor();
+  //пофиксим рассинхрон аним ствола и детектора в беге
+  //делаем это принудительным переназначением аним идла
+  if (act<>nil) and (act=GetOwner(wpn)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))='anm_idle')
+    //если бег уже кончился - то забываем
+    and GetActorActionState(act, actModSprintStarted, mstate_REAL) and GetActorActionState(act, actSprint, mstate_REAL)
+  then begin
+    SetActorActionState(act, actModNeedMoveReassign, true);
+  end;
+
+  anm:=GetActualCurrentAnim(wpn);
+  if (GetActorActiveItem()=wpn) and (leftstr(anm, length('anm_idle'))<>'anm_idle') then ResetDOF(ReadActionDOFSpeed_Out(wpn, anm));
+end;
+
+procedure CWeapon__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CWeapon__OnAnimationEnd
+  popad
+
+  mov eax, xrgame_addr //джампим на предка - исходное.
+  add eax, $2F9640
+  jmp eax
+end;
+
+//---------------------------------------------------------------------------------------------------------------------
+procedure CWeaponKnife__OnAnimationEnd(wpn:pointer); stdcall;
+begin
+  //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры
+  //
+  CWeapon__OnAnimationEnd(wpn);
+end;
+
+procedure CWeaponKnife__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CWeaponKnife__OnAnimationEnd
+  popad
+
+  mov eax, [esp+8]
+  cmp eax, 6
+  ret
+end;
+
+
+//---------------------------------------------------------------------------------------------------------------------
+
+
+procedure CHudItem__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call WeaponEvents.OnWeaponHide
+    cmp al, 1
+  popad
+  je @finish
+    //выходим из текущей и вызывающей сразу
+    pop eax
+    ret
+  @finish:
+  mov eax, $4014
+  ret
+end;
+
+//----------------------------------------------------------------------------------------------------------
+procedure CWeaponMagazined__OnAnimationEnd(wpn:pointer); stdcall;
+begin
+  //тут что-то было... И может быть будет
+end;
+
+procedure CWeaponMagazined__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CWeaponMagazined__OnAnimationEnd
+  popad
+  cmp edi, $07
+  mov esi, ecx
+end;
+
+
+procedure CWeaponShotgun__OnAnimationEnd_OnClose(wpn:pointer); stdcall;
+var
+  anm:PChar;
+begin
+  anm:=GetActualCurrentAnim(wpn);
+  ResetDOF(ReadActionDOFSpeed_Out(wpn, anm));
+end;
+
+procedure CWeaponShotgun__OnAnimationEnd_OnClose_Patch(); stdcall;
+asm
+  pushad
+    sub esi, $2e0
+    push esi
+    call CWeaponShotgun__OnAnimationEnd_OnClose
+  popad
+  mov [esi+$179], al
+end;
+
 //----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
@@ -1060,6 +1180,21 @@ begin
   //обработка дополнительных клавиатурных действий
   jmp_addr:=xrGame_addr+$2BEC70;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__Action_Patch), 5, true) then exit;
+
+
+  //исправляем рассинхрон с детектором
+  jmp_addr:=xrGame_addr+$2bc7e0;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__OnAnimationEnd_Patch), 5, false) then exit;
+  //фикс убирания оружия для пианистов
+  jmp_addr:=xrGame_addr+$2F96A0;
+  if not WriteJump(jmp_addr, cardinal(@CHudItem__OnAnimationEnd_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$2d4f30;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnAnimationEnd_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2CCD86;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__OnAnimationEnd_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$2DE3DB;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponShotgun__OnAnimationEnd_OnClose_Patch), 6, true) then exit;
+
 
   result:=true;
 end;
