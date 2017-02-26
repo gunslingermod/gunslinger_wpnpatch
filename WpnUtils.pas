@@ -9,6 +9,7 @@ procedure SetWorldModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean)
 procedure SetHudModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
 procedure SetWeaponMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
+procedure SetWorldModelMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
 function IsScopeAttached(wpn:pointer):boolean; stdcall;
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
 function IsGLAttached(wpn:pointer):boolean; stdcall;
@@ -57,6 +58,9 @@ function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
 procedure JamWeapon(wpn:pointer); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
+function IsThrowable(cls:PChar):boolean;stdcall;
+procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
+function QueueFiredCount(wpn:pointer):integer; stdcall;
 
 procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
 procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
@@ -69,7 +73,20 @@ function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdc
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
-  OFFSET_PARTICLE_WEAPON_CURSMOKE:cardinal = $438;  
+  OFFSET_PARTICLE_WEAPON_CURSMOKE:cardinal = $438;
+
+  EWeaponStates__eFire:cardinal = $5;
+  EWeaponStates__eFire2:cardinal = $6;
+  EWeaponStates__eReload:cardinal = $7;
+  EWeaponStates__eMisfire:cardinal = $8;
+  EWeaponStates__eMagEmpty:cardinal = $9;
+  EWeaponStates__eSwitch:cardinal = $A;
+  EHudStates__eIdle:cardinal = $0;
+  EHudStates__eShowing:cardinal = $1;
+  EHudStates__eHiding:cardinal = $2;
+  EHudStates__eHidden:cardinal = $3;
+  EHudStates__eBore:cardinal = $4;
+  EHudStates__eLastBaseState:cardinal = $4;
 
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
@@ -81,7 +98,7 @@ var
   GetCurrentHud_Func:cardinal;
   PlayHudAnim_Func:cardinal;
   SetWorldModelBoneStatus_internal1_func:cardinal;
-  game_object_set_visual_name:cardinal;
+
 
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 begin
@@ -122,7 +139,33 @@ begin
     call game_object_GetScriptGameObject
     mov ecx, eax
     push name
-    call game_object_set_visual_name
+
+    mov eax, xrgame_addr
+    add eax, $1BFF60
+    call eax
+
+    popfd
+    popad
+  end
+end;
+
+procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
+begin
+  asm
+    pushad
+    pushfd
+
+    add obj, $000000E8
+    push obj
+    call game_object_GetScriptGameObject
+
+    movzx ebx, mix_in
+    push ebx
+    push anim
+    mov ecx, eax
+    mov eax, xrgame_addr
+    add eax, $1c1ab0
+    call eax         //CScriptGameObject::play_cycle
 
     popfd
     popad
@@ -306,6 +349,15 @@ begin
   end;
 end;
 
+function QueueFiredCount(wpn:pointer):integer; stdcall;
+begin
+  asm
+    mov eax, wpn
+    mov eax, [eax+$774]
+    mov @result, eax
+  end;
+end;
+
 function GetSection(wpn:pointer):PChar; stdcall;
 begin
   asm
@@ -430,6 +482,17 @@ begin
   bones_string:=bones;
   while (GetNextSubStr(bones_string, bone, ',')) do begin
     SetWeaponModelBoneStatus(wpn, PChar(bone), status);
+  end;
+end;
+
+procedure SetWorldModelMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
+var
+  bones_string:string;
+  bone:string;
+begin
+  bones_string:=bones;
+  while (GetNextSubStr(bones_string, bone, ',')) do begin
+    SetWorldModelBoneStatus(wpn, PChar(bone), status);
   end;
 end;
 
@@ -601,6 +664,11 @@ function WpnCanShoot(cls:PChar):boolean;stdcall;
 begin
 //  result:=not((cls='G_RGD5_S') or (cls='II_BOLT') or (cls='DET_SIMP') or (cls='DET_ADVA') or (cls = 'DET_ELIT') or (cls = 'G_F1_S') or (cls = 'DET_ELIT') or (cls = 'WP_BINOC') or (cls = 'WP_KNIFE') or (cls = 'ARTEFACT') or (cls='D_FLARE'));
   result:=(cls='WP_AK74') or (cls='WP_LR300') or (cls='WP_BM16') or (cls='WP_PM') or (cls='WP_GROZA') or (cls='WP_SVD') or (cls='WP_HPSA') or (cls='WP_ASHTG') or (cls='WP_RG6') or (cls='WP_RPG7') or (cls='WP_VAL') or (cls='WP_VAL');
+end;
+
+function IsThrowable(cls:PChar):boolean;stdcall;
+begin
+  result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
 end;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
@@ -831,8 +899,6 @@ begin
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
 
   SetWorldModelBoneStatus_internal1_func:=xrGame_addr+$3483C0;
-  game_object_set_visual_name:=xrGame_addr+$1BFF60;
-
   result:=true;
 end;
 

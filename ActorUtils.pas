@@ -270,10 +270,11 @@ begin
   end;
 
   if IsSprintOnHoldEnabled() and (not IsActionKeyPressedInGame(kWPN_ZOOM)) and (_keyflags=0) and (CDialogHolder__TopInputReceiver()=nil) then begin
-    if not IsActionKeyPressedInGame(kSPRINT_TOGGLE) and ((wpn=nil) or (CanSprintNow(wpn)))  then
-      SetActorActionState(act, actSprint, false, mState_WISHFUL)
-    else
-      SetActorActionState(act, actSprint, true, mState_WISHFUL)
+    if IsActionKeyPressedInGame(kSPRINT_TOGGLE) and ((wpn=nil) or CanSprintNow(wpn)) then begin
+      SetActorActionState(act, actSprint, true, mState_WISHFUL);
+    end else begin
+      SetActorActionState(act, actSprint, false, mState_WISHFUL);
+    end;
   end;
 
   if ((_keyflags and kfWPNHIDE)<>0) then begin

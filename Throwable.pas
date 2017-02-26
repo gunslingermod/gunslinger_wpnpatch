@@ -6,6 +6,7 @@ interface
 
 function Init():boolean;
 procedure ResetActivationHoldState(); stdcall;
+procedure Throwable_Play_Snd(itm:pointer; alias:PChar); stdcall;
 
 const
 		EMissileStates__eThrowStart:cardinal = 5;
@@ -14,9 +15,12 @@ const
 		EMissileStates__eThrowEnd:cardinal = 8;
 
 implementation
-uses BaseGameData, WeaponSoundLoader, ActorUtils, WpnUtils, GameWrappers, KeyUtils, sysutils, strutils;
+uses BaseGameData, WeaponSoundLoader, ActorUtils, WpnUtils, GameWrappers, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils;
 
 var _activate_key_state:TKeyHoldState;
+
+const
+  CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
 
 procedure Throwable_Play_Snd(itm:pointer; alias:PChar); stdcall;
 asm
@@ -44,6 +48,56 @@ asm
   mov eax, [eax+$394]
 end;
 
+function CMissile__GetDestroyTime(CMissile:pointer):cardinal; stdcall;
+asm
+  mov eax, CMissile
+  test eax, eax
+  je @null
+
+  mov eax, [eax+$340]
+  mov @result, eax
+  jmp @finish
+  
+  @null:
+  mov @result, $FFFFFFFF
+
+  @finish:
+end;
+
+
+function CMissile__GetDestroyTimeMax(CMissile:pointer):cardinal; stdcall;
+asm
+  mov eax, CMissile
+  test eax, eax
+  je @null
+
+  mov eax, [eax+$344]
+  mov @result, eax
+  jmp @finish
+  
+  @null:
+  mov @result, $FFFFFFFF
+
+  @finish:
+end;
+
+procedure CMissile__SetDestroyTime(CMissile:pointer; time_moment:cardinal); stdcall;
+asm
+  push eax
+  push ebx
+
+  mov eax, CMissile
+  test eax, eax
+  je @finish
+
+  mov ebx, time_moment
+  add eax, $340
+  mov [eax], ebx
+
+  @finish:
+  pop ebx
+  pop eax
+end;
 
 procedure CMissile__spawn_fake_missile(CMissile:pointer); stdcall;
 asm
@@ -52,6 +106,26 @@ asm
     mov eax, xrgame_addr
     add eax, $2c7e20
     call eax
+  popad
+end;
+
+procedure CMissile__set_m_throw(this:pointer; status:boolean); stdcall;
+asm
+  pushad
+    mov ecx, this
+    movzx eax, status
+    mov [ecx+$33c], eax
+  popad
+end;
+
+function CMissile__Useful(this:pointer):boolean; stdcall;
+asm
+  pushad
+    mov ecx, this
+    mov eax, xrgame_addr
+    add eax, $2c5c80
+    call eax
+    mov @result, al
   popad
 end;
 
@@ -68,6 +142,23 @@ asm
   pop eax
 end;
 
+
+function CGrenade__GetDetonationTresholdHit(this:pointer):single; stdcall;
+asm
+  mov eax, this
+  test eax, eax
+  je @null
+
+  mov eax, [eax+$4bc]
+  mov @result, eax
+  jmp @finish
+
+  @null:
+  mov @result, 0
+
+  @finish:
+end;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 procedure CMissile__Load(CMissile:pointer; section:PChar; HUD_SOUND_COLLECTION:pointer);stdcall;
 begin
@@ -76,6 +167,10 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw_begin', 'sndThrowBegin', 0, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw', 'sndThrow', 0, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw_quick', 'sndThrowQuick', 0, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_start', 'sndSprintStart', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_end', 'sndSprintEnd', 1, $80040000);  
+
 end;
 
 procedure CMissile__Load_Patch();stdcall;
@@ -109,7 +204,7 @@ begin
     if _activate_key_state.IsActive and _activate_key_state.IsHoldContinued then begin
       _activate_key_state.IsActive:=false;
       sect:=GetSection(CMissile);
-      if game_ini_line_exist(sect, 'supports_quick_throw') and game_ini_r_bool(sect,'supports_quick_throw') then begin
+      if game_ini_line_exist(sect, 'supports_quick_throw') and game_ini_r_bool(sect, 'supports_quick_throw') then begin
         //надо выполнить быстрый бросок
         result:='anm_throw_quick';
         snd:='sndThrowQuick';
@@ -317,15 +412,96 @@ end;
 
 
 //TODO: взрыв при касании поверхности
+procedure CMissile__ExitContactCallback(dxGeom:pointer); stdcall;
+var
+  grenade:pointer;
+  sect:PChar;
+  destroy_time, time_from_throw, now:cardinal;
+  samolikvidator_delta:cardinal;
+begin
+  //первым делом убеждаемся, что к нам прилетела грена, а не то, с чем она столкнулась
+  grenade:=dxGeomUserData__get_ph_ref_object(PHRetrieveGeomUserData(dxGeom));
+  if grenade=nil then exit;
+  grenade:=dynamic_cast(grenade, 0, RTTI_IPhysicsShellHolder, RTTI_CGrenade, false);
+  if grenade=nil then exit;
 
-//TODO: сокрытие лишних костей у брошенной грены
+  //да, у нас действительно грена... Посмотрим, сколько она продержалась в воздухе с момента броска, и если слишком мало - деактивируем ее
+  destroy_time:=CMissile__GetDestroyTime(grenade);
+  now := GetGameTickCount();
+
+  if (destroy_time=CMISSILE_NOT_ACTIVATED) or (destroy_time<=now) then exit;
+
+  time_from_throw:=CMissile__GetDestroyTimeMax(grenade) - (destroy_time-now);
+
+  sect:=GetSection(grenade);
+
+{  if game_ini_line_exist(sect, 'safe_time') then begin
+    log('safe: '+inttostr(strtointdef(game_ini_read_string(sect, 'safe_time'),0)));
+    log('from throw: '+inttostr(time_from_throw));
+
+  end;  }
+
+  if game_ini_line_exist(sect, 'safe_time') and (strtointdef(game_ini_read_string(sect, 'safe_time'), 0)>time_from_throw) then begin
+    CMissile__SetDestroyTime(grenade, CMISSILE_NOT_ACTIVATED);
+  end else if game_ini_line_exist(sect, 'explosion_on_kick') and game_ini_r_bool(sect, 'explosion_on_kick') then begin
+    CMissile__SetDestroyTime(grenade, now);
+  end;
+end;
+
+procedure CMissile__ExitContactCallback_Patch(); stdcall;
+asm
+  pushad
+    //проверяем, обрабатывается ли этот контакт игрой
+    mov eax, [esp+$24]
+    mov al, byte ptr [eax]
+    cmp al, 0
+    je @finish
+
+    mov eax, [esp+$2C]  //mov eax, dContact& c
+    push [eax+$50]      //c.geom.g1
+    push [eax+$54]      //c.geom.g2
+
+    call CMissile__ExitContactCallback
+    call CMissile__ExitContactCallback
+
+    @finish:
+  popad
+  ret
+end;
+
+//DONE: сокрытие лишних костей у брошенной грены
+procedure CMissile__shedule_update(this:pointer); stdcall;
+var
+  sect:PChar;
+begin
+  sect:=GetSection(this);
+  if game_ini_line_exist(sect, 'checkout_bones') then begin
+    SetWorldModelMultipleBonesStatus(this, game_ini_read_string(sect, 'checkout_bones'), CMissile__Useful(this))
+  end;
+end;
+
+procedure CMissile__shedule_update_Patch(); stdcall;
+//дописываем в конец метода
+asm
+  pushad
+    sub esi, $12C
+    push esi
+    call CMissile__shedule_update
+  popad
+  pop esi
+  ret 4
+end;
 
 
 function CMissile__OnMotionMark(CMissile:pointer; state:cardinal):boolean;stdcall;
-//возвращением false не дадим сделать бросок сейчас
+//возвращением true заставим бросить грену, иначе - не бросать пока
 begin
   result:=false;
-  if (state=EMissileStates__eThrow) or((state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick')) then begin
+
+  if (GetActualCurrentAnim(CMissile)='anm_throw_quick') then begin
+    CMissile__set_m_throw(CMissile, false); //сброс флага броска необходим из-за того, что иногда возникает баг - грена прилетает с выставленным флагом и ни в какую не хочет бросаться
+    result:=true;
+  end else if (state=EMissileStates__eThrow)  then begin
     result:=true;
   end;
 end;
@@ -333,11 +509,11 @@ end;
 procedure CMissile__OnMotionMark_Patch;stdcall;
 asm
   pushad
-    push [esp+$24]          //push state
+    push [esp+$28]          //push state
     sub ecx, $2e0
     push ecx
     call CMissile__OnMotionMark
-    cmp al, 0
+    cmp al, 1
   popad
   ret
 end;
@@ -380,6 +556,50 @@ asm
 end;
 
 
+function CMissile__OnHit_CanExplode(this:pointer; SHit:pointer):boolean;stdcall;
+//Вернуть true, если от полученного хита грена должна взорваться
+var
+  sect:PChar;
+begin
+  sect:=GetSection(this);
+  result:=false;
+  if game_ini_line_exist(sect, 'help_explosive_info') and game_ini_r_bool(sect, 'help_explosive_info') then begin
+    log('Hit type: '+inttostr(SHit__GetHitType(SHit)));
+    log('Hit power: '+ floattostr(SHit__GetPower(SHit)));
+    log('Hit impulse: '+ floattostr(SHit__GetImpulse(SHit)));
+    log('Treshold: '+floattostr(CGrenade__GetDetonationTresholdHit(this)));
+  end;
+
+  if game_ini_line_exist(sect, 'explosion_on_hit') and game_ini_r_bool(sect, 'explosion_on_hit') then begin
+    if CGrenade__GetDetonationTresholdHit(this)<SHit__GetPower(SHit) then begin
+      if (not CMissile__Useful(this)) or (not game_ini_line_exist(sect, 'explosive_while_not_activated')) or game_ini_r_bool(sect, 'explosive_while_not_activated') then begin
+        if game_ini_line_exist(sect, 'explosion_hit_types') then begin
+          if pos(inttostr(SHit__GetHitType(SHit)), game_ini_read_string(sect, 'explosion_hit_types'))<>0 then result:=true;
+        end else begin
+          if SHit__GetHitType(SHit)=EHitType__eHitTypeExplosion then result:=true;
+        end;
+      end;
+    end;
+  end;
+
+end;
+
+
+procedure CMissile__OnHit_CanExplode_Patch();stdcall;
+asm
+  pushad
+    mov eax, 0
+    cmp edi, 0 //если вдруг прилетевший указатель на хит нулевой - взрываться не будем
+    je @nohit
+    push edi
+    push esi
+    call CMissile__OnHit_CanExplode
+    @nohit:
+    cmp eax, 1
+  popad
+  ret
+end;
+
 procedure ResetActivationHoldState(); stdcall;
 begin
   _activate_key_state.IsActive:=false;
@@ -415,6 +635,13 @@ begin
   if not WriteJump(jump_addr, cardinal(@CMissile__PutNextToSlot_SameItemFound_Patch), 8, true) then exit;
   jump_addr:=xrGame_addr+$2C6958;
   if not WriteJump(jump_addr, cardinal(@CMissile__PutNextToSlot_NoItem_Patch), 12, true) then exit;
+  jump_addr:=xrGame_addr+$2C6F95;
+  if not WriteJump(jump_addr, cardinal(@CMissile__shedule_update_Patch), 5) then exit;
+  jump_addr:=xrGame_addr+$2C719B;
+  if not WriteJump(jump_addr, cardinal(@CMissile__ExitContactCallback_Patch), 5) then exit;
+  jump_addr:=xrGame_addr+$2C5B5C;
+  if not WriteJump(jump_addr, cardinal(@CMissile__OnHit_CanExplode_Patch), 31, true) then exit;  
+
   result:=true;
 
 end;

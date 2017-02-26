@@ -188,7 +188,7 @@ begin
     SetActorActionState(act, actShowDetectorNow, true);
 
     SetDetectorForceUnhide(det, true);
-    PlayCustomAnimStatic(itm, 'anm_show_detector');
+    PlayCustomAnimStatic(itm, 'anm_draw_detector');
     asm
       pushad
         push 01

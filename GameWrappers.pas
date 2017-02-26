@@ -23,6 +23,8 @@ interface
   function translate(text:PChar):PChar;stdcall;
   procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr:pointer); stdcall;
   procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
+  function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
+  function PHRetrieveGeomUserData(dxGeom:pointer):pointer; stdcall;  
 
   const
 		CHUDState__eIdle:cardinal = 0;
@@ -31,6 +33,7 @@ interface
 		CHUDState__eHidden:cardinal = 3;
 		CHUDState__eBore:cardinal = 4;
 		CHUDState__eLastBaseState:cardinal = 4;
+
 
 implementation
 uses BaseGameData, SysUtils, strutils, windows;
@@ -416,7 +419,7 @@ end;
 
 
 procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
-//все наследники имеют CHudItem по смещению 2e0, так что далаем сразу на всех.
+//все наследники имеют CHudItem по смещению 2e0, так что делаем сразу на всех.
 asm
   pushad
 
@@ -429,6 +432,44 @@ asm
   mov edx, [edx]
   call edx
 
+  popad
+end;
+
+function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
+asm
+  mov eax, dxGeomUserData
+  cmp eax, 0
+  je @null
+  mov eax, [eax+$20]
+  mov @result, eax
+  jmp @finish
+
+  @null:
+  mov @result, 0
+
+  @finish:
+end;
+
+function PHRetrieveGeomUserData(dxGeom:pointer):pointer; stdcall;
+asm
+  pushad
+
+  mov eax, dxGeom
+  cmp eax, 0
+  je @null
+
+  push eax  //dxGeom
+  mov eax, xrgame_addr
+  add eax, $5131d4
+  call [eax]
+  add esp, 4
+  mov @result, eax
+  jmp @finish
+
+  @null:
+  mov @result, 0
+
+  @finish:
   popad
 end;
 

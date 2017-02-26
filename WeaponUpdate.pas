@@ -3,6 +3,7 @@ unit WeaponUpdate;
 interface
 function Init:boolean;
 function WpnUpdate(wpn:pointer):boolean; stdcall;
+procedure ReassignWorldAnims(wpn:pointer); stdcall;
 
 implementation
 uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils;
@@ -152,6 +153,76 @@ begin
   end;
 end;
 
+procedure ReassignWorldAnims(wpn:pointer); stdcall;
+var
+  sect:PChar;
+  anm:string;
+  rest_anm:string;
+  state:cardinal;
+  firemode:integer;
+  bmixin:boolean;
+begin
+
+  state:=cardinal(GetNextState(wpn));
+  if (not GetAnimForceReassignStatus(wpn)) then exit;
+  sect:=GetSection(wpn);
+  if not game_ini_line_exist(sect, 'use_world_anims') or not game_ini_r_bool(sect, 'use_world_anims') then exit;
+
+  bmixin:=true;
+  if state=EHudStates__eIdle then begin
+    anm:='wanm_idle';
+  end else if state=EHudStates__eShowing then begin
+    anm:='wanm_draw'
+  end else if state=EHudStates__eHiding then begin
+    anm:='wanm_holster';
+  end else if state=EWeaponStates__eFire then begin
+    anm:='wanm_shoot';
+    if ((WpnUtils.GetGLStatus(wpn)=1) or (WpnUtils.IsGLAttached(wpn))) and WpnUtils.IsGLEnabled(wpn) then begin
+      anm:=anm+'_gl';
+    end else if GetAmmoInMagCount(wpn)<=0 then begin
+      rest_anm:=anm;
+      anm:=anm+'_last';
+      if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
+        anm:=rest_anm;
+      end;
+    end;
+  end else if state=EWeaponStates__eReload then begin
+    anm:='wanm_reload';
+  end else begin
+    anm:='wanm_idle';
+  end;
+
+  if not game_ini_line_exist(sect, PChar(anm)) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
+    anm:='wanm_idle';
+  end;
+
+  rest_anm:=anm;
+  if IsWeaponJammed(wpn) then begin
+    anm:=anm+'_jammed';
+  end else if (GetAmmoInMagCount(wpn)<=0) and (state<>EWeaponStates__eFire) then begin
+    anm:=anm+'_empty';
+  end;
+  if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
+    anm:=rest_anm;
+  end;
+
+  rest_anm:=anm;
+  firemode:=CurrentQueueSize(wpn);
+  if firemode<0 then begin
+    anm:=anm+'_a';
+  end else begin
+    anm:=anm+'_'+inttostr(firemode);
+  end;
+
+  if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
+    anm:=rest_anm;
+  end;  
+
+  PlayCycle(wpn, game_ini_read_string(sect,PChar(anm)), bmixin);
+
+  SetAnimForceReassignStatus(wpn, false);
+end;
+
 function WpnUpdate(wpn:pointer):boolean; stdcall; //возвращает, стоит ли продолжать апдейт для обновления состояние оружия, или погодеть пока
 const a:single = 1.0;
 var buf:WpnBuf;
@@ -194,6 +265,8 @@ begin
 
     //Разберемся с патронами
     ProcessAmmo(wpn);
+    //анимы от 3-го лица
+    ReassignWorldAnims(wpn);
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
   LightUtils.Enable(tst_light, true);

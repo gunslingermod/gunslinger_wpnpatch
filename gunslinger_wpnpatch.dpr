@@ -25,7 +25,9 @@ uses
   KeyUtils in 'KeyUtils.pas',
   ConsoleUtils in 'ConsoleUtils.pas',
   gunsl_config in 'gunsl_config.pas',
-  Throwable in 'Throwable.pas';
+  Throwable in 'Throwable.pas',
+  dynamic_caster in 'dynamic_caster.pas',
+  HitUtils in 'HitUtils.pas';
 
 {$R *.res}
 

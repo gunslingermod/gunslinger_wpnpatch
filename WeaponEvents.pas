@@ -12,7 +12,7 @@ function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function OnWeaponAction(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -24,6 +24,7 @@ procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
 begin
   unload_magazine(wpn);
   ForceWpnHudBriefUpdate(wpn);
+  SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure OnUnloadInMiddleAnim(wpn:pointer; param:integer);stdcall;
@@ -31,6 +32,7 @@ begin
   unload_magazine(wpn);
   ForceWpnHudBriefUpdate(wpn);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)));
+  SetAnimForceReassignStatus(wpn, true);
 end;
 
 
@@ -71,6 +73,7 @@ begin
     end else begin
       //никаких указаний нет, поэтому разряжаемся сразу
       result := true;
+      SetAnimForceReassignStatus(wpn, true);
     end;
   end;
 end;
@@ -428,6 +431,8 @@ begin
   end else begin
     WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, PChar(anm_name), 'sndChangeFireMode');
   end;
+
+  SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure OnChangeFireMode_Patch(); stdcall;
@@ -505,6 +510,7 @@ procedure OnWeaponJam(wpn:pointer);stdcall;
 var sect:PChar;
     owner:pointer;
 begin
+  SetAnimForceReassignStatus(wpn, true);
   owner := GetOwner(wpn);
   if (owner=nil) or (owner<>GetActor()) then exit;
   sect:=GetSection(wpn);
@@ -689,7 +695,35 @@ begin
   end;
 end;
 
+//----------------------------------------------------------------------------------------------------------
 
+procedure CHudItem__OnStateSwitch(chuditem:pointer); stdcall;
+var
+  wpn:pointer;
+begin
+  wpn:=dynamic_cast(chuditem, 0, RTTI_CHudItem, RTTI_CWeapon, false);
+  if wpn<>nil then begin
+    case GetNextState(wpn) of
+      1,2,3,7,8,10: begin
+        SetAnimForceReassignStatus(wpn, true);
+        WeaponUpdate.ReassignWorldAnims(wpn);
+      end;
+    end;
+  end;
+end;
+
+procedure CHudItem__SwitchState_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CHudItem__OnStateSwitch
+  popad
+  pop esi
+  add esp, $4014
+  ret 4
+end;
+
+//----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -755,7 +789,11 @@ begin
   //модифицированный обработчик отображения сообщения о клине
   jmp_addr:=xrGame_addr+$2CFF6B;
   if not WriteJump(jmp_addr, cardinal(@OnJammedHintShow_Patch), 19, true) then exit;
-  
+
+  //Обработчик OnSwitchState
+  jmp_addr:=xrGame_addr+$2BC4D7;
+  if not WriteJump(jmp_addr, cardinal(@CHudItem__SwitchState_Patch), 10, false) then exit;
+ 
   result:=true;
 end;
 

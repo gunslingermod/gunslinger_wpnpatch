@@ -23,6 +23,8 @@ type
     _current_anim:string;
     _owner:pointer;
 
+    _wanim_force_assign:boolean;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
     public
@@ -43,6 +45,9 @@ type
 
     function IsReloaded():boolean;stdcall;
     procedure SetReloaded(status:boolean);stdcall;
+
+    procedure SetAnimForceReassignStatus(status:boolean);stdcall;
+    function GetAnimForceReassignStatus():boolean;stdcall;
 
     function GetCurAnim():string;stdcall;
 
@@ -71,6 +76,9 @@ type
   procedure SetReloaded(wpn:pointer; status:boolean);stdcall;
   procedure SetBeforeReloadAmmoCnt(wpn:pointer; cnt:integer);stdcall;
   function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
+  procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
+  function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
+
 implementation
 uses GameWrappers, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, wpnutils, math, strutils;
 
@@ -99,6 +107,7 @@ begin
   _reloaded:=false;
   _ammocnt_before_reload:=-1;
   _needs_unzoom:=false;
+  _wanim_force_assign:=false;
 
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
@@ -270,6 +279,15 @@ end;
 procedure WpnBuf.SetReloaded(status: boolean);
 begin
   self._reloaded:=status;
+end;
+
+procedure WpnBuf.SetAnimForceReassignStatus(status:boolean);stdcall;
+begin
+  self._wanim_force_assign:=status;
+end;
+function WpnBuf.GetAnimForceReassignStatus():boolean;stdcall;
+begin
+  result:=self._wanim_force_assign;
 end;
 
 function WpnBuf.Update():boolean;
@@ -508,6 +526,25 @@ begin
     result:=buf.GetBeforeReloadAmmoCnt()
   else
     result:=-1;
+end;
+
+procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then buf.SetAnimForceReassignStatus(status);
+end;
+
+function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.GetAnimForceReassignStatus()
+  else
+    result:=false;
 end;
 
 end.

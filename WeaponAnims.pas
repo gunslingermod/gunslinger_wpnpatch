@@ -7,7 +7,7 @@ function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string):string; stdcall;
 
 implementation
-uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter;
+uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable;
 
 var
   anim_name:string;
@@ -91,7 +91,7 @@ function anm_idle_selector(wpn:pointer):pchar;stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
-  canshoot, isdetector:boolean;
+  canshoot, isdetector, isgrenorbolt:boolean;
   cls:string;
 begin
   hud_sect:=GetHUDSection(wpn);
@@ -101,6 +101,7 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     canshoot:=WpnCanShoot(PChar(cls));
+    isgrenorbolt:=IsThrowable(PChar(cls));
     isdetector :=WpnIsDetector(PChar(cls));
     //--------------------------Модификаторы движения/состояния актора---------------------------------------
 
@@ -124,13 +125,19 @@ begin
       anim_name:=anim_name+'_sprint';
       if (not isdetector) and (not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
-        if canshoot then MagazinedWpnPlaySnd(wpn, 'sndSprintStart');
+        if canshoot then
+          MagazinedWpnPlaySnd(wpn, 'sndSprintStart')
+        else if isgrenorbolt then
+          Throwable_Play_Snd(wpn, 'sndSprintStart');
         SetActorActionState(actor, actModSprintStarted, true);
       end;
 
     end else if (not isdetector) and GetActorActionState(actor, actModSprintStarted) then begin;
       anim_name:=anim_name+'_sprint_end';
-      if canshoot then MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
+      if canshoot then
+        MagazinedWpnPlaySnd(wpn, 'sndSprintEnd')
+      else if isgrenorbolt then
+        Throwable_Play_Snd(wpn, 'sndSprintEnd');
       SetActorActionState(actor, actModSprintStarted, false);
 
     end else begin
@@ -224,6 +231,15 @@ begin
         base_anim:=base_anim+'_jammed';
       end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
         base_anim:=base_anim+'_empty';
+      end;
+
+      if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(base_anim+'_detector')) then begin
+        //log ('det+rel');
+        base_anim:=base_anim+'_detector';
+      end;
+
+      if game_ini_line_exist(hud_sect, PChar('disable_detector_'+base_anim)) and game_ini_r_bool(hud_sect, PChar('disable_detector_'+base_anim)) and game_ini_line_exist(hud_sect, PChar('immediate_unhide_'+base_anim)) and game_ini_r_bool(hud_sect, PChar('immediate_unhide_'+base_anim)) then begin
+        SetActorActionState(actor, actShowDetectorNow, true);
       end;
 
       ModifierMoving(wpn, actor, base_anim, 'enable_directions_'+base_anim, 'enable_moving_'+base_anim);
@@ -575,6 +591,9 @@ begin
   end;
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name), true, fun, 0);
+
+
+  SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure anm_shots_std_patch();stdcall;
@@ -642,6 +661,10 @@ begin
     if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
        //log ('det+rel');
       anim_name:=anim_name+'_detector';
+    end;
+
+    if game_ini_line_exist(hud_sect, PChar('immediate_unhide_'+anim_name)) and game_ini_r_bool(hud_sect, PChar('immediate_unhide_'+anim_name)) then begin
+      SetActorActionState(actor, actShowDetectorNow, true);
     end;
 
     ModifierGL(wpn, anim_name);
@@ -1347,6 +1370,9 @@ begin
   //CWeaponPistol::PlayAnimShoot
   jump_addr:=xrGame_addr+$2C5597;
   if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
+
+  //удалим условие, которое не дает расклинивать оружие, если патронов к нему нет ни в инвентаре, ни в магазине
+  nop_code(xrGame_addr+$2D00B4,2);
 
   result:=true;
 end;
