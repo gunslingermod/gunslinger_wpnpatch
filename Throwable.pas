@@ -179,7 +179,6 @@ begin
   snd:='sndDraw';
   isquickthrow:=false;
 
-
   act:=GetActor();
   if (act<>nil) and (GetOwner(CMissile)=act) then begin
     player_hud__attach_item(CMissile); //для гарантии и нормального отыгрыша детектора
@@ -196,6 +195,10 @@ begin
         CMissile__spawn_fake_missile(CMissile);
         SetupQuickThrowForceParams(CMissile);
       end;
+    end;
+
+    if not isquickthrow then begin
+      ForgetDetectorAutoHide();
     end;
 
     det:=GetActiveDetector(act);
@@ -392,7 +395,10 @@ begin
   if (curslot<=0) or (curslot>6) then curslot:=-1;
 
   if not IsSameItemFound or ((GetActualCurrentAnim(this)='anm_throw_quick') and ((curslot<0) or not IsActionKeyPressedInGame(kDETECTOR+cardinal(curslot)))) then begin
-    if prevslot>=0 then
+    //восстановим состояние детектора и оружия, которое было до быстрого броска
+    RestoreLastActorDetector();
+
+    if (prevslot>=0) and (ItemInSlot(act, prevslot)<>nil) then
       ActivateActorSlot(prevslot)
     else
       ActivateActorSlot(0);
@@ -429,7 +435,7 @@ end;
 
 
 
-//TODO: взрыв при касании поверхности
+//DONE: взрыв при касании поверхности
 procedure CMissile__ExitContactCallback(dxGeom:pointer); stdcall;
 var
   grenade:pointer;
@@ -437,7 +443,7 @@ var
   destroy_time, time_from_throw, now:cardinal;
   samolikvidator_delta:cardinal;
 begin
-  //первым делом убеждаемся, что к нам прилетела грена, а не то, с чем она столкнулась
+  //первым делом убеждаемся, что к нам прилетела грена, а не то, с чем она столкнулась ;)
   grenade:=dxGeomUserData__get_ph_ref_object(PHRetrieveGeomUserData(dxGeom));
   if grenade=nil then exit;
   grenade:=dynamic_cast(grenade, 0, RTTI_IPhysicsShellHolder, RTTI_CGrenade, false);

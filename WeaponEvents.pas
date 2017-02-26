@@ -707,7 +707,6 @@ begin
     //фикс бага с доставанием предмета без смены худовой секции, когда анима доставания не игралась
     player_hud__attach_item(wpn);
 
-
     ClearActorKeyRepeatFlags();
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     ResetActorFlags(act);

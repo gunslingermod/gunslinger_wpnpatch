@@ -32,7 +32,9 @@ uses
   hud_transp_r2 in 'hud_transp_r2.pas',
   hud_transp_r3 in 'hud_transp_r3.pas',
   hud_transp_r4 in 'hud_transp_r4.pas',
+  ArchiveProtect in 'ArchiveProtect.pas',
   LensDoubleRender in 'LensDoubleRender.pas';
+
 
 {$R *.res}
 
@@ -42,6 +44,8 @@ begin
   decimalseparator:='.';
   BaseGameData.Init;
   GameWrappers.Init;
+//  ArchiveProtect.Init;  
+
   WpnUtils.Init;
   WeaponDataSaveLoad.Init;
   WeaponSoundLoader.Init;

@@ -279,8 +279,25 @@ begin
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anim_name));
 end;
 
+function anm_show_selector(wpn:pointer):pchar;stdcall;
+const
+  anm_show:PChar = 'anm_show';
+begin
+  {if IsKnife(PChar(GetClassName(wpn))) then begin
+    //TODO:быстрое использование ножа - не забыть вызвать ForgetDetectorAutoHide, если быстрое использование сейчас не нужно
+    result:=anm_std_selector(wpn, anm_show);
+    exit;
+  end;}
+
+  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
+    if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') then begin
+      ForgetDetectorAutoHide();
+    end;
+  end;
+  result:=anm_std_selector(wpn, anm_show);
+end;
+
 procedure anm_show_std_patch();stdcall;
-const anm_show:PChar = 'anm_show';
 begin
   asm
     push 0                  //забиваем место под название анимы
@@ -295,9 +312,8 @@ begin
 
     pushad
     pushfd
-    push anm_show
     push esi
-    call anm_std_selector  //получаем строку с именем анимы
+    call anm_show_selector  //получаем строку с именем анимы
     mov ecx, [esp+$28]      //запоминаем адрес возврата
     mov [esp+$28], eax      //кладем на его место результирующую строку
     mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке

@@ -4,14 +4,20 @@ interface
 
 function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
-function GetActiveDetector(act:pointer):pointer; stdcall;   
+function GetDetectorForceUnhideStatus(det:pointer):boolean; stdcall
+function GetActiveDetector(act:pointer):pointer; stdcall;
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
 procedure AssignDetectorAnim(det:pointer; anm_alias:PChar; bMixIn:boolean=true; use_companion_section:boolean=false); stdcall;
+function WasLastDetectorHiddenManually():boolean; stdcall;
+procedure ForgetDetectorAutoHide(); stdcall;
+
 
 implementation
 uses BaseGameData, WeaponAdditionalBuffer, WpnUtils, ActorUtils, GameWrappers, sysutils, strutils, Messenger, gunsl_config;
 
+var
+  _was_detector_hidden_manually:boolean; //должен быть всегда true, кроме случаев, когда идет быстрое использование какого-то предмета (юзейбла, грены, ножа),  не поддерживающего детектор-компаньон, а перед быстрым использованием детектор был активен и скрылся автоматом
 
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 var
@@ -524,10 +530,64 @@ begin
   end;
 end;
 
+procedure OnDetectorShow(det:pointer); stdcall;
+begin
+  if (GetActor()<>nil) and (GetOwner(det)=GetActor()) then ForgetDetectorAutoHide();
+end;
+
+
+procedure CCustomDetector__OnStateSwitch_Patch; stdcall;
+asm
+  pushad
+    sub esi, $2e0
+    push esi
+    call OnDetectorShow
+  popad
+  movss [esp+$30], xmm0;
+  ret
+end;
+
+
+procedure OnDetectorForceHiding(det:pointer); stdcall;
+//вызывается при принудительном сокрытии детектора
+begin
+  if (GetActor()<>nil) and (GetOwner(det)=GetActor()) then _was_detector_hidden_manually:=false;
+end;
+
+procedure CCustomDetector__CheckCompatibility_Patch; stdcall;
+asm
+  //запоминаем, что детектор скрыт принудительно
+  pushad
+    push esi
+    call OnDetectorForceHiding
+  popad
+  //делаем вырезанное
+  push 01
+  mov ecx, esi
+  mov eax, xrgame_addr
+  add eax, $2ECDA0
+  call eax //CCustomDetector__ToggleDetector
+  ret
+end;
+
+function WasLastDetectorHiddenManually():boolean; stdcall
+begin
+  result:=_was_detector_hidden_manually;
+end;
+
+procedure ForgetDetectorAutoHide(); stdcall;
+begin
+  _was_detector_hidden_manually:=true;
+end;
+
 function Init:boolean;
-var jmp_addr:cardinal;
+var
+  jmp_addr:cardinal;
 begin
   result:=false;
+
+  ForgetDetectorAutoHide();
+  
   jmp_addr:=xrGame_addr+$2ECFA1;
   if not WriteJump(jmp_addr, cardinal(@DetectorUpdatePatch), 6, true) then exit;
   jmp_addr:=xrGame_addr+$2ECDF0;
@@ -547,6 +607,13 @@ begin
   if not nop_code(xrGame_addr+$2ECF12, 8) then exit;
   jmp_addr:=$EB;
   if not WriteBufAtAdr(xrGame_addr+$2ECF1A, @jmp_addr, 1) then exit;
+
+  //функции, обеспечивающие работу определения принудительного сокрытия детектора
+  jmp_addr:=xrGame_addr+$2EC9CB;
+  if not WriteJump(jmp_addr, cardinal(@CCustomDetector__OnStateSwitch_Patch), 6, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2ED002;
+  if not WriteJump(jmp_addr, cardinal(@CCustomDetector__CheckCompatibility_Patch), 9, true) then exit;
 
   result:=true;
 end;

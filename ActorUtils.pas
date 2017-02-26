@@ -1,6 +1,8 @@
 unit ActorUtils;
 
-//xragme+4e212a - менять условия для включения коллизии
+//xrgame+4e212a - менять условия для включения коллизии
+
+{$define USE_SCRIPT_USABLE_HUDITEMS}  //на всякий - потом все равно в двиг надо перекинуть, но влом - и так отлично работает
 
 interface
 const
@@ -40,7 +42,9 @@ const
 function GetActor():pointer; stdcall;
 function GetActorTargetSlot():integer; stdcall;
 function GetActorActiveSlot():integer; stdcall;
+//для быстрого использования
 function GetActorPreviousSlot():integer; stdcall;
+procedure RestoreLastActorDetector(); stdcall;
 function GetActorActionState(stalker:pointer; mask:cardinal; state:cardinal=$594):boolean; stdcall;
 function GetActorActionStateInt(stalker:pointer; mask:cardinal; state:cardinal=$594):integer; stdcall;
 procedure CreateObjectToActor(section:PChar); stdcall;
@@ -50,6 +54,7 @@ function IsHolderInAimState(wpn:pointer):boolean;stdcall;
 procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; state:cardinal=$594); stdcall;
 function GetActorActiveItem():pointer; stdcall;
 function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
+procedure DropItem(act:pointer; item:pointer); stdcall;
 function Init():boolean; stdcall;
 function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
 procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean);
@@ -71,8 +76,13 @@ uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditi
 
 var
   _keyflags:cardinal;
-  _prev_act_slot:integer;
   _last_act_slot:integer;
+  _prev_act_slot:integer;
+
+{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
+  _was_unprocessed_use_of_usable_huditem:boolean;
+{$endif}
+
 
 function GetActor():pointer; stdcall;
 begin
@@ -413,21 +423,61 @@ begin
 
 end;
 
+procedure RestoreLastActorDetector(); stdcall;
+var
+  detector, act:pointer;
+begin
+  act:=GetActor();
+  if not (WasLastDetectorHiddenManually()) then begin
+    detector:=ItemInSlot(act, 9);
+    if (detector<>nil) and (not GetDetectorActiveStatus(detector)) then begin
+      SetDetectorForceUnhide(detector, true);
+    end;
+  end;
+end;
+
+
 procedure OnActorNewSlotActivated(act:pointer; slot:integer); stdcall;
 begin
   ResetActorFlags(act);
   ResetActivationHoldState();
+
   //TODO: перенести еду
+
+{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
+  if _was_unprocessed_use_of_usable_huditem then begin
+    //произошла смена итейбла, восстановим детектор
+    //скриптово активировать детектор в юзабельных предметах нельзя - активируем движково
+    RestoreLastActorDetector();
+    _was_unprocessed_use_of_usable_huditem:=false;
+  end;
+{$endif}
 end;
 
 procedure UpdateSlots(act:pointer);
+var
+  sect:PChar;
+  itm:pointer;
 begin
-  if _last_act_slot<>-1 then begin
+  if _last_act_slot<>-1 then begin                      //проверка на инициализацию переменной на прошлых апдейтах
     if _last_act_slot<>GetActorActiveSlot() then begin
       _prev_act_slot:=_last_act_slot;
       OnActorNewSlotActivated(act, GetActorActiveSlot());
     end;
   end;
+
+{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
+  //если в руках худовый юзабельный предмет, то выставим флаг для последующей обработки детектора
+
+  itm:=GetActorActiveItem();
+  if itm<>nil then begin
+    sect:=GetSection(itm);
+      if game_ini_line_exist(sect, 'gwr_changed_object') and game_ini_line_exist(sect, 'gwr_eatable_object') then begin
+        _was_unprocessed_use_of_usable_huditem:=true;
+      end;
+  end;
+{$endif}
+
   _last_act_slot:=GetActorActiveSlot();
 end;
 
@@ -616,13 +666,15 @@ begin
   result:=_prev_act_slot;
 end;
 
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 procedure CActor__netSpawn(CActor:pointer); stdcall;
 begin
   ClearActorKeyRepeatFlags();
   ResetActorFlags(CActor);
   ResetActivationHoldState();
+{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
+  _was_unprocessed_use_of_usable_huditem:=false;
+{$endif}  
   _prev_act_slot:=-1;
   _last_act_slot:=-1;  
 end;
@@ -681,6 +733,10 @@ begin
 
   _prev_act_slot:=-1;
   _last_act_slot:=-1;
+
+{$ifdef USE_SCRIPT_USABLE_HUDITEMS}
+  _was_unprocessed_use_of_usable_huditem:=false;
+{$endif}
 
   result:=false;
   jmp_addr:=xrGame_addr+$261DF6;
@@ -753,6 +809,36 @@ begin
     pop ebx
     pop eax
   end;
+end;
+
+
+procedure DropItem(act:pointer; item:pointer); stdcall;
+asm
+  pushad
+  mov edx, act
+  cmp edx, 0
+  je @finish
+
+  mov ebx, item
+  cmp ebx, 0
+  je @finish
+
+  push edx
+  call game_object_GetScriptGameObject
+  mov edx, eax
+
+  add ebx, $E8
+  push ebx
+  call game_object_GetScriptGameObject
+
+  push eax
+  mov ecx, edx  
+  mov eax, xrgame_addr
+  add eax, $1c7460
+  call eax
+  
+  @finish:
+  popad
 end;
 
 
