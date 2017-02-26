@@ -166,6 +166,7 @@ asm
   cmp[esi+$2e4], 3
   //если игра не решилась показать детектор - то не будем мешать
   jne @finish
+  
   //ѕроверим, не выполн€етс€ ли какое-либо действие
   pushad
     call CanShowDetector
@@ -188,6 +189,7 @@ begin
     SetActorActionState(act, actShowDetectorNow, true);
 
     SetDetectorForceUnhide(det, true);
+    SetActorActionState(act, actModDetectorSprintStarted, false);
     PlayCustomAnimStatic(itm, 'anm_draw_detector');
     asm
       pushad
@@ -377,28 +379,29 @@ asm
     call ReadDispersionMultiplier
     fstp [esp]
     mulss xmm1, [esp]
-    add esp, 4    
+    add esp, 4
   popad
 end;
 
-function Init:boolean;
-var jmp_addr:cardinal;
+procedure CCustomDetector__OnAnimationEnd(det:pointer); stdcall;
 begin
-  result:=false;
-  jmp_addr:=xrGame_addr+$2ECFA1;
-  if not WriteJump(jmp_addr, cardinal(@DetectorUpdatePatch), 6, true) then exit;
-  jmp_addr:=xrGame_addr+$2ECDF0;
-  if not WriteJump(jmp_addr, cardinal(@ShowDetectorPatch), 19, true) then exit;
-  jmp_addr:=xrGame_addr+$2ECF0A;
-  if not WriteJump(jmp_addr, cardinal(@HideDetectorInUpdateOnActionPatch), 6, true) then exit;
-  jmp_addr:=xrGame_addr+$2ECF78;
-  if not WriteJump(jmp_addr, cardinal(@UnHideDetectorInUpdateOnActionPatch), 7, true) then exit;
-  jmp_addr:=xrGame_addr+$2ECC40;
-  if not WriteJump(jmp_addr, cardinal(@CanUseDetectorPatch), 5, false) then exit;
-  jmp_addr:=xrGame_addr+$2C2B87;
-  if not WriteJump(jmp_addr, cardinal(@WeaponDispersionPatch), 8, true) then exit;
-  result:=true;
+  PlayAnimIdle(det);
+  //PlayHudAnim(det, GetActualCurrentAnim(det), true); //дл€ отключени€ микшера
 end;
+
+procedure CCustomDetector__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub esi, $2e0
+    push esi
+    call CCustomDetector__OnAnimationEnd
+  popad
+  pop edi
+  pop esi
+  ret 4
+end;
+
+
 
 function GetActiveDetector(act:pointer):pointer; stdcall
 asm
@@ -426,9 +429,31 @@ asm
     @null:
     mov @result, 0
     jmp @finish
-    
+
     @finish:
   popad
 end;
+
+function Init:boolean;
+var jmp_addr:cardinal;
+begin
+  result:=false;
+  jmp_addr:=xrGame_addr+$2ECFA1;
+  if not WriteJump(jmp_addr, cardinal(@DetectorUpdatePatch), 6, true) then exit;
+  jmp_addr:=xrGame_addr+$2ECDF0;
+  if not WriteJump(jmp_addr, cardinal(@ShowDetectorPatch), 19, true) then exit;
+  jmp_addr:=xrGame_addr+$2ECF0A;
+  if not WriteJump(jmp_addr, cardinal(@HideDetectorInUpdateOnActionPatch), 6, true) then exit;
+  jmp_addr:=xrGame_addr+$2ECF78;
+  if not WriteJump(jmp_addr, cardinal(@UnHideDetectorInUpdateOnActionPatch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2ECC40;
+  if not WriteJump(jmp_addr, cardinal(@CanUseDetectorPatch), 5, false) then exit;
+  jmp_addr:=xrGame_addr+$2C2B87;
+  if not WriteJump(jmp_addr, cardinal(@WeaponDispersionPatch), 8, true) then exit;
+  jmp_addr:=xrGame_addr+$2ECB6F;
+  if not WriteJump(jmp_addr, cardinal(@CCustomDetector__OnAnimationEnd_Patch), 5, false) then exit;
+  result:=true;
+end;
+
 
 end.

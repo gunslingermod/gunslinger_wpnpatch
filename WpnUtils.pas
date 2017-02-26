@@ -2,6 +2,7 @@ unit WpnUtils;
 
 interface
 function Init():boolean;
+procedure PlayAnimIdle(wpn: pointer); stdcall;
 //function GetPositionVector(obj:pointer):pointer;
 //function GetCurrentHud(wpn: pointer):pointer; stdcall;
 procedure PlayHudAnim(wpn: pointer; anim_name:PChar; immediatly:boolean); stdcall;
@@ -61,6 +62,7 @@ procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
 function IsThrowable(cls:PChar):boolean;stdcall;
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
+function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
 
 function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
 function CountOfOtherAmmoInRuck(wpn:pointer):cardinal; stdcall;
@@ -1111,6 +1113,24 @@ asm
   movzx eax, byte ptr [eax]
 end;
 
+procedure PlayAnimIdle(wpn: pointer); stdcall;
+asm
+  pushad
+    mov ecx, wpn
+    add ecx, $2e0
+    mov eax, [ecx]
+    mov edx, [eax+$60]
+    call edx
+  popad
+end;
+
+
+function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
+asm
+  mov eax, wpn
+  mov eax, [eax+$2F8]
+  mov @result, eax
+end;
 
 function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
 begin

@@ -16,7 +16,7 @@ const
   actShowDetectorNow:cardinal = $8000000; //преддоставание проигралoсь, можно показывать детектор
   actModSprintStarted:cardinal = $10000000;
   actModNeedMoveReassign:cardinal = $20000000;
-
+  actModDetectorSprintStarted:cardinal = $40000000;
 
   mState_WISHFUL:cardinal = $58c;
   mState_OLD:cardinal = $590;

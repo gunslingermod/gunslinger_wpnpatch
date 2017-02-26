@@ -10,7 +10,7 @@ implementation
 uses BaseGameData, WpnUtils, GameWrappers, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable;
 
 var
-  anim_name:string;
+  anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
   jump_addr:cardinal;
 
   movreass_last_update:cardinal;
@@ -123,22 +123,30 @@ begin
     //посмотрим на передвижение актора:
     end else if GetActorActionState(actor, actSprint) then begin
       anim_name:=anim_name+'_sprint';
-      if (not isdetector) and (not GetActorActionState(actor, actModSprintStarted)) then begin
+//      if (not isdetector) and (not GetActorActionState(actor, actModSprintStarted)) then begin
+      if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
         if canshoot then
           MagazinedWpnPlaySnd(wpn, 'sndSprintStart')
         else if isgrenorbolt then
           Throwable_Play_Snd(wpn, 'sndSprintStart');
-        SetActorActionState(actor, actModSprintStarted, true);
+        if isdetector then
+          SetActorActionState(actor, actModDetectorSprintStarted, true)
+        else
+          SetActorActionState(actor, actModSprintStarted, true);
       end;
 
-    end else if (not isdetector) and GetActorActionState(actor, actModSprintStarted) then begin;
+//    end else if (not isdetector) and GetActorActionState(actor, actModSprintStarted) then begin;
+    end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
       if canshoot then
         MagazinedWpnPlaySnd(wpn, 'sndSprintEnd')
       else if isgrenorbolt then
         Throwable_Play_Snd(wpn, 'sndSprintEnd');
-      SetActorActionState(actor, actModSprintStarted, false);
+      if isdetector then
+        SetActorActionState(actor, actModDetectorSprintStarted, false)
+      else
+        SetActorActionState(actor, actModSprintStarted, false);
 
     end else begin
       ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
@@ -166,7 +174,12 @@ begin
   //ƒвустволки имеют собственный суффикс
   ModifierBM16(wpn, anim_name);
 
-  if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
+  if (isdetector and Is16x9 and not game_ini_line_exist(hud_sect, PChar(anim_name+'_16x9'))) then begin
+    log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+'_16x9]');
+    anim_name:='anm_idle';
+  end;
+
+  if (not game_ini_line_exist(hud_sect, PChar(anim_name))) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
     anim_name:='anm_idle';
     ModifierBM16(wpn, anim_name);
@@ -549,6 +562,9 @@ var
   hud_sect:PChar;
   actor:pointer;
   fun:TAnimationEffector;
+  companion_anim:string; //дл€ детектора при его наличии
+  cur_companion:pointer;
+  tmp:string;
 begin
   fun:=nil;
 
@@ -570,17 +586,32 @@ begin
     //----------------------------------ћодификаторы состо€ни€ актора----------------------------------------------------
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then anim_name:=anim_name+'_aim';
     //----------------------------------ћодификаторы состо€ни€ оружи€----------------------------------------------------
-    anim_name:=anim_name + GetFireModeStateMark(wpn);                                         
+    anim_name:=anim_name + GetFireModeStateMark(wpn);
+    companion_anim:='anm_wpn_shoot';                                             
     if IsExplosed(wpn) then begin
       anim_name:=anim_name+'_explose';
       fun:=OnWeaponExplode_AfterAnim;
+      companion_anim:='anm_wpn_shoot_explose';
     end else if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
-    end else if GetAmmoInMagCount(wpn)=1 then
+      companion_anim:='anm_wpn_shoot_jammed';
+    end else if GetAmmoInMagCount(wpn)=1 then begin
       anim_name:=anim_name+'_last';
+    end;
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then anim_name:=anim_name+'_sil';
     ModifierMoving(wpn, actor, anim_name, 'enable_directions_anm_shoot_directions', 'enable_moving_anm_shoot');
     ModifierGL(wpn, anim_name);
+
+    //—разу назначим аниму детектору (если он активен), чтобы не провер€ть наличие актора второй раз
+    cur_companion:=GetActiveDetector(actor);
+    if (cur_companion<>nil) and (GetCurrentState(cur_companion)=CHUDState__eIdle) then begin //проверить на CHUDState__eIdle важно, иначе детектор может "залипнуть" и перестать реагировать на внешние раздражители!
+      if Is16x9 then tmp:=companion_anim+'_16x9' else tmp:=companion_anim;
+      if game_ini_line_exist(GetHUDSection(cur_companion), PChar(tmp)) then begin
+        PlayHudAnim(cur_companion, PChar(companion_anim), false);
+      end else begin
+        log('Section ['+GetHUDSection(cur_companion)+'] has no motion alias defined ['+tmp+']');
+      end;
+    end;
   end;
 
   ModifierBM16(wpn, anim_name);
@@ -1192,12 +1223,41 @@ asm
   @finish:
 end;
 
+//---------------------------------------‘икс преждевременного прекращени€ анимации стрельбы---------------------------
+//ѕредотвращает назначение анимации идла в CWeaponMagazined::OnStateSwitch, если предыдуща€ анимаци€ из разр€да "стрельбовых" и в MotionDef не null
+
+function CanAssignIdleAnimNow(wpn:pointer):boolean; stdcall;
+const
+  anm:string = 'anm_shoot';
+begin
+  result := (GetCurrentMotionDef(wpn)=nil) or (leftstr(GetActualCurrentAnim(wpn), length(anm))<>anm);
+end;
+
+procedure CWeaponMagazined__OnStateSwitch_IdlePatch(); stdcall;
+asm
+  pushad
+    push ecx
+    call CanAssignIdleAnimNow
+    cmp al, 0
+  popad
+  
+  je @finish
+    call edx
+  @finish:
+  pop edi
+  pop esi
+  pop ebx
+  ret 4
+end;
+
 
 //---------------------------------------------------------------------------------------------------------------------
 
 
 
 function Init:boolean;
+var
+  buf:byte;
 begin
   result:=false;
 
@@ -1230,6 +1290,14 @@ begin
   if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
   jump_addr:=xrGame_addr+$2F38F3; //Flare
   if not WriteJump(jump_addr, cardinal(@MultiHideFix), 5, true) then exit;
+
+  //Ќе дадим прерывать анимацию выстрела при назначении идла
+  jump_addr:=xrGame_addr+$2D0209;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__OnStateSwitch_IdlePatch), 8, false) then exit;
+  //исправл€ем таблицу свитча в CWeaponMagazined::OnAnimationEnd, чтобы при окончании анимы выстрела шло перенаправление не в else, а на проигрывание идла и таким образом не допускалось застывани€ оружи€ на месте
+  buf:=$E9;
+  if not WriteBufAtAdr(xrGame_addr+$2CCE20, @buf,1) then exit;
+
 
   //Ќе дадим перезар€жатьс€ 
   jump_addr:=xrGame_addr+$2CE821;
