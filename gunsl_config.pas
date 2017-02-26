@@ -24,6 +24,7 @@ const
 //------------------------------Общие функции работы с игровыми конфигами---------------------------------
   function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
   function game_ini_read_string(section:PChar; key:PChar):PChar;stdcall;
+  function game_ini_read_vector3_def(section:PChar; key:PChar; def:pfvector3):FVector3;stdcall;
   function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
   function game_ini_r_single_def(section:PChar; key:PChar; def:single):single;stdcall;
   function game_ini_r_single(section:PChar; key:PChar):single;stdcall;
@@ -51,6 +52,8 @@ function IsLaserdotCorrection():boolean; stdcall;
 function IsNPCLasers():boolean; stdcall;
 function IsRealBallistics():boolean; stdcall;
 
+function IsMoveCamAnmsEnabled():boolean; stdcall;
+
 implementation
 uses BaseGameData, sysutils, ConsoleUtils;
 
@@ -59,6 +62,8 @@ var
   aim_inertion:weapon_inertion_params;
   fov:single;
   hud_fov:single;
+
+  hud_move_cam_anms_enabled:boolean;
 
   def_zoom_dof:FVector3;
   def_act_dof:FVector3;
@@ -208,6 +213,28 @@ begin
     result:=def;
 end;
 
+
+function game_ini_read_vector3_def(section:PChar; key:PChar; def:pfvector3):FVector3;stdcall;
+var
+  tmp, coord:string;
+  i:integer;
+begin
+  if game_ini_line_exist(section, key) then begin
+    tmp:=game_ini_read_string(section, key);
+
+    GetNextSubStr(tmp, coord, ',');
+    result.x:=strtofloatdef(coord, 0);
+
+    GetNextSubStr(tmp, coord, ',');
+    result.y:=strtofloatdef(coord, 0);
+
+    GetNextSubStr(tmp, coord, ',');
+    result.z:=strtofloatdef(coord, 0);
+
+  end else
+    result:=def^;
+end;
+
 function translate(text:PChar):PChar;stdcall;
 asm
   pushad
@@ -330,6 +357,11 @@ begin
   result:=((val and r2_dof_enable)>0);
 end;
 
+function IsMoveCamAnmsEnabled():boolean; stdcall;
+begin
+  result:=hud_move_cam_anms_enabled;
+end;
+
 
 function Init:boolean;
 const
@@ -380,6 +412,8 @@ begin
   aim_inertion.origin_offset:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_origin_offset', std_inertion.origin_offset);
   aim_inertion.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_speed', std_inertion.speed);
 
+
+  hud_move_cam_anms_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_move_cam_anms', false);
   result:=true;
 end;
 

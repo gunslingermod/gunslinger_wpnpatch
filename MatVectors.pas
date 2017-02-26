@@ -39,9 +39,11 @@ interface
   procedure v_add(from:pFVector3; what:pFVector3); stdcall;
   function PointToPlaneDist(plane:pFVector4; point:pFVector3):single;
   function v_length(v:pFVector3):single;
+  procedure v_setlength(v:pFVector3; l:single);
   procedure transform_tiny(m:pFMatrix4x4; dest:pFVector3; v:pFVector3);
   function v_equal(v1, v2:pFVector3):boolean;
-  procedure generate_orthonormal_basis_normalized(dir, up, right:pfVector3);  
+  procedure generate_orthonormal_basis_normalized(dir, up, right:pfVector3);
+  procedure v_zero(v:pFVector3);
 
 implementation
 uses Math;
@@ -178,6 +180,19 @@ end;
 function v_length(v:pFVector3):single;
 begin
   result:=sqrt(v.x*v.x + v.y*v.y + v.z*v.z)
+end;
+
+procedure v_zero(v:pFVector3);
+begin
+  v.x:=0;
+  v.y:=0;
+  v.z:=0;
+end;
+
+procedure v_setlength(v:pFVector3; l:single);
+begin
+  v_normalize(v);
+  v_mul(v, l);
 end;
 
 

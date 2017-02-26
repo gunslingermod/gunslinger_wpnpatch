@@ -22,6 +22,8 @@ procedure Log(text:string; IsError:boolean = false);stdcall;
 function Is16x9():boolean;stdcall;
 function str_container_dock(str:PChar):pointer; stdcall;
 
+function get_device_timedelta():single; stdcall;
+
 
 var
   xrGame_addr:cardinal;
@@ -209,6 +211,24 @@ asm
 
     popfd
     popad
+end;
+
+function get_device_timedelta():single; stdcall;
+asm
+  push eax
+  movss [esp], xmm0
+
+  push eax
+
+  mov eax, xrgame_addr
+  mov eax, [eax+$512BCC]
+  movss xmm0, [eax+$1c]
+  movss @result, xmm0
+  
+  pop eax
+
+  movss xmm0, [esp]
+  add esp, 4
 end;
 
 

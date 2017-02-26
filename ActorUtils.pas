@@ -15,6 +15,11 @@ const
   actCrouch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
+  actJump:cardinal = $80;
+  actFall:cardinal = $100;
+  actLanding:cardinal = $200;
+  actLanding2:cardinal = $400;
+
 
   actAimStarted:cardinal = $4000000;
   actShowDetectorNow:cardinal = $8000000; //преддоставание проигралoсь, можно показывать детектор
@@ -86,7 +91,7 @@ function GetLefthandedTorchParams():torchlight_params; stdcall;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator;
 
 var
   _keyflags:cardinal;
@@ -479,6 +484,7 @@ end;
 
 procedure OnActorNewSlotActivated(act:pointer; slot:integer); stdcall;
 begin
+  ResetHudMoveOffset();
   ResetActorFlags(act);
   ResetActivationHoldState();
   if slot<>4 then SetForcedQuickthrow(false);
@@ -734,6 +740,7 @@ end;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 procedure CActor__netSpawn(CActor:pointer); stdcall;
 begin
+  ResetHudMoveOffset();
   ClearActorKeyRepeatFlags();
   ResetActorFlags(CActor);
   ResetActivationHoldState();
@@ -1080,6 +1087,18 @@ asm
   @finish:
 end;
 
+procedure CActor__g_cl_CheckControls_disable_cam_anms_Patch; stdcall;
+asm
+  mov eax, xrgame_addr
+  comiss xmm0, [eax+$54d270]
+  jbe @finish
+  pushad
+    call IsMoveCamAnmsEnabled
+    cmp al, 0
+  popad
+  @finish:
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -1123,6 +1142,10 @@ begin
   //фов в прицеливании
   jmp_addr:= xrgame_addr+$2605d6;
   if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 7, true) then exit;
+
+  //отключение анимаций камеры в движении
+  jmp_addr:= xrgame_addr+$269b97;
+  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
 
   result:=true;
 end;
