@@ -57,6 +57,9 @@ begin
   buf.SetLaserEnabledStatus(tmp_bool);
 
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
+  buf.SwitchTorch(tmp_bool);
+
+  ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
   SetWeaponMisfireStatus(wpn, tmp_bool);
 
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
@@ -94,6 +97,8 @@ begin
   buf:=GetBuffer(wpn);
   if buf = nil then exit;
   tmp_bool:=buf.IsLaserEnabled();
+  WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
+  tmp_bool:=buf.IsTorchEnabled();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_bool:=IsWeaponJammed(wpn);
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
@@ -179,7 +184,7 @@ asm
     @finish:
     //на всякий сбросим "лишние" данные в байте флагов аддонов
     mov eax, [esp+$3C]
-    and byte ptr [eax+$1bc], 3
+    and byte ptr [eax+$1bc], 7
     popfd
     popad
 

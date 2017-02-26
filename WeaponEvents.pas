@@ -346,7 +346,7 @@ begin
           end;
         end;
       end else begin
-       if (length(buf.ammos)>0) then begin
+       if (GetAmmoInMagCount(wpn)>0) and (length(buf.ammos)>0) then begin
         log(PChar('There is NO ammotype data in the save??? Weapon '+GetSection(wpn)+':'+inttostr(GetID(wpn))), true)
        end else if (length(buf.ammos)<>0) and (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
         log(PChar('Count of ammotypes in the save is not equal to count of ammo in weapon '+GetSection(wpn)+':'+inttostr(GetID(wpn))), true);
@@ -959,12 +959,50 @@ begin
   end;
 end;
 
+
+//---------------------------------------------------------------------------------------------------------
+procedure TacticalTorchSwitch(wpn:pointer; param:integer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  buf.SwitchTorch(not buf.IsTorchEnabled());
+  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
+end;
+
+procedure OnTorchButton(wpn:pointer);
+var
+  buf:WpnBuf;
+  res:boolean;
+  curanm:PChar;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and buf.IsTorchInstalled() then begin
+    res:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfTACTICALTORCH);
+    if res then begin
+      if buf.IsTorchEnabled() then begin
+        res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_torch_on', 'sndTorchOn');
+      end else begin
+        res:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_torch_off', 'sndTorchOff');
+      end;
+    end;
+
+    curanm:=GetActualCurrentAnim(wpn);
+    if res then  begin
+      StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
+      MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, TacticalTorchSwitch);
+    end;
+  end;
+end;
+
 //---------------------------------------------------------------------------------------------------------
 procedure CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal); stdcall;
 
 begin
   if (id=kLASER) and (flags=kActPress) then begin
     OnLaserButton(wpn);
+  end else if (id=kTACTICALTORCH) and (flags=kActPress) then begin
+    OnTorchButton(wpn);
   end;
 end;
 
@@ -1149,7 +1187,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch_middle),6, true) then exit;
 
   jmp_addr:=xrGame_addr+$2C1328;
-  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch_end),6, true) then exit;  
+  if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch_end),6, true) then exit;
 
   jmp_addr:=xrGame_addr+$2BEFE9;
   if not WriteJump(jmp_addr, cardinal(@CWeapon_NetDestroy_Patch),6, true) then exit;

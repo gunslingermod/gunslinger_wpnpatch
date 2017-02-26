@@ -161,7 +161,8 @@ begin
   _add_action('quick_load', kQUICK_LOAD, _keygroup_sp);
 //  _add_action('quick_grenade', kQUICK_GRENADE, _keygroup_both);  
 
-  _add_action('wpn_laser', kLASER, _keygroup_both);  
+  _add_action('wpn_laser', kLASER, _keygroup_both);
+  _add_action('wpn_torch', kTACTICALTORCH, _keygroup_both);  
 //  _add_action('alife_command', kALIFE_CMD, _keygroup_sp); //восстанавливаем ЧНовское
 
 //  _add_action('not_binded', $45, _keygroup_sp);

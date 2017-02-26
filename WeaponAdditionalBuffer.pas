@@ -1,7 +1,7 @@
 unit WeaponAdditionalBuffer;
 
 interface
-uses MatVectors;
+uses MatVectors, LightUtils;
 
 type dist_switch = record
   name:PChar;
@@ -35,7 +35,6 @@ type
 
     _needs_unzoom:boolean;
 
-    _light:pointer;
     _do_action_after_anim_played:TAnimationEffector;
     _action_param:integer;
     _my_wpn:pointer;
@@ -55,11 +54,19 @@ type
     _laserdot_dist_multipliers_switch:array of dist_koefs;
 
 
+    _torch_installed:boolean;
+    _torch_params:torchlight_params;    
+
+    _bullet_point_offset_hud:single;  //смещение от fire_point до точки вылета пули
+    _bullet_point_offset_world:single;
+
     _is_ammo_in_chamber:boolean;
     _save_cartridge_in_chamber:boolean;
     _add_cartridge_in_open:boolean;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
+
+
 
     public
 
@@ -72,7 +79,7 @@ type
     function PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
 
     function Update():boolean;
-
+    procedure UpdateTorch();
 
     procedure SetBeforeReloadAmmoCnt(cnt:integer);
     function GetBeforeReloadAmmoCnt():integer;
@@ -96,14 +103,23 @@ type
     function IsLaserInstalled():boolean;
     function GetLaserDotData():laserdot_params;
     procedure InstallLaser(params_section:PChar);
+
     procedure SetLaserEnabledStatus(status:boolean);
-    procedure PlayLaserdotParticle(pos:pFVector3; dist:single; hud_mode:boolean=false);
+    procedure PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean);
     procedure StopLaserdotParticle();
     procedure SetLaserDotParticleHudStatus(status:boolean);
+
+    procedure InstallTorch(params_section:PChar);
+    procedure SwitchTorch(status:boolean; forced:boolean=false);
+    function IsTorchInstalled():boolean;
+    function IsTorchEnabled():boolean;
 
     function IsAmmoInChamber():boolean;
     function SaveAmmoInChamber():boolean;
     function AddCartridgeAfterOpen():boolean;
+
+    function GetHUDBulletOffset():single;
+    function GetWorldBulletOffset: single;    
 
   end;
 
@@ -129,6 +145,7 @@ type
   function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
+
 implementation
 uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger;
 
@@ -165,8 +182,14 @@ begin
   SetLength(self._laserdot_particles_distwitch, 0);
   setlength(self._laserdot_dist_multipliers_switch, 0);
 
+  _bullet_point_offset_hud:=game_ini_r_single_def(GetSection(wpn), 'bullet_point_offset_hud', -1.3);
+  _bullet_point_offset_world:=game_ini_r_single_def(GetSection(wpn), 'bullet_point_offset_world', -0.3);
+
   setlength(ammos, 0);
   is_firstlast_ammo_swapped:=false;
+
+  _torch_installed:=false;
+  _torch_params.enabled:=false;
 
   _is_ammo_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'ammo_in_chamber', false);
   _save_cartridge_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'save_cartridge_in_ammochange', true);
@@ -177,6 +200,11 @@ end;
 
 destructor WpnBuf.Destroy;
 begin
+  if _torch_installed then begin
+    DelTorchlight(@_torch_params);
+    _torch_installed:=false;
+  end;
+
   StopLaserdotParticle();
   setlength(self._laserdot_particles_distwitch, 0);
   setlength(self._laserdot_dist_multipliers_switch, 0);
@@ -375,6 +403,7 @@ begin
 
   _last_update_time:=GetGameTickCount();
   result:=true;
+
 end;
 
 class procedure WpnBuf._SetWpnBufPtr(wpn: pointer; what_write: pointer);
@@ -718,7 +747,7 @@ begin
   result:=self._laserdot;
 end;
 
-procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; hud_mode:boolean=false);
+procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean);
 var
   zero_vel, viewpos:FVector3;
   index, i, l:integer;
@@ -726,7 +755,11 @@ var
 begin
   if (not self.IsLaserInstalled) or (not self.IsLaserEnabled) then exit;
 
-  if hud_mode then begin
+  if is1stpersonview then begin
+    if hud_mode then begin
+      StopLaserdotParticle();
+      exit;
+    end;
     if not IsLaserdotCorrection() then begin
       if length(self._laserdot_particles_distwitch)>1 then begin
         index:=-1;
@@ -772,15 +805,13 @@ begin
       end;
       newdist:=newdist+tmpdist*self._laserdot_dist_multipliers_switch[l].multiplier;
 
-      //messenger.SendMessage(PChar(floattostr(newdist)));
-
       tmpdist:=dist_to_cam-newdist;
       v_normalize(@viewpos);
       v_mul(@viewpos, tmpdist);
       v_add(pos, @viewpos);
     end;
   end else begin
-    if length(_laserdot_particles_distwitch)>0 then begin
+    if (length(_laserdot_particles_distwitch)>0) then begin
       if _laserdot.particles_cur<>self._laserdot_particles_distwitch[1].name then begin
         StopLaserdotParticle();
       end;
@@ -789,8 +820,6 @@ begin
       _laserdot.particles_cur:=_laserdot_particles_distwitch[0].name;
     end;
   end;
-
-
 
   zero_vel.x:=0;
   zero_vel.y:=0;
@@ -805,13 +834,96 @@ begin
   _laserdot.particles_cur := nil;
 end;
 
-
-
 procedure WpnBuf.SetLaserDotParticleHudStatus(status: boolean);
 begin
   if self._laserdot_particle_object<>nil then begin
     SetParticlesHudStatus(self._laserdot_particle_object, status);
   end;
+end;
+
+function WpnBuf.GetHUDBulletOffset: single;
+begin
+  result:=self._bullet_point_offset_hud;
+end;
+
+function WpnBuf.GetWorldBulletOffset: single;
+begin
+  result:=self._bullet_point_offset_world;
+end;
+
+procedure WpnBuf.InstallTorch(params_section: PChar);
+begin
+  if self._torch_installed then exit;
+
+  self._torch_installed:=true;
+  NewTorchlight(@_torch_params, params_section);
+end;
+
+procedure WpnBuf.SwitchTorch(status: boolean; forced:boolean=false);
+begin
+  if (not forced) and (status =_torch_params.enabled) then exit;
+  _torch_params.enabled:=status;
+  if not self._torch_installed then exit;
+  SwitchTorchlight(@_torch_params, status);
+end;
+
+procedure WpnBuf.UpdateTorch;
+var
+  HID:pointer;
+  pos, dir, tmp, zerovec:FVector3;
+begin
+
+  if not self._torch_installed then exit;
+  
+  if (GetOwner(_my_wpn)<>nil) and (GetOwner(_my_wpn)<>GetActor()) then begin
+    //Ќѕ—ам нельз€!
+    SwitchTorch(false);
+  end;
+
+  if (IsTorchEnabled()) then begin
+    SetWeaponMultipleBonesStatus(_my_wpn, _torch_params.light_cone_bones, true);
+    SwitchTorch(true, true);
+  end else begin
+    SetWeaponMultipleBonesStatus(_my_wpn, _torch_params.light_cone_bones, false);
+    SwitchTorch(false);
+    exit; 
+  end;
+
+  zerovec.x:=0;
+  zerovec.y:=0;
+  zerovec.z:=0;
+
+  HID:=CHudItem__HudItemData(_my_wpn);
+  if (GetOwner(_my_wpn)<>nil) and ((cardinal(GetCurrentState(_my_wpn))=EHudStates__eHidden) or (cardinal(GetNextState(_my_wpn))=EHudStates__eHidden)) then begin
+    SwitchTorch(false);
+    _torch_params.enabled:=true;
+    exit;
+  end else if (HID<>nil) and (GetActorActiveItem()=_my_wpn)then begin
+    //1st person view
+    attachable_hud_item__GetBoneOffsetPosDir(HID, _torch_params.light_bone, @pos, @dir, @_torch_params.offset);
+    if _torch_params.is_lightdir_by_bone then begin
+      //направление света задаетс€ через разность позиций 2х костей оружи€
+      attachable_hud_item__GetBoneOffsetPosDir(HID, _torch_params.lightdir_bone_name, @dir, @tmp, @zerovec);
+      v_sub(@dir, @pos);
+      v_normalize(@dir);
+    end;
+  end else begin
+    //world view
+    dir:=_torch_params.world_offset;
+    transform_tiny(GetXFORM(_my_wpn), @pos, @dir);
+    dir:=GetLastFD(_my_wpn);
+  end;
+  SetTorchlightPosAndDir(@_torch_params, @pos, @dir);
+end;
+
+function WpnBuf.IsTorchEnabled: boolean;
+begin
+  result:=_torch_params.enabled;
+end;
+
+function WpnBuf.IsTorchInstalled: boolean;
+begin
+  result:=self._torch_installed;
 end;
 
 end.

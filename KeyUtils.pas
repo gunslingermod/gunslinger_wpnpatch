@@ -81,7 +81,8 @@ const
 
   //действия мода
   kLASER:cardinal = $46;
-  kQUICK_GRENADE:cardinal = $47;  
+  kTACTICALTORCH:cardinal = $47;
+  kQUICK_GRENADE:cardinal = $48;
 
 function IsActionKeyPressed(EGameAction:cardinal):boolean; stdcall;
 function get_action_dik(EGameAction:cardinal; idx:integer):cardinal; stdcall; //idx принимает значения: 0 - основная клавиша, 1 - вспомогательная, -1 - дефаултовая назначенная

@@ -40,9 +40,13 @@ interface
   function PointToPlaneDist(plane:pFVector4; point:pFVector3):single;
   function v_length(v:pFVector3):single;
   procedure transform_tiny(m:pFMatrix4x4; dest:pFVector3; v:pFVector3);
+  function v_equal(v1, v2:pFVector3):boolean;
+  procedure generate_orthonormal_basis_normalized(dir, up, right:pfVector3);  
 
 implementation
 uses Math;
+
+const EPS:single = 0.0001;
 
 function GetAngleCos(v1:pFVector3; v2:pFVector3):single; stdcall;
 begin
@@ -183,5 +187,41 @@ begin
   dest.y:=v.x*m.i.y + v.y*m.j.y + v.z*m.k.y + m.c.y;
   dest.z:=v.x*m.i.z + v.y*m.j.z + v.z*m.k.z + m.c.z;    
 end;
+
+function v_equal(v1, v2:pFVector3):boolean;
+begin
+  result:= (abs(v1.x - v2.x)<EPS) and (abs(v1.y - v2.y)<EPS) and (abs(v1.z - v2.z)<EPS);
+end;
+
+procedure generate_orthonormal_basis_normalized(dir, up, right:pfVector3);
+var
+  fInvLength:single;
+begin
+  v_normalize(dir);
+  if abs(dir.y-1.0)<EPS then begin
+    up.x:=0; up.y:=0; up.z:=1;
+    fInvLength:=1.0/sqrt(dir.x*dir.x + dir.y*dir.y);
+
+    right.x:= -dir.y *fInvLength;
+    right.y:=dir.x*fInvLength;
+    right.z:=0;
+
+    up.x:=-dir.z*right.y;
+    up.y:= dir.z*right.x;
+    up.z:=dir.x*right.y - dir.y*right.x;
+  end else begin
+    up.x:=0; up.y:=1; up.z:=0;
+    fInvLength:=1.0/sqrt(dir.x*dir.x + dir.z*dir.z);
+
+    right.x :=dir.z*fInvLength;
+    right.y:=0;
+    right.z:=-dir.x*fInvLength;
+
+    up.x:=dir.y*right.z;
+    up.y:=dir.z*right.x - dir.x*right.z;
+    up.z:= -dir.y*right.x;
+  end;
+end;
+
 
 end.

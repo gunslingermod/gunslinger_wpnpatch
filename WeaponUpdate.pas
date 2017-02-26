@@ -13,10 +13,7 @@ uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysuti
 var patch_addr:cardinal;
   tst_light:pointer;
 
-function tst():boolean;stdcall;
-asm
-  mov @result, false
-end;
+
 
 procedure ProcessLaserdot(wpn:pointer);
 var
@@ -25,6 +22,7 @@ var
   dotpos, dotdir, zerovec, viewdir, viewpos:FVector3;
   dist:single;
   HID:pointer;
+  b:boolean;
 
 begin
   zerovec.x:=0;
@@ -53,7 +51,7 @@ begin
   if (HID<>nil) and (GetActorActiveItem()=wpn)then begin // and (not IsDemoRecord()) then begin
     //1st person view
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
-      //в режиме прицеливания привязываемся к камере - иначе при настроке прицеливания у оружия будем проводить прямую через 3 точки :(
+      //в режиме прицеливания привязываемся к камере - иначе при настройке прицеливания у оружия будем проводить прямую через 3 точки :(
       viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
       viewpos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
       attachable_hud_item__GetBoneOffsetPosDir(HID, laserdot_data.bone_name, @dotpos, @dotdir, @laserdot_data.offset);
@@ -74,21 +72,26 @@ begin
     end;
 
     dist:=TraceAsView(@dotpos, @dotdir, dynamic_cast(GetActor(), 0, RTTI_CActor, RTTI_CObject, false))*0.99;
+
+
+    if laserdot_data.always_world then begin
+      b:=false;
+    end else if laserdot_data.always_hud then begin
+      b:=true;
+    end else begin
+      viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+      b:=(GetAngleCos(@viewdir, @dotdir)<laserdot_data.hud_treshold);
+    end;
+
+    //if b or (not IsLaserdotCorrection()) then dist:=dist*0.85;    
+
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
-    dotpos.z:=dotpos.z+dotdir.z*dist;
+    dotpos.z:=dotpos.z+dotdir.z*dist;    
 
-    buf.PlayLaserdotParticle(@dotpos, dist, true);
-
-    if laserdot_data.always_world then
-      buf.SetLaserDotParticleHudStatus(false)
-    else if laserdot_data.always_hud then
-      buf.SetLaserDotParticleHudStatus(true)
-    else begin
-      viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
-      buf.SetLaserDotParticleHudStatus(GetAngleCos(@viewdir, @dotdir)<laserdot_data.hud_treshold);
-    end;
-  end else if (GetOwner(wpn)=nil) or (GetCurrentState(wpn)<>EHudStates__eHidden) then begin
+    buf.PlayLaserdotParticle(@dotpos, dist, true, b);
+    buf.SetLaserDotParticleHudStatus(b);
+  end else if (GetOwner(wpn)=nil) or (GetCurrentState(wpn)<>EHudStates__eHidden) or (GetNextState(wpn)<>EHudStates__eHidden) then begin
     viewpos:=laserdot_data.world_offset;
     transform_tiny(GetXFORM(wpn), @dotpos, @viewpos);
     dotdir:=GetLastFD(wpn);
@@ -96,7 +99,7 @@ begin
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
     dotpos.z:=dotpos.z+dotdir.z*dist;
-    buf.PlayLaserdotParticle(@dotpos, dist, false);
+    buf.PlayLaserdotParticle(@dotpos, dist, false, false);
     buf.SetLaserDotParticleHudStatus(false);
 
     //messenger.SendMessage(PChar(inttohex(cardinal(wpn),8)));
@@ -248,7 +251,6 @@ begin
   for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
     section:=GetInstalledUpgradeSection(wpn, i);
     section:=game_ini_read_string(section, 'section');
-    if game_ini_line_exist(section, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'show_bones'), true);
     if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
     if game_ini_line_exist(section, 'hud') then begin
       SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
@@ -258,8 +260,17 @@ begin
     end;
 
     if (buf<>nil) and not buf.IsLaserInstalled() and game_ini_r_bool_def(section, 'laser_installed', false) then begin
-      buf.InstallLaser(section)
+      buf.InstallLaser(section);
     end;
+    if (buf<>nil) and not buf.IsTorchInstalled() and game_ini_r_bool_def(section, 'torch_installed', false) then begin
+      buf.InstallTorch(section);
+    end;
+  end;
+
+ for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+    section:=GetInstalledUpgradeSection(wpn, i);
+    section:=game_ini_read_string(section, 'section');
+    if game_ini_line_exist(section, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'show_bones'), true);
   end;
 end;
 
@@ -391,6 +402,9 @@ begin
       if not buf.IsLaserInstalled() and game_ini_r_bool_def(sect, 'laser_installed', false) then begin
         buf.InstallLaser(sect)
       end;
+      if not buf.IsTorchInstalled() and game_ini_r_bool_def(sect, 'torch_installed', false) then begin
+        buf.InstallTorch(sect)
+      end;
     end;    
 
     if ((GetActor()=nil) or (GetOwner(wpn)<>GetActor())) or (GetActorActiveItem()<>wpn) then begin
@@ -414,35 +428,9 @@ begin
       ProcessLaserDot(wpn);
     end;
 
-
-
-
-
-
-  {if tst_light = nil then tst_light:=LightUtils.CreateLight;
-  LightUtils.Enable(tst_light, true);
-  asm
-    pushad
-    pushfd
-
-    mov ebp, $492ed8
-
-    mov ebx, tst_light
-    push [ebp+$38]
-    push [ebp+$34]
-    push [ebp+$30]
-    push ebx
-    call LightUtils.SetPos
-
-    push [ebp+$44]
-    push [ebp+$40]
-    push [ebp+$3C]
-    push ebx
-    call LightUtils.SetDir
-
-    popfd
-    popad
-  end;     }
+    if (buf<>nil) then begin
+      buf.UpdateTorch();
+    end;
 end;
 
 {procedure CWeapon__UpdateCL_Patch();stdcall;

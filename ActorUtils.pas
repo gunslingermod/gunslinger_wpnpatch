@@ -1,10 +1,12 @@
 unit ActorUtils;
 
+
 //xrgame+4e212a - менять условия для включения коллизии
 
 {$define USE_SCRIPT_USABLE_HUDITEMS}  //на всякий - потом все равно в двиг надо перекинуть, но влом - и так отлично работает
 
 interface
+uses LightUtils;
 const
   actMovingForward:cardinal = $1;
   actMovingBack:cardinal = $2;
@@ -35,7 +37,8 @@ const
   kfDETECTOR:cardinal=$80;
   kfZOOM:cardinal=$100;
   kfFIRE:cardinal=$200;
-  kfLASER:cardinal=$400;  
+  kfLASER:cardinal=$400;
+  kfTACTICALTORCH:cardinal=$800;
 
 
 
@@ -76,6 +79,11 @@ function CRenderDevice__GetCamDir():pointer;stdcall;
 function GetTargetDist():single;stdcall;
 function GetActorThirst():single;stdcall;
 
+procedure SwitchLefthandedTorch(status:boolean); stdcall;
+procedure RecreateLefthandedTorch(params_section:PChar; det:pointer); stdcall;
+function GetLefthandedTorchLinkedDetector():pointer; stdcall;
+function GetLefthandedTorchParams():torchlight_params; stdcall;
+
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF;
@@ -91,6 +99,9 @@ var
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:boolean;
 {$endif}
+
+  _lefthanded_torch:torchlight_params;
+  _torch_linked_detector:pointer;
 
 
 function GetActor():pointer; stdcall;
@@ -436,6 +447,13 @@ begin
     end;
   end;
 
+  if (_keyflags and kfTACTICALTORCH)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kTACTICALTORCH, kActPress);
+      SetActorKeyRepeatFlag(kfTACTICALTORCH, false);
+    end;
+  end;
+
 
 {  //принудительный сброс бега во время действия
   if not (IsSprintOnHoldEnabled()) and GetActorActionState(act, actSprint, mstate_WISHFUL) and (not CanSprintNow(wpn)) then begin
@@ -532,6 +550,13 @@ begin
 
   ProcessKeys(act);
   UpdateFOV(act);
+
+  if (_lefthanded_torch.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
+//    log('Destroy lefthand light');
+    SwitchLefthandedTorch(false);
+    DelTorchlight(@_lefthanded_torch);
+    _torch_linked_detector:=nil;
+  end;
 
 end;
 
@@ -717,7 +742,7 @@ asm
     push esi
     call CActor__netSpawn
   popad
-  
+
   pop edi //оригинальный код завершения метода
   pop esi
   pop ebp
@@ -727,6 +752,25 @@ asm
   ret 4
 end;
 
+
+procedure CActor__net_Destroy(CActor:pointer); stdcall;
+begin
+  if _lefthanded_torch.render<>nil then begin
+    SwitchLefthandedTorch(false);
+    DelTorchlight(@_lefthanded_torch);
+    _torch_linked_detector:=nil;
+  end;
+end;
+
+procedure CActor__net_Destroy_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CActor__net_Destroy
+  popad
+  movzx eax, word ptr [esi+$9c8]
+end;
+//-----------------------------------------------------------------------------------
 function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
 begin
   for result:=1 to 9 do begin
@@ -888,6 +932,36 @@ begin
 end;
 
 
+procedure RecreateLefthandedTorch(params_section:PChar; det:pointer); stdcall;
+begin
+  if _lefthanded_torch.render<>nil then begin
+    DelTorchlight(@_lefthanded_torch);
+  end;
+  NewTorchlight(@_lefthanded_torch, params_section);
+  SwitchTorchlight(@_lefthanded_torch, false);
+  _torch_linked_detector:=det;
+end;
+
+function GetLefthandedTorchLinkedDetector():pointer; stdcall;
+begin
+  result:=_torch_linked_detector;
+end;
+
+procedure SwitchLefthandedTorch(status:boolean); stdcall;
+begin
+  if _lefthanded_torch.render=nil then exit;
+  if _lefthanded_torch.enabled=status then exit;
+  SwitchTorchlight(@_lefthanded_torch, status);
+end;
+
+function GetLefthandedTorchParams():torchlight_params; stdcall;
+begin
+  result:=_lefthanded_torch;
+end;
+
+
+
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -900,6 +974,12 @@ begin
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}
 
+  _lefthanded_torch.render:=nil;
+  _lefthanded_torch.omni:=nil;
+  _lefthanded_torch.glow:=nil;
+  _lefthanded_torch.enabled:=false;
+
+
   result:=false;
   jmp_addr:=xrGame_addr+$261DF6;
   if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
@@ -909,6 +989,9 @@ begin
 
   jmp_addr:= xrgame_addr+$26D115;
   if not WriteJump(jmp_addr, cardinal(@CActor__netSpawn_Patch), 8) then exit;
+
+  jmp_addr:= xrgame_addr+$26F04B;
+  if not WriteJump(jmp_addr, cardinal(@CActor__net_Destroy_Patch), 7, true) then exit;
 
   result:=true;
 end;

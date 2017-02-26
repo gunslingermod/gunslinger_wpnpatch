@@ -15,11 +15,10 @@ function StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_l
 
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, ActorUtils, Misc, sysutils, strutils, Messenger, gunsl_config;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, ActorUtils, Misc, sysutils, strutils, Messenger, gunsl_config, MatVectors, LightUtils, Math;
 
 var
   _was_detector_hidden_manually:boolean; //должен быть всегда true, кроме случаев, когда идет быстрое использование какого-то предмета (юзейбла, грены, ножа),  не поддерживающего детектор-компаньон, а перед быстрым использованием детектор был активен и скрылся автоматом
-
 
 procedure SwapAHI(ahi_c:pointer; ahi_d:pointer); stdcall;
 asm
@@ -414,15 +413,87 @@ end;
 
 procedure DetectorUpdate(det: pointer);stdcall;
 var
-  itm, act:pointer;
-  hud_sect:PChar;
+  act:pointer;
+  HID:pointer;
+  pos, dir, tmp, zerovec:FVector3;
+  params:torchlight_params;
+  light_time_treshold_f:single;
+  light_cur_time:cardinal;
 begin
   act:=GetActor();
   if act=nil then exit;
   if (GetOwner(det)<>act) then begin
-    //Если актор выбросил активный детектор и поднял его - то этот детектор в оригинале формально находится в активном состоянии, а по факту не рисуется
+    //BUG: Если актор выбросил активный детектор и поднял его - то этот детектор в оригинале формально находится в активном состоянии, а по факту не рисуется
     //Так что при обнаружении выбрасывания обманываем игру, выставляя неактивность детектора
     MakeUnActive(det);
+  end else if (GetActiveDetector(act)=det) and game_ini_r_bool_def(GetSection(det), 'torch_installed', false) then begin
+    //в руках у актора фонарь
+    if GetLefthandedTorchLinkedDetector()<>det then begin
+      RecreateLefthandedTorch(GetSection(det), det);
+      //log('light created');
+    end;
+    //выставляем позицию
+    HID:=CHudItem__HudItemData(det);
+    params:=GetLefthandedTorchParams();
+    if (HID<>nil) then begin
+      attachable_hud_item__GetBoneOffsetPosDir(HID, params.light_bone, @pos, @dir, @params.offset);
+      if params.is_lightdir_by_bone then begin
+        //направление света задается через разность позиций 2х костей оружия
+        zerovec.x:=0;
+        zerovec.y:=0;
+        zerovec.z:=0;
+        attachable_hud_item__GetBoneOffsetPosDir(HID, params.lightdir_bone_name, @dir, @tmp, @zerovec);
+        v_sub(@dir, @pos);
+        v_normalize(@dir);
+      end;
+      //log(floattostr(pos.x)+' '+floattostr(pos.y)+' '+floattostr(pos.z));
+      //log(floattostr(dir.x)+' '+floattostr(dir.y)+' '+floattostr(dir.z));
+      SetTorchlightPosAndDir(@params, @pos, @dir);
+    end else begin
+      SetTorchlightPosAndDir(@params, GetPosition(det), GetOrientation(det))
+    end;
+
+    if leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show' then begin
+      light_time_treshold_f:=game_ini_r_single_def(GetHUDSection(det), PChar('torch_enable_time_'+GetActualCurrentAnim(det)), 0)*1000;
+      if light_time_treshold_f>=0 then begin
+        light_cur_time:=GetTimeDeltaSafe(GetAnimTimeState(det, ANM_TIME_START), GetAnimTimeState(det, ANM_TIME_CUR));
+        if light_cur_time>=light_time_treshold_f then begin
+          SwitchLefthandedTorch(true);
+        end else begin
+          SwitchLefthandedTorch(false);
+        end;
+      end else begin
+        light_time_treshold_f:=-1*light_time_treshold_f;
+        light_cur_time:=GetTimeDeltaSafe(GetAnimTimeState(det, ANM_TIME_CUR), GetAnimTimeState(det, ANM_TIME_END));
+        if light_cur_time<=light_time_treshold_f then begin
+          SwitchLefthandedTorch(true);
+        end else begin
+          SwitchLefthandedTorch(false);
+        end;
+      end;
+    end else if leftstr(GetActualCurrentAnim(det), length('anm_hide'))='anm_hide' then begin
+      light_time_treshold_f:=game_ini_r_single_def(GetHUDSection(det), PChar('torch_disable_time_'+GetActualCurrentAnim(det)), 0)*1000;
+      if light_time_treshold_f>=0 then begin
+        light_cur_time:=GetTimeDeltaSafe(GetAnimTimeState(det, ANM_TIME_START), GetAnimTimeState(det, ANM_TIME_CUR));
+        if light_cur_time>=light_time_treshold_f then begin
+          SwitchLefthandedTorch(false);
+        end else begin
+          SwitchLefthandedTorch(true);
+        end;
+      end else begin
+        light_time_treshold_f:=-1*light_time_treshold_f;
+        light_cur_time:=GetTimeDeltaSafe(GetAnimTimeState(det, ANM_TIME_CUR), GetAnimTimeState(det, ANM_TIME_END));
+        if light_cur_time<=light_time_treshold_f then begin
+          SwitchLefthandedTorch(false);
+        end else begin
+          SwitchLefthandedTorch(true);
+        end;
+      end;
+    end else begin
+      SwitchLefthandedTorch(true);
+    end;
+  end else if GetLefthandedTorchParams().render<>nil then begin
+    SwitchLefthandedTorch(false);
   end;
 end;
 

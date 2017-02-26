@@ -40,6 +40,7 @@ function IsConstZoomDOF():boolean; stdcall;
 function IsDofEnabled():boolean; stdcall;
 function IsLaserdotCorrection():boolean; stdcall;
 function IsNPCLasers():boolean; stdcall;
+function IsRealBallistics():boolean; stdcall;
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils;
@@ -66,6 +67,7 @@ var
   CCC_constzoomdof:CCC_Mask;
   CCC_laserdotdistcorrection:CCC_Mask;
   CCC_npclasers:CCC_Mask;
+  CCC_realballistics:CCC_Mask;
 
 //маски для флагов
 const
@@ -73,6 +75,7 @@ const
   _mask_constzoomdof:cardinal=$2;
   _mask_laserdotcorrection:cardinal=$4;
   _mask_npclasers:cardinal=$8;
+  _mask_realballistics:cardinal=$10;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -256,6 +259,11 @@ begin
   result:=((_console_bool_flags and _mask_npclasers)>0);
 end;
 
+function IsRealBallistics():boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_realballistics)>0);
+end;
+
 function GetDefaultActionDOF():FVector3; stdcall;
 begin
   result:=def_act_dof;
@@ -327,6 +335,9 @@ begin
   CConsole__AddCommand(@(CCC_laserdotdistcorrection.base));
   CCC_Mask__CCC_Mask(@CCC_npclasers, 'npc_lasers', @_console_bool_flags, _mask_npclasers);
   CConsole__AddCommand(@(CCC_npclasers.base));
+  CCC_Mask__CCC_Mask(@CCC_realballistics, 'g_real_shooting', @_console_bool_flags, _mask_realballistics);
+  CConsole__AddCommand(@(CCC_realballistics.base));
+
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
   hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);

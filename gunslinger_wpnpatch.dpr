@@ -76,6 +76,7 @@ begin
   hud_transp_r4.Init();
 
   RayPick.Init();
+  BallisticsCorrection.Init();
 //  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;

@@ -9,9 +9,6 @@ implementation
 uses BaseGameData, gunsl_config, HudItemUtils, sysutils, windows;
 
 var
-  drawhud_patch:cardinal;
-  saveoffsets_patch_addr:cardinal;
-  restoreoffsets_patch_addr:cardinal;
   IsAimingEdited:boolean;
 
 function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
@@ -96,8 +93,7 @@ begin
 end;
 
 procedure CWeapon_UpdateHudAdditional_savedata_patch(); stdcall;
-begin
-  asm
+asm
     pushfd
     pushad
 
@@ -114,8 +110,8 @@ begin
     popad
     popfd
     movss xmm0, [esi+$1c8]
-    jmp saveoffsets_patch_addr
-  end;
+
+    ret
 end;
 
 procedure CWeapon_UpdateHudAdditional_restoredata_patch(); stdcall;
@@ -133,20 +129,39 @@ begin
     popfd
     popad
     mulss xmm0, [esp+$34]
-    jmp restoreoffsets_patch_addr
+    ret
   end;
 end;
 
+
+procedure CWeapon_show_indicators_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call IsCollimatorInstalled
+    cmp al, 1
+  popad
+  je @finish
+  cmp byte ptr [esi+$496],00
+  @finish:
+end;
+
+
 function Init:boolean;
+var
+  patch_addr:cardinal;
 begin
   result:=false;
-  drawhud_patch:=xrGame_addr+$2BCB01;
-  if not WriteJump(drawhud_patch, cardinal(@PatchHudVisibility), 0) then exit;
-  saveoffsets_patch_addr:=xrGame_addr+$2C09A2;
-  if not WriteJump(saveoffsets_patch_addr, cardinal(@CWeapon_UpdateHudAdditional_savedata_patch), 8) then exit;
+  patch_addr:=xrGame_addr+$2BCB01;
+  if not WriteJump(patch_addr, cardinal(@PatchHudVisibility), 0) then exit;
+  patch_addr:=xrGame_addr+$2C09A2;
+  if not WriteJump(patch_addr, cardinal(@CWeapon_UpdateHudAdditional_savedata_patch), 8, true) then exit;
 
-  restoreoffsets_patch_addr:=xrGame_addr+$2C0A3D;
-  if not WriteJump(restoreoffsets_patch_addr, cardinal(@CWeapon_UpdateHudAdditional_restoredata_patch), 6) then exit;
+  patch_addr:=xrGame_addr+$2C0A3D;
+  if not WriteJump(patch_addr, cardinal(@CWeapon_UpdateHudAdditional_restoredata_patch), 6, true ) then exit;
+
+  patch_addr:=xrGame_addr+$2BC773;
+  if not WriteJump(patch_addr, cardinal(@CWeapon_show_indicators_Patch), 7, true) then exit;
 
   result:=true;
 end;

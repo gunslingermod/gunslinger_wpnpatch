@@ -335,7 +335,6 @@ asm
     mov @result, eax
 end;
 
-
 function GetScopeStatus(wpn:pointer):cardinal; stdcall;
 asm
     mov eax, wpn
