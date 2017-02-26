@@ -182,7 +182,7 @@ begin
   SetLength(self._laserdot_particles_distwitch, 0);
   setlength(self._laserdot_dist_multipliers_switch, 0);
 
-  _bullet_point_offset_hud:=game_ini_r_single_def(GetSection(wpn), 'bullet_point_offset_hud', -1.3);
+  _bullet_point_offset_hud:=game_ini_r_single_def(GetSection(wpn), 'bullet_point_offset_hud', -1.0);
   _bullet_point_offset_world:=game_ini_r_single_def(GetSection(wpn), 'bullet_point_offset_world', -0.3);
 
   setlength(ammos, 0);
@@ -894,7 +894,7 @@ begin
   zerovec.z:=0;
 
   HID:=CHudItem__HudItemData(_my_wpn);
-  if (GetOwner(_my_wpn)<>nil) and ((cardinal(GetCurrentState(_my_wpn))=EHudStates__eHidden) or (cardinal(GetNextState(_my_wpn))=EHudStates__eHidden)) then begin
+  if (GetOwner(_my_wpn)<>nil) and (GetOwner(_my_wpn)=GetActor()) and (GetActorActiveItem()<>_my_wpn) then begin 
     SwitchTorch(false);
     _torch_params.enabled:=true;
     exit;

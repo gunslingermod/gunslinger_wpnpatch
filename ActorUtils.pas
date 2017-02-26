@@ -959,8 +959,81 @@ begin
   result:=_lefthanded_torch;
 end;
 
+function HitMarkCondition():boolean;
+begin
+  //если false, то хитмарки отключаются
+  result := GetCurrentDifficulty()<gd_master;
+end;
+
+procedure CActor__Hit_HitmarkCondition_Patch(); stdcall;
+asm
+  pushad
+    call HitMarkCondition;
+    cmp al, 1
+  popad
+  jne @finish
+  cmp byte ptr[esi+$9ca], 0
+  @finish:
+end;
 
 
+function ZoneMapCondition():boolean; stdcall;
+begin
+  result := GetCurrentDifficulty()<gd_veteran;
+end;
+
+procedure CUIMainIngameWnd__Draw_zonemap_Patch(); stdcall;
+asm
+  pop eax
+  pop edx
+  push eax
+
+  pushad
+  push esi
+  call ZoneMapCondition
+  pop esi
+  mov ecx, [esi+$60]
+  mov [ecx+4], al //UIZoneMap->visible = al
+  cmp al, 0
+  popad
+
+  je @finish
+
+  push edx
+  mov eax, xrgame_addr
+  add eax, $45c300
+  call eax   //UIMotionIcon->SetNoise
+
+  mov ecx, [esi+$5c]
+  mov edx, [ecx]
+  mov eax, [edx+$60]
+  call eax //UIMotionIcon->Draw();
+
+  mov ecx, [esi+$60]
+
+  mov eax, xrgame_addr
+  add eax, $45ce90
+  call eax //UIZoneMap->Render();
+
+  @finish:
+end;
+
+function drawingame_conditions():boolean; stdcall;
+begin
+  result := GetCurrentDifficulty()<gd_master;
+end;
+
+procedure CUIGameCustom__Render_drawingame_Patch; stdcall;
+asm
+  pushad
+    call drawingame_conditions
+    cmp al, 0
+  popad
+  je @finish
+  mov edx, [eax+$60]
+  call edx
+  @finish:
+end;
 
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
@@ -992,6 +1065,15 @@ begin
 
   jmp_addr:= xrgame_addr+$26F04B;
   if not WriteJump(jmp_addr, cardinal(@CActor__net_Destroy_Patch), 7, true) then exit;
+
+  jmp_addr:= xrgame_addr+$2637BE;
+  if not WriteJump(jmp_addr, cardinal(@CActor__Hit_HitmarkCondition_Patch), 7, true) then exit;
+
+  jmp_addr:= xrgame_addr+$45A0D7;
+  if not WriteJump(jmp_addr, cardinal(@CUIMainIngameWnd__Draw_zonemap_Patch), 29, true) then exit;
+
+  jmp_addr:= xrgame_addr+$4b1b59;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameCustom__Render_drawingame_Patch), 5, true) then exit;
 
   result:=true;
 end;

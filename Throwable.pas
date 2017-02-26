@@ -609,6 +609,30 @@ begin
 end;
 
 
+///////////////////////////////////////////////////////
+//иконка вражеской грены на экране
+function NeedDrawGrenMark(grenade:pointer):boolean; stdcall;
+begin
+  if (GetCurrentDifficulty()>=gd_veteran) or (CMissile__GetDestroyTime(grenade)=CMISSILE_NOT_ACTIVATED) then
+    result:=false
+  else
+    result:=true;
+end;
+
+procedure NeedDrawGrenMark_Patch(); stdcall;
+asm
+  call eax
+  cmp ax, di
+  je @finish
+  pushad
+  push esi
+  call NeedDrawGrenMark
+  cmp al, 0
+  popad
+  @finish:
+end;
+
+////////////////////////////////////////////////////////
 function Init():boolean;
 var
   jump_addr, buf:cardinal;
@@ -644,6 +668,9 @@ begin
   if not WriteJump(jump_addr, cardinal(@CMissile__ExitContactCallback_Patch), 5) then exit;
   jump_addr:=xrGame_addr+$2C5B5C;
   if not WriteJump(jump_addr, cardinal(@CMissile__OnHit_CanExplode_Patch), 31, true) then exit;
+
+  jump_addr:=xrGame_addr+$267BBE;
+  if not WriteJump(jump_addr, cardinal(@NeedDrawGrenMark_Patch), 5, true) then exit;
 
   result:=true;
 

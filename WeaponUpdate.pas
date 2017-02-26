@@ -25,12 +25,12 @@ var
   b:boolean;
 
 begin
+  buf:=GetBuffer(wpn);
+  if not buf.IsLaserInstalled() then exit;
+
   zerovec.x:=0;
   zerovec.y:=0;
-  zerovec.z:=0;
-
-
-  buf:=GetBuffer(wpn);
+  zerovec.z:=0;  
   laserdot_data:=buf.GetLaserDotData();
 
   //если в собственности Ќѕ—а и в консоли выставлено не использовать лазер - отключим
@@ -83,7 +83,7 @@ begin
       b:=(GetAngleCos(@viewdir, @dotdir)<laserdot_data.hud_treshold);
     end;
 
-    //if b or (not IsLaserdotCorrection()) then dist:=dist*0.85;    
+    if (not IsLaserdotCorrection()) then dist:=dist*0.85;    
 
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
@@ -91,7 +91,7 @@ begin
 
     buf.PlayLaserdotParticle(@dotpos, dist, true, b);
     buf.SetLaserDotParticleHudStatus(b);
-  end else if (GetOwner(wpn)=nil) or (GetCurrentState(wpn)<>EHudStates__eHidden) or (GetNextState(wpn)<>EHudStates__eHidden) then begin
+  end else if (GetOwner(wpn)=GetActor()) and (GetActorActiveItem()=wpn) then begin
     viewpos:=laserdot_data.world_offset;
     transform_tiny(GetXFORM(wpn), @dotpos, @viewpos);
     dotdir:=GetLastFD(wpn);
@@ -271,6 +271,9 @@ begin
     section:=GetInstalledUpgradeSection(wpn, i);
     section:=game_ini_read_string(section, 'section');
     if game_ini_line_exist(section, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'show_bones'), true);
+
+    //дл€ сокрыти€ костей, отвечающих за предыдущие апы ветки
+    if game_ini_line_exist(section, 'hide_bones_override') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override'), false);
   end;
 end;
 
@@ -424,7 +427,7 @@ begin
     //анимы от 3-го лица
     ReassignWorldAnims(wpn);
 
-    if (buf<>nil) and buf.IsLaserInstalled() then begin
+    if (buf<>nil) then begin
       ProcessLaserDot(wpn);
     end;
 
