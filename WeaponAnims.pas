@@ -79,11 +79,11 @@ begin
   if GetClassName(wpn) = 'WP_BM16' then begin
     cnt:=GetAmmoInMagCount(wpn);
     if cnt<=0 then
-      anim_name:=anim_name+'_0'
+      anm:=anm+'_0'
     else if cnt=1 then
-      anim_name:=anim_name+'_1'
+      anm:=anm+'_1'
     else
-      anim_name:=anim_name+'_2';
+      anm:=anm+'_2';
   end;
 end;
 
@@ -782,6 +782,13 @@ begin
   anim_name:='anm_reload';
   actor:=GetActor();
   buf:=GetBuffer(wpn);
+
+  if GetClassName(wpn)<>'WP_BM16' then begin
+    buf.ammo_cnt_to_reload:=-1;
+  end else begin
+    buf.ammo_cnt_to_reload:=2; //не более 2х
+  end;
+
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
@@ -795,9 +802,14 @@ begin
         anim_name:=anim_name+'_empty'; //у двустволок и так _0 потом модификатор прибавит
       end else if(CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         anim_name:=anim_name+'_only';
+        buf.ammo_cnt_to_reload:=1;
       end;
     end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
       anim_name:=anim_name+'_ammochange';
+      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+        anim_name:=anim_name+'_only';
+        buf.ammo_cnt_to_reload:=1;      
+      end;
     end;
 
     if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
@@ -1748,9 +1760,14 @@ begin
   //микшировние выстрелов:
   //CWeaponMagazined:PlayAnimShoot
   jump_addr:=xrGame_addr+$2CD0CF;
-  if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;  
+  if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
   //CWeaponPistol::PlayAnimShoot
   jump_addr:=xrGame_addr+$2C5597;
+  if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
+  //CWeaponBM16::PlayAnimShoot
+  jump_addr:=xrGame_addr+$2E016E;
+  if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
+  jump_addr:=xrGame_addr+$2E01CC;
   if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
 
   result:=true;

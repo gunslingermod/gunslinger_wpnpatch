@@ -71,8 +71,8 @@ begin
   if IsWeaponJammed(wpn) then begin
     SetAmmoTypeChangingStatus(wpn, $FF);
     mod_magsize:=curammocnt;
-  end else if (GetClassName(wpn)='WP_BM16') and (leftstr(GetActualCurrentAnim(wpn), length('anm_reload_only'))='anm_reload_only') then begin
-    mod_magsize:=1;
+  end else if (GetClassName(wpn)='WP_BM16') then begin
+    mod_magsize:=buf.ammo_cnt_to_reload;
   end else if buf.IsAmmoInChamber() and ((curammocnt=0) or ((GetAmmoTypeChangingStatus(wpn)<>$FF) and not buf.SaveAmmoInChamber() )) then begin
     mod_magsize:=def_magsize-1;
   end else begin

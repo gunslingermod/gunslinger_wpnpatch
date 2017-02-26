@@ -72,6 +72,8 @@ type
 
     ammos:array of byte;
     is_firstlast_ammo_swapped:boolean;
+    ammo_cnt_to_reload:integer;
+
 
 
     constructor Create(wpn:pointer);
@@ -174,6 +176,7 @@ begin
   _ammocnt_before_reload:=-1;
   _needs_unzoom:=false;
   _wanim_force_assign:=false;
+  ammo_cnt_to_reload:=-1;     //только 2стволы, максимальное число заряжаемых патронов
 
   _laser_enabled:= (Random>0.5);
   _laser_installed:=false;

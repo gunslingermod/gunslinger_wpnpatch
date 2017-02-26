@@ -57,10 +57,23 @@ begin
 
   end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
 
-    if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_changeammo_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_changeammo_detector_snd') then
-      result:='sndChangeCartridgeTypeDetector'
-    else
-      result:='sndChangeCartridgeType';
+    if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_changeammo_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_changeammo_detector_snd') then begin
+      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+       result:='sndChangeCartridgeTypeDetectorOnly'
+      end else begin
+        result:='sndChangeCartridgeTypeDetector';
+      end;
+    end else begin
+      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+        if GetCurrentAmmoCount(wpn)=1 then begin
+          result:='sndChangeCartridgeTypeOneOnly'
+        end else begin
+          result:='sndChangeCartridgeTypeOnly'
+        end;
+      end else begin
+        result:='sndChangeCartridgeType';
+      end;
+    end;
   end;
 
 
