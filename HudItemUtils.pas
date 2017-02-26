@@ -103,6 +103,10 @@ procedure CShootingObject__StartParticles(wpn:pointer; CParticlesObject:pointer;
 procedure CShootingObject__StopParticles(wpn:pointer; CParticlesObject:pointer); stdcall;
 procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdcall;
 
+function GetLastFP(wpn:pointer):FVector3;
+function GetLastFD(wpn:pointer):FVector3;
+function GetXFORM(wpn:pointer):pFMatrix4x4;stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -1460,5 +1464,24 @@ asm
     @finish:
   popad
 end;
+
+function GetLastFP(wpn:pointer):FVector3;
+begin
+  wpn:=pointer(cardinal(wpn)+$5B1);
+  result:=FVector3_copyfromengine(wpn);
+end;
+function GetLastFD(wpn:pointer):FVector3;
+begin
+  wpn:=pointer(cardinal(wpn)+$5C9);
+  result:=FVector3_copyfromengine(wpn);
+end;
+
+function GetXFORM(wpn:pointer):pFMatrix4x4; stdcall;
+asm
+  mov eax, wpn
+  add eax, $138
+  mov @result, eax
+end;
+
 
 end.

@@ -38,6 +38,8 @@ function GetDefaultDOFSpeed_Out():single; stdcall;
 function GetDefaultDOFTimeOffset():single;
 function IsConstZoomDOF():boolean; stdcall;
 function IsDofEnabled():boolean; stdcall;
+function IsLaserdotCorrection():boolean; stdcall;
+function IsNPCLasers():boolean; stdcall;
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils;
@@ -62,11 +64,15 @@ var
 //Сами консольные команды
   CCC_dyndof:CCC_Mask;
   CCC_constzoomdof:CCC_Mask;
+  CCC_laserdotdistcorrection:CCC_Mask;
+  CCC_npclasers:CCC_Mask;
 
 //маски для флагов
 const
   _mask_dyndof:cardinal=$1;
   _mask_constzoomdof:cardinal=$2;
+  _mask_laserdotcorrection:cardinal=$4;
+  _mask_npclasers:cardinal=$8;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -240,6 +246,16 @@ begin
   result:=((_console_bool_flags and _mask_constzoomdof)>0);
 end;
 
+function IsLaserdotCorrection():boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_laserdotcorrection)>0);
+end;
+
+function IsNPCLasers():boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_npclasers)>0);
+end;
+
 function GetDefaultActionDOF():FVector3; stdcall;
 begin
   result:=def_act_dof;
@@ -307,6 +323,10 @@ begin
   CConsole__AddCommand(@(CCC_dyndof.base));
   CCC_Mask__CCC_Mask(@CCC_constzoomdof, 'r2_const_zoomdof', @_console_bool_flags, _mask_constzoomdof);
   CConsole__AddCommand(@(CCC_constzoomdof.base));
+  CCC_Mask__CCC_Mask(@CCC_laserdotdistcorrection, 'laserdot_correction', @_console_bool_flags, _mask_laserdotcorrection);
+  CConsole__AddCommand(@(CCC_laserdotdistcorrection.base));
+  CCC_Mask__CCC_Mask(@CCC_npclasers, 'npc_lasers', @_console_bool_flags, _mask_npclasers);
+  CConsole__AddCommand(@(CCC_npclasers.base));
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
   hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);

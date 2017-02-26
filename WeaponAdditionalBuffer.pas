@@ -8,11 +8,17 @@ type dist_switch = record
   startdist:single;
 end;
 
+type dist_koefs = record
+  startdist:single;
+  multiplier:single;
+end;
+
 type laserdot_params = packed record
     particles_cur:PChar;
     bone_name:PChar;
     ray_bones:PChar;
     offset:FVector3;
+    world_offset:FVector3;
     always_hud:boolean;
     always_world:boolean;
     hud_treshold:single;
@@ -46,6 +52,7 @@ type
     _laserdot:laserdot_params;
     _laserdot_particle_object:pointer;
     _laserdot_particles_distwitch:array of dist_switch;
+    _laserdot_dist_multipliers_switch:array of dist_koefs;
 
 
     _is_ammo_in_chamber:boolean;
@@ -90,7 +97,7 @@ type
     function GetLaserDotData():laserdot_params;
     procedure InstallLaser(params_section:PChar);
     procedure SetLaserEnabledStatus(status:boolean);
-    procedure PlayLaserdotParticle(pos:pFVector3; dist:single);
+    procedure PlayLaserdotParticle(pos:pFVector3; dist:single; hud_mode:boolean=false);
     procedure StopLaserdotParticle();
     procedure SetLaserDotParticleHudStatus(status:boolean);
 
@@ -123,7 +130,7 @@ type
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger;
 
 { WpnBuf }
 
@@ -156,6 +163,7 @@ begin
   _laserdot_particle_object:=nil;
   _laserdot.particles_cur:=nil;
   SetLength(self._laserdot_particles_distwitch, 0);
+  setlength(self._laserdot_dist_multipliers_switch, 0);
 
   setlength(ammos, 0);
   is_firstlast_ammo_swapped:=false;
@@ -171,6 +179,7 @@ destructor WpnBuf.Destroy;
 begin
   StopLaserdotParticle();
   setlength(self._laserdot_particles_distwitch, 0);
+  setlength(self._laserdot_dist_multipliers_switch, 0);
   setlength(ammos, 0);
   _SetWpnBufPtr(_my_wpn, nil);
   inherited;
@@ -660,6 +669,7 @@ begin
   _laserdot_particle_object:=nil;
   _laserdot.particles_cur:=nil;
 
+  //Читаем все варианты партиклов точки
   len:=game_ini_r_int_def(params_section, 'particles_count', 1);
   if len<1 then len:=1;
 
@@ -674,11 +684,28 @@ begin
     end;
   end;
 
+  //читаем все переключатели дистанции
+  len:=game_ini_r_int_def(params_section, 'laserdot_dists_count', 0);
+  if len<0 then len:=0;
+  setlength(self._laserdot_dist_multipliers_switch, len+1);
+  self._laserdot_dist_multipliers_switch[0].startdist:=0;
+  self._laserdot_dist_multipliers_switch[0].multiplier:=1;  
+
+  for i:=1 to len do begin
+    self._laserdot_dist_multipliers_switch[i].multiplier:=game_ini_r_single(params_section, pchar('laserdot_dist_scale_'+inttostr(i)));
+    self._laserdot_dist_multipliers_switch[i].startdist:=game_ini_r_single(params_section, pchar('laserdot_dist_treshold_'+inttostr(i)));
+    if self._laserdot_dist_multipliers_switch[i].startdist<self._laserdot_dist_multipliers_switch[i-1].startdist then self._laserdot_dist_multipliers_switch[i].startdist:=self._laserdot_dist_multipliers_switch[i-1].startdist;
+  end;
+
   _laserdot.ray_bones:=game_ini_read_string(params_section, 'laser_ray_bones');
   _laserdot.bone_name:=game_ini_read_string(params_section, 'laserdot_attach_bone');
   _laserdot.offset.x:=game_ini_r_single_def(params_section, 'laserdot_attach_offset_x', 0.0);
   _laserdot.offset.y:=game_ini_r_single_def(params_section, 'laserdot_attach_offset_y', 0.0);
   _laserdot.offset.z:=game_ini_r_single_def(params_section, 'laserdot_attach_offset_z', 0.0);
+
+  _laserdot.world_offset.x:=game_ini_r_single_def(params_section, 'laserdot_world_attach_offset_x', 0.0);
+  _laserdot.world_offset.y:=game_ini_r_single_def(params_section, 'laserdot_world_attach_offset_y', 0.0);
+  _laserdot.world_offset.z:=game_ini_r_single_def(params_section, 'laserdot_world_attach_offset_z', 0.0);
 
   _laserdot.always_hud:=game_ini_r_bool_def(GetHUDSection(_my_wpn), 'laserdot_always_hud', false);
   _laserdot.always_world:=game_ini_r_bool_def(GetHUDSection(_my_wpn), 'laserdot_always_world', false);
@@ -691,31 +718,83 @@ begin
   result:=self._laserdot;
 end;
 
-procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single);
+procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; hud_mode:boolean=false);
 var
-  zero_vel:FVector3;
-  index, i:integer;
+  zero_vel, viewpos:FVector3;
+  index, i, l:integer;
+  newdist, tmpdist, dist_to_cam:single;
 begin
   if (not self.IsLaserInstalled) or (not self.IsLaserEnabled) then exit;
 
-  if length(self._laserdot_particles_distwitch)>1 then begin
-    index:=-1;
-    for i:=0 to length(self._laserdot_particles_distwitch)-2 do begin
-      if (dist>=_laserdot_particles_distwitch[i].startdist) and (dist<=_laserdot_particles_distwitch[i+1].startdist) then begin
-        index:=i;
-        break;
-      end;
-    end;
-    if index=-1 then index := length(self._laserdot_particles_distwitch)-1;
-  end else index:=0;
+  if hud_mode then begin
+    if not IsLaserdotCorrection() then begin
+      if length(self._laserdot_particles_distwitch)>1 then begin
+        index:=-1;
+        for i:=0 to length(self._laserdot_particles_distwitch)-2 do begin
+          if (dist>=_laserdot_particles_distwitch[i].startdist) and (dist<=_laserdot_particles_distwitch[i+1].startdist) then begin
+            index:=i;
+            break;
+          end;
+        end;
+        if index=-1 then index := length(self._laserdot_particles_distwitch)-1;
+      end else index:=0;
 
-  if _laserdot.particles_cur<>self._laserdot_particles_distwitch[index].name then begin
-    StopLaserdotParticle();
+      if _laserdot.particles_cur<>self._laserdot_particles_distwitch[index].name then begin
+        StopLaserdotParticle();
+      end;
+
+      _laserdot.particles_cur:=_laserdot_particles_distwitch[index].name;
+    end else begin
+      if _laserdot.particles_cur<>self._laserdot_particles_distwitch[0].name then begin
+        StopLaserdotParticle();
+      end;
+      _laserdot.particles_cur:=_laserdot_particles_distwitch[0].name;
+      //посмотрим, на какой дистанции от камеры точка
+      viewpos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+      v_sub(@viewpos, pos);
+      dist_to_cam:=v_length(@viewpos);
+      tmpdist:=dist_to_cam;
+      //messenger.SendMessage(PChar(floattostr(tmpdist)));
+
+      //модифицируем дистанцию, на которой будем отображать точку.
+
+      newdist:=0;
+      l:=length(self._laserdot_dist_multipliers_switch)-1;
+      for i:=1 to l do begin
+        if tmpdist>_laserdot_dist_multipliers_switch[i].startdist-_laserdot_dist_multipliers_switch[i-1].startdist then begin
+          tmpdist:=tmpdist-(_laserdot_dist_multipliers_switch[i].startdist-_laserdot_dist_multipliers_switch[i-1].startdist);
+          newdist:=newdist+(_laserdot_dist_multipliers_switch[i].startdist-_laserdot_dist_multipliers_switch[i-1].startdist)*_laserdot_dist_multipliers_switch[i-1].multiplier;
+        end else begin
+          newdist:=newdist+tmpdist*_laserdot_dist_multipliers_switch[i-1].multiplier;
+          tmpdist:=0;
+          break;
+        end;
+      end;
+      newdist:=newdist+tmpdist*self._laserdot_dist_multipliers_switch[l].multiplier;
+
+      //messenger.SendMessage(PChar(floattostr(newdist)));
+
+      tmpdist:=dist_to_cam-newdist;
+      v_normalize(@viewpos);
+      v_mul(@viewpos, tmpdist);
+      v_add(pos, @viewpos);
+    end;
+  end else begin
+    if length(_laserdot_particles_distwitch)>0 then begin
+      if _laserdot.particles_cur<>self._laserdot_particles_distwitch[1].name then begin
+        StopLaserdotParticle();
+      end;
+      _laserdot.particles_cur:=_laserdot_particles_distwitch[1].name;
+    end else begin
+      _laserdot.particles_cur:=_laserdot_particles_distwitch[0].name;
+    end;
   end;
+
+
+
   zero_vel.x:=0;
   zero_vel.y:=0;
   zero_vel.z:=0;
-  _laserdot.particles_cur:=_laserdot_particles_distwitch[index].name;
   CShootingObject__StartParticles(self._my_wpn, @self._laserdot_particle_object, _laserdot.particles_cur, pos, @zero_vel, false);
 
 end;

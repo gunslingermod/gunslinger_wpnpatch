@@ -26,8 +26,6 @@ var
   dist:single;
   HID:pointer;
 
-  rd:collide__ray_defs;
-  pp:SPickParam;
 begin
   zerovec.x:=0;
   zerovec.y:=0;
@@ -35,22 +33,25 @@ begin
 
 
   buf:=GetBuffer(wpn);
-  HID :=CHudItem__HudItemData(wpn);
-  if HID=nil then begin
-    buf.StopLaserdotParticle();
-    exit;
-  end;
-
-
   laserdot_data:=buf.GetLaserDotData();
+
+  //если в собственности НПСа и в консоли выставлено не использовать лазер - отключим
+  if (GetOwner(wpn)<>nil) and (GetOwner(wpn)<>GetActor()) and not IsNPCLasers()then begin
+    buf.SetLaserEnabledStatus(false);
+  end;
 
   if (buf.IsLaserEnabled()) then begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
   end else begin
-    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);  
+    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+    buf.StopLaserdotParticle();
+    exit; 
   end;
 
-  if (buf.IsLaserEnabled()) and (GetActorActiveItem()=wpn)then begin // and (not IsDemoRecord()) then begin
+
+  HID :=CHudItem__HudItemData(wpn);
+  if (HID<>nil) and (GetActorActiveItem()=wpn)then begin // and (not IsDemoRecord()) then begin
+    //1st person view
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       //в режиме прицеливания привязываемся к камере - иначе при настроке прицеливания у оружия будем проводить прямую через 3 точки :(
       viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
@@ -72,29 +73,12 @@ begin
       attachable_hud_item__GetBoneOffsetPosDir(HID, laserdot_data.bone_name, @dotpos, @dotdir, @laserdot_data.offset);
     end;
 
-
-    //позаимствовано из CHudTarget, вместе с колбэком
-    rd.dir:= dotdir;
-    rd.start:=dotpos;
-    rd.range:=500;
-    rd.flags:=1;
-    rd.tgt:=rq_target__rqtBoth;
-
-    pp.RQ.O:=nil;
-    pp.RQ.range:=500;
-    pp.RQ.element:=-1;
-    pp.power:=1.0;
-    pp.pass:=0;
-
-    Level_RayQuery(@rd, pointer(xrgame_addr+$4d8940), @pp, nil, dynamic_cast(GetActor(), 0, RTTI_CActor, RTTI_CObject, false));
-    dist:=pp.RQ.range*0.85;
+    dist:=TraceAsView(@dotpos, @dotdir, dynamic_cast(GetActor(), 0, RTTI_CActor, RTTI_CObject, false))*0.99;
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
     dotpos.z:=dotpos.z+dotdir.z*dist;
 
-//    Messenger.SendMessage(PChar('wpn dot dist:'+Floattostr(pp.RQ.range)));
-    buf.PlayLaserdotParticle(@dotpos, dist);
-
+    buf.PlayLaserdotParticle(@dotpos, dist, true);
 
     if laserdot_data.always_world then
       buf.SetLaserDotParticleHudStatus(false)
@@ -104,6 +88,18 @@ begin
       viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
       buf.SetLaserDotParticleHudStatus(GetAngleCos(@viewdir, @dotdir)<laserdot_data.hud_treshold);
     end;
+  end else if (GetOwner(wpn)=nil) or (GetCurrentState(wpn)<>EHudStates__eHidden) then begin
+    viewpos:=laserdot_data.world_offset;
+    transform_tiny(GetXFORM(wpn), @dotpos, @viewpos);
+    dotdir:=GetLastFD(wpn);
+    dist:=TraceAsView(@dotpos, @dotdir, dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CObject, false))*0.99;
+    dotpos.x:=dotpos.x+dotdir.x*dist;
+    dotpos.y:=dotpos.y+dotdir.y*dist;
+    dotpos.z:=dotpos.z+dotdir.z*dist;
+    buf.PlayLaserdotParticle(@dotpos, dist, false);
+    buf.SetLaserDotParticleHudStatus(false);
+
+    //messenger.SendMessage(PChar(inttohex(cardinal(wpn),8)));
   end else begin
     buf.StopLaserdotParticle();
   end;
@@ -370,7 +366,6 @@ var
   sect:PChar;
 
   offset:integer;
-  dof_end_time:cardinal;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
 

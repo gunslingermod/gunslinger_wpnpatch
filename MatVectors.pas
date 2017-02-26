@@ -36,7 +36,10 @@ interface
   procedure v_sub(from:pFVector3; what:pFVector3); stdcall;
   procedure v_mul(v:pFVector3; n:single); stdcall;
   procedure v_normalize(v:pFVector3);stdcall;
-  procedure v_add(from:pFVector3; what:pFVector3); stdcall;  
+  procedure v_add(from:pFVector3; what:pFVector3); stdcall;
+  function PointToPlaneDist(plane:pFVector4; point:pFVector3):single;
+  function v_length(v:pFVector3):single;
+  procedure transform_tiny(m:pFMatrix4x4; dest:pFVector3; v:pFVector3);
 
 implementation
 uses Math;
@@ -163,5 +166,22 @@ begin
   v.z:=v.z*n;
 end;
 
+function PointToPlaneDist(plane:pFVector4; point:pFVector3):single;
+begin
+  result:=abs((plane.x*point.x + plane.y*point.y + plane.z*point.z + plane.w)/sqrt(plane.x*plane.x + plane.y*plane.y + plane.z*plane.z));
+end;
+
+function v_length(v:pFVector3):single;
+begin
+  result:=sqrt(v.x*v.x + v.y*v.y + v.z*v.z)
+end;
+
+
+procedure transform_tiny(m:pFMatrix4x4; dest:pFVector3; v:pFVector3);
+begin
+  dest.x:=v.x*m.i.x + v.y*m.j.x + v.z*m.k.x + m.c.x;
+  dest.y:=v.x*m.i.y + v.y*m.j.y + v.z*m.k.y + m.c.y;
+  dest.z:=v.x*m.i.z + v.y*m.j.z + v.z*m.k.z + m.c.z;    
+end;
 
 end.

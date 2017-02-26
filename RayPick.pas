@@ -36,6 +36,7 @@ type rq_callback = function (res:prq_result; data:pointer):boolean;stdcall;
 
 function Level_RayPick(start:pFVector3; dir:pFVector3; range:single; tgt:cardinal; R:prq_result; ignore_object:pointer):boolean; stdcall;
 function Level_RayQuery(R:pcollide__ray_defs; CB:pointer; params:pointer; tb:pointer; ignore_object:pointer):boolean; stdcall;
+function TraceAsView(pos:pFVector3; dir:pFVector3; ignore_object:pointer):single;
 
 function Init():boolean;
 
@@ -96,6 +97,28 @@ asm
   popad
 end;
 
+
+function TraceAsView(pos:pFVector3; dir:pFVector3; ignore_object:pointer):single;
+var
+  rd:collide__ray_defs;
+  pp:SPickParam;
+begin
+    //позаимствовано из CHudTarget, вместе с колбэком
+    rd.dir:= dir^;
+    rd.start:= pos^;
+    rd.range:= 1000;
+    rd.flags:=1;
+    rd.tgt:=rq_target__rqtBoth;
+
+    pp.RQ.O:=nil;
+    pp.RQ.range:=1000;
+    pp.RQ.element:=-1;
+    pp.power:=1.0;
+    pp.pass:=0;
+
+    Level_RayQuery(@rd, pointer(xrgame_addr+$4d8940), @pp, nil, ignore_object);
+    result:=pp.RQ.range;
+end;
 
 
 function Init():boolean;
