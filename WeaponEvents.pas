@@ -8,7 +8,7 @@ procedure OnWeaponHide(wpn:pointer);stdcall;
 procedure OnWeaponShow(wpn:pointer);stdcall;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -38,8 +38,10 @@ const
 begin
   //возвратить false, если разряжать оружие сейчас нельзя
   result := false;
+
   hud_sect:=GetHUDSection(wpn);
   if (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
+    result:=true;
     exit;
   end;
   if WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_unload_mag', 'sndUnload') then begin
@@ -496,11 +498,11 @@ procedure OnJammedHintShow(); stdcall
 var
   wpn:pointer;
 begin
-  wpn:=GetActorActiveItem();
+{  wpn:=GetActorActiveItem();
   if (wpn=nil) or not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
   if not (IsExplosed(wpn) or (IsActionProcessing(wpn) and (leftstr(GetCurAnim(wpn), length('anm_fakeshoot'))<>'anm_fakeshoot'))) then begin
-    ShowCustomMessage('gun_jammed', true);
-  end;
+    Messenger.SendMessage('gun_jammed');
+  end;}
 end;
 
 procedure OnJammedHintShow_Patch(); stdcall
@@ -515,12 +517,14 @@ procedure OnEmptyClick(wpn:pointer);stdcall;
 begin
   //При патчинге мы вырезали воспроизведение звука. Исправим это недоразумение одновременно с проигрыванием анимы.
   if IsWeaponJammed(wpn) then begin
+    if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then Messenger.SendMessage('gunsl_msg_weapon_jammed');
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndJammedClick', nil, 0, false, true)
     end else begin
       WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot', 'sndJammedClick', nil, 0, false, true);
     end;
   end else begin
+    if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then Messenger.SendMessage('gunsl_msg_weapon_empty');
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndEmptyClick', nil, 0, false, true)
     end else begin

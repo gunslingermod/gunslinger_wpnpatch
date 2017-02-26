@@ -94,6 +94,7 @@ function WpnUpdate(wpn:pointer):boolean; stdcall; //возвращает, стоит ли продолж
 const a:single = 1.0;
 var buf:WpnBuf;
 begin
+
     result:=true;
     if get_server_object_by_id(GetID(wpn))=nil then exit;
 

@@ -19,8 +19,8 @@ interface
   function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
   function alife_release(srv_obj:pointer):boolean;stdcall;
   function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
-  procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall;
-
+{  procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall; //старое, дублирует функционал UIUtils}
+  function translate(text:PChar):PChar;stdcall;
 
 implementation
 uses BaseGameData, SysUtils, strutils, windows;
@@ -348,7 +348,7 @@ asm
   popad
 end;
 
-procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall;
+{procedure ShowCustomMessage(message_name:PChar; b:boolean);stdcall;
 asm
   pushad
     cmp message_name, 0
@@ -370,6 +370,19 @@ asm
     call eax
 
     @finish:
+  popad
+end;   }
+
+
+function translate(text:PChar):PChar;stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    add eax, $23d4f0
+    push text
+    call eax
+    mov @result, eax
+    add esp, 4
   popad
 end;
 

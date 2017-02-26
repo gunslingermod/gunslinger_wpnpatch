@@ -19,7 +19,9 @@ uses
   HudTransparencyFix in 'HudTransparencyFix.pas',
   WeaponAdditionalBuffer in 'WeaponAdditionalBuffer.pas',
   DetectorUtils in 'DetectorUtils.pas',
-  CommonUpdate in 'CommonUpdate.pas';
+  CommonUpdate in 'CommonUpdate.pas',
+  Messenger in 'Messenger.pas',
+  UIUtils in 'UIUtils.pas';
 
 {$R *.res}
 
@@ -43,6 +45,7 @@ begin
   WeaponAnims.Init;
   DetectorUtils.Init;
   ActorUtils.Init;
+//  Messenger.Init;
 //  CommonUpdate.Init;
 //  HudTransparencyFix.Init;
 end.
