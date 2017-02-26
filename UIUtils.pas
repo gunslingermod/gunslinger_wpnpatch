@@ -9,6 +9,7 @@ function AddCustomStatic(cuigamecustom_this: pointer; id:PChar; bSingleInstance:
 procedure CUILines__SetText(cuilines: pointer; msg:PChar); stdcall;
 procedure virtual_CUIWindow__Show (cuiwindow: pointer; status:cardinal); stdcall;
 procedure CustomStaticSetText(sdrawstaticstruct:pointer; text:pchar); stdcall;
+function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
 
 
 implementation
@@ -75,6 +76,19 @@ asm
     call eax
 
     @finish:
+  popad
+end;
+
+function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    lea ecx, [eax+$10]
+
+    mov eax, xrGame_addr
+    add eax, $43df30
+    call eax
+    mov @result, eax 
   popad
 end;
 

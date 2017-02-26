@@ -307,7 +307,7 @@ begin
     pushfd
       push anm_hide
       push esi
-      call anm_std_selector  //получаем строку с именем анимы
+      call anm_std_selector   //получаем строку с именем анимы
       mov ecx, [esp+$28]      //запоминаем адрес возврата
       mov [esp+$28], eax      //кладем на его место результирующую строку
       mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
@@ -801,12 +801,12 @@ end;
 function NeedAssignAnim(act:pointer):boolean; stdcall;
 begin
   result:=false;
-  if GetActorActionState(act, actMovingForward)<>GetActorActionState(act, actMovingForward, true)
-    or GetActorActionState(act, actMovingBack)<>GetActorActionState(act, actMovingBack, true)
-    or GetActorActionState(act, actMovingLeft)<>GetActorActionState(act, actMovingLeft, true)
-    or GetActorActionState(act, actMovingRight)<>GetActorActionState(act, actMovingRight, true)
-    or GetActorActionState(act, actCrounch)<>GetActorActionState(act, actCrounch, true)
-    or GetActorActionState(act, actSlow)<>GetActorActionState(act, actSlow, true)
+  if GetActorActionState(act, actMovingForward)<>GetActorActionState(act, actMovingForward, mState_OLD)
+    or GetActorActionState(act, actMovingBack)<>GetActorActionState(act, actMovingBack, mState_OLD)
+    or GetActorActionState(act, actMovingLeft)<>GetActorActionState(act, actMovingLeft, mState_OLD)
+    or GetActorActionState(act, actMovingRight)<>GetActorActionState(act, actMovingRight, mState_OLD)
+    or GetActorActionState(act, actCrounch)<>GetActorActionState(act, actCrounch, mState_OLD)
+    or GetActorActionState(act, actSlow)<>GetActorActionState(act, actSlow, mState_OLD)
   then begin
     result:=true;
   end;
@@ -909,8 +909,7 @@ begin
 end;
 //---------------------------------------Не даем прицелиться при локе-------------------------------------------------
 procedure AimAnimLockFix; stdcall;
-begin
-  asm
+asm
     push eax
     //Установить ZF=0, если целиться не можем
     cmp byte ptr [esi+$494], 0
@@ -920,7 +919,7 @@ begin
     xor al, al
     pushad
       push esi
-      call WeaponAdditionalBuffer.CanAimNow
+      call WeaponEvents.OnWeaponAimIn
       cmp al, 1
     popad
     jne @compare
@@ -930,7 +929,24 @@ begin
     @finish:
     pop eax
     ret
-  end;
+end;
+
+//-------------------------------Не даем выйти из прицеливания раньше времени--------------------------------------
+procedure AimOutLockFix; stdcall;
+asm
+  pushad
+    push esi
+    call WeaponEvents.OnWeaponAimOut
+    cmp al, 0
+  popad
+  je @finish
+
+    mov eax, [esi]
+    mov edx, [eax+$168]
+    mov ecx, esi
+    call edx //wpn->OnZoomOut()
+  @finish:
+  ret
 end;
 //---------------------------------------Не даем стрелять при локе-------------------------------------------------
 procedure ShootAnimLockFix; stdcall;
@@ -1060,6 +1076,8 @@ begin
   //для прицеливания
   jump_addr:=xrGame_addr+$2BECE4;
   if not WriteJump(jump_addr, cardinal(@AimAnimLockFix), 7, true) then exit;
+  jump_addr:=xrGame_addr+$2BED9B;
+  if not WriteJump(jump_addr, cardinal(@AimOutLockFix), 12, true) then exit;
 
   //для выстрелов
   jump_addr:=xrGame_addr+$2CFE69;

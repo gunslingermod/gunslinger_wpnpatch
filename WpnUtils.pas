@@ -62,6 +62,9 @@ procedure SetCurrentState(wpn:pointer; status:cardinal); stdcall;
 procedure SetNextState(wpn:pointer; status:cardinal); stdcall;
 
 procedure SetZoomStatus(wpn:pointer; status:boolean); stdcall;
+function IsAimToggle():boolean; stdcall;
+
+function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -1022,6 +1025,26 @@ begin
     mov eax, wpn
     mov [eax+$69c], 0
   end;
+end;
+
+function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdcall;
+asm
+  pushad
+    mov ecx, wpn
+    mov eax, [ecx]
+    mov eax, [eax+$64]
+    push flags
+    push cmd
+    call eax
+    mov @result, al
+  popad
+end;
+
+function IsAimToggle():boolean; stdcall;
+asm
+  mov eax, xrgame_addr
+  add eax, $64ec5c
+  movzx eax, byte ptr [eax]
 end;
 
 

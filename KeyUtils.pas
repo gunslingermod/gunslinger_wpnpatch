@@ -3,6 +3,10 @@ unit KeyUtils;
 interface
 
 const
+
+  kActPress:cardinal = 1;
+  kActRelease:cardinal = 2;
+
 	kLEFT:cardinal=$0;
 	kRIGHT:cardinal=$1;
 	kUP:cardinal=$2;

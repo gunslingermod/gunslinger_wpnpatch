@@ -64,6 +64,7 @@ type
   function CanAimNow(wpn:pointer):boolean;stdcall;
   function CanBoreNow(wpn:pointer):boolean;stdcall;
   function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
+  function CanLeaveAimNow(wpn:pointer):boolean;stdcall;
   procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
 
   function IsReloaded(wpn:pointer):boolean;stdcall;
@@ -97,6 +98,7 @@ begin
 
   _reloaded:=false;
   _ammocnt_before_reload:=-1;
+  _needs_unzoom:=false;
 
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
@@ -343,6 +345,40 @@ begin
     result:=true;
 end;
 
+function CanLeaveAimNow(wpn:pointer):boolean;stdcall;
+var
+  buf: WpnBuf;
+  act:pointer;
+  hud_sect, scope:PChar;
+begin
+  //Выходить из зума запрещено при действиях с оружием из-за опасности некорректной работы анимации выхода из прицеливания
+  //Но если нам нужен эффект "выхода наполовину" - то разрешать его надо
+  //Соответственно, разрешение на "полуприцеливание" надо прописывать в конфиге самого оружия
+
+  //Если на оружии стоит прицел - то мы сначала смотрим, разрешает ли оружие состояние "полуприцела", а затем - разрешает ли установленный прицел.
+  result:=true;
+
+  buf := GetBuffer(wpn);
+  act := GetActor();
+  if (buf = nil) or (act=nil) or (act<>GetOwner(wpn))  then exit;
+
+  if (IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim_start'))<>'anm_idle_aim_start') then begin
+    hud_sect:=GetHUDSection(wpn);
+    if game_ini_line_exist(hud_sect, 'allow_halfaimstate') and game_ini_r_bool(hud_sect, 'allow_halfaimstate') then begin
+      if IsScopeAttached(wpn) then begin
+        scope:=GetCurrentScopeSection(wpn);
+        if not game_ini_line_exist(scope, 'allow_halfaimstate') or not game_ini_r_bool(scope, 'allow_halfaimstate') then begin
+          result:=false;
+        end;
+      end;
+    end else begin
+      result:=false;
+    end; 
+  end;
+
+
+end;
+
 function CanBoreNow(wpn:pointer):boolean;stdcall;
 var hud_sect:string;
 begin
@@ -358,7 +394,8 @@ begin
 end;
 
 function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
-var anm_name:string;
+var
+  anm_name:string;
   hud_sect:PChar;
   act:pointer;
   cur_param:string;
@@ -377,16 +414,15 @@ begin
     end;
   end else begin
     result:=true;
-    if IsHolderInSprintState(wpn) then begin
-      act:=GetActor();
+    //Если мы в спринте сейчас - то предварительно надо проиграть аниму выхода из него
+    act:=GetActor();
+    if (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
-
-      if (act<>nil) and (act = GetOwner(wpn)) then begin
-        PlayHudAnim(wpn, PChar(anm_name), true);
-        MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
-        SetActorActionState(act, actModSprintStarted, false);
-      end;
+      PlayHudAnim(wpn, PChar(anm_name), true);
+      MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
+      SetActorActionState(act, actModSprintStarted, false);
+      SetActorActionState(act, actSprint, false, mState_WISHFUL);
     end;
   end;
 end;

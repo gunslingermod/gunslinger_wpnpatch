@@ -6,6 +6,8 @@ function Init:boolean;
 procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
 procedure OnWeaponHide(wpn:pointer);stdcall;
 procedure OnWeaponShow(wpn:pointer);stdcall;
+function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
+function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 
 implementation
 uses Messenger, BaseGameData, GameWrappers, WpnUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils;
@@ -586,6 +588,41 @@ begin
     end;
   end;
 end;
+
+
+function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
+var
+  act:pointer;
+  anm_name:string;
+begin
+  result:=CanAimNow(wpn);
+  act:=GetActor();
+  if not result and (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
+      SetActorActionState(act, actSprint, false, mState_WISHFUL);
+  end;
+{    anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
+    MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anm_name), true);
+    PlayHudAnim(wpn, PChar(anm_name), true);
+    MagazinedWpnPlaySnd(wpn, 'sndSprintEnd');
+    SetActorActionState(act, actModSprintStarted, false);
+    SetActorActionState(act, actSprint, false);
+
+  end;}
+end;
+
+
+function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
+begin
+  //ѕри возврате false выход из зума произведен не будет
+  //≈сли у нас выполн€етс€ какое-то действие в прицеливании (стрельба, например)
+  //» в конфигах прописано запрещение выхода из зума/на оружии стоит прицел
+  //то запоминаем, что мы хотели закончить прицеливание
+  //«атем в апдейте актора ждем окончани€ действи€ и вручную вызываем повторную попытку выйти из зума
+  result:=CanLeaveAimNow(wpn);
+//  log(booltostr(result, true));
+  if not result then ActorUtils.NeedUnZoom_flag:=true;
+end;
+
 
 function Init:boolean;
 var

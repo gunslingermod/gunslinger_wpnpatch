@@ -1,18 +1,6 @@
 unit ActorUtils;
 
 interface
-function GetActor():pointer; stdcall;
-function GetActorActionState(stalker:pointer; mask:cardinal; previous_state:boolean = false):boolean; stdcall;
-procedure CreateObjectToActor(section:PChar); stdcall;
-function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только для актора, для других всегда вернет false!
-function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
-function IsHolderInAimState(wpn:pointer):boolean;stdcall;
-procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
-function GetActorActiveItem():pointer; stdcall;
-function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
-function Init():boolean; stdcall;
-function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
-
 const
   actMovingForward:cardinal = $1;
   actMovingBack:cardinal = $2;
@@ -21,14 +9,37 @@ const
   actCrounch:cardinal = $10;
   actSlow:cardinal = $20;
   actSprint:cardinal = $1000;
-  
+
   actAimStarted:cardinal = $4000000;
   actShowDetectorNow:cardinal = $8000000;
   actModSprintStarted:cardinal = $10000000;
 
 
+  mState_WISHFUL:cardinal = $58c;
+  mState_OLD:cardinal = $590;
+  mState_REAL:cardinal = $594;
+
+
+
+function GetActor():pointer; stdcall;
+function GetActorActionState(stalker:pointer; mask:cardinal; state:cardinal=$594):boolean; stdcall;
+procedure CreateObjectToActor(section:PChar); stdcall;
+function IsHolderInSprintState(wpn:pointer):boolean; stdcall; //работает только для актора, для других всегда вернет false!
+function IsHolderHasActiveDetector(wpn:pointer):boolean; stdcall;
+function IsHolderInAimState(wpn:pointer):boolean;stdcall;
+procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; state:cardinal=$594); stdcall;
+function GetActorActiveItem():pointer; stdcall;
+function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
+function Init():boolean; stdcall;
+function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
+
+
+
+var NeedUnZoom_flag:boolean;
+
+
 implementation
-uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils;
+uses Messenger, BaseGameData, WpnUtils, GameWrappers, DetectorUtils,WeaponAdditionalBuffer, sysutils, KeyUtils, UIUtils;
 
 function GetActor():pointer; stdcall;
 begin
@@ -40,14 +51,11 @@ begin
   end;
 end;
 
-function GetActorActionState(stalker:pointer; mask:cardinal; previous_state:boolean = false):boolean; stdcall;
+function GetActorActionState(stalker:pointer; mask:cardinal; state:cardinal=$594):boolean; stdcall;
 asm
   push ecx
   push edx
-  mov edx, $594
-  cmp previous_state, 0
-  je @body
-  mov edx, $590
+  mov edx, state
 
   @body:
   mov ecx, mask
@@ -63,13 +71,10 @@ asm
   pop ecx
 end;
 
-procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; previous_state:boolean = false); stdcall;
+procedure SetActorActionState(stalker:pointer; mask:cardinal; set_value:boolean; state:cardinal=$594); stdcall;
 asm
   pushad
-  mov edx, $594
-  cmp previous_state, 0
-  je @body
-  mov edx, $590
+  mov edx, state
 
   @body:
   mov eax, stalker
@@ -176,16 +181,28 @@ asm
   mov @result, eax
 end;
 
-procedure ProcessZoomIn(act:pointer);
+procedure ProcessZoom(act:pointer);
 var
   itm:pointer;
 begin
-  //itm:=GetActorActiveItem();
-  //if (itm=nil) or not WpnCanShoot(PChar(GetClassName(itm))) then exit;
+  itm:=GetActorActiveItem();
+  if (itm=nil) or not WpnCanShoot(PChar(GetClassName(itm))) then exit;
 
   if IsActionKeyPressed(kWPN_ZOOM) then begin
-    //SetZoomStatus(itm, true);
-    log('ForceZoomIn!');
+    if not IsAimToggle() and (CDialogHolder__TopInputReceiver()=nil) and CanAimNow(itm) and not IsAimNow(itm) then begin
+      virtual_Action(itm, kWPN_ZOOM, kActPress);
+      NeedUnZoom_flag := false;
+    end;
+  end;
+
+  if NeedUnZoom_flag then begin
+    if IsAimNow(itm) then begin
+      if CanLeaveAimNow(itm) then begin
+        virtual_Action(itm, kWPN_ZOOM, kActRelease);
+      end;
+    end else begin
+      NeedUnZoom_flag:=false;
+    end;
   end;
 end;
 
@@ -214,7 +231,7 @@ begin
   end;
 
 
-  ProcessZoomIn(act);
+  ProcessZoom(act);
 end;
 
 procedure ActorUpdate_Patch(); stdcall
@@ -276,6 +293,7 @@ end;
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
+  NeedUnZoom_flag:=false;
   result:=false;
   jmp_addr:=xrGame_addr+$261DF6;
   if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;

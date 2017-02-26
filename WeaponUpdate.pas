@@ -5,7 +5,7 @@ function Init:boolean;
 function WpnUpdate(wpn:pointer):boolean; stdcall;
 
 implementation
-uses BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils;
+uses Messenger, BaseGameData, GameWrappers, WpnUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils;
 
 var patch_addr:cardinal;
   tst_light:pointer;
@@ -13,14 +13,26 @@ var patch_addr:cardinal;
 
 procedure ProcessAmmo(wpn: pointer);
 var hud_sect:PChar;
-    prefix:string;
+    prefix, prefix_hide, prefix_var:string;
     i:integer;
     start_index, finish_index, limitator:integer;
 begin
   hud_sect:=GetHUDSection(wpn);
   if not game_ini_line_exist(hud_sect, 'use_ammo_bones') or (game_ini_r_bool(hud_sect, 'use_ammo_bones')=false) then exit;
   prefix:= game_ini_read_string(hud_sect, 'ammo_bones_prefix');
-  if not game_ini_line_exist(hud_sect, 'start_ammo_bone_index') then
+
+  if game_ini_line_exist(hud_sect, 'ammo_hide_bones_prefix') then
+    prefix_hide:= game_ini_read_string(hud_sect, 'ammo_hide_bones_prefix')
+  else
+    prefix_hide:='';
+
+  if game_ini_line_exist(hud_sect, 'ammo_var_bones_prefix') then
+    prefix_var:= game_ini_read_string(hud_sect, 'ammo_var_bones_prefix')
+  else
+    prefix_var:='';
+
+
+  if game_ini_line_exist(hud_sect, 'start_ammo_bone_index') then
     start_index:= strtoint(game_ini_read_string(hud_sect, 'start_ammo_bone_index'))
   else
     start_index:=0;
@@ -32,16 +44,31 @@ begin
 
   finish_index:=start_index+GetAmmoInMagCount(wpn)-1;
 
+
   if game_ini_line_exist(hud_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(hud_sect, 'additional_ammo_bone_when_jammed') then
     finish_index:=finish_index+1;
 
   if finish_index>limitator then finish_index:=limitator;
 
+  //SendMessage(PChar(inttostr(start_index)+' '+PChar(inttostr(finish_index))+' '+PChar(inttostr(limitator))));
+
   for i:=start_index to finish_index do begin
     SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), true);
+    if prefix_hide<>'' then begin
+      SetWeaponMultipleBonesStatus(wpn, PChar(prefix_hide+inttostr(i)), false);
+    end;
   end;
   for i:= finish_index+1 to limitator do begin
     SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), false);
+    if prefix_hide<>'' then begin
+      SetWeaponMultipleBonesStatus(wpn, PChar(prefix_hide+inttostr(i)), true);
+    end;
+  end;
+
+  if prefix_var<>'' then begin
+    for i:= start_index-1 to limitator do begin
+      SetWeaponMultipleBonesStatus(wpn, PChar(prefix_var+inttostr(i)), i=finish_index);
+    end;
   end;
 end;
 
@@ -163,9 +190,10 @@ begin
       ProcessUpgrade(wpn);
       //Теперь отобразим установленный прицел
       ProcessScope(wpn);
-      //Разберемся с патронами
-      ProcessAmmo(wpn);
     end;
+
+    //Разберемся с патронами
+    ProcessAmmo(wpn);
 
   {if tst_light = nil then tst_light:=LightUtils.CreateLight;
   LightUtils.Enable(tst_light, true);
