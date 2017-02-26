@@ -14,16 +14,47 @@ var
   upgrade_weapon_addr:cardinal;
 
 //-------------------------------Разряжание магазина-----------------------------
-function OnUnloadMag(wpn:pointer):boolean; stdcall;
-var hud_sect:PChar;
-const param_name:PChar = 'use_unloadmag_anim';
+procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
+var
+  hud_sect:PChar;
 begin
-  result:=true;
+  unload_magazine(wpn);
+  ForceWpnHudBriefUpdate(wpn);
+end;
+
+procedure OnUnloadInMiddleAnim(wpn:pointer; param:integer);stdcall;
+begin
+  unload_magazine(wpn);
+  ForceWpnHudBriefUpdate(wpn);
+  MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)));
+end;
+
+
+function OnUnloadMag(wpn:pointer):boolean; stdcall;
+var
+  hud_sect: PChar;
+const
+  param_name:PChar = 'use_unloadmag_anim';
+begin
+  //возвратить false, если разряжать оружие сейчас нельзя
+  result := false;
   hud_sect:=GetHUDSection(wpn);
   if (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
     exit;
   end;
-  WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_unload_mag', 'sndUnload');
+  if WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_unload_mag', 'sndUnload') then begin
+    //анима начала играться. Посмотрим, когда надо разряжаться
+    if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+WpnUtils.GetActualCurrentAnim(wpn))) then begin
+      //разряжание идет по схеме визуального отображения патронов (в середине анимации)
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+WpnUtils.GetActualCurrentAnim(wpn)), false, OnUnloadInMiddleAnim);
+    end else if game_ini_line_exist(hud_sect, PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn))) then begin
+      //разряжание выполняется после анимации
+      MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_end_'+WpnUtils.GetActualCurrentAnim(wpn)), false, OnUnloadInEndOfAnim);
+    end else begin
+      //никаких указаний нет, поэтому разряжаемся сразу
+      result := true;
+    end;
+  end;
 end;
 
 procedure UnloadMag_Patch(); stdcall;

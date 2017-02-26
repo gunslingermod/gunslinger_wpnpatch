@@ -55,6 +55,7 @@ procedure ReloadMag(wpn:pointer); stdcall;
 function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
 procedure JamWeapon(wpn:pointer); stdcall;
+procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -965,5 +966,14 @@ begin
     mov byte ptr [eax+$45A], 1
   end;
 end;
+
+procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
+begin
+  asm
+    mov eax, wpn
+    mov [eax+$69c], 0
+  end;
+end;
+
 
 end.
