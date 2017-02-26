@@ -101,6 +101,12 @@ function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):bo
 function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
 function CHudItem__GetHUDMode(CHudItem:pointer):boolean; stdcall;
 
+procedure SetHandsPosOffset(attachable_hud_item:pointer; v:pFVector3);
+procedure SetHandsRotOffset(attachable_hud_item:pointer; v:pFVector3);
+
+function GetHandsPosOffset(attachable_hud_item:pointer):FVector3;
+function GetHandsRotOffset(attachable_hud_item:pointer):FVector3;
+
 procedure attachable_hud_item__GetBoneOffsetPosDir(this:pointer; bone:PChar;dest_pos:pFVector3; dest_dir:pFVector3; bone_offset:pFVector3);stdcall;
 
 procedure CShootingObject__UpdateParticles(wpn:pointer; CParticlesObject:pointer; pos:pFVector3; vel:pFVector3);stdcall;
@@ -165,7 +171,7 @@ const
 
 
 implementation
-uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows;
 var
   PlayHudAnim_Func:cardinal;
 
@@ -1588,5 +1594,27 @@ asm
   popad
 end;
 
+
+procedure SetHandsPosOffset(attachable_hud_item:pointer; v:pFVector3);
+var rb:cardinal;
+begin
+  writeprocessmemory(hndl, PChar(attachable_hud_item)+$9e, v, sizeof(FVector3), rb);
+end;
+
+procedure SetHandsRotOffset(attachable_hud_item:pointer; v:pFVector3);
+var rb:cardinal;
+begin
+  writeprocessmemory(hndl, PChar(attachable_hud_item)+$AA, v, sizeof(FVector3), rb);
+end;
+
+function GetHandsPosOffset(attachable_hud_item:pointer):FVector3;
+begin
+  result:=FVector3_copyfromengine(PChar(attachable_hud_item)+$9e);
+end;
+
+function GetHandsRotOffset(attachable_hud_item:pointer):FVector3;
+begin
+  result:=FVector3_copyfromengine(PChar(attachable_hud_item)+$AA);
+end;
 
 end.

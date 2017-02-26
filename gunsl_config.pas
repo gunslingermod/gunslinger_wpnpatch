@@ -12,7 +12,6 @@ type weapon_inertion_params = record
 end;
 
 function Init:boolean;
-function GetStdInertion(aim:boolean):weapon_inertion_params;
 
 const
   gd_novice:cardinal=0;
@@ -51,11 +50,16 @@ function IsDofEnabled():boolean; stdcall;
 function IsLaserdotCorrection():boolean; stdcall;
 function IsNPCLasers():boolean; stdcall;
 function IsRealBallistics():boolean; stdcall;
+function IsWeaponmoveEnabled():boolean; stdcall;
 
 function IsMoveCamAnmsEnabled():boolean; stdcall;
+function IsCollimAimEnabled():boolean; stdcall;
+
+function GetStdInertion(aim:boolean):weapon_inertion_params;
+function GetCamSpeedDef():single;
 
 implementation
-uses BaseGameData, sysutils, ConsoleUtils;
+uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils;
 
 var
   std_inertion:weapon_inertion_params;
@@ -71,6 +75,11 @@ var
   dof_def_speed_in:single;
   dof_def_speed_out:single;
   dof_def_timeoffset:single;
+
+  _weaponmove_enabled:boolean;
+  _collimaim_enabled:boolean;
+
+  _max_actor_cam_speed:single;
 
 //данные консольных команд
 //булевские флаги
@@ -217,7 +226,6 @@ end;
 function game_ini_read_vector3_def(section:PChar; key:PChar; def:pfvector3):FVector3;stdcall;
 var
   tmp, coord:string;
-  i:integer;
 begin
   if game_ini_line_exist(section, key) then begin
     tmp:=game_ini_read_string(section, key);
@@ -413,13 +421,33 @@ begin
   aim_inertion.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'inertion_aim_default_speed', std_inertion.speed);
 
 
+  _weaponmove_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_hud_moving', true);
+  _collimaim_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_collimaim', true);  
+
   hud_move_cam_anms_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_move_cam_anms', false);
+  _max_actor_cam_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_actor_camera_speed', 10);
+
   result:=true;
+end;
+
+function IsWeaponmoveEnabled():boolean; stdcall;
+begin
+  result:=_weaponmove_enabled;
+end;
+
+function IsCollimAimEnabled():boolean; stdcall;
+begin
+  result:=_collimaim_enabled;
 end;
 
 function GetStdInertion(aim:boolean):weapon_inertion_params;
 begin
   if aim then result:=aim_inertion else result:=std_inertion;
+end;
+
+function GetCamSpeedDef():single;
+begin
+  result:=_max_actor_cam_speed;
 end;
 
 end.

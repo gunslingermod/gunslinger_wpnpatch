@@ -484,7 +484,7 @@ end;
 
 procedure OnActorNewSlotActivated(act:pointer; slot:integer); stdcall;
 begin
-  ResetHudMoveOffset();
+  ResetWpnOffset();
   ResetActorFlags(act);
   ResetActivationHoldState();
   if slot<>4 then SetForcedQuickthrow(false);
@@ -558,7 +558,7 @@ begin
   ProcessKeys(act);
   UpdateFOV(act);
   UpdateInertion(GetActorActiveItem());
-
+  UpdateWeaponOffset(act);
 
   if (_lefthanded_torch.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
 //    log('Destroy lefthand light');
@@ -740,7 +740,8 @@ end;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 procedure CActor__netSpawn(CActor:pointer); stdcall;
 begin
-  ResetHudMoveOffset();
+  ResetCamHeight();
+  ResetWpnOffset();
   ClearActorKeyRepeatFlags();
   ResetActorFlags(CActor);
   ResetActivationHoldState();

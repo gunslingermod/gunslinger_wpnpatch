@@ -64,6 +64,8 @@ type
     _save_cartridge_in_chamber:boolean;
     _add_cartridge_in_open:boolean;
 
+    _actor_camera_speed:single;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -121,7 +123,10 @@ type
     function AddCartridgeAfterOpen():boolean;
 
     function GetHUDBulletOffset():single;
-    function GetWorldBulletOffset: single;    
+    function GetWorldBulletOffset: single;
+
+    procedure SetCameraSpeed(s:single);
+    function GetCameraSpeed():single;
 
   end;
 
@@ -198,6 +203,8 @@ begin
   _save_cartridge_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'save_cartridge_in_ammochange', true);
 
   _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
+
+  _actor_camera_speed:=game_ini_r_single_def(GetSection(wpn), 'actor_camera_speed_factor', 1.0)*GetCamSpeedDef();
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 end;
 
@@ -935,6 +942,16 @@ end;
 function WpnBuf.IsTorchInstalled: boolean;
 begin
   result:=self._torch_installed;
+end;
+
+function WpnBuf.GetCameraSpeed: single;
+begin
+  result:=self._actor_camera_speed;
+end;
+
+procedure WpnBuf.SetCameraSpeed(s: single);
+begin
+  self._actor_camera_speed:=s;
 end;
 
 end.

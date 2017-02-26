@@ -302,7 +302,11 @@ begin
       ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES);
       if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES_CURRENT);
     end;
-    if game_ini_line_exist(section, 'shell_particles') then ChangeParticles(wpn, game_ini_read_string(section, 'shell_particles'), CWEAPON_SHELL_PARTICLES);            
+    if game_ini_line_exist(section, 'shell_particles') then ChangeParticles(wpn, game_ini_read_string(section, 'shell_particles'), CWEAPON_SHELL_PARTICLES);
+
+    if game_ini_line_exist(section, 'actor_camera_speed_factor') then begin
+      buf.SetCameraSpeed(GetCamSpeedDef()*game_ini_r_single(section, 'actor_camera_speed_factor'));
+    end;            
   end;
 
  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
