@@ -42,7 +42,8 @@ uses
   BallisticsCorrection in 'BallisticsCorrection.pas',
   Level in 'Level.pas',
   CrosshairInertion in 'CrosshairInertion.pas',
-  WeaponInertion in 'WeaponInertion.pas';
+  WeaponInertion in 'WeaponInertion.pas',
+  ControllerMonster in 'ControllerMonster.pas';
 
 {$R *.res}
 
@@ -80,6 +81,7 @@ begin
   RayPick.Init();
   BallisticsCorrection.Init();
   WeaponInertion.Init();
+  ControllerMonster.Init();
 //  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;

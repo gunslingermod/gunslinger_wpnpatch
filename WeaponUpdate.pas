@@ -7,7 +7,7 @@ procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster;
 
 
 
@@ -552,7 +552,7 @@ end;
 function CanDrawCrosshairNow():boolean; stdcall;
 begin
   result:=true;
-  if gunsl_config.GetCurrentDifficulty()>=gunsl_config.gd_veteran then begin
+  if (gunsl_config.GetCurrentDifficulty()>=gunsl_config.gd_veteran) or IsActorControlled() then begin
     result:=false;
   end;
 end;

@@ -12,7 +12,7 @@ function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -570,6 +570,11 @@ begin
   sect:=GetSection(wpn);
   curcond:=GetCurrentCondition(wpn);
 
+  if IsActorSuicideNow() then begin
+    SetWeaponMisfireStatus(wpn, false);
+    result:=true;
+  end;
+
   if game_ini_r_bool_def(sect, 'can_explose', false) then begin
     if curcond<game_ini_r_single_def(sect, 'explode_start_condition', 1) then begin
       if random < game_ini_r_single_def(sect, 'explode_probability', 1) then begin
@@ -842,14 +847,14 @@ var
   act:pointer;
 begin
   result:=CanStartAction(wpn);
-  if not result then begin
+  if (not result) then begin
     act:=GetActor();
     if (act<>nil) and (act=GetOwner(wpn)) then begin
 
       if IsHolderInSprintState(wpn) then begin
         SetActorActionState(act, actSprint, false, mState_WISHFUL);
         SetActorKeyRepeatFlag(kfACTTYPE, true);
-      end else if (IsWeaponJammed(wpn) and (kfACTTYPE = kfRELOAD)) then begin
+      end else if (IsWeaponJammed(wpn) and ( (kfACTTYPE = kfRELOAD) or (kfACTTYPE = kfNEXTAMMO)  )) then begin
         SetActorKeyRepeatFlag(kfACTTYPE, true);
       end;
     end;
@@ -885,19 +890,30 @@ asm
   ret 4
 end;
 //----------------------------------------------------------------------------------------------------------
-procedure OnKnifeKick(knife:pointer; kick_type:cardinal); stdcall;
+function anm_attack_selector(knife:pointer; kick_type:cardinal):PChar; stdcall;
 var
   act:pointer;
   v:FVector3;
 begin
+
   act:=GetActor();
   if (act<>nil) and (act=GetOwner(knife)) then begin
     SetActorActionState(act, actModSprintStarted, false);
     SetActorActionState(act, actModSprintStarted, false, mState_WISHFUL);
+
+    if IsActorPlanningSuicide() then begin
+      if not IsActorSuicideNow() then begin
+        result:='anm_prepare_suicide';
+      end else begin
+        result:='anm_selfkill';      
+      end;
+      exit;
+    end;
   end;
 
   case kick_type of
     1:begin
+        result:='anm_attack';
         StartCompanionAnimIfNeeded('knife_attack', knife, true);
         CHudItem_Play_Snd(knife, 'sndKick1');
         if ReadActionDOFVector(knife, v, 'anm_attack', false) then begin
@@ -905,6 +921,7 @@ begin
         end;
       end;
     2:begin
+        result:='anm_attack2';
         StartCompanionAnimIfNeeded('knife_attack2', knife, true);
         CHudItem_Play_Snd(knife, 'sndKick2');
         if ReadActionDOFVector(knife, v, 'anm_attack2', false) then begin
@@ -915,6 +932,27 @@ begin
 end;
 
 procedure OnKnifeKick_Patch(); stdcall;
+asm
+    push 0                  //забиваем место под название анимы
+    pushad
+    pushfd
+    jne @second_type
+      push 1
+      jmp @call_proc
+    @second_type:
+      push 2
+    @call_proc:
+    push esi
+    call anm_attack_selector  //получаем строку с именем анимы
+    mov ecx, [esp+$28]      //запоминаем адрес возврата
+    mov [esp+$28], eax      //кладем на его место результирующую строку
+    mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
+    popfd
+    popad
+    ret
+end;
+
+{procedure OnKnifeKick_Patch(); stdcall;
 asm
   //original
   mov ebp, [esp+$10]
@@ -936,7 +974,7 @@ asm
   popfd
   popad
   ret
-end;
+end; }
 //---------------------------------------------------------------------------------------------------------
 procedure LaserSwitch(wpn:pointer; param:integer); stdcall;
 var
@@ -1000,6 +1038,7 @@ begin
       end;
     end;
 
+    //подобная схема назначения лока нужна из-за того, что анима после переклюения должна продолжать играться
     curanm:=GetActualCurrentAnim(wpn);
     if res then  begin
       StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
@@ -1074,9 +1113,15 @@ end;
 
 //---------------------------------------------------------------------------------------------------------------------
 procedure CWeaponKnife__OnAnimationEnd(wpn:pointer); stdcall;
+var
+  act:pointer;
 begin
+  act:=GetActor;
+  if (wpn=GetActorActiveItem) and (GetActualCurrentAnim(wpn)='anm_selfkill') then begin
+      CActor__Die(act, act);
+  end;
+  
   //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры
-  //
   CWeapon__OnAnimationEnd(wpn);
 end;
 
@@ -1087,7 +1132,6 @@ asm
     push ecx
     call CWeaponKnife__OnAnimationEnd
   popad
-
   mov eax, [esp+8]
   cmp eax, 6
   ret
@@ -1257,9 +1301,11 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CHudItem__SwitchState_Patch), 10, false) then exit;
 
 
-  //Анимация для детектора в паре с ножом
-  jmp_addr:=xrGame_addr+$2D547D;
-  if not WriteJump(jmp_addr, cardinal(@OnKnifeKick_Patch), 7, true) then exit;
+  //селектор анимации удара + Анимация для детектора в паре с ножом
+  jmp_addr:=xrGame_addr+$2d5491;
+  if not WriteJump(jmp_addr, cardinal(@OnKnifeKick_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$2d54A6;
+  if not WriteJump(jmp_addr, cardinal(@OnKnifeKick_Patch), 5, true) then exit;
 
   //обработка дополнительных клавиатурных действий
   jmp_addr:=xrGame_addr+$2BEC70;
@@ -1288,3 +1334,4 @@ end;
 
 
 end.
+

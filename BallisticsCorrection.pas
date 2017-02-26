@@ -4,7 +4,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, MatVectors, sysutils, messenger, HudItemUtils, ActorUtils, gunsl_config, WeaponAdditionalBuffer, RayPick, dynamic_caster;
+uses BaseGameData, MatVectors, sysutils, messenger, HudItemUtils, ActorUtils, gunsl_config, WeaponAdditionalBuffer, RayPick, dynamic_caster, ControllerMonster;
 
 procedure virtual_CEntity__g_fireParams(this:pointer; wpn:pointer; pos:pFVector3; dir:pFVector3); stdcall;
 asm
@@ -53,7 +53,7 @@ begin
   if v_equal(@oldpos, pos) and v_equal(@olddir, dir) then exit;
 
   //пересчитаем это в соответствии с нашими интересами
-  if (GetOwner(wpn)=GetActor()) and (not (IsAimNow(wpn) or IsHolderInAimState(wpn)) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetCurrentDifficulty>gd_veteran) or IsRealBallistics()) then begin
+  if (GetOwner(wpn)=GetActor()) and (not (IsAimNow(wpn) or IsHolderInAimState(wpn)) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetCurrentDifficulty>=gd_veteran) or IsRealBallistics() or IsActorControlled()) then begin
     pos^:=oldpos;
     dir^:=olddir;
   end else begin

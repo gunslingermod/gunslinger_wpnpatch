@@ -11,6 +11,20 @@ type weapon_inertion_params = record
   speed:single;
 end;
 
+type landing_params = record
+  offset_landing:single;
+  offset_landing2:single;
+  time_landing:cardinal;
+  time_landing2:cardinal;
+  cam_speed_factor:single;
+  cam_speed_factor2:single;
+end;
+
+type jitter_params = record
+  pos_amplitude:single;
+  rot_amplitude:single;
+end;
+
 function Init:boolean;
 
 const
@@ -57,9 +71,14 @@ function IsCollimAimEnabled():boolean; stdcall;
 
 function GetStdInertion(aim:boolean):weapon_inertion_params;
 function GetCamSpeedDef():single;
+function GetCamLandingParams():landing_params;
+
+function GetControllerTime():cardinal; stdcall;
+function GetBaseJitterParams():jitter_params; stdcall;
+function GetCurJitterParams(hud_sect:PChar):jitter_params; stdcall;
 
 implementation
-uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils;
+uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
 
 var
   std_inertion:weapon_inertion_params;
@@ -78,12 +97,14 @@ var
 
   _weaponmove_enabled:boolean;
   _collimaim_enabled:boolean;
-
-  _max_actor_cam_speed:single;
+  _controller_time:cardinal;
 
 //данные консольных команд
 //булевские флаги
   _console_bool_flags:cardinal;
+  _max_actor_cam_speed:single;
+  _cam_landing:landing_params;
+  _jitter:jitter_params;
 
 
 
@@ -427,7 +448,24 @@ begin
   hud_move_cam_anms_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_move_cam_anms', false);
   _max_actor_cam_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_actor_camera_speed', 10);
 
+  _cam_landing.offset_landing:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing_offset', 0);
+  _cam_landing.offset_landing2:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_offset', 0);
+  _cam_landing.cam_speed_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing_speed_factor', 1.0);
+  _cam_landing.cam_speed_factor2:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_speed_factor', 1.0);
+  _cam_landing.time_landing:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing_time', 0.5)*1000);
+  _cam_landing.time_landing2:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_time', 0.5)*1000);
+
+  _controller_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_time', 3)*1000);
+
+  _jitter.pos_amplitude:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'base_jitter_pos_amplitude', 0.001);
+  _jitter.rot_amplitude:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'base_jitter_rot_amplitude', 0.1);
+
   result:=true;
+end;
+
+function GetControllerTime():cardinal; stdcall;
+begin
+  result:=_controller_time;
 end;
 
 function IsWeaponmoveEnabled():boolean; stdcall;
@@ -448,6 +486,22 @@ end;
 function GetCamSpeedDef():single;
 begin
   result:=_max_actor_cam_speed;
+end;
+
+function GetCamLandingParams():landing_params;
+begin
+  result:=_cam_landing;
+end;
+
+function GetBaseJitterParams():jitter_params; stdcall;
+begin
+  result:=_jitter;
+end;
+
+function GetCurJitterParams(hud_sect:PChar):jitter_params; stdcall;
+begin
+  result.pos_amplitude:=game_ini_r_single_def(hud_sect, 'jitter_pos_amplitude', _jitter.pos_amplitude);
+  result.rot_amplitude:=game_ini_r_single_def(hud_sect, 'jitter_rot_amplitude', _jitter.rot_amplitude);
 end;
 
 end.

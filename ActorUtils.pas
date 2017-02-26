@@ -68,7 +68,7 @@ function ItemInSlot(act:pointer; slot:integer):pointer; stdcall;
 procedure DropItem(act:pointer; item:pointer); stdcall;
 function Init():boolean; stdcall;
 function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
-procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean);
+procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean; ignore_suicide:boolean=false);
 procedure ClearActorKeyRepeatFlags();
 procedure ResetActorFlags(act:pointer);
 procedure UpdateSlots(act:pointer);
@@ -91,9 +91,15 @@ procedure RecreateLefthandedTorch(params_section:PChar; det:pointer); stdcall;
 function GetLefthandedTorchLinkedDetector():pointer; stdcall;
 function GetLefthandedTorchParams():torchlight_params; stdcall;
 
+procedure CActor__Die(this:pointer; who:pointer); stdcall;
+procedure CEntity__KillEntity(this:pointer; who:word); stdcall;
+
+procedure CActor__set_inventory_disabled(this:pointer; status:boolean); stdcall;
+function CActor__get_inventory_disabled(this:pointer):boolean; stdcall;
+
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster;
 
 var
   _keyflags:cardinal;
@@ -110,6 +116,29 @@ var
   _lefthanded_torch:torchlight_params;
   _torch_linked_detector:pointer;
 
+  _last_update_time:cardinal;
+
+
+procedure CActor__set_inventory_disabled(this:pointer; status:boolean); stdcall;
+asm
+  push eax
+  push ebx
+  mov eax, this
+  movzx ebx, status
+
+  mov byte ptr [eax+$9CB], bl
+
+  pop ebx
+  pop eax
+end;  
+
+
+function CActor__get_inventory_disabled(this:pointer):boolean; stdcall;
+asm
+  mov eax, this
+  movzx eax, byte ptr [eax+$9CB]
+  mov @result, al
+end;
 
 function GetActor():pointer; stdcall;
 begin
@@ -218,6 +247,30 @@ begin
       add esp, $18
     popad
   end;
+end;
+
+procedure CEntity__KillEntity(this:pointer; who:word); stdcall;
+asm
+  pushad
+    movzx eax, who
+    push eax
+    mov eax, xrgame_addr
+    add eax, $2796B0
+    mov ecx, this
+    call eax
+  popad
+end;
+
+
+procedure CActor__Die(this:pointer; who:pointer); stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    add eax, $261700
+    mov ecx, this
+    push who
+    call eax
+  popad
 end;
 
 function IsHolderInSprintState(wpn:pointer):boolean;stdcall;
@@ -437,7 +490,11 @@ begin
   if (_keyflags and kfUNZOOM)<>0 then begin
     if IsAimNow(wpn) then begin
       if CanLeaveAimNow(wpn) then begin
-        virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+        if IsAimToggle() then begin
+          virtual_Action(wpn, kWPN_ZOOM, kActPress);
+        end else begin
+          virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+        end;
       end;
     end else begin
       SetActorKeyRepeatFlag(kfUNZOOM, false);
@@ -566,7 +623,13 @@ procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
   hud_sect:PChar;
+  dt, ct:cardinal;
 begin
+  ct:=GetGameTickCount();
+  dt:=GetTimeDeltaSafe(_last_update_time, ct);
+  _last_update_time:=ct;
+
+
   UpdateSlots(act);
 
   det:=ItemInSlot(act, 9);
@@ -592,7 +655,8 @@ begin
   ProcessKeys(act);
   UpdateFOV(act);
   UpdateInertion(GetActorActiveItem());
-  UpdateWeaponOffset(act);
+  UpdateWeaponOffset(act, dt);
+  ControllerMonster.Update(dt);
 
   if (_lefthanded_torch.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
 //    log('Destroy lefthand light');
@@ -659,8 +723,10 @@ begin
   result:=true;
 end;
 
-procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean);
+procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean; ignore_suicide:boolean=false);
 begin
+  if not ignore_suicide and IsActorSuicideNow() then exit;
+
   if state then begin
     _keyflags:=_keyflags or mask;
   end else begin
@@ -731,7 +797,11 @@ begin
       end;
     end;
   end else if ((dik=kWPN_1) or (dik=kWPN_2) or (dik=kWPN_3) or (dik=kWPN_4) or (dik=kWPN_5) or (dik=kWPN_6) or (dik=kARTEFACT)) then begin
-    if (det<>nil) and (wpn<>nil) then begin
+    if (IsActorSuicideNow()) or IsActorPlanningSuicide() then begin
+      result:=false;
+    end else if IsActorControlled() then begin
+      result:=CanUseItemForSuicide(ItemInSlot(act, dik-kWPN_1+1));
+    end else if (det<>nil) and (wpn<>nil) then begin
       if iswpnthrowable then begin
         if (state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) then result:=false;
       end else if canshoot or is_bino then begin
@@ -741,7 +811,8 @@ begin
       end;
     end;
   end else if (dik=kQUICK_GRENADE) then begin
-    if GetActorActiveSlot()=4 then exit;
+    if (GetActorActiveSlot()=4) or (IsActorSuicideNow()) or (IsActorPlanningSuicide()) then exit;
+
     itm:=ItemInSlot(act, 4);
     if (itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'supports_quick_throw', false) then begin
       SetForcedQuickthrow(true);
@@ -776,6 +847,7 @@ procedure CActor__netSpawn(CActor:pointer); stdcall;
 begin
   ResetCamHeight();
   ResetWpnOffset();
+  ResetActorControl();
   ClearActorKeyRepeatFlags();
   ResetActorFlags(CActor);
   ResetActivationHoldState();
@@ -787,6 +859,8 @@ begin
   _last_act_slot:=-1;
   ResetDOF(1000);
   _thirst_value:=1;
+
+  _last_update_time:=GetGameTickCount();
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
@@ -1026,6 +1100,7 @@ begin
   end;
   NewTorchlight(@_lefthanded_torch, params_section);
   SwitchTorchlight(@_lefthanded_torch, false);
+  SetWeaponMultipleBonesStatus(det, _lefthanded_torch.light_cone_bones, false);
   _torch_linked_detector:=det;
 end;
 
@@ -1035,10 +1110,21 @@ begin
 end;
 
 procedure SwitchLefthandedTorch(status:boolean); stdcall;
+var
+  act, det:pointer;
 begin
   if _lefthanded_torch.render=nil then exit;
-  if _lefthanded_torch.enabled=status then exit;
-  SwitchTorchlight(@_lefthanded_torch, status);
+
+  if _lefthanded_torch.enabled<>status then begin
+    SwitchTorchlight(@_lefthanded_torch, status);
+  end;
+
+  act:=GetActor;
+  if act=nil then exit;
+  det:=GetActiveDetector(act);
+  if det<>nil then begin
+    SetWeaponMultipleBonesStatus(det, _lefthanded_torch.light_cone_bones, status);
+  end;
 end;
 
 function GetLefthandedTorchParams():torchlight_params; stdcall;
@@ -1175,8 +1261,8 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CUIGameCustom__Render_drawingame_Patch), 5, true) then exit;
 
   //фов в прицеливании
-  jmp_addr:= xrgame_addr+$2605d6;
-  if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 7, true) then exit;
+  jmp_addr:= xrgame_addr+$2605d0;
+  if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 13, true) then exit;
 
   //отключение анимаций камеры в движении
   jmp_addr:= xrgame_addr+$269b97;

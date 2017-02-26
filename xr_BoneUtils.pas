@@ -10,7 +10,7 @@ procedure SetWorldModelMultipleBonesStatus(wpn: pointer; bones:PChar; status:boo
 function IKinematics__LL_BoneID(IKinematics:pointer; name:PChar):word; stdcall;
 
 implementation
-uses BaseGameData, ActorUtils, HudItemUtils;
+uses BaseGameData, ActorUtils, HudItemUtils, DetectorUtils;
 
 procedure SetWeaponMultipleBonesStatus(wpn: pointer; bones:PChar; status:boolean); stdcall;
 var
@@ -36,8 +36,11 @@ end;
 
 
 procedure SetWeaponModelBoneStatus(wpn: pointer; bone_name:PChar; status:boolean); stdcall;
+var
+  act:pointer;
 begin
-  if (ActorUtils.GetActor()<>nil) and (ActorUtils.GetActorActiveItem() = wpn) then begin
+  act:=GetActor();
+  if (act<>nil) and ((GetActorActiveItem() = wpn) or (GetActiveDetector(act)=wpn)) then begin
     SetHudModelBoneStatus(wpn, bone_name, status);
   end;
   SetWorldModelBoneStatus(wpn, bone_name, status);

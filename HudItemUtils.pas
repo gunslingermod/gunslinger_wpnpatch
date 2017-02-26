@@ -92,6 +92,7 @@ function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdc
 function virtual_IKinematicsAnimated__LL_MotionID(IKinematicsAnimated:pointer; name:PChar):integer; stdcall;
 procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr:pointer); stdcall;
 procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
+procedure virtual_CShootingObject_FireStart(Weapon:pointer); stdcall;
 
 procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
 procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
@@ -117,6 +118,8 @@ procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdca
 function GetLastFP(wpn:pointer):FVector3;
 function GetLastFD(wpn:pointer):FVector3;
 function GetXFORM(wpn:pointer):pFMatrix4x4;stdcall;
+
+procedure SetWorkingState(wpn:pointer; state:boolean); stdcall;
 
 procedure AllowWeaponInertion(wpn:pointer; status:boolean);stdcall;
 
@@ -516,6 +519,15 @@ asm
     mov eax, wpn
     mov bl, state
     mov byte ptr [eax+$7F8], bl;
+    popad
+end;
+
+procedure SetWorkingState(wpn:pointer; state:boolean); stdcall;
+asm
+    pushad
+    mov eax, wpn
+    mov bl, state
+    mov byte ptr [eax+$35a], bl;
     popad
 end;
 
@@ -1183,6 +1195,20 @@ asm
 
   mov edx, [ecx]
   mov edx, [edx]
+  call edx
+
+  popad
+end;
+
+procedure virtual_CShootingObject_FireStart(Weapon:pointer); stdcall;
+asm
+  pushad
+
+  mov ecx, Weapon
+  add ecx, $338
+
+  mov edx, [ecx]
+  mov edx, [edx+$18]
   call edx
 
   popad

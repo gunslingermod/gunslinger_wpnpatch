@@ -51,23 +51,28 @@ var
   rb:cardinal;
 begin
   if not IsCollimAimEnabled() then exit;
+  last_hud_data:=nil;
   v_zero(@zerovec);
   section:=GetHudSection(wpn);
   if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
     section:=GetCurrentScopeSection(wpn);
+    last_hud_data:=hud_data;
   end;
-  if Is16x9() then begin
-    pos_str:='aim_hud_offset_pos_16x9';
-    rot_str:='aim_hud_offset_rot_16x9';
-  end else begin
-    pos_str:='aim_hud_offset_pos';
-    rot_str:='aim_hud_offset_rot';
-  end;
-  pos:=game_ini_read_vector3_def(section, pos_str, @zerovec);
-  rot:=game_ini_read_vector3_def(section, rot_str, @zerovec);
 
-  writeprocessmemory(hndl, PChar(hud_data)+$2b, @pos, 12, rb);
-  writeprocessmemory(hndl, PChar(hud_data)+$4f, @rot, 12, rb);
+  if last_hud_data<>nil then begin
+    if Is16x9() then begin
+      pos_str:='aim_hud_offset_pos_16x9';
+      rot_str:='aim_hud_offset_rot_16x9';
+    end else begin
+      pos_str:='aim_hud_offset_pos';
+      rot_str:='aim_hud_offset_rot';
+    end;
+    pos:=game_ini_read_vector3_def(section, pos_str, @zerovec);
+    rot:=game_ini_read_vector3_def(section, rot_str, @zerovec);
+
+    writeprocessmemory(hndl, PChar(last_hud_data)+$2b, @pos, 12, rb);
+    writeprocessmemory(hndl, PChar(last_hud_data)+$4f, @rot, 12, rb);
+  end;
 end;
 
 procedure RestoreHudOffsets(wpn:pointer); stdcall;
@@ -77,7 +82,7 @@ var
   rb:cardinal;
 
 begin
-  if not IsCollimAimEnabled() then exit;
+  if not IsCollimAimEnabled() or (last_hud_data=nil) then exit;
   section:=GetHudSection(wpn);
   v_zero(@zerovec);
 

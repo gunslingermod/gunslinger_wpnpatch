@@ -154,7 +154,7 @@ type
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster;
 
 { WpnBuf }
 
@@ -270,7 +270,7 @@ var buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
   if buf<>nil then
-    result:=(buf._lock_remain_time>0)
+    result:= ((GetOwner(wpn)<>nil) and (buf._lock_remain_time>0)) or ((GetOwner(wpn)<>nil) and (GetOwner(wpn)=GetActor()) and (IsActorSuicideNow() or IsActorPlanningSuicide()))
   else
     result:=false;
 end;
@@ -454,7 +454,9 @@ var
   tmp:pointer;
 begin
   result:=true;
-  if leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim' then
+  if IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+    result:=false;
+  end else if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then
     //на случай, если мы недовышли из прицеливания
     result:=true
   else if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'disable_aim_with_detector', false) {or IsHolderHasActiveDetector(wpn)} then
@@ -532,6 +534,12 @@ var
   buf:WpnBuf;
 begin
   hud_sect:=GetHUDSection(wpn);
+  act:=GetActor();
+
+  if (act<>nil) and (act=GetOwner(wpn)) and (IsActorPlanningSuicide() or IsActorSuicideNow()) then begin
+    result:=IsSuicideInreversible();
+    exit;
+  end;
 
   if IsActionProcessing(wpn) then begin
     cur_param:='autoshoot_'+GetActualCurrentAnim(wpn);
@@ -545,7 +553,6 @@ begin
   end else begin
     result:=true;
     //Если мы в спринте сейчас - то предварительно надо проиграть аниму выхода из него
-    act:=GetActor();
     if (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);

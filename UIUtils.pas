@@ -34,10 +34,25 @@ procedure CUILines__SetText(cuilines: pointer; msg:PChar); stdcall;
 procedure virtual_CUIWindow__Show (cuiwindow: pointer; status:cardinal); stdcall;
 procedure CustomStaticSetText(sdrawstaticstruct:pointer; text:pchar); stdcall;
 function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
+procedure HideShownDialogs(); stdcall;
 
 
 implementation
 uses BaseGameData;
+
+procedure HideShownDialogs(); stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    test eax, eax
+    je @finish
+    mov edx, [eax]
+    mov ecx, eax
+    mov eax, [edx+$18]
+    call eax
+    @finish:
+  popad
+end;
 
 function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
 asm

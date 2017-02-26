@@ -16,7 +16,7 @@ const
 		EMissileStates__eThrowEnd:cardinal = 8;
 
 implementation
-uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils;
+uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster;
 
 var
   _activate_key_state:TKeyHoldState;
@@ -118,10 +118,18 @@ procedure SetupQuickThrowForceParams(CMissile:pointer); stdcall;
 asm
   push eax
   push ecx
-
     mov ecx, CMissile
+    pushad
+      call IsActorControlled
+      cmp al, 1
+    popad
+    je @controlled
     mov eax, [ecx+$39c]
-    mov [ecx+$3ac], eax //выставим силу броска, использующуюся при нажатии ЛКМ 
+    mov [ecx+$3ac], eax //выставим силу броска, использующуюся при нажатии ЛКМ
+    jmp @finish
+    @controlled:
+    mov [ecx+$3ac], $3f800000
+    @finish:
   pop ecx
   pop eax
 end;

@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -17,7 +17,6 @@ var
 
   movreass_last_update:cardinal;
   movreass_remain_time:cardinal;
-
 
 
 procedure ModifierGL(wpn:pointer; var anm:string);
@@ -153,12 +152,16 @@ begin
         SetActorActionState(actor, actModSprintStarted, false);
 
     end else begin
-      ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
-      if GetActorActionState(actor, actCrouch) then begin
-        anim_name:=anim_name+'_crouch';
-      end;
-      if GetActorActionState(actor, actSlow) then begin
-        anim_name:=anim_name+'_slow';
+      if is_knife and (GetActualCurrentAnim(wpn)='anm_prepare_suicide') then begin
+        anim_name:='anm_stop_suicide';
+      end else begin
+        ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
+        if GetActorActionState(actor, actCrouch) then begin
+          anim_name:=anim_name+'_crouch';
+        end;
+        if GetActorActionState(actor, actSlow) then begin
+          anim_name:=anim_name+'_slow';
+        end;
       end;
     end;
   //----------------------------------Модификаторы состояния оружия----------------------------------------------------
@@ -309,6 +312,7 @@ begin
   end;}
 
   if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
+    ResetItmHudOffset(wpn);
     if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') then begin
       ForgetDetectorAutoHide();
     end;
@@ -715,6 +719,11 @@ begin
     end else if (GetAmmoInMagCount(wpn)=1) and (GetClassName(wpn) <> 'WP_BM16') then begin
       modifier:=modifier+'_last';
     end;
+
+    if (IsActorSuicideNow() or IsSuicideInreversible()) and game_ini_r_bool_def(hud_sect, 'custom_suicide_shot', false) then begin
+      modifier:=modifier+'_suicide';
+    end;
+
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then modifier:=modifier+'_sil';
     ModifierMoving(wpn, actor, modifier, 'enable_directions_anm_shoot_directions', 'enable_moving_anm_shoot');
     ModifierGL(wpn, modifier);

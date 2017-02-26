@@ -13,9 +13,11 @@ function WasLastDetectorHiddenManually():boolean; stdcall;
 procedure ForgetDetectorAutoHide(); stdcall;
 function StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_line_not_exist:boolean=true):boolean;
 
+procedure MakeUnActive(det: pointer);stdcall;
+
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, ActorUtils, Misc, sysutils, strutils, Messenger, gunsl_config, MatVectors, LightUtils, Math;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, ActorUtils, Misc, sysutils, strutils, Messenger, gunsl_config, MatVectors, LightUtils, Math, ControllerMonster;
 
 var
   _was_detector_hidden_manually:boolean; //должен быть всегда true, кроме случаев, когда идет быстрое использование какого-то предмета (юзейбла, грены, ножа),  не поддерживающего детектор-компаньон, а перед быстрым использованием детектор был активен и скрылся автоматом
@@ -205,8 +207,9 @@ var
   itm:pointer;
   param:string;
 begin
-  result:=true;
   itm:=GetActorActiveItem();
+  result:=true;
+
   if itm<>nil then begin
       param := GetCurAnim(itm);
       if param = '' then param:=GetActualCurrentAnim(itm);

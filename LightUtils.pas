@@ -336,7 +336,11 @@ procedure NewTorchlight(_torch_params:ptorchlight_params; params_section:PChar);
 begin
   _torch_params.render:=light__create();
   _torch_params.omni:=light__create();
-  _torch_params.glow:=glow__create();
+  if game_ini_r_bool_def(params_section, 'create_glow', false) then begin
+    _torch_params.glow:=glow__create();
+  end else begin
+    _torch_params.glow:=nil;
+  end;
 
   light__set_type(_torch_params.render, game_ini_r_int_def(params_section, 'torch_render_type', IRender_Light__SPOT));
   light__set_type(_torch_params.omni, game_ini_r_int_def(params_section, 'torch_omni_type', IRender_Light__POINT));
@@ -389,12 +393,16 @@ begin
     light__set_range(_torch_params.render, game_ini_r_single_def(params_section, 'torch_r2_range', 15));
     light__set_range(_torch_params.omni, game_ini_r_single_def(params_section, 'torch_r2_omni_range', 0.75));
   end;
-  glow__set_color(_torch_params.glow, @_torch_params.color);
+
+  if _torch_params.glow<>nil then begin
+    glow__set_color(_torch_params.glow, @_torch_params.color);
+    glow__set_texture(_torch_params.glow, game_ini_read_string(params_section, 'torch_glow_texture'));
+    glow__set_radius(_torch_params.glow, game_ini_r_single_def(params_section, 'torch_glow_radius', 0.3));
+  end;
+  
   light__set_color (_torch_params.render, @_torch_params.color);
   light__set_color (_torch_params.omni, @_torch_params.omni_color);
 
-  glow__set_texture(_torch_params.glow, game_ini_read_string(params_section, 'torch_glow_texture'));
-  glow__set_radius(_torch_params.glow, game_ini_r_single_def(params_section, 'torch_glow_radius', 0.3));
   light__set_cone(_torch_params.render, game_ini_r_single_def(params_section, 'torch_spot_angle', 75)*PI/180);
   light__set_texture(_torch_params.render, game_ini_read_string(params_section, 'torch_spot_texture'));
 
@@ -408,7 +416,9 @@ procedure DelTorchlight(_torch_params:ptorchlight_params);
 begin
     light__destroy(_torch_params.render);
     light__destroy(_torch_params.omni);
-    glow__destroy(_torch_params.glow);
+    if _torch_params.glow<>nil then begin
+      glow__destroy(_torch_params.glow);
+    end;
 
     _torch_params.render:=nil;
     _torch_params.omni:=nil;
@@ -418,7 +428,9 @@ procedure SwitchTorchlight(_torch_params:ptorchlight_params; status:boolean);
 begin
   light__set_enabled(_torch_params.render, status);
   light__set_enabled(_torch_params.omni, status);
-  glow__set_enabled(_torch_params.glow, status);
+  if _torch_params.glow<>nil then begin
+    glow__set_enabled(_torch_params.glow, status);
+  end;
   _torch_params.enabled:=status;
 end;
 
@@ -439,9 +451,10 @@ begin
   light__set_direction(_torch_params.omni, dir_omni, @right);
   light__set_hud_mode(_torch_params.render, hud_mode);
 
-
-  glow__set_position(_torch_params.glow, pos);
-  glow__set_direction(_torch_params.glow, dir);
+  if _torch_params.glow<>nil then begin
+    glow__set_position(_torch_params.glow, pos);
+    glow__set_direction(_torch_params.glow, dir);
+  end;
 end;
 
 
