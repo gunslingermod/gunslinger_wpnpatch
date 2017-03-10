@@ -99,6 +99,9 @@ function GetHeadlampDisableAnimator():PChar;
 function GetNVEnableAnimator():PChar;
 function GetNVDisableAnimator():PChar;
 function GetKickAnimator():PChar;
+function GetPDAShowAnimator():PChar;
+function GetPDAHideAnimator():PChar;
+
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
@@ -137,6 +140,8 @@ var
   _headlamp_disable_animator_section:PChar;
   _nv_disable_animator_section:PChar;
   _kick_animator:PChar;
+  _pda_show_animator:PChar;
+  _pda_hide_animator:PChar;
 
 
   
@@ -519,6 +524,8 @@ begin
   _nv_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_enable_animator');
   _nv_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_disable_animator');
   _kick_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'kick_animator');
+  _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
+  _pda_hide_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_hide_animator');
 
   result:=true;
 end;
@@ -622,6 +629,15 @@ end;
 function GetKickAnimator():PChar;
 begin
   result:=_kick_animator;
+end;
+
+function GetPDAShowAnimator():PChar;
+begin
+  result:=_pda_show_animator;
+end;
+function GetPDAHideAnimator():PChar;
+begin
+  result:=_pda_hide_animator;
 end;
 
 end.

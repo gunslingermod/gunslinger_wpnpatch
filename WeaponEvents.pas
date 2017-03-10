@@ -788,6 +788,7 @@ end;
 procedure OnWeaponShow(wpn:pointer);stdcall;
 var
   act, owner, det:pointer;
+  last_pdahide_state:boolean;
 begin
   //” ножа нет звука доставани€. ¬оспроизведем.
   if IsKnife(PChar(GetClassName(wpn))) then begin
@@ -802,7 +803,11 @@ begin
 
     player_hud__attach_item(wpn);
 
+
+    last_pdahide_state:=GetActorKeyRepeatFlag(kfPDAHIDE);
     ClearActorKeyRepeatFlags();
+    SetActorKeyRepeatFlag(kfPDAHIDE, last_pdahide_state);
+    
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     ResetActorFlags(act);
     det:=ItemInSlot(act, 9);
@@ -1168,7 +1173,7 @@ begin
   if (GetActorActiveItem()=wpn) and (leftstr(anm, length('anm_idle'))<>'anm_idle') then ResetDOF(ReadActionDOFSpeed_Out(wpn, anm));
 
   //если у нас аниматор удара и мы продолжаем жать кнопку удара, то возвращаемс€ обратно в состо€ние доставани€ :)
-  if (GetActorActiveItem()=wpn) and GetActorKeyRepeatFlag(kfQUICKKICK) and (GetSection(wpn)=GetKickAnimator()) then begin
+  if (GetActorActiveItem()=wpn) and (GetActorKeyRepeatFlag(kfQUICKKICK) {or IsActionKeyPressed(kQUICK_KICK)}) and (GetSection(wpn)=GetKickAnimator()) and not IsActorControlled() then begin
     SetActorKeyRepeatFlag(kfQUICKKICK, false);
     virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
     SetActorActionCallback(@KickCallback);

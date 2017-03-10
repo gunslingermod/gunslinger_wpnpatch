@@ -481,7 +481,11 @@ end;
 
 function CanSprintNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or IsActorPlanningSuicide() or IsActorSuicideNow() or IsSuicideAnimPlaying(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
+  if (wpn=nil) then
+    result:=true
+  else if IsActionProcessing(wpn) or IsActorPlanningSuicide() or IsActorSuicideNow() or IsSuicideAnimPlaying(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
+    result:=false
+  else if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))<> 'anm_idle') then
     result:=false
   else
     result:=true;
@@ -606,7 +610,7 @@ function CanStartAction(wpn:pointer; allow_aim_state:boolean=false):boolean;stdc
 var
 act, det:pointer;
 begin
-  if (GetOwner(wpn)<>GetActor()) and (GetActor()<>nil) then begin
+  if (wpn=nil) or ((GetOwner(wpn)<>GetActor()) and (GetActor()<>nil)) then begin
     result:=true;
     exit;
   end;

@@ -47,7 +47,9 @@ const
   kfNEXTAMMO:cardinal = $1000;
   kfHEADLAMP:cardinal = $2000;
   kfNIGHTVISION:cardinal = $4000;
-  kfQUICKKICK:cardinal = $8000;  
+  kfQUICKKICK:cardinal = $8000;
+  kfPDAHIDE:cardinal = $10000;
+  kfPDASHOW:cardinal = $20000;
 
 
 
@@ -336,7 +338,7 @@ asm
   lea edi, [esi+$e8]
 end;
 
-procedure OnActorSwithesSmth(restrictor_config_param:PChar; animator_item_section:PChar; anm_name:PChar; snd_label:PChar; key_repeat:cardinal; callback:TAnimationEffector; callback_param:integer); stdcall;
+function OnActorSwithesSmth(restrictor_config_param:PChar; animator_item_section:PChar; anm_name:PChar; snd_label:PChar; key_repeat:cardinal; callback:TAnimationEffector; callback_param:integer):boolean; stdcall;
 var
   buf:WpnBuf;
   wpn, act, det:pointer;
@@ -344,31 +346,39 @@ var
   curanm:PChar;
   slot:integer;
 begin
+  result:=false;
   act:=GetActor();
   if act=nil then exit;
 
   wpn:=GetActorActiveItem();
   det:=GetActiveDetector(act);
-  if (det<>nil) and (GetCurrentState(det)<>CHUDState__eIdle) then exit;
-
-
+  if (det<>nil) and (GetCurrentState(det)<>CHUDState__eIdle) then begin
+    exit;
+  end;
+  
   if (wpn=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
     if not game_ini_r_bool_def(animator_item_section, 'action_animator', false) then begin
       log('Section ['+animator_item_section+'] defined as action animator in [gunslinger_base], but key action_animator is false or does not exist!', true);
       if IsDebug then Messenger.SendMessage('Action animator: invalid configuration, see log!');
     end;
+
 //    log('spawn scheme');
     //если оружие есть и оно зан€то - уходим
     if (wpn<>nil) then begin
-      if (GetCurrentState(wpn)<>EHudStates__eIdle) then exit;
       buf:=GetBuffer(wpn);
       if (buf<>nil) and not Weapon_SetKeyRepeatFlagIfNeeded(wpn, key_repeat) then begin
         exit;
+      end else if (GetCurrentState(wpn)<>EHudStates__eIdle) then begin
+        exit;
       end;
     end;
+
 //    log('Check');
     slot:=game_ini_r_int_def(animator_item_section, 'slot', 0)+1;
-    if ItemInSlot(act, slot)<>nil then exit;
+    if ItemInSlot(act, slot)<>nil then begin
+      exit;
+    end;
+
     wpn:= pointer(cardinal(act)-$e8); //псевдооружие :)
 //    log('spawn');
     CALifeSimulator__spawn_item2(animator_item_section, GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn), GetID(wpn));
@@ -377,6 +387,8 @@ begin
     ActivateActorSlot(slot);
     _action_animator_callback:=callback;
     _action_animator_param:=callback_param;
+    result:=true;
+
   end else begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
@@ -388,6 +400,7 @@ begin
         MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, callback, callback_param);
         _action_animator_callback:=nil;
         _action_animator_param:=0;
+        result:=true;
       end;
     end else begin
       //SetPending(true) и вызов анимации, затем в OnAnimationEnd SetPending(false)
@@ -398,10 +411,13 @@ begin
         StartCompanionAnimIfNeeded(rightstr(anm_name, length(anm_name)-4), wpn, false);
         _action_animator_callback:=callback;
         _action_animator_param:=callback_param;
+        result:=true;
       end;
     end;
   end;
 end;
+
+//Action-animator callbacks-----------------------------------------------------------------------------------------
 
 procedure HeadlampCallback(wpn:pointer; param:integer); stdcall;
 var
@@ -453,10 +469,58 @@ begin
   if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
 end;
 
+procedure PDAShowCallback(wpn:pointer; param:integer); stdcall;
+var
+  act:pointer;
+begin
+  act:=GetActor;
+  if (act=nil) or CActor__get_inventory_disabled(act) then exit;
+  _prev_act_slot:=0;
+  ActivateActorSlot(0);
+  if not IsPDAShown() then ShowPDAMenu();
+end;
+
+procedure PDAHideCallback(wpn:pointer; param:integer); stdcall;
+var
+  act:pointer;
+begin
+  act:=GetActor;
+  if (act=nil) or CActor__get_inventory_disabled(act) then exit;
+  HidePDAMenu();
+end;
+
+//-----------------------------------------------------------------------------------------------------------
+procedure OnPDAShow(); stdcall;
+var
+  act:pointer;
+begin
+  act:=GetActor;
+  if (act=nil) or CActor__get_inventory_disabled(act) or IsActorControlled() then exit;
+  OnActorSwithesSmth('disable_pda_show_anim', GetPDAShowAnimator(), 'anm_pda_show', 'sndPDAShow', kfPDASHOW, PDAShowCallback, 0);
+end;
+
+procedure OnPDAHide(); stdcall;
+var
+  act:pointer;
+begin
+  act:=GetActor;
+  if act=nil then begin
+    if IsPDAShown then begin
+      HidePDAMenu();
+    end;
+    exit;
+  end;
+  if GetActorActiveSlot()<>0 then begin
+    ActivateActorSlot__CInventory(0, true);
+  end;
+  if not OnActorSwithesSmth('disable_pda_hide_anim', GetPDAShowAnimator(), 'anm_pda_hide', 'sndPDAHide', kfPDAHIDE, PDAHideCallback, 0) then begin
+    SetActorKeyRepeatFlag(kfPDAHIDE, true);
+  end;
+end;
 
 procedure OnActorSwithesNV(itm:pointer); stdcall;
 begin
-  if not (CanUseNV(itm)) then exit;
+  if IsActorControlled() or not (CanUseNV(itm)) then exit;
   if IsNVSwitchedOn(itm) then begin
     OnActorSwithesSmth('disable_nv_anim', GetNVDisableAnimator(), 'anm_nv_off', 'sndNVOff', kfNIGHTVISION, NVCallback, 0);
   end else begin
@@ -466,16 +530,39 @@ end;
 
 procedure OnActorSwithesTorch(itm:pointer); stdcall;
 begin
-  if not CanUseTorch(itm) then exit;
+  if IsActorControlled() or not CanUseTorch(itm) then exit;
   if IsTorchSwitchedOn(itm) then begin
     OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampDisableAnimator(), 'anm_headlamp_off', 'sndHeadlampOff', kfHEADLAMP, HeadlampCallback, 0);
   end else begin
     OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampEnableAnimator(), 'anm_headlamp_on', 'sndHeadlampOn', kfHEADLAMP, HeadlampCallback, 1);
   end;
+end;
 
-  if GetActorActiveItem()<>nil then begin
-    MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), GetActorActiveItem());
-  end;
+procedure OnActorKick(); stdcall;
+var
+  wpn, act:pointer;
+begin
+    act:=GetActor;
+    if act=nil then exit;
+    wpn:=GetActorActiveItem();
+
+    if IsActorControlled() then begin
+      //под контролем не работает
+      exit;
+    end else if (GetActorActiveSlot()=1) then begin
+      //если в руках нож - делаем обычный удар
+      virtual_Action(wpn, kWPN_FIRE, kActPress);
+    end else begin
+      //провер€ем, можем ли вообще бить сейчас
+      if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
+
+      if (wpn<>nil) and (GetSection(wpn)=GetKickAnimator()) then begin
+        //хотим повторный удар :) «апомним это
+        SetActorKeyRepeatFlag(kfQUICKKICK, true);
+      end else begin
+        OnActorSwithesSmth('disable_kick_anim', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+      end;
+    end;
 end;
 
 procedure CActor__SwitchTorch_Patch;
@@ -493,6 +580,50 @@ asm
     call OnActorSwithesNV
   popad
 end;
+
+
+procedure CUIGameSP__IR_UIOnKeyboardPress_ShowPDA_Patch;
+asm
+  pushad
+    call OnPDAShow
+  popad
+end;
+
+function NeedImmediateHideDialog(CUIDialogWnd:pointer):boolean; stdcall;
+begin
+  result := (dynamic_cast(CUIDialogWnd, 0, RTTI_CUIDialogWnd, RTTI_CUIPdaWnd, false) = nil);
+end;
+
+procedure HidePDA_Patch; stdcall;
+asm
+  pushad
+    call OnPDAHide
+  popad
+end;
+
+
+procedure CLevel__IR_OnKeyboardPress_HidePDA_Patch;
+asm
+  pushad
+    push ecx
+    push ecx
+    call NeedImmediateHideDialog
+    cmp al, 0
+    pop ecx
+
+    je @pda
+    mov eax, xrgame_addr
+    add eax, $482280
+    call eax
+    je @finish
+
+    @pda:
+    call OnPDAHide
+
+    @finish:
+  popad
+end;
+
 //--------------------------------------------------------------------------------------------------------------------------
 
 
@@ -873,8 +1004,9 @@ end;
 
 procedure ProcessKeys(act:pointer);
 var
-  wpn, det:pointer;
+  wpn, det, torch:pointer;
   action:cardinal;
+  last_pdahide_state:boolean;
 begin
 
   if act = nil then exit;
@@ -883,7 +1015,9 @@ begin
 
   
   if (wpn = nil) then begin
+    last_pdahide_state:=GetActorKeyRepeatFlag(kfPDAHIDE);
     ClearActorKeyRepeatFlags();
+    SetActorKeyRepeatFlag(kfPDAHIDE, last_pdahide_state);    
     ResetActorFlags(act);
   end else if (not WpnCanShoot(PChar(GetClassName(wpn)))) then begin
     //–еактиваци€ после блока у болта, грены, ножа, вызванного доставанием детектора.
@@ -932,10 +1066,17 @@ begin
     if (wpn=nil) or CanStartAction(wpn) then begin
       SetActorKeyRepeatFlag(kfDETECTOR, false);
     end;
-  end;  
+  end;
+
+  if ((_keyflags and kfPDAHIDE)<>0) then begin
+      SetActorKeyRepeatFlag(kfPDAHIDE, false); //именно сейчас! потом может заново поставитьc€
+      if IsPDAShown() then begin
+        OnPDAHide();
+//        log('pda hide tried, state = '+booltostr(_keyflags and kfPDAHIDE<>0, true ));
+      end;
+  end;
 
   if (wpn=nil) then exit;
-
 
   if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
     if not IsAimToggle() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
@@ -1014,24 +1155,33 @@ begin
 
   if (_keyflags and kfHEADLAMP)<>0 then begin
     if CanStartAction(wpn) then begin
-      virtual_Action(wpn, kTORCH, kActPress);
+      torch:=ItemInSlot(act, 10);
+      if torch<>nil then OnActorSwithesTorch(torch);
       SetActorKeyRepeatFlag(kfHEADLAMP, false);
     end;
   end;
 
   if (_keyflags and kfNIGHTVISION)<>0 then begin
     if CanStartAction(wpn) then begin
-      virtual_Action(wpn, kNIGHT_VISION, kActPress);
+      torch:=ItemInSlot(act, 10);
+      if torch<>nil then OnActorSwithesNV(torch);
       SetActorKeyRepeatFlag(kfNIGHTVISION, false);
     end;
   end;
 
   if (_keyflags and kfQUICKKICK)<>0 then begin
     if CanStartAction(wpn) then begin
-      virtual_Action(wpn, kQUICK_KICK, kActPress);
+      OnActorKick();
       SetActorKeyRepeatFlag(kfQUICKKICK, false);
     end;
   end;
+
+  if ((_keyflags and kfPDASHOW)<>0) then begin
+    if (wpn=nil) or CanStartAction(wpn) then begin
+      if not IsPDAShown() then OnPDAShow();
+      SetActorKeyRepeatFlag(kfPDASHOW, false);
+    end;
+  end;  
 
 
 {  //принудительный сброс бега во врем€ действи€
@@ -1303,6 +1453,12 @@ begin
 
   act:=GetActor();
   if act = nil then exit;
+
+  if CDialogHolder__TopInputReceiver()<> nil then begin
+    result:=false;
+    exit;
+  end;
+
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
   if (wpn<>nil) then begin
@@ -1360,7 +1516,7 @@ begin
       end;
     end;
   end else if (dik=kQUICK_GRENADE) then begin
-    if (GetActorActiveSlot()=4) or (GetActorSlotBlockedCounter(4)>0) or (IsActorSuicideNow()) or (IsActorPlanningSuicide()) then exit;
+    if (GetActorActiveSlot()=4) or (GetActorSlotBlockedCounter(4)>0) or IsActorControlled() or (IsActorSuicideNow()) or (IsActorPlanningSuicide()) then exit;
 
     itm:=ItemInSlot(act, 4);
     if (itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'supports_quick_throw', false) then begin
@@ -1368,20 +1524,7 @@ begin
       ActivateActorSlot__CInventory(4, false);
     end;
   end else if (dik=kQUICK_KICK) then begin
-    //если в руках нож - делаем обычный удар
-    if (GetActorActiveSlot()=1) then begin
-      virtual_Action(wpn, kWPN_FIRE, kActPress);
-    end else begin
-      //провер€ем, можем ли вообще бить сейчас
-      if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
-
-      if (wpn<>nil) and (GetSection(wpn)=GetKickAnimator()) then begin
-        //хотим повторный удар :) «апомним это
-        SetActorKeyRepeatFlag(kfQUICKKICK, true);
-      end else begin
-        OnActorSwithesSmth('disable_kick_anim', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
-      end;
-    end;
+    OnActorKick();
   end;
 
 end;
@@ -2076,6 +2219,21 @@ begin
 
   jmp_addr:= xrgame_addr+$277FE5;
   if not WriteJump(jmp_addr, cardinal(@CActor__SwitchNightVision_Patch), 5, false) then exit;
+
+  jmp_addr:= xrgame_addr+$4B61E5;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameSP__IR_UIOnKeyboardPress_ShowPDA_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$237864;
+  if not WriteJump(jmp_addr, cardinal(@CLevel__IR_OnKeyboardPress_HidePDA_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$4424E0;
+  if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$4B1B9E;
+  if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$442AF5;
+  if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
 
   result:=true;
 end;

@@ -36,6 +36,10 @@ procedure CustomStaticSetText(sdrawstaticstruct:pointer; text:pchar); stdcall;
 function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
 procedure HideShownDialogs(); stdcall;
 
+procedure ShowPDAMenu(); stdcall;
+procedure HidePDAMenu(); stdcall;
+function IsPDAShown():boolean; stdcall;
+
 
 implementation
 uses BaseGameData;
@@ -136,6 +140,52 @@ asm
   mov eax, xrengine_addr
   mov eax, [eax+$92d3c]
   mov @result, eax
+end;
+
+procedure ShowPDAMenu(); stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+
+    mov ecx, eax
+    mov ebx, xrgame_addr
+    add ebx, $4b0bb0
+    call ebx
+
+    @finish:
+  popad
+end;
+
+procedure HidePDAMenu(); stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+
+    mov ecx, eax
+    mov ebx, xrgame_addr
+    add ebx, $4b0bd0
+    call ebx
+
+    @finish:
+  popad
+end;
+
+function IsPDAShown():boolean; stdcall;
+asm
+  mov @result, 0
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+    mov ecx, [eax+$54]
+    mov bl, [ecx+4]
+    mov @result, bl
+    @finish:
+  popad
 end;
 
 

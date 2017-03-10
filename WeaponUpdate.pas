@@ -462,13 +462,19 @@ begin
               else
                 ActivateActorSlot(0);
             end;
+          end else begin
+            if GetActorTargetSlot()=GetActorActiveSlot() then begin
+              virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
+            end;
           end;
         end else begin
           if (GetActor=nil) or (GetOwner(wpn)<>GetActor()) then begin
             alife_release(get_server_object_by_id(GetID(wpn)));
           end else begin
             slot:=game_ini_r_int_def(GetSection(wpn), 'slot', 0)+1;
+//            log('release candidate');
             if (GetActorTargetSlot() <> slot) then begin
+//              log('released');
               alife_release(get_server_object_by_id(GetID(wpn)));
               RestoreLastActorDetector();
             end;

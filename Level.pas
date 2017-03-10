@@ -78,6 +78,13 @@ var
   c:CCartridge;
   sect:PChar;
   material:PChar;
+
+  cnt, i, htype:integer;
+  hp, imp, hdist:single;
+  tmpdir:FVector3;
+  right, up:FVector3;
+
+  disp_hor, disp_ver:single;
 begin
   sect:=GetSection(wpn);
 
@@ -94,17 +101,68 @@ begin
   c.SCartridgeParam__fWallmarkSize:=game_ini_r_single_def(sect, 'kick_wallmark_size', 0.05);
   c.bullet_material_idx:=GetMaterialIdx(material);
 
+  cnt:=game_ini_r_int_def(sect, 'kick_hit_count', 1);
+  hp:=game_ini_r_single_def(sect, 'kick_hit_power', 1.0);
+  imp:=game_ini_r_single_def(sect, 'kick_hit_impulse', 1.0);
+  htype:=game_ini_r_int_def(sect, 'kick_hit_type', EHitType__eHitTypeWound);
+  hdist:=game_ini_r_single_def(sect, 'kick_distance', 2.0);
+
+  disp_hor:=game_ini_r_single_def(sect, 'kick_disp_hor', 0.5);
+  disp_ver:=game_ini_r_single_def(sect, 'kick_disp_ver', 0.5);
+
+  //для одного волмарка
   AddBullet(pos, dir, 10000,
-    game_ini_r_single_def(sect, 'kick_hit_power', 1.0),
-    game_ini_r_single_def(sect, 'kick_hit_impulse', 1.0),
-    0,
-    GetID(wpn),
-    game_ini_r_int_def(sect, 'kick_hit_type', EHitType__eHitTypeWound),
-    game_ini_r_single_def(sect, 'kick_distance', 2.0),
-    @c,
-    1.0,
-    true,
-    false);
+      0,
+      0,
+      0,
+      GetID(wpn),
+      htype,
+      hdist,
+      @c,
+      1.0,
+      true,
+      false);
+
+
+  //для хита
+
+  c.bullet_material_idx:=GetMaterialIdx('objects\clothes');
+  c.SCartridgeParam__fWallmarkSize:=0.0001;
+
+
+
+  for i:=0 to cnt-1 do begin
+    tmpdir:=dir^;
+    generate_orthonormal_basis_normalized(@tmpdir, @up, @right);
+
+    //посчитаем максимальное отклонение
+    v_mul(@up, disp_ver);
+    v_mul(@right, disp_hor);
+    //выставим дирекцию в крайнее положение
+    v_sub(@tmpdir, @up);
+    v_sub(@tmpdir, @right);
+
+    //посмотрим, насколько сместить дирекцию для текущего удара
+    v_mul(@up, 2*i/cnt);
+    v_mul(@right, 2*i/cnt);
+
+    //выставим текущее смещение
+    v_add(@tmpdir, @up);
+    v_add(@tmpdir, @right);
+
+
+    AddBullet(pos, @tmpdir, 10000,
+      hp,
+      imp,
+      0,
+      GetID(wpn),
+      htype,
+      hdist,
+      @c,
+      1.0,
+      true,
+      false);
+  end;
 end;
 
 end.

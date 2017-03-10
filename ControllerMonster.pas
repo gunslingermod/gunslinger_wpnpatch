@@ -164,7 +164,7 @@ begin
         end else begin
           ActivateActorSlot__CInventory(0, false);
         end;
-      end else if (wpn=nil) and (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+      end else if (wpn=nil) and (GetCurrentDifficulty()>=gd_stalker) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
         _planning_suicide:=true;
         ActivateActorSlot__CInventory(1, false);
       end;

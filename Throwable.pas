@@ -167,6 +167,9 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_off', 'sndHeadlampOff', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_on', 'sndNVOn', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_off', 'sndNVOff', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_kick', 'sndKick', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_pda_show', 'sndPDAShow', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_pda_hide', 'sndPDAHide', 1, $80040000);  
 
 end;
 
