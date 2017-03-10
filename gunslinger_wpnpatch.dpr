@@ -44,7 +44,8 @@ uses
   CrosshairInertion in 'CrosshairInertion.pas',
   WeaponInertion in 'WeaponInertion.pas',
   ControllerMonster in 'ControllerMonster.pas',
-  AutoUpdater in 'AutoUpdater.pas';
+  AutoUpdater in 'AutoUpdater.pas',
+  ScriptFunctors in 'ScriptFunctors.pas';
 
 {$R *.res}
 //var
@@ -85,6 +86,7 @@ begin
   BallisticsCorrection.Init();
   WeaponInertion.Init();
   ControllerMonster.Init();
+  UIUtils.Init();
 
 //  AutoUpdater.Init();
 //  LensDoubleRender.Init()

@@ -81,6 +81,7 @@ function GetCamSpeedDef():single;
 function GetCamLandingParams():landing_params;
 
 function GetControllerTime():cardinal; stdcall;
+function GetControllerPrepareTime():cardinal; stdcall;
 function GetControllerBlockedTime():cardinal; stdcall;
 function GetShockTime():cardinal; stdcall;
 function GetMaxJitterHealth():single; stdcall;
@@ -126,6 +127,7 @@ var
   _weaponmove_enabled:boolean;
   _collimaim_enabled:boolean;
   _controller_time:cardinal;
+  _controller_prepare_time:cardinal;
   _controller_blocked_time:cardinal;
   _controller_phantoms:phantoms_params;
 
@@ -504,6 +506,7 @@ begin
   _cam_landing.time_landing2:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_time', 0.5)*1000);
 
   _controller_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_time', 3)*1000);
+  _controller_prepare_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_prepare_time', 3)*1000);
   _controller_blocked_time :=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psyblocked_time ', 5)*1000);
   _actor_shocked_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_shock_time', 10)*1000);
 
@@ -600,6 +603,11 @@ end;
 function GetControllerBlockedTime():cardinal; stdcall;
 begin
   result:=_controller_blocked_time;
+end;
+
+function GetControllerPrepareTime():cardinal; stdcall;
+begin
+   result:=_controller_prepare_time;
 end;
 
 function GetControlledActorSpeedKoef():single; stdcall;

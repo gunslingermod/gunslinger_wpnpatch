@@ -319,7 +319,7 @@ end;
 //------------------------------------------------------------------------------
 procedure OnCWeaponNetSpawn_middle(wpn:pointer);stdcall;
 begin
-  if WpnCanShoot(PChar(GetClassName(wpn))) then begin
+  if WpnCanShoot(wpn) then begin
     //буфер может уже быть создан в load'e - проверим это
     if (GetBuffer(wpn)=nil) then begin
       WpnBuf.Create(wpn);
@@ -337,7 +337,7 @@ var
 begin
 
   //выставим сохраненные типы патронов
-  if WpnCanShoot(PChar(GetClassName(wpn))) then begin
+  if WpnCanShoot(wpn) then begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
 //      if (IsGLAttached(wpn))  then log(booltostr(ISGLEnabled(wpn), true));
@@ -538,7 +538,7 @@ procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
 var
   hud_sect:PChar;
   trash, element:string;
-  sitm:pointer;
+  sitm:pCSE_Abstract;
 begin
   hud_sect:=GetHUDSection(wpn);
   if game_ini_line_exist(hud_sect, 'explosion_trash') then begin
@@ -577,7 +577,7 @@ begin
     result:=true;
   end;
 
-  if game_ini_r_bool_def(sect, 'can_explose', false) then begin
+  if FindBoolValueInUpgradesDef(wpn, 'can_explose', game_ini_r_bool_def(sect, 'can_explose', false)) then begin
     if curcond<game_ini_r_single_def(sect, 'explode_start_condition', 1) then begin
       if random < game_ini_r_single_def(sect, 'explode_probability', 1) then begin
         //Сейчас оружие взорвется в руках :)
@@ -735,7 +735,7 @@ begin
   end;
 
 
-  if not (WpnCanShoot(PChar(GetClassName(wpn)))) then begin
+  if not (WpnCanShoot(wpn)) then begin
     result:=true;
     state:=GetCurrentState(wpn);
 
@@ -744,7 +744,7 @@ begin
       exit;
     end;
 
-    if (act<>nil) and (owner=act) and IsThrowable(PChar(GetClassName(wpn))) and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)) then begin
+    if (act<>nil) and (owner=act) and IsThrowable(wpn) and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)) then begin
       result:=false;
     end;
     exit;
@@ -769,7 +769,7 @@ var
   act, owner:pointer;
 begin
   //У ножа нет звука убирания. Воспроизведем.
-  if IsKnife(PChar(GetClassName(wpn))) then begin
+  if IsKnife(wpn) then begin
     CHudItem_Play_Snd(wpn, 'sndHide');
   end;
 
@@ -791,7 +791,7 @@ var
   last_pdahide_state:boolean;
 begin
   //У ножа нет звука доставания. Воспроизведем.
-  if IsKnife(PChar(GetClassName(wpn))) then begin
+  if IsKnife(wpn) then begin
     CHudItem_Play_Snd(wpn, 'sndShow');
   end;
 

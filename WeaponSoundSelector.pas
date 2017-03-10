@@ -41,7 +41,7 @@ begin
 
 
     if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_empty_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_empty_detector_snd') then begin
-      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+      if (IsBM16(wpn)) and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         if (GetAmmoTypeChangingStatus(wpn)=$FF) then
           result:='sndReloadOnlyDetector'
         else
@@ -50,7 +50,7 @@ begin
         result:='sndReloadEmptyDetector'
       end;
     end else begin
-      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+      if (IsBM16(wpn)) and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         if (GetAmmoTypeChangingStatus(wpn)=$FF) then
           result:='sndReloadOnly'
         else
@@ -64,28 +64,28 @@ begin
   end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
 
     if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_changeammo_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_changeammo_detector_snd') then begin
-      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+      if (IsBM16(wpn)) and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         if GetCurrentAmmoCount(wpn)=1 then begin
           result:='sndChangeCartridgeTypeDetectorOneOnly'
         end else begin
           result:='sndChangeCartridgeTypeDetectorOnly'
         end;
       end else begin
-        if GetCurrentAmmoCount(wpn)=1 then begin
+        if (IsBM16(wpn)) and (GetCurrentAmmoCount(wpn)=1) then begin
           result:='sndChangeCartridgeTypeOneDetector';
         end else begin
           result:='sndChangeCartridgeTypeDetector';
         end;
       end;
     end else begin
-      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+      if (IsBM16(wpn)) and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         if GetCurrentAmmoCount(wpn)=1 then begin
           result:='sndChangeCartridgeTypeOneOnly'
         end else begin
           result:='sndChangeCartridgeTypeOnly'
         end;
       end else begin
-        if GetCurrentAmmoCount(wpn)=1 then begin
+        if (IsBM16(wpn)) and (GetCurrentAmmoCount(wpn)=1) then begin
           result:='sndChangeCartridgeTypeOne';
         end else begin
           result:='sndChangeCartridgeType';

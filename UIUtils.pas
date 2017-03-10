@@ -35,14 +35,22 @@ procedure virtual_CUIWindow__Show (cuiwindow: pointer; status:cardinal); stdcall
 procedure CustomStaticSetText(sdrawstaticstruct:pointer; text:pchar); stdcall;
 function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
 procedure HideShownDialogs(); stdcall;
+function IsUIShown():boolean; stdcall;
 
 procedure ShowPDAMenu(); stdcall;
 procedure HidePDAMenu(); stdcall;
 function IsPDAShown():boolean; stdcall;
 
+function IsInventoryShown():boolean; stdcall;
+
+function Init():boolean;stdcall;
 
 implementation
-uses BaseGameData;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config;
+
+var
+  register_level_isuishown_ret:cardinal;
+  IsUIShown_ptr, IndicatorsShown_adapter_ptr:pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -186,6 +194,188 @@ asm
     mov @result, bl
     @finish:
   popad
+end;
+
+function IsInventoryShown():boolean; stdcall;
+asm
+  mov @result, 0
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+    mov ecx, [eax+$50]
+    mov bl, [ecx+4]
+    mov @result, bl
+    @finish:
+  popad
+end;
+
+function IsUIShown():boolean; stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    movzx eax, byte ptr [eax+$58]
+    mov @result, al
+  popad
+end;
+
+function IndicatorsShown():boolean; stdcall;
+var
+  wpn:pointer;
+begin
+  result:=IsUIShown();
+  if result then begin
+    wpn:=GetActorActiveItem();
+    result:= (wpn=nil) or not (IsAimNow(wpn) and (IsScopeAttached(wpn) or (GetScopeStatus(wpn)=1)) and not IsUINotNeededToBeHidden(wpn));
+  end;
+end;
+
+function IndicatorsShown_adapter():boolean; stdcall;
+asm
+  pushad
+    call IndicatorsShown
+    mov @result, al
+  popad
+end;
+
+procedure register_level_isuishown(); stdcall;
+const
+  name:PChar='is_ui_shown';
+  name2:PChar='indicators_shown';
+asm
+  push eax
+
+  mov ecx, IsUIShown_ptr
+  push ecx
+  mov ecx, esp
+  push name
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ////////////////////////////
+  push eax
+
+  mov ecx, IndicatorsShown_adapter_ptr
+  push ecx
+  mov ecx, esp
+  push name2
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+  ///////////////////////////////
+
+  //original
+  mov ecx, eax
+  call esi
+  mov ecx, eax
+
+  jmp register_level_isuishown_ret
+end;
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Подмена заполнения шкалы состояния
+procedure OverrideItemCondition(itm:pointer; condition:psingle); stdcall;
+var
+  sect:PChar;
+begin
+  sect:=GetSection(itm);
+  condition^:=game_ini_r_single_def(sect, 'visual_condition', condition^);
+end;
+
+procedure CUICellItem__UpdateConditionProgressBar_condition_Patch(); stdcall;
+asm
+  pushad
+    push [edi+$AC]
+    push esp
+    push edi
+    call OverrideItemCondition
+    movss xmm0, [esp]
+    add esp, 4
+  popad
+end;
+
+//нужно ли показывать шкалу
+function NeedShowCondition(itm:pointer):boolean; stdcall;
+begin
+  result:=game_ini_line_exist(GetSection(itm), 'visual_condition');
+end;
+
+procedure CUICellItem__UpdateConditionProgressBar_needshow_Patch(); stdcall;
+asm
+  //ZF=0 для того, чтобы не рисовать
+  test ebx, ebx
+  jne @need_draw
+  test ebp, ebp
+  jne @need_draw
+  test eax, eax
+  jne @need_draw
+
+  pushad
+    push edi
+    call NeedShowCondition
+    cmp al, 0
+  popad
+  jne @need_draw
+
+  test eax, eax //гарантированно верно - уже проверяли
+  ret
+
+  @need_draw:
+  cmp esi, 0 //гарантированно неверно -> не уходим в Show(false)
+  ret
+end;
+
+
+function Init():boolean;stdcall;
+var
+  jmp_addr:cardinal;
+begin
+  jmp_addr:=xrGame_addr+$24A762;
+  register_level_isuishown_ret:=xrgame_addr+$24a768;
+  IsUIShown_ptr:=@IsUIShown;
+  IndicatorsShown_adapter_ptr:=@IndicatorsShown_adapter;
+  if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;
+
+  jmp_addr:=xrGame_addr+$49f10f;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__UpdateConditionProgressBar_condition_Patch), 8, true) then exit;
+
+  jmp_addr:=xrGame_addr+$49f074;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__UpdateConditionProgressBar_needshow_Patch), 10, true) then exit;
+
+
+  //запрет на сокрытие индикаторов худа при включении окна пда/инвентаря
+  nop_code(xrgame_addr+$4b0bc5, 1, char(00)); //pda
+  nop_code(xrgame_addr+$4b1be5, 1, char(00)); //inventory
+  nop_code(xrgame_addr+$466778, 5);           //отключение повторной отрисовки квикслотов и бустеров, когда активен инвентарь
+  nop_code(xrgame_addr+$46676B, 5);           //отключение повторной отрисовки миникарты, когда активен инвентарь    
+
+  result:=true;
 end;
 
 

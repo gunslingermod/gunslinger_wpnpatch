@@ -408,6 +408,12 @@ begin
     end else begin
       //SetPending(true) и вызов анимации, затем в OnAnimationEnd SetPending(false)
       if not IsPending(wpn) and (GetCurrentState(wpn)=EHudStates__eIdle) then begin
+        if GetActorActionState(act, actSprint, mstate_REAL) or GetActorActionState(act, actModDetectorSprintStarted, mstate_REAL) or GetActorActionState(act, actModSprintStarted, mstate_REAL) then begin
+          SetActorActionState(act, actModSprintStarted, false);
+          SetActorActionState(act, actModSprintStarted, false, mState_WISHFUL);
+      //    result:=false;
+      //    exit;
+        end;
         StartPending(wpn);
         PlayHudAnim(wpn, anm_name, true);
         CHudItem_Play_Snd(wpn, snd_label);
@@ -1024,9 +1030,9 @@ begin
     ClearActorKeyRepeatFlags();
     SetActorKeyRepeatFlag(kfPDAHIDE, last_pdahide_state);    
     ResetActorFlags(act);
-  end else if (not WpnCanShoot(PChar(GetClassName(wpn)))) then begin
+  end else if (not WpnCanShoot(wpn)) then begin
     //–еактиваци€ после блока у болта, грены, ножа, вызванного доставанием детектора.
-    if (IsThrowable(PChar(GetClassName(wpn))) or IsKnife(PChar(GetClassName(wpn)))) then begin
+    if (IsThrowable(wpn) or IsKnife(wpn)) then begin
       if ((_keyflags and kfFIRE)<>0) then
         action:=kWPN_FIRE
       else if ((_keyflags and kfZOOM)<>0) then
@@ -1068,7 +1074,7 @@ begin
   end;
 
   if ((_keyflags and kfDETECTOR)<>0) then begin
-    if (wpn=nil) or CanStartAction(wpn) then begin
+    if (wpn=nil) or (CanStartAction(wpn)) then begin
       SetActorKeyRepeatFlag(kfDETECTOR, false);
     end;
   end;
@@ -1287,7 +1293,7 @@ begin
       SetDetectorForceUnhide(det, true);
     end else if (GetCurrentState(det)=2) then begin //мы собрались убирать детектор. Ќазначим аниму рукам, если оружие не выполн€ет сейчас какое-то действие.
       itm:=GetActorActiveItem();
-      if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
+      if (itm<>nil) and WpnCanShoot(itm) then begin
         hud_sect:=GetHUDSection(itm);
         if (game_ini_line_exist(hud_sect, 'use_finish_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_finish_detector_anim')) then begin
           if CanStartAction(itm) and (not IsHolderInSprintState(itm)) then
@@ -1453,7 +1459,6 @@ var
   wpn, det, itm:pointer;
   iswpnthrowable, canshoot, is_bino:boolean;
   state:cardinal;
-  cls:PChar;
 begin
 
   //возвратить false, чтобы забыть про данное нажатие
@@ -1470,9 +1475,9 @@ begin
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
   if (wpn<>nil) then begin
-    iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
-    canshoot:=WpnCanShoot(PChar(GetClassName(wpn)));
-    is_bino:=IsBino(PChar(GetClassName(wpn)));
+    iswpnthrowable:=IsThrowable(wpn);
+    canshoot:=WpnCanShoot(wpn);
+    is_bino:=IsBino(wpn);
     state:=GetCurrentState(wpn);
   end;
 
@@ -1505,8 +1510,7 @@ begin
       end;}
   end else if ((dik=kWPN_FIRE) or (dik=kWPN_ZOOM)) then begin
     if (det<>nil) and (wpn<>nil) then begin
-      cls:=PChar(GetClassName(wpn));
-      if (IsKnife(cls) or IsThrowable(cls)) then begin
+      if (IsKnife(wpn) or IsThrowable(wpn)) then begin
         if (GetCurrentState(det)=CHUDState__eShowing) then begin
           result:=false;
           if dik=kWPN_FIRE then SetActorKeyRepeatFlag(kfFIRE, true) else SetActorKeyRepeatFlag(kfZOOM, true);
@@ -1516,7 +1520,7 @@ begin
       end;
     end;
   end else if ((dik=kWPN_1) or (dik=kWPN_2) or (dik=kWPN_3) or (dik=kWPN_4) or (dik=kWPN_5) or (dik=kWPN_6) or (dik=kARTEFACT)) then begin
-    if (IsActorSuicideNow()) or IsActorPlanningSuicide() then begin
+    if (IsActorSuicideNow()) or IsActorPlanningSuicide() or ((wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object')) then begin
       result:=false;
     end else if IsActorControlled() then begin
       result:=CanUseItemForSuicide(ItemInSlot(act, dik-kWPN_1+1));
@@ -1947,7 +1951,7 @@ end;
 
 function drawingame_conditions():boolean; stdcall;
 begin
-  result := GetCurrentDifficulty()<gd_master;
+  result := (GetCurrentDifficulty()<gd_master) or IsInventoryShown();
 end;
 
 procedure CUIGameCustom__Render_drawingame_Patch; stdcall;

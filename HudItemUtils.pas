@@ -1,7 +1,7 @@
 unit HudItemUtils;
 
 interface
-uses MatVectors;
+uses MatVectors, WeaponSoundLoader;
 
 function Init():boolean;
 
@@ -43,10 +43,8 @@ function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetAimFactor(wpn:pointer):single; stdcall;
 procedure SetAimFactor(wpn:pointer; f:single); stdcall;
-function GetClassName(wpn:pointer):string; stdcall;
-function WpnCanShoot(cls:PChar):boolean;stdcall;
-function WpnIsDetector(cls:PChar):boolean;stdcall;
-function IsKnife(cls:PChar):boolean;stdcall;
+
+
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall
@@ -69,11 +67,21 @@ procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
 procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
-function IsThrowable(cls:PChar):boolean;stdcall;
-function IsBino(cls:PChar):boolean;stdcall;
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
 function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
+
+
+
+function GetClassName(wpn:pointer):string; stdcall;
+
+function WpnCanShoot(wpn:pointer):boolean;stdcall;
+function WpnIsDetector(wpn:pointer):boolean;stdcall;
+function IsKnife(wpn:pointer):boolean;stdcall;
+function IsThrowable(wpn:pointer):boolean;stdcall;
+function IsBino(wpn:pointer):boolean;stdcall;
+function IsBM16(wpn:pointer):boolean;stdcall;
+
 
 function GetAnimTimeState(wpn:pointer; what:cardinal=$2FC):cardinal; stdcall;
 
@@ -128,6 +136,9 @@ procedure AllowWeaponInertion(wpn:pointer; status:boolean);stdcall;
 function IsPending(wpn:pointer):boolean; stdcall;
 procedure StartPending(wpn:pointer); stdcall;
 procedure EndPending(wpn:pointer); stdcall;
+
+function GetSoundCollection(wpn:pointer):pHUD_SOUND_COLLECTION; stdcall;
+function PlaySoundByAnimName(wpn:pointer; anm:string):boolean;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -618,20 +629,27 @@ begin
   result:=trim(result);
 end;
 
-function WpnCanShoot(cls:PChar):boolean;stdcall;
+function WpnCanShoot(wpn:pointer):boolean;stdcall;
 begin
-//  result:=not((cls='G_RGD5_S') or (cls='II_BOLT') or (cls='DET_SIMP') or (cls='DET_ADVA') or (cls = 'DET_ELIT') or (cls = 'G_F1_S') or (cls = 'DET_ELIT') or (cls = 'WP_BINOC') or (cls = 'WP_KNIFE') or (cls = 'ARTEFACT') or (cls='D_FLARE'));
-  result:=(cls='WP_AK74') or (cls='WP_LR300') or (cls='WP_BM16') or (cls='WP_PM') or (cls='WP_GROZA') or (cls='WP_SVD') or (cls='WP_HPSA') or (cls='WP_ASHTG') or (cls='WP_RG6') or (cls='WP_RPG7') or (cls='WP_VAL') or (cls='WP_SHOTG') or (cls='WP_SVU');
+//  result:=(cls='WP_AK74') or (cls='WP_LR300') or (cls='WP_BM16') or (cls='WP_PM') or (cls='WP_GROZA') or (cls='WP_SVD') or (cls='WP_HPSA') or (cls='WP_ASHTG') or (cls='WP_RG6') or (cls='WP_RPG7') or (cls='WP_VAL') or (cls='WP_SHOTG') or (cls='WP_SVU');
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) and (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponBinoculars, false)=nil);
 end;
 
-function IsThrowable(cls:PChar):boolean;stdcall;
+function IsThrowable(wpn:pointer):boolean;stdcall;
 begin
-  result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
+//  result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CMissile, false)<>nil);
 end;
 
-function IsBino(cls:PChar):boolean;stdcall;
+function IsBino(wpn:pointer):boolean;stdcall;
 begin
-  result:=(cls='WP_BINOC');
+//  result:=(cls='WP_BINOC');
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponBinoculars, false)<>nil);
+end;
+
+function IsBM16(wpn:pointer):boolean;stdcall;
+begin
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponBM16, false)<>nil);
 end;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
@@ -940,14 +958,16 @@ asm
   mov @result, eax
 end;
 
-function WpnIsDetector(cls:PChar):boolean;stdcall;
+function WpnIsDetector(wpn:pointer):boolean;stdcall;
 begin
-  result:=(cls='DET_SIMP') or (cls='DET_ADVA') or (cls='DET_ELIT') or (cls='DET_SCIE');
+//  result:=(cls='DET_SIMP') or (cls='DET_ADVA') or (cls='DET_ELIT') or (cls='DET_SCIE');
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CCustomDetector, false)<>nil)
 end;
 
-function IsKnife(cls:PChar):boolean;stdcall;
+function IsKnife(wpn:pointer):boolean;stdcall;
 begin
-  result:=(cls='WP_KNIFE');
+//  result:=(cls='WP_KNIFE');
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponKnife, false)<>nil)
 end;
 
 procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
@@ -1718,6 +1738,34 @@ asm
   mov eax, wpn
   and byte ptr [eax+$2F4], $FE
   pop eax
+end;
+
+function GetSoundCollection(wpn:pointer):pHUD_SOUND_COLLECTION; stdcall;
+asm
+  mov eax, wpn
+  add eax, $324
+  mov @result, eax
+end;
+
+function PlaySoundByAnimName(wpn:pointer; anm:string):boolean;
+var
+  hud_sect:PChar;
+  snd_name:string;
+  is_exclusive:cardinal;
+begin
+  hud_sect:=GetHUDSection(wpn);
+  snd_name:='snd_'+anm;
+  if game_ini_line_exist(hud_sect, PChar(snd_name)) then begin
+    if game_ini_r_bool_def(hud_sect, PChar('snd_exclusive_'+anm), true) then
+      is_exclusive:=1
+    else
+      is_exclusive:=0;
+    HUD_SOUND_COLLECTION__LoadSound(GetSoundCollection(wpn), hud_sect, PChar(snd_name), PChar(snd_name), is_exclusive, game_ini_r_int_def(hud_sect, PChar('snd_type_'+anm), $FFFFFFFF));
+    CHudItem_Play_Snd(wpn, PChar(snd_name));
+    result:=true;
+  end else begin
+    result:=false;
+  end;
 end;
 
 end.

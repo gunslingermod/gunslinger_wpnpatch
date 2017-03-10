@@ -47,7 +47,7 @@ var
   ammotype:byte;
 begin
 
-  if not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
+  if not WpnCanShoot(wpn) then exit;
 
   if (GetBuffer(wpn)=nil) then begin
     buf:=WpnBuf.Create(wpn);
@@ -93,7 +93,7 @@ var
   ammotype:byte;
   c:pCCartridge;
 begin
-  if not WpnCanShoot(PChar(GetClassName(wpn))) then exit;
+  if not WpnCanShoot(wpn) then exit;
   buf:=GetBuffer(wpn);
   if buf = nil then exit;
 

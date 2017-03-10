@@ -6,6 +6,8 @@ function Init:boolean;
 function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
 function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
+function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
+function IsUINotNeededToBeHidden(wpn:pointer): boolean;stdcall;
 
 implementation
 uses BaseGameData, gunsl_config, HudItemUtils, sysutils, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer, windows;
@@ -51,10 +53,8 @@ function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
 begin
-  HudItemUtils.GetClassName(wpn);
-  result:=true;
-{  buf:=GetBuffer(wpn);
-  result:=IsCollimatorInstalled(wpn) or ((buf<>nil) and buf.IsAlterZoomMode());}
+  buf:=GetBuffer(wpn);
+  result:=IsCollimatorInstalled(wpn) or ((buf<>nil) and buf.IsAlterZoomMode());
 end;
 
 procedure PatchHudVisibility(); stdcall;
@@ -193,11 +193,24 @@ asm
 end;
 
 
+function IsUINotNeededToBeHidden(wpn:pointer): boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  result:=IsHudNotNeededToBeHidden(wpn);
+  if result then begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) and not buf.IsAlterZoomMode() and IsScopeAttached(wpn) then begin
+      result:= not game_ini_r_bool_def(game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name'), 'zoom_hide_ui', false);
+    end;
+  end;
+end;
+
 procedure CWeapon_show_indicators_Patch(); stdcall;
 asm
   pushad
     push esi
-    call IsHudNotNeededToBeHidden
+    call IsUINotNeededToBeHidden
     cmp al, 1
   popad
   je @finish

@@ -341,7 +341,7 @@ begin
     v_zero(@targetpos);
     v_zero(@targetrot);
     factor:=game_ini_r_single_def(section, 'hud_move_weaponhide_factor', 1.0);
-  end else if (WpnCanShoot(PChar(HudItemUtils.GetClassName(itm))) or IsBino(PChar(HudItemUtils.GetClassName(itm)))) and (IsAimNow(itm) or IsHolderInAimState(itm) or (GetAimFactor(itm)>0)) then begin
+  end else if (WpnCanShoot(itm) or IsBino(itm)) and (IsAimNow(itm) or IsHolderInAimState(itm) or (GetAimFactor(itm)>0)) then begin
     v_zero(@targetpos);
     v_zero(@targetrot);
     factor:=game_ini_r_single_def(section, 'hud_move_unzoom_factor', 1.0);

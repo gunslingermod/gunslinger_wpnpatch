@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -75,7 +75,7 @@ end;
 procedure ModifierBM16(wpn:pointer; var anm:string);
 var cnt:integer;
 begin
-  if GetClassName(wpn) = 'WP_BM16' then begin
+  if IsBM16(wpn) then begin
     cnt:=GetAmmoInMagCount(wpn);
     if cnt<=0 then
       anm:=anm+'_0'
@@ -94,17 +94,18 @@ var
   canshoot, isdetector, isgrenorbolt, is_knife, is_bino:boolean;
   companion:pointer;
   assign_detector_anim:boolean;
-  cls:string;
+  snd_label:PChar;
+
 begin
+  snd_label:=nil;
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_idle';
   actor:=GetActor();
-  cls:=GetClassName(wpn);
-  canshoot:=WpnCanShoot(PChar(cls));
-  isgrenorbolt:=IsThrowable(PChar(cls));
-  isdetector :=WpnIsDetector(PChar(cls));
-  is_knife:=IsKnife(PChar(cls));
-  is_bino:=IsBino(PChar(cls));
+  canshoot:=WpnCanShoot(wpn);
+  isgrenorbolt:=IsThrowable(wpn);
+  isdetector :=WpnIsDetector(wpn);
+  is_knife:=IsKnife(wpn);
+  is_bino:=IsBino(wpn);
   assign_detector_anim:=false;
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
@@ -119,13 +120,13 @@ begin
         ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
       end else begin
         anim_name:=anim_name+'_start';
-        if canshoot then CHudItem_Play_Snd(wpn, 'sndAimStart');
+        if canshoot then snd_label:='sndAimStart';
         SetActorActionState(actor, actAimStarted, true);
       end;
       if companion<>nil then assign_detector_anim:=true;
     end else if (canshoot or is_bino) and GetActorActionState(actor, actAimStarted) then begin
       anim_name:=anim_name+'_aim_end';
-      if canshoot then CHudItem_Play_Snd(wpn, 'sndAimEnd');
+      if canshoot then snd_label:='sndAimEnd';
       SetActorActionState(actor, actAimStarted, false);
       if companion<>nil then assign_detector_anim:=true;
 
@@ -134,7 +135,7 @@ begin
       anim_name:=anim_name+'_sprint';
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
-        if canshoot or isgrenorbolt or is_knife then CHudItem_Play_Snd(wpn, 'sndSprintStart');
+        if canshoot or isgrenorbolt or is_knife then snd_label:='sndSprintStart';
         if isdetector then
           SetActorActionState(actor, actModDetectorSprintStarted, true)
         else
@@ -144,7 +145,7 @@ begin
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
       if canshoot or isgrenorbolt or is_knife then
-        CHudItem_Play_Snd(wpn, 'sndSprintEnd');
+        snd_label:='sndSprintEnd';
 
       if isdetector then
         SetActorActionState(actor, actModDetectorSprintStarted, false)
@@ -172,7 +173,7 @@ begin
         //Если оружие заклинило - всегда пытаемся отыграть это состояние
         if IsWeaponJammed(wpn) then begin
           anim_name:=anim_name+'_jammed';
-        end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
+        end else if (GetAmmoInMagCount(wpn)<=0) and not IsBM16(wpn) then begin
           anim_name:=anim_name+'_empty';
         end;
 
@@ -203,6 +204,11 @@ begin
     
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+
+
+  if not PlaySoundByAnimName(wpn, anim_name) and (snd_label<>nil) then begin
+    CHudItem_Play_Snd(wpn, snd_label);
+  end;
 end;
 
 
@@ -247,7 +253,6 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 var
   hud_sect:PChar;
   actor:pointer;
-  cls:string;
 begin
   hud_sect:=GetHUDSection(wpn);
   actor:=GetActor();
@@ -255,12 +260,11 @@ begin
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
   //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     //Если магазин пуст - всегда играем empty, если можем
-    cls:=GetClassName(wpn);
-    if WpnCanShoot(PChar(cls)) then begin
+    if WpnCanShoot(wpn) then begin
       if leftstr(base_anim, 18)<>'anm_changefiremode' then base_anim:=base_anim + GetFireModeStateMark(wpn);
       if IsWeaponJammed(wpn) then begin
         base_anim:=base_anim+'_jammed';
-      end else if (GetAmmoInMagCount(wpn)<=0) and (cls<>'WP_BM16') then begin
+      end else if (GetAmmoInMagCount(wpn)<=0) and (not IsBM16(wpn)) then begin
         base_anim:=base_anim+'_empty';
       end;
 
@@ -300,6 +304,7 @@ begin
   end;  
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anim_name));
+  PlaySoundByAnimName(wpn, result)
 end;
 
 function anm_show_selector(wpn:pointer):pchar;stdcall;
@@ -571,6 +576,7 @@ begin
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
     end;
   end;
+  PlaySoundByAnimName(wpn, result);
 end;
 
 
@@ -613,14 +619,14 @@ begin
   if IsWeaponJammed(wpn) then begin
     anim_name := ModifierStd(wpn, 'anm_reload');
     if GetAmmoInMagCount(wpn)=0 then anim_name:=anim_name+'_last';
+    result:=PChar(anim_name);
 
-    if GetAmmoInMagCount(wpn)>0 then begin
+    if PlaySoundByAnimName(wpn, result) then begin
+    end else if GetAmmoInMagCount(wpn)>0 then begin
       CHudItem_Play_Snd(wpn, 'sndReloadJammed');
     end else begin
       CHudItem_Play_Snd(wpn, 'sndReloadJammedLast');
     end;
-
-    result:=PChar(anim_name);
 
     if ReadActionDOFVector(wpn, v, anim_name, true) then begin
       SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
@@ -631,7 +637,8 @@ begin
   anim_name := ModifierStd(wpn, 'anm_open');
   result:=PChar(anim_name);
 
-  if GetCurrentAmmoCount(wpn)>0 then begin
+  if PlaySoundByAnimName(wpn, result) then begin
+  end else if GetCurrentAmmoCount(wpn)>0 then begin
     CHudItem_Play_Snd(wpn, 'sndOpen');
   end else begin
     CHudItem_Play_Snd(wpn, 'sndOpenEmpty');
@@ -650,7 +657,7 @@ begin
 
   if ReadActionDOFVector(wpn, v, anim_name, true) then begin
     SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
-  end;  
+  end;
 end;
 
 procedure anm_open_std_patch();stdcall;
@@ -675,10 +682,10 @@ procedure SpawnShells(wpn:pointer); stdcall;
 var
   ammo_sect:PChar;
   buf:WpnBuf;
-  off, pos, dir:FVector3;
-  sitm:pointer;
+  off, pos:FVector3;
+  sitm:pCSE_Abstract;
 begin
-{  buf:=GetBuffer(wpn);
+  buf:=GetBuffer(wpn);
   if (buf=nil) or not buf.IsShellsNeeded() then exit;
   ammo_sect:=GetMainCartridgeSectionByType(wpn, GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype);
   if not game_ini_line_exist(ammo_sect, 'shell_sect') then exit;
@@ -689,8 +696,10 @@ begin
   off:=GetLastFD(wpn);
 
   sitm:=alife_create(ammo_sect, @pos, GetLevelVertexID(wpn), GetGameVertexID(wpn));
-  if sitm<>nil then CSE_SetAngle(sitm, @off);
-}
+  if sitm<>nil then begin
+    CSE_SetAngle(sitm, @off);
+  end;
+
 end;
     
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
@@ -735,7 +744,7 @@ begin
       fun:=OnWeaponExplode_AfterAnim;
     end else if IsWeaponJammed(wpn) then begin
       modifier:=modifier+'_jammed';
-    end else if (GetAmmoInMagCount(wpn)=1) and (GetClassName(wpn) <> 'WP_BM16') then begin
+    end else if (GetAmmoInMagCount(wpn)=1) and (not IsBM16(wpn)) then begin
       modifier:=modifier+'_last';
     end;
 
@@ -770,7 +779,7 @@ begin
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name), true, fun, 0);
 
-
+  PlaySoundByAnimName(wpn, result);
   SetAnimForceReassignStatus(wpn, true);
 end;
 
@@ -819,10 +828,11 @@ begin
 
   if buf=nil then begin
     log('anm_reload_selector: buf=nil!!! wpn '+GetClassName(wpn)+', '+GetSection(wpn)+', state='+inttostr(GetCurrentState(wpn)), true);
+    result:=PChar(anim_name);
     exit;
   end;
 
-  if GetClassName(wpn)<>'WP_BM16' then begin
+  if not IsBM16(wpn) then begin
     buf.ammo_cnt_to_reload:=-1;
   end else begin
     buf.ammo_cnt_to_reload:=2; //не более 2х
@@ -837,7 +847,7 @@ begin
       if GetAmmoInMagCount(wpn)=0 then anim_name:=anim_name+'_last';
       SetAmmoTypeChangingStatus(wpn, $FF);
     end else if GetAmmoInMagCount(wpn)<=0 then begin
-      if GetClassName(wpn)<>'WP_BM16' then begin
+      if not IsBM16(wpn) then begin
         anim_name:=anim_name+'_empty'; //у двустволок и так _0 потом модификатор прибавит
       end else if(CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         if GetAmmoTypeChangingStatus(wpn)=$FF then begin
@@ -849,7 +859,7 @@ begin
       end;
     end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin
       anim_name:=anim_name+'_ammochange';
-      if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
+      if IsBM16(wpn) and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
         anim_name:=anim_name+'_only';
         buf.ammo_cnt_to_reload:=1;      
       end;
@@ -892,6 +902,8 @@ begin
   if ReadActionDOFVector(wpn, v, anim_name, true) then begin
     SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
   end;
+
+  PlaySoundByAnimName(wpn, result);
 end;
 
 
@@ -1118,14 +1130,14 @@ var
   iswpnthrowable, is_bino, canshoot:boolean;
 begin
   result:=true;
-  if WpnIsDetector(PChar(GetClassName(CHudItem))) then begin
+  if WpnIsDetector(CHudItem) then begin
     act:=GetActor();
     if (act<>nil) and (GetOwner(CHudItem)=act) then begin
       wpn:=GetActorActiveItem();
       if wpn<>nil then begin
-        iswpnthrowable:=IsThrowable(PChar(GetClassName(wpn)));
-        canshoot:=WpnCanShoot(PChar(GetClassName(wpn)));
-        is_bino:=IsBino(PChar(GetClassName(wpn)));
+        iswpnthrowable:=IsThrowable(wpn);
+        canshoot:=WpnCanShoot(wpn);
+        is_bino:=IsBino(wpn);
         state:=GetCurrentState(wpn);
 
         if (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd))) then begin
@@ -1491,7 +1503,7 @@ end;
 //----------------------------Общий фикс многократного сокрытия при беспорядочной смене слотов-------------------------
 function MultiHideFix_IsHidingNow(wpn:pointer): boolean; stdcall;
 begin
-  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and (GetCurrentState(wpn)=CHUDState__eHiding) and (GetAnimTimeState(wpn, ANM_TIME_CUR)<GetAnimTimeState(wpn, ANM_TIME_END))  and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
+  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and (cardinal(GetCurrentState(wpn))=CHUDState__eHiding) and (GetAnimTimeState(wpn, ANM_TIME_CUR)<GetAnimTimeState(wpn, ANM_TIME_END))  and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
     result:=true
   else
     result:=false;

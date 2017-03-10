@@ -18,7 +18,7 @@ function GetCurrentSuicideWalkKoef():single;
 
 
 implementation
-uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors;
+uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors;
 
 var
   _controlled_time_remains:cardinal;
@@ -34,6 +34,8 @@ asm
   mov @result, 0
   pushad
     mov eax, act
+    cmp act, 0
+    je @finish
     mov eax, [eax+$26C]
     mov eax, [eax+$E4]
 
@@ -72,7 +74,7 @@ var
   anm:PChar;
 begin
   anm:=GetActualCurrentAnim(wpn);
-  result:=(anm='anm_prepare_suicide') or (anm='anm_suicide');
+  result:=(leftstr(anm, length('anm_prepare_suicide'))='anm_prepare_suicide') or (leftstr(anm, length('anm_suicide'))='anm_suicide');
 end;
 
 function IsActorSuicideNow():boolean; stdcall;
@@ -102,7 +104,7 @@ end;
 
 function CanUseItemForSuicide(wpn:pointer):boolean;
 begin
-  result:= (wpn<>nil) and (IsKnife(PChar(GetClassName(wpn))) or ( WpnCanShoot(PChar(GetClassName(wpn))) and not (IsWeaponJammed(wpn)) and not (GetAmmoInMagCount(wpn)=0))) and not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false);
+  result:= (wpn<>nil) and (IsKnife(wpn) or (WpnCanShoot(wpn) and not (IsWeaponJammed(wpn)) and not (GetAmmoInMagCount(wpn)=0))) and not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false);
 end;
 
 procedure Update(dt:cardinal); stdcall;
@@ -124,7 +126,8 @@ begin
 
     if last_contr_time>0 then SetHandsJitterTime(GetShockTime());
     ResetActorControl();
-  end else if (wpn<>nil) and IsKnife(PChar(GetClassName(wpn))) then begin
+
+  end else if (wpn<>nil) and IsKnife(wpn) then begin
     if _planning_suicide and (GetActualCurrentAnim(wpn)='anm_prepare_suicide') then begin
       _suicide_now:=true;
     end else if _suicide_now and (GetActualCurrentAnim(wpn)='anm_selfkill') then begin
@@ -148,11 +151,11 @@ begin
       if (GetCurrentState(det)<>EHudStates__eHiding) and (GetCurrentState(det)<>EHudStates__eHidden) then virtual_CHudItem_SwitchState(det, EHudStates__eHiding);
     end;
 
-    if (wpn<>nil) and (WpnCanShoot(PChar(GetClassName(wpn))) or IsBino(PChar(GetClassName(wpn)))) and (IsAimNow(wpn)) then begin
+    if (wpn<>nil) and (WpnCanShoot(wpn) or IsBino(wpn)) and (IsAimNow(wpn)) then begin
       SetActorKeyRepeatFlag(kfUNZOOM, true, true);
     end;
 
-    if (wpn<>nil) and IsThrowable(PChar(GetClassName(wpn))) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+    if (wpn<>nil) and IsThrowable(wpn) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
       _planning_suicide:=true;
       ActivateActorSlot__CInventory(1, false);
     end else begin
@@ -258,7 +261,7 @@ begin
   end;  
 
   //≈сли в руках сейчас нож - режемс€ им
-  if IsKnife(PChar(GetClassName(wpn))) then begin
+  if IsKnife(wpn) then begin
     _controlled_time_remains:=floor(game_ini_r_single_def(GetHUDSection(wpn), 'controller_time', _controlled_time_remains/1000)*1000);
     _planning_suicide:=true;
     //если до сих пор анима суицида не стартовала - форсируем событие
@@ -284,7 +287,10 @@ begin
   if game_ini_r_bool_def(GetHUDSection(wpn), 'suicide_by_animation', false) then begin
     _suicide_now:=IsSuicideAnimPlaying(wpn) or (_lastshot_done_time>0);
     if not _suicide_now then _suicide_now:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_suicide', 'sndSuicide', OnSuicideAnimEnd);
-    if _suicide_now then _controlled_time_remains:=floor(game_ini_r_single_def(GetHUDSection(wpn), 'controller_time', _controlled_time_remains/1000)*1000);
+    if _suicide_now then begin
+      _controlled_time_remains:=floor(game_ini_r_single_def(GetHUDSection(wpn), 'controller_time', _controlled_time_remains/1000)*1000);
+      //log(inttostr(_controlled_time_remains));
+    end;
     _planning_suicide:=true;
   end else begin
     if CanStartAction(wpn) then begin
@@ -315,11 +321,15 @@ begin
 
   if result then begin
     wpn:=GetActorActiveItem();
-    if (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'suicide_by_animation', false) and (IsKnife(PChar(GetClassName(wpn))) or WpnCanShoot(PChar(GetClassName(wpn)))) then begin
+    if (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'suicide_by_animation', false) and (IsKnife(wpn) or WpnCanShoot(wpn)) then begin
       scream:='sndScream'+inttostr(random(3)+1);
       CHudItem_Play_Snd(wpn, PChar(scream));
     end;
+    script_call('gunsl_controller.on_suicide_attack', '', 0);
+  end else begin
+    script_call('gunsl_controller.on_std_attack', '', 0);
   end;
+
 
   //фантомчики
   if GetCurrentDifficulty()>=gd_stalker then begin
@@ -430,6 +440,22 @@ begin
   _knife_suicide_exit:=status;
 end;
 
+procedure OnPsyHitActivate(); stdcall;
+begin
+  script_call('gunsl_controller.on_psi_attack_prepare', '', 0);
+  if not IsPsiBlocked(GetActor()) and (_controlled_time_remains>0) then begin
+    _controlled_time_remains:=GetControllerPrepareTime();
+  end;
+end;
+
+procedure CControllerPsyHit__activate_Patch(); stdcall;
+asm
+  add edi, $AA0
+  pushad
+    call OnPsyHitActivate
+  popad
+end;
+
 
 function Init():boolean; stdcall;
 var
@@ -450,6 +476,9 @@ begin
 
   addr:=xrgame_addr+$2f9716;
   if not WriteJump(addr, cardinal(@CHudItem__OnH_B_Independent_Patch_Sound), 5, true) then exit;
+
+  addr:=xrgame_addr+$1318DF;
+  if not WriteJump(addr, cardinal(@CControllerPsyHit__activate_Patch), 6, true) then exit;
 
   result:=true;
 end;

@@ -4,13 +4,36 @@ interface
 uses MatVectors;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
+type CSE_Abstract = packed record
+  vftable:pointer;
+  _flags_ISE:cardinal;
+  vec_memend:pointer;
+  vec_end:pointer;
+  vec_start:pointer;
+  unk1:cardinal;
+  unk2:cardinal;
+  unk3:cardinal;
+  s_name_replace:PChar;
+  net_Ready:integer;
+  net_Processed:integer;
+  m_wVersion:word;
+  m_script_version:word;
+  RespawnTime:word;
+  ID:word;
+  ID_Parent:word;
+
+  //to be continued...
+end;
+
+type pCSE_Abstract = ^CSE_Abstract;
+
 function Init():boolean;stdcall;
 function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
 function PHRetrieveGeomUserData(dxGeom:pointer):pointer; stdcall;
 function game_object_GetScriptGameObject(obj:pointer):pointer;stdcall;
 function get_server_object_by_id(id:cardinal):pointer;stdcall;
 function alife():pointer;stdcall;
-function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
+function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pCSE_Abstract;stdcall;
 function alife_release(srv_obj:pointer):boolean;stdcall;
 function xrMemory__allocate(count:cardinal):pointer;stdcall;
 
@@ -113,7 +136,7 @@ asm
   popad
 end;
 
-function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer; stdcall;
+function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pCSE_Abstract; stdcall;
 asm
   mov @result, 0
   pushad
@@ -264,21 +287,6 @@ asm
   popad
 end;
 
-function Init():boolean;stdcall;
-var
-  jmp_addr:cardinal;
-begin
-  //затычка от вылета mp_ranks
-  result:=false;
-  jmp_addr:=xrGame_addr+$4CCD0E;
-  if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
-
-  jmp_addr:=xrGame_addr+$1ecff6;
-  cscriptgameobject_restoreweaponimmediatly_addr := @CScriptgameobject__restoreweaponimmediatly;
-  if not WriteJump(jmp_addr, cardinal(@register_cscriptgameobject_restoreweaponimmediatly), 8, true) then exit;
-  result:=true;
-end;
-
 function xrMemory__allocate(count:cardinal):pointer;stdcall;
 asm
   pushad
@@ -292,5 +300,20 @@ asm
   call eax
   mov @result, eax
   popad
+end;
+
+function Init():boolean;stdcall;
+var
+  jmp_addr:cardinal;
+begin
+  //затычка от вылета mp_ranks
+  result:=false;
+  jmp_addr:=xrGame_addr+$4CCD0E;
+  if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
+
+  jmp_addr:=xrGame_addr+$1ecff6;
+  cscriptgameobject_restoreweaponimmediatly_addr := @CScriptgameobject__restoreweaponimmediatly;
+  if not WriteJump(jmp_addr, cardinal(@register_cscriptgameobject_restoreweaponimmediatly), 8, true) then exit;
+  result:=true;
 end;
 end.

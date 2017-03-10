@@ -152,24 +152,24 @@ asm
 end;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-procedure CMissile__Load(CMissile:pointer; section:PChar; HUD_SOUND_COLLECTION:pointer);stdcall;
+procedure CMissile__Load(CMissile:pointer; section:PChar; hsc:pHUD_SOUND_COLLECTION);stdcall;
 begin
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_draw', 'sndDraw', 0, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_holster', 'sndHide', 0, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw_begin', 'sndThrowBegin', 0, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw', 'sndThrow', 0, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw_quick', 'sndThrowQuick', 0, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_draw', 'sndDraw', 0, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_holster', 'sndHide', 0, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_throw_begin', 'sndThrowBegin', 0, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_throw', 'sndThrow', 0, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_throw_quick', 'sndThrowQuick', 0, $80040000);
 
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_start', 'sndSprintStart', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_end', 'sndSprintEnd', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_sprint_start', 'sndSprintStart', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_sprint_end', 'sndSprintEnd', 1, $80040000);
 
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_on', 'sndHeadlampOn', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_off', 'sndHeadlampOff', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_on', 'sndNVOn', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_off', 'sndNVOff', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_kick', 'sndKick', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_pda_show', 'sndPDAShow', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_pda_hide', 'sndPDAHide', 1, $80040000);  
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_headlamp_on', 'sndHeadlampOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_headlamp_off', 'sndHeadlampOff', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_on', 'sndNVOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_show', 'sndPDAShow', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_hide', 'sndPDAHide', 1, $80040000);
 
 end;
 
@@ -562,7 +562,7 @@ begin
   if (state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick') then begin
     virtual_CHudItem_SwitchState(CMissile, EMissileStates__eThrowEnd);
     result:=false;
-  end else if (act<>nil) and (act=GetOwner(CMissile)) and (leftstr(GetActualCurrentAnim(CMissile), length('anm_idle'))='anm_idle') then begin
+  end else if (act<>nil) and (act=GetOwner(CMissile)) and {(leftstr(GetActualCurrentAnim(CMissile), length('anm_idle'))='anm_idle')} (GetCurrentState(CMissile)=EHudStates__eIdle) then begin
     SetActorActionState(act, actModNeedMoveReassign, true);
   end;
 end;

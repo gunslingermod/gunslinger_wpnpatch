@@ -276,11 +276,9 @@ begin
 end;
 
 function GetBuffer(wpn: pointer): WpnBuf;
-var cls:string;
 begin
   result:=nil;
-  cls:=GetClassName(wpn);
-  if not WpnCanShoot(PChar(cls))  then exit;
+  if not WpnCanShoot(wpn)  then exit;
 
   asm
     push eax
@@ -385,7 +383,12 @@ begin
   anm_name:=ModifierStd(_my_wpn, base_anm);
 
   PlayHudAnim(_my_wpn, PChar(anm_name), true);
-  if (snd_label<>nil) then CHudItem_Play_Snd(_my_wpn, snd_label);
+
+  //если звук прописан в худовой секции по анимации - играем его, иначе - играем умолчательную метку
+  if not PlaySoundByAnimName(_my_wpn, anm_name) then begin
+    if (snd_label<>nil) then CHudItem_Play_Snd(_my_wpn, snd_label);
+  end;
+
   self.MakeLockByConfigParam(hud_sect, PChar('lock_time_'+anm_name), lock_shooting, effector, eff_param);
   if self._lock_remain_time>0 then begin
     self._current_anim:=anm_name;
@@ -613,7 +616,9 @@ begin
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
       PlayHudAnim(wpn, PChar(anm_name), true);
-      CHudItem_Play_Snd(wpn, 'sndSprintEnd');
+      if not PlaySoundByAnimName(wpn, anm_name) then begin
+        CHudItem_Play_Snd(wpn, 'sndSprintEnd');
+      end;
       SetActorActionState(act, actModSprintStarted, false);
       SetActorActionState(act, actSprint, false, mState_WISHFUL);
     end;

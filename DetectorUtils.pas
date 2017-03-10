@@ -162,7 +162,7 @@ begin
     result:=false;
   end;
 
-  if (not result) or (not WpnCanShoot(PChar(GetClassName(wpn)))) then exit;
+  if (not result) or (not WpnCanShoot(wpn)) then exit;
   state:=GetCurrentState(wpn);
   if (state=4) or (state=7) or (state=$A) or IsAimNow(wpn) then result:=false;
 end;
@@ -354,7 +354,7 @@ begin
   end else begin
     //анима не игралась. Так воспроизведем её! Если сможем...
     itm:=GetActorActiveItem();
-    if (itm<>nil) and WpnCanShoot(PChar(GetClassName(itm))) then begin
+    if (itm<>nil) and WpnCanShoot(itm) then begin
       hud_sect:=GetHUDSection(itm);
       if (game_ini_line_exist(hud_sect, 'use_prepare_detector_anim')) and (game_ini_r_bool(hud_sect, 'use_prepare_detector_anim')) then begin
         PlayCustomAnimStatic(itm, 'anm_prepare_detector', 'sndPrepareDet', OnDetectorPrepared, 0);
@@ -554,7 +554,7 @@ begin
   //проверка на необходимость играть идловую аниму с замахом
   if (act<>nil) and (GetOwner(det)=act) then begin
     companion:= GetActorActiveItem();
-    if (companion<>nil) and IsThrowable(PChar(GetClassName(companion))) then state:=GetCurrentState(companion) else state:=0;
+    if (companion<>nil) and IsThrowable(companion) then state:=GetCurrentState(companion) else state:=0;
     if (state<>0) and ((state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady)) then begin
       AssignDetectorAnim(det, PChar(ANM_LEFTHAND+GetSection(det)+'_wpn_throw_idle'), true, true);
     end else if (leftstr(GetActualCurrentAnim(det), length('anm_idle'))='anm_idle') and GetActorActionState(act, actModDetectorSprintStarted, mstate_REAL) and GetActorActionState(act, actSprint, mstate_REAL) then begin
