@@ -45,7 +45,9 @@ uses
   WeaponInertion in 'WeaponInertion.pas',
   ControllerMonster in 'ControllerMonster.pas',
   AutoUpdater in 'AutoUpdater.pas',
-  ScriptFunctors in 'ScriptFunctors.pas';
+  ScriptFunctors in 'ScriptFunctors.pas',
+  CRT in 'CRT.pas',
+  r_constants in 'r_constants.pas';
 
 {$R *.res}
 //var
@@ -82,6 +84,10 @@ begin
   hud_transp_r3.Init();
   hud_transp_r4.Init();
 
+  CRT.Init();
+  r_constants.Init();
+  LensDoubleRender.Init();
+
   RayPick.Init();
   BallisticsCorrection.Init();
   WeaponInertion.Init();
@@ -89,7 +95,7 @@ begin
   UIUtils.Init();
 
 //  AutoUpdater.Init();
-//  LensDoubleRender.Init()
+//
 //  Messenger.Init;
 //  HudTransparencyFix.Init;
 end.

@@ -5,78 +5,126 @@ function Init():boolean; stdcall;
 
 
 implementation
-uses BaseGameData;
+uses BaseGameData, Windows, SysUtils, CRT;
+
+var
+  pD3DXLoadSurfaceFromSurface:pointer;
+  pHW_Device:cardinal;
+  
+const
+  D3DBACKBUFFER_TYPE_MONO:cardinal = 0;
 
 
 
-//отрендерим второй кадр дл€ линзы, если требуетс€
-{procedure IGameLevel__OnRender_Patch(); stdcall;
+/////////////////////////////////////////////
+function GetBackBuffer(iSwapChain: LongWord; iBackBuffer: LongWord; _Type: cardinal; ppBackBuffer:pointer):cardinal; stdcall;
 asm
-  mov eax, [edx+$BC]; //делаем вырезанное - получаем адрес void IRenderInterface Render->Render()
   pushad
-    mov ebx, xrEngine_addr
-    and byte ptr [ebx+$90904], $FB      // hud_weapon off
+    mov ebx, pHW_Device
+    mov ebx, [ebx]
+    mov eax, [ebx]
+    mov eax, [eax+$48]
+
+    push ppBackBuffer
+    push _Type
+    push iBackBuffer
+    push iSwapChain
+    push ebx
     call eax
-    mov ebx, xrEngine_addr
-    or byte ptr [ebx+$90904], $4        // hud_weapon on
+
+    mov @result, eax
   popad
-
-  //recalc
-  pushad
-    mov eax, [edx+$B8]
-    call eax
-  popad
-end; }
-
-
-procedure IGameLevel__OnRender_Patch(); stdcall;
-asm
-  mov ecx, [eax]
-  push ecx
-
-
-
-  mov ecx, [esp]
-  mov edx, [ecx]
-  mov eax, [edx+$B8]
-  call eax            //Render->Calculate()
-
-
-  //--------------------------------------------------------
-  mov eax, xrEngine_addr
-  and byte ptr [eax+$90904], $FB      // hud_weapon off
-
-  mov ecx, [esp]
-  mov edx, [ecx]
-  mov eax, [edx+$BC]
-  call eax            //Render->Render()
-
-  mov eax, xrEngine_addr
-  or byte ptr [eax+$90904], $4        // hud_weapon on
-
-  //--------------------------------------------------------
-
-
-  mov ecx, [esp]
-  mov edx, [ecx]
-  mov eax, [edx+$BC]
-  add esp, 4
-  jmp eax            //Render->Render()
 end;
 
 
+function LoadSurfaceFromSurface(from, dest:pointer):cardinal; stdcall;
+asm
+  pushad
+    push 0
+    push $FFFFFFFF
+    push 0
+    push 0
+    push from
+    push 0
+    push 0
+    push dest
+    mov eax, pD3DXLoadSurfaceFromSurface
+    call eax
+    mov @result, eax
+  popad
+end;
+/////////////////////////////////////////////
+
+
+
+// ƒо рендера
+procedure BeginSecondVP( ); stdcall;
+begin
+  // TODO: ƒелать проверку, что двойной рендер и измен€ть матрицу проекции рендера
+end;
+
+procedure CLevel__OnRender_Before_Patch(); stdcall
+asm
+    pushad
+    call BeginSecondVP
+    popad
+
+    mov eax, xrgame_addr
+    call [eax+$512f30]
+end;
+
+// ѕосле рендера мира и до UI
+procedure EndSecondVP( ); stdcall;
+var
+  rb:           Cardinal;
+  backbuffer:   {IDirect3DSurface9} pointer;
+begin
+// TODO: ƒелать проверку, что двойной рендер и восстанавливать матрицу проекции рендера
+
+
+  GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, @backbuffer);
+  if backbuffer = nil then exit;
+  LoadSurfaceFromSurface(backbuffer, GetScoperenderRT());
+end;
+
+procedure CLevel__OnRender_After_Patch(); stdcall
+asm
+   pushad
+   call EndSecondVP
+   popad
+
+   mov ecx, xrgame_addr
+   mov ecx, [ecx+$512D30]
+end;
+
 
 function Init():boolean; stdcall;
-var jmp_addr:cardinal;
+var
+ jmp_addr:cardinal;
+ dHandle:cardinal;
 begin
-
   result:=false;
+  
+  if xrRender_R2_addr<>0 then begin
+    dHandle := LoadLibrary('d3dx9_42.dll');
+    pHW_Device:=xrRender_R2_addr+$CBB88;
+  end else begin
+    dHandle:=0;
+    pD3DXLoadSurfaceFromSurface:=nil;
+    log('LensDoubleRender.Init: No Render DLL!');
+    exit;
+  end;
 
-  {jmp_addr:=xrEngine_addr+$17154;
-  if not WriteJump(jmp_addr, cardinal(@IGameLevel__OnRender_Patch), 6, true) then exit;}
+  jmp_addr:=xrGame_addr+$232C03;
+  if not WriteJump(jmp_addr, cardinal(@CLevel__OnRender_Before_Patch), 6, true) then exit;
 
-  jmp_addr:=xrEngine_addr+$1713E;
-  if not WriteJump(jmp_addr, cardinal(@IGameLevel__OnRender_Patch), 30, false) then exit;
+  jmp_addr:=xrGame_addr+$232C34;
+  if not WriteJump(jmp_addr, cardinal(@CLevel__OnRender_After_Patch), 6, true) then exit;
+
+  pD3DXLoadSurfaceFromSurface:=GetProcAddress(dHandle, 'D3DXLoadSurfaceFromSurface');
+  FreeLibrary(dHandle);
+
+  log('pD3DXLoadSurfaceFromSurface = '+inttohex(cardinal(pD3DXLoadSurfaceFromSurface),8));
 
   result:=true;
 end;

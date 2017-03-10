@@ -2144,6 +2144,39 @@ begin
   _action_animator_callback:=cb;
 end;
 
+
+function CheckHeavyBreathAdditionalCondition(bs:single; health:single):single; stdcall;
+begin
+//  log('bs='+floattostr(bs^)+', hlth='+floattostr(health));
+  if (health<GetActorMaxBreathHealth()) then begin
+    result:=GetActorMaxBreathHealth()-health;
+    if (result>GetActorBreathHealthSndDelta) or (bs>0.6) then
+      result:=1.0
+    else
+      result:=0.6+0.4*result/GetActorBreathHealthSndDelta;
+  end else begin
+    result:=bs;
+  end;
+end;
+
+procedure CheckHeavyBreathAdditionalCondition_Patch(); stdcall;
+asm
+  push ecx
+  mov ebp, xrgame_addr
+  add ebp, $27dd00
+  call ebp //CEntityCondition::BleedingSpeed
+  pop ecx
+
+  pushad
+    mov ecx, [ecx+4]
+    push ecx
+    push ecx
+    fstp [esp]
+    call CheckHeavyBreathAdditionalCondition
+  popad
+  lea ebp, [esi+$3a8]
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -2256,6 +2289,12 @@ begin
 
   jmp_addr:= xrgame_addr+$442AF5;
   if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
+
+
+  jmp_addr:= xrgame_addr+$2627D2;
+  if not WriteJump(jmp_addr, cardinal(@CheckHeavyBreathAdditionalCondition_Patch), 5, true) then exit;
+
+
 
   result:=true;
 end;

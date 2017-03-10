@@ -132,6 +132,6 @@ begin
   rqres.vec_memend:=prq_result(cardinal(rqres.vec_start)+sizeof(rqres));
   prqres:=@rqres;
 
-  log(inttohex(cardinal(rqres.vec_start), 8));
+  log('RayPick initialized, rqres.vec_start = '+inttohex(cardinal(rqres.vec_start), 8));
 end;
 end.

@@ -50,7 +50,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config;
 
 var
   register_level_isuishown_ret:cardinal;
-  IsUIShown_ptr, IndicatorsShown_adapter_ptr:pointer;
+  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr:pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -210,6 +210,14 @@ asm
   popad
 end;
 
+function IsInventoryShown_adapter():boolean; stdcall;
+asm
+  pushad
+    call IsInventoryShown
+    mov @result, al
+  popad
+end;
+
 function IsUIShown():boolean; stdcall;
 asm
   pushad
@@ -242,6 +250,7 @@ procedure register_level_isuishown(); stdcall;
 const
   name:PChar='is_ui_shown';
   name2:PChar='indicators_shown';
+  name3:PChar='inventory_shown';
 asm
   push eax
 
@@ -272,6 +281,28 @@ asm
   push ecx
   mov ecx, esp
   push name2
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+  ////////////////////////////
+  push eax
+
+  mov ecx, IsInventoryShown_adapter_ptr
+  push ecx
+  mov ecx, esp
+  push name3
   push ecx
   mov ecx, xrgame_addr
   add ecx, $1FF277;
@@ -360,6 +391,8 @@ begin
   register_level_isuishown_ret:=xrgame_addr+$24a768;
   IsUIShown_ptr:=@IsUIShown;
   IndicatorsShown_adapter_ptr:=@IndicatorsShown_adapter;
+  IsInventoryShown_adapter_ptr:=@IsInventoryShown_adapter;
+
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;
 
   jmp_addr:=xrGame_addr+$49f10f;

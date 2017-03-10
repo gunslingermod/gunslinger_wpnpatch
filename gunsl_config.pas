@@ -94,6 +94,8 @@ function GetControllerPhantomsParams():phantoms_params; stdcall;
 
 function GetMaxCorpseWeight():single; stdcall;
 function IsCorpseCollisionEnabled():boolean; stdcall;
+function GetActorMaxBreathHealth():single; stdcall;
+function GetActorBreathHealthSndDelta():single; stdcall;
 
 function GetHeadlampEnableAnimator():PChar;
 function GetHeadlampDisableAnimator():PChar;
@@ -138,6 +140,8 @@ var
   _controlled_actor_speed_koef:single;
 
   _max_jitter_health:single;
+  _actor_max_breath_health:single;
+  _actor_breath_health_snddelta:single;
 
   _headlamp_enable_animator_section:PChar;
   _nv_enable_animator_section:PChar;
@@ -516,7 +520,7 @@ begin
   _controlled_actor_speed_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controlled_actor_speed_koef', 1.0);
 
   _max_corpse_weight:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_corpse_weight', 100.0);
-  _enable_corpse_collision:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_corpse_collision', true);;
+  _enable_corpse_collision:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_corpse_collision', true);
 
   _controller_phantoms.min_cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min', 0);
   _controller_phantoms.max_cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max', 0);
@@ -524,6 +528,8 @@ begin
   _controller_phantoms.min_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min_radius', 0);
 
   _max_jitter_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_jitter_health', 0.3);
+  _actor_max_breath_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_breath_health', 0.15);
+  _actor_breath_health_snddelta:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_breath_health_snddelta', 0.05);
 
   _headlamp_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'headlamp_enable_animator');
   _headlamp_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'headlamp_disable_animator');
@@ -658,5 +664,16 @@ function GetModVer():PChar;
 begin
   result:=_mod_ver;
 end;
+
+function GetActorMaxBreathHealth():single; stdcall;
+begin
+  result:=_actor_max_breath_health;
+end;
+
+function GetActorBreathHealthSndDelta():single; stdcall;
+begin
+  result:=_actor_breath_health_snddelta;
+end;
+
 
 end.
