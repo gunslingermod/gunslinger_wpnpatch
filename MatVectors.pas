@@ -35,6 +35,7 @@ interface
   function FVector3_copyfromengine(v:pointer):FVector3;stdcall;
   function FVector4_copyfromengine(v:pointer):FVector4;stdcall;
   function FMatrix4x4_copyfromengine(v:pointer):FMatrix4x4;stdcall;
+
   function FVector4_make_from_FVector3(v:PFVector3):FVector4;stdcall;
   function FVector4_mul_FMatrix4x4(v:PFvector4; m:PFMatrix4x4):FVector4;stdcall;
 
@@ -50,6 +51,8 @@ interface
   function v_equal(v1, v2:pFVector3):boolean;
   procedure generate_orthonormal_basis_normalized(dir, up, right:pfVector3);
   procedure v_zero(v:pFVector3);
+
+  procedure build_projection(m:pFMatrix4x4; hat:single; aspect:single; near_plane:single; far_plane:single);
 
 implementation
 uses Math;
@@ -242,6 +245,24 @@ begin
     up.y:=dir.z*right.x - dir.x*right.z;
     up.z:= -dir.y*right.x;
   end;
+end;
+
+procedure build_projection(m:pFMatrix4x4; hat:single; aspect:single; near_plane:single; far_plane:single);
+var
+  cot, w, h, q:single;
+begin
+  cot := 1/hat;
+  w := aspect*cot;
+  h := cot;
+  q := far_plane/(far_plane-near_plane);
+
+  m.i.x :=w; m.i.y :=0; m.i.z :=0; m.i.w :=0;
+  m.j.x :=0; m.j.y :=h; m.j.z :=0; m.j.w :=0;
+  m.k.x :=0; m.k.y :=0; m.k.z :=q; m.k.w :=1;
+  m.i.x :=0; m.i.y :=0; m.i.z :=-q*near_plane; m.i.w :=0;
+
+
+
 end;
 
 

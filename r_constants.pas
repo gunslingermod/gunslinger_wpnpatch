@@ -7,7 +7,7 @@ interface
 function Init():boolean;
 
 implementation
-uses BaseGameData, sysutils;
+uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster;
 //////////////////////////////////////////////////////////////////
 type R_constant = record
 //todo:дописать
@@ -75,9 +75,18 @@ end;
 ////////////////////////////////////////////////////////////////////////
 //собственно функции заполнения данными наших констант
 procedure binder_cur_zoom_factor_setup(C:pR_constant); stdcall;
+var
+  wpn:pointer;
+  val:single;
 begin
-  RCache__set(C, 0,1,0,0.5);
-  //log('binder_cur_zoom_factor_setup called, '+inttohex(cardinal(C), 8));
+  val:=0;
+  wpn:=GetActorActiveItem();
+  if (wpn<>nil) and (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)<>nil) then begin
+    val:=GetAimFactor(wpn);
+  end;
+
+  RCache__set(C, 0,val,0,0.5);
+
 end;
 
 ////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@ unit CRT;
 interface
   function Init():boolean;
   function GetScoperenderRT():pointer; stdcall;
+  function GetScoperenderT2D():pointer; stdcall;
 
 implementation
 uses BaseGameData, Misc;
@@ -27,6 +28,18 @@ asm
     test eax, eax
     je @notarget
     mov eax, [eax+$10]
+    @notarget:
+    mov @result, eax;
+  popad
+end;
+
+function GetScoperenderT2D():pointer; stdcall;
+asm
+  pushad
+    mov eax, scoperender_viewport
+    test eax, eax
+    je @notarget
+    mov eax, [eax+$C]
     @notarget:
     mov @result, eax;
   popad

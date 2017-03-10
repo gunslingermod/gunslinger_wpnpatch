@@ -41,6 +41,12 @@ function xrMemory__release(addr:pointer):pointer;stdcall;
 function CALifeSimulator__spawn_item2(section:PChar; position:pFVector3; level_vertex_id:cardinal; game_vertex_id:cardinal; id_parent:cardinal):{CSE_Abstract*}pointer; stdcall;
 function GetMaterialIdx(name:PChar):word; stdcall;
 function GetDevicedwFrame():cardinal; stdcall;
+procedure DecDevicedwFrame(); stdcall;
+function GetDeviceView():pFMatrix4x4; stdcall;
+function GetDeviceProjection():pFMatrix4x4; stdcall;
+function GetDeviceFullTransform():pFMatrix4x4; stdcall;
+
+function IsMainMenuActive():boolean; stdcall;
 
 
 implementation
@@ -320,6 +326,53 @@ function GetDevicedwFrame():cardinal; stdcall;
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92EF0]
+  mov @result, eax
+end;
+
+procedure DecDevicedwFrame(); stdcall;
+asm
+  push eax
+  mov eax, xrEngine_addr
+  dec [eax+$92EF0]
+  pop eax
+end;
+
+function IsMainMenuActive():boolean; stdcall;
+asm
+  pushad
+    mov @result, 0
+    mov eax, xrEngine_addr
+    mov eax, [eax+$92D30]
+    test eax, eax
+    je @finish
+    mov ecx, [eax+$46C]
+    mov edx, [ecx]
+    mov eax, [edx+$08]
+    call eax
+    mov @result, al
+
+    @finish:
+  popad
+end;
+
+function GetDeviceView():pFMatrix4x4; stdcall;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ED8+$60]
+  mov @result, eax
+end;
+
+function GetDeviceProjection():pFMatrix4x4; stdcall;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ED8+$A0]
+  mov @result, eax
+end;
+
+function GetDeviceFullTransform():pFMatrix4x4; stdcall;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ED8+$E0]
   mov @result, eax
 end;
 

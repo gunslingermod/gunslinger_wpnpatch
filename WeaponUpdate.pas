@@ -277,6 +277,7 @@ var all_upgrades:string;
     up_gr_sect:string;
     i:integer;
     buf:WpnBuf;
+    min, max, pos, delta, t_dt:single;
 begin
   section:=GetSection(wpn);
   buf:=GetBuffer(wpn);
@@ -310,6 +311,28 @@ begin
     if (buf<>nil) and not buf.IsTorchInstalled() and game_ini_r_bool_def(section, 'torch_installed', false) then begin
       buf.InstallTorch(section);
     end;
+    if (buf<>nil) and not buf.NeedPermanentLensRendering() and game_ini_r_bool_def(section, 'permanent_lens_render', false) then begin
+      buf.SetPermanentLensRenderingStatus(true);
+    end;
+
+
+    if (buf<>nil) then begin
+      buf.GetLensParams(min, max, pos, delta);
+      t_dt:=game_ini_r_single_def(section, 'lens_factor_levels_count', 0);
+
+      if t_dt = 0 then begin
+        delta:=1/t_dt;
+      end;
+
+      buf.SetLensParams(
+        game_ini_r_single_def(section, 'min_lens_factor', min),
+        game_ini_r_single_def(section, 'max_lens_factor', max),
+        pos,
+        t_dt
+      );
+    end;
+
+
 
     if game_ini_line_exist(section, 'flame_particles') then begin
       ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES);
@@ -599,7 +622,7 @@ begin
   end;
 
   buf:=GetBuffer(wpn);
-  if (buf<>nil) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) then begin
+  if (buf<>nil) and ((buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetAimFactor(wpn)>0.001)) then begin
     result:=false;
     exit;
   end;

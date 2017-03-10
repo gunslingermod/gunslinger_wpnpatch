@@ -21,9 +21,9 @@ type IConsole_Command = packed record
   bLowerCaseArgs:byte;
   bEmptyArgsHandled:byte;
   _reserved:byte;
-  _unknown_vec_start:cardinal;
-  _unknown_vec_end:cardinal;
-  _unknown_vec_memend:cardinal;
+  m_LRU_start:cardinal;
+  m_LRU_end:cardinal;
+  m_LRU_memend:cardinal;
 end;
 
 type pIConsole_Command = ^IConsole_Command;
@@ -35,8 +35,17 @@ type CCC_Mask = packed record
 end;
 type pCCC_Mask = ^CCC_Mask;
 
+type CCC_Integer = packed record
+  base:IConsole_Command;
+  value:pinteger;
+  min:integer;
+  max:integer;
+end;
+type pCCC_Integer= ^CCC_Integer;
+
 
 procedure CCC_Mask__CCC_Mask(this:pCCC_Mask; name:PChar; value:pCardinal; mask:cardinal);stdcall;
+procedure CCC_Integer__CCC_Integer(this:pCCC_Integer; name:PChar; value:pInteger; min:integer; max:integer);stdcall;
 procedure CConsole__AddCommand(C:pIConsole_Command); stdcall;
 
 
@@ -93,6 +102,20 @@ asm
     mov eax, xrengine_addr
     add eax, $77f0
     call eax //CCC_Mask::CCC_Mask(LPCSTR N, Flags32* V, u32 M);
+  popad
+end;
+
+procedure CCC_Integer__CCC_Integer(this:pCCC_Integer; name:PChar; value:pInteger; min:integer; max:integer);stdcall;
+asm
+  pushad
+    mov ecx, this
+    push max
+    push min    
+    push value
+    push name
+    mov eax, xrengine_addr
+    add eax, $8950
+    call eax //CCC_Integer::CCC_Integer(LPCSTR N, int* V, int _min, int _max);
   popad
 end;
 

@@ -43,13 +43,15 @@ procedure CWeapon__load(wpn:pointer; packet:pointer); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
+  tmp_single:single;
   ammos_in_mag, i, cnt, cnt_total:word;
   ammotype:byte;
 begin
 
   if not WpnCanShoot(wpn) then exit;
 
-  if (GetBuffer(wpn)=nil) then begin
+  buf:=GetBuffer(wpn);
+  if (buf=nil) then begin
     buf:=WpnBuf.Create(wpn);
   end;
 
@@ -64,6 +66,9 @@ begin
 
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
   buf.SetExplosed(tmp_bool);
+
+  ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
+  buf.SetLensFactorPos(tmp_single);
 
 
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
@@ -88,6 +93,7 @@ procedure CWeapon__save(wpn:pointer; packet:pointer); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
+  tmp_single:single;
 
   i, cnt, max_in_mag:word;
   ammotype:byte;
@@ -105,6 +111,9 @@ begin
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_bool:=buf.IsExplosed();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
+  tmp_single:=buf.GetLensFactorPos();
+  WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
+
 
   //сохраняем типы патронов в магазине, про подствол забываем
   max_in_mag:=GetAmmoInMagCount(wpn);

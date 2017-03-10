@@ -153,8 +153,6 @@ var
   _pda_show_animator:PChar;
   _pda_hide_animator:PChar;
 
-  _lens_render_factor:cardinal;
-
   _mod_ver:PChar;
 
 
@@ -165,6 +163,7 @@ var
   _max_actor_cam_speed:single;
   _cam_landing:landing_params;
   _jitter:jitter_params;
+  _lens_render_factor:cardinal;
 
 //Сами консольные команды
   CCC_dyndof:CCC_Mask;
@@ -172,6 +171,27 @@ var
   CCC_laserdotdistcorrection:CCC_Mask;
   CCC_npclasers:CCC_Mask;
   CCC_realballistics:CCC_Mask;
+
+  CCC_lens_render_factor:CCC_Integer;
+
+//вырезанные движковые консольные команды
+  CCC_mt_sound:CCC_Mask;
+  CCC_mt_physics:CCC_Mask;
+  CCC_mt_network:CCC_Mask;
+
+  CCC_rs_wireframe:CCC_Mask;
+  CCC_rs_clear_bb:CCC_Mask;
+  CCC_rs_occlusion:CCC_Mask;
+
+  CCC_rs_detail:CCC_Mask;
+
+  CCC_rs_render_statics:CCC_Mask;
+  CCC_rs_render_dynamics:CCC_Mask;
+
+  CCC_rs_occ_draw:CCC_Mask;
+  CCC_rs_occ_stats:CCC_Mask;
+
+  CCC_rs_disable_objects_as_crows:CCC_Mask;
 
 //маски для флагов
 const
@@ -451,11 +471,54 @@ end;
 
 
 function Init:boolean;
+var
+  psDeviceFlags:pointer;
 const
   GUNSL_BASE_SECTION:PChar='gunslinger_base';
 begin
   result:=false;
   _console_bool_flags:=0;
+  _lens_render_factor:=2;
+//--------------------------------Uncut console commands-----------------------------------------------------------
+  if IsDebug() then begin
+    psDeviceFlags:=pointer(xrEngine_addr+$91304);
+
+    CCC_Mask__CCC_Mask(@CCC_mt_sound, 'mt_sound', psDeviceFlags, 1 shl 14);
+    CConsole__AddCommand(@(CCC_mt_sound.base));
+
+    CCC_Mask__CCC_Mask(@CCC_mt_physics, 'mt_physics', psDeviceFlags, 1 shl 15);
+    CConsole__AddCommand(@(CCC_mt_physics.base));
+
+    CCC_Mask__CCC_Mask(@CCC_mt_network, 'mt_network', psDeviceFlags, 1 shl 16);
+    CConsole__AddCommand(@(CCC_mt_network.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_wireframe, 'rs_wireframe', psDeviceFlags, 1 shl 3);
+    CConsole__AddCommand(@(CCC_rs_wireframe.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_clear_bb, 'rs_clear_bb', psDeviceFlags, 1 shl 1);
+    CConsole__AddCommand(@(CCC_rs_clear_bb.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_occlusion, 'rs_occlusion', psDeviceFlags, 1 shl 4);
+    CConsole__AddCommand(@(CCC_rs_occlusion.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_detail, 'rs_detail', psDeviceFlags, 1 shl 6);
+    CConsole__AddCommand(@(CCC_rs_detail.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_render_statics, 'rs_render_statics', psDeviceFlags, 1 shl 9);
+    CConsole__AddCommand(@(CCC_rs_render_statics.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_render_dynamics, 'rs_render_dynamics', psDeviceFlags, 1 shl 10);
+    CConsole__AddCommand(@(CCC_rs_render_dynamics.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_occ_draw, 'rs_occ_draw', psDeviceFlags, 1 shl 12);
+    CConsole__AddCommand(@(CCC_rs_occ_draw.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_occ_stats, 'rs_occ_stats', psDeviceFlags, 1 shl 13);
+    CConsole__AddCommand(@(CCC_rs_occ_stats.base));
+
+    CCC_Mask__CCC_Mask(@CCC_rs_disable_objects_as_crows, 'rs_disable_objects_as_crows', psDeviceFlags, 1 shl 11);
+    CConsole__AddCommand(@(CCC_rs_disable_objects_as_crows.base));
+  end;
 //-----------------------------------------------------------------------------------------------------------------
   CCC_Mask__CCC_Mask(@CCC_dyndof, 'r2_dynamic_dof', @_console_bool_flags, _mask_dyndof);
   CConsole__AddCommand(@(CCC_dyndof.base));
@@ -467,6 +530,8 @@ begin
   CConsole__AddCommand(@(CCC_npclasers.base));
   CCC_Mask__CCC_Mask(@CCC_realballistics, 'g_real_shooting', @_console_bool_flags, _mask_realballistics);
   CConsole__AddCommand(@(CCC_realballistics.base));
+  CCC_Integer__CCC_Integer(@CCC_lens_render_factor, 'lens_render_factor', pinteger(@_lens_render_factor), 2, 10);
+  CConsole__AddCommand(@(CCC_lens_render_factor.base));
 
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
@@ -543,8 +608,6 @@ begin
   _kick_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'kick_animator');
   _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
   _pda_hide_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_hide_animator');
-
-  _lens_render_factor:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'lens_render_factor', 2);
 
   _mod_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'version');
 

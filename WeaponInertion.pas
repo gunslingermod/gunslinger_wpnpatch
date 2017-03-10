@@ -336,6 +336,15 @@ begin
     toslowcrouch_time_remains:=0;
   end;
 
+  //прочитаем конфиговые умолчания
+  if Is16x9() then begin
+    pos:=game_ini_read_vector3_def(section, 'hands_position_16x9', @zerovec);
+    rot:=game_ini_read_vector3_def(section, 'hands_orientation_16x9', @zerovec);
+  end else begin
+    pos:=game_ini_read_vector3_def(section, 'hands_position', @zerovec);
+    rot:=game_ini_read_vector3_def(section, 'hands_orientation', @zerovec);
+  end;
+
   //вычислим целевое смещение от равновесия
   if (cardinal(GetCurrentState(itm))=CHUDState__eHiding) or ((det<>nil) and (cardinal(GetCurrentState(det))=CHUDState__eHiding)) then begin
     v_zero(@targetpos);
@@ -347,20 +356,14 @@ begin
     factor:=game_ini_r_single_def(section, 'hud_move_unzoom_factor', 1.0);
   end else begin
     GetCurrentTargetOffset(act, section, @targetpos, @targetrot, @factor);
-
     if IsActorSuicideNow() then begin
       AddSuicideOffset(act, section, @targetpos, @targetrot);
+    end else if (hid<>nil) and (not GetActorActionState(act, actMovingForward)) and (not GetActorActionState(act, actMovingBack)) and (not GetActorActionState(act, actMovingLeft)) and (not GetActorActionState(act, actMovingRight)) and (not GetActorActionState(act, actMovingForward)) and (not GetActorActionState(act, actSprint)) and not GetActorActionState(act, actJump) and not GetActorActionState(act, actFall) and not GetActorActionState(act, actLanding) and not GetActorActionState(act, actLanding2) then begin
+      //todo:смещение в идле
     end;
   end;
 
   //находим целевую позицию
-  if Is16x9() then begin
-    pos:=game_ini_read_vector3_def(section, 'hands_position_16x9', @zerovec);
-    rot:=game_ini_read_vector3_def(section, 'hands_orientation_16x9', @zerovec);
-  end else begin
-    pos:=game_ini_read_vector3_def(section, 'hands_position', @zerovec);
-    rot:=game_ini_read_vector3_def(section, 'hands_orientation', @zerovec);
-  end;
   v_add(@targetpos, @pos);
   v_add(@targetrot, @rot);
 

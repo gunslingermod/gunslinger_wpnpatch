@@ -85,6 +85,14 @@ type
     _preloaded:boolean;
     _is_preload_mode:boolean;
 
+    _need_permanent_lensrender:boolean;
+
+    _lens_scope_factor_min:single;
+    _lens_scope_factor_max:single;
+    _lens_zoom_position:single;
+    _lens_zoom_delta:single;
+
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -162,6 +170,13 @@ type
     function IsPreloadMode():boolean;
     function IsPreloaded():boolean;
     procedure SetPreloadedStatus(status:boolean);
+
+    function NeedPermanentLensRendering():boolean;
+    procedure SetPermanentLensRenderingStatus(status:boolean);
+    procedure GetLensParams(var min:single; var max:single; var position:single; var delta:single);
+    procedure SetLensParams(min:single; max:single; position:single; delta:single);
+    function GetLensFactorPos():single;
+    procedure SetLensFactorPos(pos:single);
 
   end;
 
@@ -267,7 +282,12 @@ begin
   _shells_offset:=game_ini_read_vector3_def(GetSection(wpn), 'shells_offset', @tmpvec);
   _shells_impulse:=game_ini_r_single_def(GetSection(wpn), 'shells_impulse', 75);
 
+  _need_permanent_lensrender:=game_ini_r_bool_def(GetHUDSection(wpn), 'permanent_lens_render', false);
 
+  _lens_scope_factor_min:=game_ini_r_single_def(GetSection(wpn), 'min_lens_factor', 1);
+  _lens_scope_factor_max:=game_ini_r_single_def(GetSection(wpn), 'max_lens_factor', 1);
+  _lens_zoom_position:=1;
+  _lens_zoom_delta:=1/game_ini_r_single_def(GetSection(wpn), 'lens_factor_levels_count', 5);
 end;
 
 destructor WpnBuf.Destroy;
@@ -560,6 +580,11 @@ begin
 
   if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot_lightmisfire'))='anm_shoot_lightmisfire') then begin
     result:=false;
+    exit;
+  end;
+
+  if IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+    result:=true;
     exit;
   end;
 
@@ -1129,6 +1154,52 @@ end;
 procedure WpnBuf.SetPreloadedStatus(status: boolean);
 begin
   _preloaded:=status;
+end;
+
+function WpnBuf.NeedPermanentLensRendering: boolean;
+begin
+  result:=_need_permanent_lensrender;
+end;
+
+procedure WpnBuf.SetPermanentLensRenderingStatus(status: boolean);
+begin
+  _need_permanent_lensrender:=status;
+end;
+
+procedure WpnBuf.GetLensParams(var min, max, position, delta: single);
+begin
+  min:=_lens_scope_factor_min;
+  max:=_lens_scope_factor_max;
+  position:=_lens_zoom_position;
+  delta:=_lens_zoom_delta;
+end;
+
+procedure WpnBuf.SetLensParams(min, max, position, delta: single);
+var
+  t:single;
+begin
+  if max<min then begin
+    t:=min;
+    min:=max;
+    max:=t;
+  end;
+
+  _lens_scope_factor_min:=min;
+  _lens_scope_factor_max:=max;
+  SetLensFactorPos(position);
+  _lens_zoom_delta:=delta;
+end;
+
+function WpnBuf.GetLensFactorPos: single;
+begin
+  result:=_lens_zoom_position;
+end;
+
+procedure WpnBuf.SetLensFactorPos(pos: single);
+begin
+  if pos<0 then pos:=0;
+  if pos>1 then pos:=1;
+  _lens_zoom_position:=pos;
 end;
 
 end.
