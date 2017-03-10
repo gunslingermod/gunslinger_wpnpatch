@@ -461,7 +461,6 @@ begin
                 ActivateActorSlot(prevslot)
               else
                 ActivateActorSlot(0);
-              RestoreLastActorDetector();
             end;
           end;
         end else begin
@@ -469,7 +468,10 @@ begin
             alife_release(get_server_object_by_id(GetID(wpn)));
           end else begin
             slot:=game_ini_r_int_def(GetSection(wpn), 'slot', 0)+1;
-            if (GetActorTargetSlot() <> slot) then alife_release(get_server_object_by_id(GetID(wpn)))
+            if (GetActorTargetSlot() <> slot) then begin
+              alife_release(get_server_object_by_id(GetID(wpn)));
+              RestoreLastActorDetector();
+            end;
           end;
         end;
     end;

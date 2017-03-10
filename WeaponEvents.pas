@@ -1166,6 +1166,13 @@ begin
 
   anm:=GetActualCurrentAnim(wpn);
   if (GetActorActiveItem()=wpn) and (leftstr(anm, length('anm_idle'))<>'anm_idle') then ResetDOF(ReadActionDOFSpeed_Out(wpn, anm));
+
+  //если у нас аниматор удара и мы продолжаем жать кнопку удара, то возвращаемся обратно в состояние доставания :)
+  if (GetActorActiveItem()=wpn) and GetActorKeyRepeatFlag(kfQUICKKICK) and (GetSection(wpn)=GetKickAnimator()) then begin
+    SetActorKeyRepeatFlag(kfQUICKKICK, false);
+    virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
+    SetActorActionCallback(@KickCallback);
+  end;
 end;
 
 procedure CWeapon__OnAnimationEnd_Patch(); stdcall;

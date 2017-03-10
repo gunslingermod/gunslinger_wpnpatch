@@ -6,7 +6,7 @@ unit ActorUtils;
 {$define USE_SCRIPT_USABLE_HUDITEMS}  //на вс€кий - потом все равно в двиг надо перекинуть, но влом - и так отлично работает
 
 interface
-uses LightUtils;
+uses LightUtils, WeaponAdditionalBuffer;
 const
   actMovingForward:cardinal = $1;
   actMovingBack:cardinal = $2;
@@ -46,7 +46,8 @@ const
   kfTACTICALTORCH:cardinal=$800;
   kfNEXTAMMO:cardinal = $1000;
   kfHEADLAMP:cardinal = $2000;
-  kfNIGHTVISION:cardinal = $4000;    
+  kfNIGHTVISION:cardinal = $4000;
+  kfQUICKKICK:cardinal = $8000;  
 
 
 
@@ -71,6 +72,7 @@ procedure DropItem(act:pointer; item:pointer); stdcall;
 function Init():boolean; stdcall;
 function CheckActorWeaponAvailabilityWithInform(wpn:pointer):boolean;
 procedure SetActorKeyRepeatFlag(mask:cardinal; state:boolean; ignore_suicide:boolean=false);
+function GetActorKeyRepeatFlag(mask:cardinal):boolean;
 procedure ClearActorKeyRepeatFlags();
 procedure ResetActorFlags(act:pointer);
 procedure UpdateSlots(act:pointer);
@@ -79,6 +81,7 @@ function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
 procedure ActivateActorSlot(slot:cardinal); stdcall;
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
 function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
+procedure SetActorSlotBlockedCounter(slot:cardinal; cnt:byte); stdcall;
 
 function IsHandJitter(itm:pointer):boolean; stdcall;
 procedure SetHandsJitterTime(time:cardinal); stdcall;
@@ -111,10 +114,17 @@ procedure SetDisableInputStatus(status:boolean); stdcall;
 
 procedure HeadlampCallback(wpn:pointer; param:integer); stdcall;
 procedure NVCallback(wpn:pointer; param:integer); stdcall;
+procedure KickCallback(wpn:pointer; param:integer); stdcall;
+procedure SetActorActionCallback(cb:TAnimationEffector);
+
+procedure add_pp_effector(fn:pchar; id:integer; cyclic:boolean); stdcall;
+procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
+procedure set_pp_effector_factor(id:integer; f:single; f_sp:single); stdcall;
+procedure remove_pp_effector(id:integer); stdcall;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, MatVectors;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, MatVectors, Level;
 
 var
   _keyflags:cardinal;
@@ -137,6 +147,353 @@ var
 
   _action_animator_callback:TAnimationEffector;
   _action_animator_param:integer;
+  _action_ppe:integer;
+
+
+//-------------------------------------------------------------------------------------------------------------
+procedure CTorch__Switch(CTorch:pointer; status:boolean);stdcall;
+asm
+  pushad
+    movzx eax, status
+    push eax
+
+    mov ecx, CTorch
+
+    mov eax, xrgame_addr
+    add eax, $2f13f0
+    call eax
+  popad
+end;
+
+function IsTorchSwitchedOn(CTorch:pointer):boolean; stdcall;
+asm
+  push eax
+  mov eax, CTorch
+  mov al, [eax+$2FC]
+  mov @result, al
+  pop eax
+end;
+
+procedure CTorch__SwitchNightVision(CTorch:pointer; status:boolean; use_sounds:boolean);stdcall;
+asm
+  pushad
+    movzx eax, use_sounds
+    push eax
+
+    movzx eax, status
+    push eax
+
+    mov ecx, CTorch
+
+    mov eax, xrgame_addr
+    add eax, $2f26d0
+    call eax
+  popad
+end;
+
+function IsItemAllowsUsingTorch(itm:pointer):boolean; stdcall;
+begin
+  result:=false;
+  if itm = nil then exit;
+
+  result:=game_ini_r_bool_def(GetSection(itm), 'torch_available', false);
+  result:=FindBoolValueInUpgradesDef(itm, 'torch_available', result);
+end;
+
+function CanUseTorch(CTorch:pointer):boolean; stdcall;
+var
+  act, outfit, helmet:pointer;
+begin
+  result:=true;
+  act:=GetActor();
+  if (act=nil) or (GetOwner(CTorch)<>act) then exit;
+  
+  helmet := ItemInSlot(act, 12);
+  outfit := ItemInSlot(act, 7);
+  result := IsItemAllowsUsingTorch(helmet) or IsItemAllowsUsingTorch(outfit);
+end;
+//--------------------------------------------------------------------------------------------------
+function IsNVSwitchedOn(CTorch:pointer):boolean; stdcall;
+asm
+  mov @result, 0
+  pushad
+  mov ecx, CTorch
+  cmp ecx, 0
+  je @finish
+
+  mov eax, [ecx+$31c]
+  cmp eax, 0
+  je @finish
+
+  mov eax, [eax]      //m_pActor
+  cmp eax, 0
+  je @finish
+  mov eax, [eax+$544]
+  push $37
+  mov ecx, eax
+
+  mov eax, xrgame_addr
+  call [eax+$512D80] //CCameraManager::GetPPEffector
+  test eax, eax
+  je @finish
+  mov @result, 1
+
+  @finish:
+  popad
+end;
+
+
+function IsHelmetHasNV(CHelmet:pointer):boolean; stdcall;
+asm
+  mov @result, 0
+  mov eax, CHelmet
+  cmp eax, 0
+  je @finish
+
+  mov eax, [eax+$2e4]
+  cmp eax, 0
+  je @finish
+
+  cmp [eax+4], 0
+  je @finish
+  
+  mov @result, 1
+
+  @finish:
+end;
+
+function IsOutfitHasNV(CCustomOutfit:pointer):boolean; stdcall;
+asm
+  mov @result, 0
+  mov eax, CCustomOutfit
+  cmp eax, 0
+  je @finish
+
+  mov eax, [eax+$348]
+  cmp eax, 0
+  je @finish
+
+  cmp [eax+4], 0
+  je @finish
+
+  mov @result, 1
+
+  @finish:
+end;
+
+function CanUseNV(CTorch:pointer):boolean; stdcall;
+var
+  act, helm, outfit:pointer;
+begin
+  result:=false;
+  act:=GetActor();
+  if (act=nil) or (GetOwner(CTorch)<>act) then exit;
+
+  helm:=ItemInSlot(act, 12);
+  outfit:=ItemInSlot(act, 7);
+
+  if helm<>nil then helm:=dynamic_cast(helm, 0, RTTI_CInventoryItem, RTTI_CHelmet, false);
+  if outfit<>nil then outfit:=dynamic_cast(outfit, 0, RTTI_CInventoryItem, RTTI_CCustomOutfit, false);
+
+  result:= IsHelmetHasNV(helm) or IsOutfitHasNV(outfit);
+
+end;
+
+
+procedure OnOutfitOrHelmInRuck(CTorch:pointer); stdcall;
+begin
+  if not CanUseTorch(CTorch) then begin
+    CTorch__Switch(CTorch, false);
+  end;
+end;
+
+procedure OnOutfitOrHelmInRuck_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    call OnOutfitOrHelmInRuck
+  popad
+  push 1
+  push 0
+  push ecx
+  call CTorch__SwitchNightVision
+  ret 8
+end;
+
+procedure CTorch__Switch_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    call CanUseTorch
+    cmp al, 1
+  popad
+  je @finish
+  //нельз€ пользоватьс€ фонарем! выставл€ем аргумент статуса в 0
+  xor ebx, ebx
+  mov [esp+$14], 0
+
+  @finish:
+  lea edi, [esi+$e8]
+end;
+
+procedure OnActorSwithesSmth(restrictor_config_param:PChar; animator_item_section:PChar; anm_name:PChar; snd_label:PChar; key_repeat:cardinal; callback:TAnimationEffector; callback_param:integer); stdcall;
+var
+  buf:WpnBuf;
+  wpn, act, det:pointer;
+  res:boolean;
+  curanm:PChar;
+  slot:integer;
+begin
+  act:=GetActor();
+  if act=nil then exit;
+
+  wpn:=GetActorActiveItem();
+  det:=GetActiveDetector(act);
+  if (det<>nil) and (GetCurrentState(det)<>CHUDState__eIdle) then exit;
+
+
+  if (wpn=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
+    if not game_ini_r_bool_def(animator_item_section, 'action_animator', false) then begin
+      log('Section ['+animator_item_section+'] defined as action animator in [gunslinger_base], but key action_animator is false or does not exist!', true);
+      if IsDebug then Messenger.SendMessage('Action animator: invalid configuration, see log!');
+    end;
+//    log('spawn scheme');
+    //если оружие есть и оно зан€то - уходим
+    if (wpn<>nil) then begin
+      if (GetCurrentState(wpn)<>EHudStates__eIdle) then exit;
+      buf:=GetBuffer(wpn);
+      if (buf<>nil) and not Weapon_SetKeyRepeatFlagIfNeeded(wpn, key_repeat) then begin
+        exit;
+      end;
+    end;
+//    log('Check');
+    slot:=game_ini_r_int_def(animator_item_section, 'slot', 0)+1;
+    if ItemInSlot(act, slot)<>nil then exit;
+    wpn:= pointer(cardinal(act)-$e8); //псевдооружие :)
+//    log('spawn');
+    CALifeSimulator__spawn_item2(animator_item_section, GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn), GetID(wpn));
+    //хак - так как первое не может активировать слот, в котором ничего нет, а второе кос€чно скрывает предмет с детектором
+    ActivateActorSlot__CInventory(0, false);
+    ActivateActorSlot(slot);
+    _action_animator_callback:=callback;
+    _action_animator_param:=callback_param;
+  end else begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) then begin
+      //просто запускаем аниму через буфер
+      res:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, key_repeat);
+      if res and WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, anm_name, snd_label) then begin
+        curanm:=GetActualCurrentAnim(wpn);
+        StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
+        MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, callback, callback_param);
+        _action_animator_callback:=nil;
+        _action_animator_param:=0;
+      end;
+    end else begin
+      //SetPending(true) и вызов анимации, затем в OnAnimationEnd SetPending(false)
+      if not IsPending(wpn) and (GetCurrentState(wpn)=EHudStates__eIdle) then begin
+        StartPending(wpn);
+        PlayHudAnim(wpn, anm_name, true);
+        CHudItem_Play_Snd(wpn, snd_label);
+        StartCompanionAnimIfNeeded(rightstr(anm_name, length(anm_name)-4), wpn, false);
+        _action_animator_callback:=callback;
+        _action_animator_param:=callback_param;
+      end;
+    end;
+  end;
+end;
+
+procedure HeadlampCallback(wpn:pointer; param:integer); stdcall;
+var
+  CTorch:pointer;
+  act:pointer;
+  buf:WpnBuf;
+begin
+  act:=GetActor();
+  if act=nil then exit;
+  CTorch:=ItemInSlot(act, 10);
+  if CTorch=nil then exit;
+  CTorch__Switch(CTorch, param>0);
+
+//  log ('headlamp: '+booltostr(param>0, true));
+  if wpn=nil then exit;
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
+end;
+
+procedure NVCallback(wpn:pointer; param:integer); stdcall;
+var
+  CTorch:pointer;
+  act:pointer;
+  buf:WpnBuf;
+begin
+  act:=GetActor();
+  if act=nil then exit;
+  CTorch:=ItemInSlot(act, 10);
+  if CTorch=nil then exit;
+  CTorch__SwitchNightVision(CTorch, param>0, true);
+
+  if wpn=nil then exit;
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
+end;
+
+procedure KickCallback(wpn:pointer; param:integer); stdcall;
+var
+  act:pointer;
+  buf:WpnBuf;
+begin
+  act:=GetActor();
+  if act=nil then exit;
+  if wpn=nil then exit;
+
+  MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
+
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
+end;
+
+
+procedure OnActorSwithesNV(itm:pointer); stdcall;
+begin
+  if not (CanUseNV(itm)) then exit;
+  if IsNVSwitchedOn(itm) then begin
+    OnActorSwithesSmth('disable_nv_anim', GetNVDisableAnimator(), 'anm_nv_off', 'sndNVOff', kfNIGHTVISION, NVCallback, 0);
+  end else begin
+    OnActorSwithesSmth('disable_nv_anim', GetNVEnableAnimator(), 'anm_nv_on', 'sndNVOn', kfNIGHTVISION, NVCallback, 1);  
+  end;
+end;
+
+procedure OnActorSwithesTorch(itm:pointer); stdcall;
+begin
+  if not CanUseTorch(itm) then exit;
+  if IsTorchSwitchedOn(itm) then begin
+    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampDisableAnimator(), 'anm_headlamp_off', 'sndHeadlampOff', kfHEADLAMP, HeadlampCallback, 0);
+  end else begin
+    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampEnableAnimator(), 'anm_headlamp_on', 'sndHeadlampOn', kfHEADLAMP, HeadlampCallback, 1);
+  end;
+
+  if GetActorActiveItem()<>nil then begin
+    MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), GetActorActiveItem());
+  end;
+end;
+
+procedure CActor__SwitchTorch_Patch;
+asm
+  pushad
+    push ecx
+    call OnActorSwithesTorch
+  popad
+end;
+
+procedure CActor__SwitchNightVision_Patch;
+asm
+  pushad
+    push ecx
+    call OnActorSwithesNV
+  popad
+end;
+//--------------------------------------------------------------------------------------------------------------------------
 
 
 function CInventory__CalcTotalWeight(this:pointer):single; stdcall;
@@ -432,6 +789,32 @@ asm
   popfd
 end;
 
+procedure SetActorSlotBlockedCounter(slot:cardinal; cnt:byte); stdcall;
+asm
+  pushfd
+  sub slot, 1
+  cmp slot, 12
+  jge @finish
+
+  call GetActor        //получаем актора
+
+  test eax, eax
+  je @finish
+
+  mov eax, [eax+$2e4]   //получаем его CInventory
+  test eax, eax
+  je @finish
+
+  lea eax, [eax+$135]
+  add eax, slot
+
+  mov bl, cnt
+  mov byte ptr [eax], bl
+
+  @finish:
+  popfd
+end;
+
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
 asm
   pushad
@@ -643,6 +1026,13 @@ begin
     end;
   end;
 
+  if (_keyflags and kfQUICKKICK)<>0 then begin
+    if CanStartAction(wpn) then begin
+      virtual_Action(wpn, kQUICK_KICK, kActPress);
+      SetActorKeyRepeatFlag(kfQUICKKICK, false);
+    end;
+  end;
+
 
 {  //принудительный сброс бега во врем€ действи€
   if not (IsSprintOnHoldEnabled()) and GetActorActionState(act, actSprint, mstate_WISHFUL) and (not CanSprintNow(wpn)) then begin
@@ -720,6 +1110,9 @@ var
   anim_time:cardinal;
   treasure_time:cardinal;
   anm_name:PChar;
+
+  ppe:PChar;
+  ppe_start, ppe_end:cardinal;
 begin
   ct:=GetGameTickCount();
   dt:=GetTimeDeltaSafe(_last_update_time, ct);
@@ -769,16 +1162,50 @@ begin
   end;
 
   itm:=GetActorActiveItem();
+
   //если в руках аниматор действи€ или премет без буфера с играющейс€ анимой действи€ - запускаем калбэк вручную
   if (@_action_animator_callback<>nil) then begin
     if (itm<>nil) and (game_ini_r_bool_def(GetSection(itm), 'action_animator', false) or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=CHUDState__eIdle))) then begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
-      treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);
+      treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);      
       if (treasure_time<anim_time) then begin
         _action_animator_callback(itm, _action_animator_param);
         _action_animator_callback:=nil;
         _action_animator_param:=0;
+      end;
+    end;
+  end;
+
+  //PPE
+  if (itm<>nil) then begin
+    anm_name:=GetActualCurrentAnim(itm);
+    if game_ini_r_bool_def(GetHUDSection(itm), PChar('use_ppe_effector_'+anm_name), false) then begin
+      anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
+      ppe:=game_ini_read_string(GetHUDSection(itm), PChar('ppe_effector_'+anm_name));
+      ppe_start := floor(game_ini_r_single_def(GetHUDSection(itm), PChar('ppe_start_'+anm_name), 0)*1000);
+      ppe_end := floor(game_ini_r_single_def(GetHUDSection(itm), PChar('ppe_end_'+anm_name), 100)*1000);
+
+      if (anim_time>ppe_start) and (anim_time<ppe_end) then begin
+        //включим рре, если он выключен
+        if _action_ppe<0 then begin
+          _action_ppe:=2014;
+          add_pp_effector(ppe, _action_ppe, false);
+          set_pp_effector_factor(_action_ppe, 1.0, 10000);
+        end;
+      end else begin
+        //выключим рре, если он включен
+        if _action_ppe>=0 then begin
+          set_pp_effector_factor(_action_ppe, 0.001, 10000);
+          remove_pp_effector(_action_ppe);
+          _action_ppe:=-1;
+        end;
+      end;
+    end else begin
+      if (_action_ppe>=0) then begin
+        set_pp_effector_factor(_action_ppe, 0.001, 10000);
+        remove_pp_effector(_action_ppe);
+        _action_ppe:=-1;
       end;
     end;
   end;
@@ -849,6 +1276,11 @@ begin
   end else begin
     _keyflags:=_keyflags and (not mask);
   end;
+end;
+
+function GetActorKeyRepeatFlag(mask:cardinal):boolean;
+begin
+  result:= (_keyflags and mask)>0;
 end;
 
 
@@ -935,6 +1367,21 @@ begin
       SetForcedQuickthrow(true);
       ActivateActorSlot__CInventory(4, false);
     end;
+  end else if (dik=kQUICK_KICK) then begin
+    //если в руках нож - делаем обычный удар
+    if (GetActorActiveSlot()=1) then begin
+      virtual_Action(wpn, kWPN_FIRE, kActPress);
+    end else begin
+      //провер€ем, можем ли вообще бить сейчас
+      if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
+
+      if (wpn<>nil) and (GetSection(wpn)=GetKickAnimator()) then begin
+        //хотим повторный удар :) «апомним это
+        SetActorKeyRepeatFlag(kfQUICKKICK, true);
+      end else begin
+        OnActorSwithesSmth('disable_kick_anim', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+      end;
+    end;
   end;
 
 end;
@@ -981,6 +1428,9 @@ begin
   _last_update_time:=GetGameTickCount();
   _action_animator_callback := nil;
   _action_animator_param := 0;
+  _action_ppe:=-1;
+
+  ForgetDetectorAutoHide();
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
@@ -1007,6 +1457,14 @@ begin
     DelTorchlight(@_lefthanded_torch);
     _torch_linked_detector:=nil;
   end;
+
+  if _action_ppe>=0 then begin
+    //снимаем постэффект
+    set_pp_effector_factor(_action_ppe, 0.001, 10000);
+    remove_pp_effector(_action_ppe);
+    _action_ppe:=-1;
+  end;
+  ForgetDetectorAutoHide();
 end;
 
 procedure CActor__net_Destroy_Patch(); stdcall;
@@ -1397,211 +1855,6 @@ asm
   @finish:
 end;
 
-//-------------------------------------------------------------------------------------------------------------
-procedure CTorch__Switch(CTorch:pointer; status:boolean);stdcall;
-asm
-  pushad
-    movzx eax, status
-    push eax
-
-    mov ecx, CTorch
-
-    mov eax, xrgame_addr
-    add eax, $2f13f0
-    call eax
-  popad
-end;
-
-function IsTorchSwitchedOn(CTorch:pointer):boolean; stdcall;
-asm
-  push eax
-  mov eax, CTorch
-  mov al, [eax+$2FC]
-  mov @result, al
-  pop eax
-end;
-
-procedure CTorch__SwitchNightVision(CTorch:pointer; status:boolean; use_sounds:boolean);stdcall;
-asm
-  pushad
-    movzx eax, use_sounds
-    push eax
-
-    movzx eax, status
-    push eax
-
-    mov ecx, CTorch
-
-    mov eax, xrgame_addr
-    add eax, $2f26d0
-    call eax
-  popad
-end;
-
-function IsItemAllowsUsingTorch(itm:pointer):boolean; stdcall;
-begin
-  result:=false;
-  if itm = nil then exit;
-
-  result:=game_ini_r_bool_def(GetSection(itm), 'torch_available', false);
-  result:=FindBoolValueInUpgradesDef(itm, 'torch_available', result);
-end;
-
-function CanUseTorch(CTorch:pointer):boolean; stdcall;
-var
-  act, outfit, helmet:pointer;
-begin
-  result:=true;
-  act:=GetActor();
-  if (act=nil) or (GetOwner(CTorch)<>act) then exit;
-  
-  helmet := ItemInSlot(act, 12);
-  outfit := ItemInSlot(act, 7);
-  result := IsItemAllowsUsingTorch(helmet) or IsItemAllowsUsingTorch(outfit);
-end;
-
-
-procedure OnOutfitOrHelmInRuck(CTorch:pointer); stdcall;
-begin
-  if not CanUseTorch(CTorch) then begin
-    CTorch__Switch(CTorch, false);
-  end;
-end;
-
-procedure OnOutfitOrHelmInRuck_Patch(); stdcall;
-asm
-  pushad
-    push ecx
-    call OnOutfitOrHelmInRuck
-  popad
-  push 1
-  push 0
-  push ecx
-  call CTorch__SwitchNightVision
-  ret 8
-end;
-
-procedure CTorch__Switch_Patch(); stdcall;
-asm
-  pushad
-    push ecx
-    call CanUseTorch
-    cmp al, 1
-  popad
-  je @finish
-  //нельз€ пользоватьс€ фонарем! выставл€ем аргумент статуса в 0
-  xor ebx, ebx
-  mov [esp+$14], 0
-
-  @finish:
-  lea edi, [esi+$e8]
-end;
-
-procedure OnActorSwithesSmth(restrictor_config_param:PChar; animator_item_section:PChar; anm_name:PChar; snd_label:PChar; key_repeat:cardinal; callback:TAnimationEffector; callback_param:integer); stdcall;
-var
-  buf:WpnBuf;
-  wpn, act:pointer;
-  res:boolean;
-  curanm:PChar;
-  slot:integer;
-begin
-  act:=GetActor();
-  if act=nil then exit;
-
-  wpn:=GetActorActiveItem();
-
-  if (wpn=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
-    if not game_ini_r_bool_def(animator_item_section, 'action_animator', false) then begin
-      log('Section ['+animator_item_section+'] defined as action animator in [gunslinger_base], but key action_animator is false or does not exist!', true);
-      if IsDebug then Messenger.SendMessage('Action animator: invalid configuration, see log!');
-    end;
-//    log('spawn scheme');
-    //если оружие есть и оно зан€то - уходим
-    if (wpn<>nil) then begin
-      if (GetCurrentState(wpn)<>EHudStates__eIdle) then exit;
-      buf:=GetBuffer(wpn);
-      if (buf<>nil) and not Weapon_SetKeyRepeatFlagIfNeeded(wpn, key_repeat) then begin
-        exit;
-      end;
-    end;
-//    log('Check');
-    slot:=game_ini_r_int_def(animator_item_section, 'slot', 0)+1;
-    if ItemInSlot(act, slot)<>nil then exit;
-    wpn:= pointer(cardinal(act)-$e8); //псевдооружие :)
-//    log('spawn');
-    CALifeSimulator__spawn_item2(animator_item_section, GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn), GetID(wpn));
-    //хак - так как первое не может активировать слот, в котором ничего нет, а второе кос€чно скрывает предмет с детектором
-    ActivateActorSlot__CInventory(0, false);
-    ActivateActorSlot(slot);
-    _action_animator_callback:=callback;
-    _action_animator_param:=callback_param;
-  end else begin
-    buf:=GetBuffer(wpn);
-    if (buf<>nil) then begin
-      //просто запускаем аниму через буфер
-      res:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, key_repeat);
-      if res and WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, anm_name, snd_label) then begin
-        curanm:=GetActualCurrentAnim(wpn);
-        StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
-        MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, callback, callback_param);
-        _action_animator_callback:=nil;
-        _action_animator_param:=0;
-      end;
-    end else begin
-      //SetPending(true) и вызов анимации, затем в OnAnimationEnd SetPending(false)
-      if not IsPending(wpn) and (GetCurrentState(wpn)=EHudStates__eIdle) then begin
-        StartPending(wpn);
-        PlayHudAnim(wpn, anm_name, true);
-        StartCompanionAnimIfNeeded(rightstr(anm_name, length(anm_name)-4), wpn, false);
-        _action_animator_callback:=callback;
-        _action_animator_param:=callback_param;
-      end;
-    end;
-  end;
-end;
-
-procedure HeadlampCallback(wpn:pointer; param:integer); stdcall;
-var
-  CTorch:pointer;
-  act:pointer;
-  buf:WpnBuf;
-begin
-  act:=GetActor();
-  if act=nil then exit;
-  CTorch:=ItemInSlot(act, 10);
-  if CTorch=nil then exit;
-  CTorch__Switch(CTorch, param>0);
-
-//  log ('headlamp: '+booltostr(param>0, true));
-  if wpn=nil then exit;
-  buf:=GetBuffer(wpn);
-  if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
-end;
-
-procedure NVCallback(wpn:pointer; param:integer); stdcall;
-begin
-end;
-
-procedure OnActorSwithesTorch(itm:pointer); stdcall;
-begin
-  if not CanUseTorch(itm) then exit;
-  if IsTorchSwitchedOn(itm) then begin
-    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampDisableAnimator(), 'anm_headlamp_off', 'sndHeadlampOff', kfHEADLAMP, HeadlampCallback, 0);
-  end else begin
-    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampEnableAnimator(), 'anm_headlamp_on', 'sndHeadlampOn', kfHEADLAMP, HeadlampCallback, 1);
-  end;
-end;
-
-procedure CActor__SwitchTorch_Patch;
-asm
-  pushad
-    push ecx
-    call OnActorSwithesTorch
-  popad
-end;
-
-
-//--------------------------------------------------------------------------------------------------------------------------
 function IsHandJitter(itm:pointer):boolean; stdcall;
 begin
  result := ((IsActorControlled() or IsSuicideAnimPlaying(itm)) and not IsSuicideInreversible()) or (_jitter_time_remains>0);
@@ -1659,6 +1912,71 @@ asm
   mov eax, [esi+$594]
 
   popfd
+end;
+
+procedure add_pp_effector(fn:pchar; id:integer; cyclic:boolean); stdcall;
+asm
+  pushad
+
+  movzx eax, cyclic
+  push eax
+
+  push id
+  push fn
+  mov eax, xrgame_addr
+  add eax, $23ef00
+  call eax
+
+  add esp, $C
+
+  popad
+end;
+
+procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
+asm
+  pushad
+    push f
+    push id
+
+    mov eax, xrgame_addr
+    add eax, $242fd0
+    call eax
+
+    add esp, 8
+  popad
+end;
+
+procedure set_pp_effector_factor(id:integer; f:single; f_sp:single); stdcall;
+asm
+  pushad
+    push f_sp
+    push f
+    push id
+
+    mov eax, xrgame_addr
+    add eax, $243030
+    call eax
+
+    add esp, $C
+  popad
+end;
+
+procedure remove_pp_effector(id:integer); stdcall;
+asm
+  pushad
+    push id
+
+    mov eax, xrgame_addr
+    add eax, $242f80
+    call eax
+
+    add esp, 4
+  popad
+end;
+
+procedure SetActorActionCallback(cb:TAnimationEffector);
+begin
+  _action_animator_callback:=cb;
 end;
 
 function Init():boolean; stdcall;
@@ -1756,6 +2074,8 @@ begin
   jmp_addr:= xrgame_addr+$278031;
   if not WriteJump(jmp_addr, cardinal(@CActor__SwitchTorch_Patch), 5, false) then exit;
 
+  jmp_addr:= xrgame_addr+$277FE5;
+  if not WriteJump(jmp_addr, cardinal(@CActor__SwitchNightVision_Patch), 5, false) then exit;
 
   result:=true;
 end;

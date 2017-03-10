@@ -98,6 +98,7 @@ function GetHeadlampEnableAnimator():PChar;
 function GetHeadlampDisableAnimator():PChar;
 function GetNVEnableAnimator():PChar;
 function GetNVDisableAnimator():PChar;
+function GetKickAnimator():PChar;
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
@@ -135,6 +136,7 @@ var
   _nv_enable_animator_section:PChar;
   _headlamp_disable_animator_section:PChar;
   _nv_disable_animator_section:PChar;
+  _kick_animator:PChar;
 
 
   
@@ -516,6 +518,7 @@ begin
 
   _nv_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_enable_animator');
   _nv_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_disable_animator');
+  _kick_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'kick_animator');
 
   result:=true;
 end;
@@ -614,6 +617,11 @@ end;
 function GetNVDisableAnimator():PChar;
 begin
   result:=_nv_disable_animator_section;
+end;
+
+function GetKickAnimator():PChar;
+begin
+  result:=_kick_animator;
 end;
 
 end.

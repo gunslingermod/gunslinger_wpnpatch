@@ -36,6 +36,7 @@ procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
 function GetAmmoTypeIndex(wpn:pointer):byte; stdcall;
 function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
+procedure InitCartridge(c:pCCartridge); stdcall;
 
 
 implementation
@@ -186,6 +187,26 @@ asm
 
     mov @result, eax
   popad
+end;
+
+procedure InitCartridge(c:pCCartridge); stdcall;
+begin
+  c.vtable:=pointer(xrgame_addr+$5559c4);
+  c.m_ammo_sect:=nil;
+  c.SCartridgeParam__kDist:=1.0;
+  c.SCartridgeParam__kDisp:=1.0;
+  c.SCartridgeParam__kHit:=1.0;
+  c.SCartridgeParam__kImpulse:=1.0;
+  c.SCartridgeParam__kAP:=1.0;
+  c.SCartridgeParam__kAirRes:=1.0;
+  c.SCartridgeParam__buck_shot:=1;
+  c.SCartridgeParam__impair:=1.0;
+  c.SCartridgeParam__fWallmarkSize:=0.05;
+  c.SCartridgeParam__u8ColorID:=0;
+  c.m_local_ammotype:=0;
+  c.bullet_material_idx:=$FFFF;
+  c._flags:=0;
+  c.m_InvShortName:=nil;
 end;
 
 end.

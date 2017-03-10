@@ -306,12 +306,6 @@ function anm_show_selector(wpn:pointer):pchar;stdcall;
 const
   anm_show:PChar = 'anm_show';
 begin
-  {if IsKnife(PChar(GetClassName(wpn))) then begin
-    //TODO:быстрое использование ножа - не забыть вызвать ForgetDetectorAutoHide, если быстрое использование сейчас не нужно
-    result:=anm_std_selector(wpn, anm_show);
-    exit;
-  end;}
-
   if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
     ResetItmHudOffset(wpn);
     if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') and not game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
@@ -817,7 +811,11 @@ begin
       if GetClassName(wpn)<>'WP_BM16' then begin
         anim_name:=anim_name+'_empty'; //у двустволок и так _0 потом модификатор прибавит
       end else if(CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
-        anim_name:=anim_name+'_only';
+        if GetAmmoTypeChangingStatus(wpn)=$FF then begin
+          anim_name:=anim_name+'_only';
+        end else begin
+          anim_name:=anim_name+'_only_ammochange';
+        end;
         buf.ammo_cnt_to_reload:=1;
       end;
     end else if GetAmmoTypeChangingStatus(wpn)<>$FF then begin

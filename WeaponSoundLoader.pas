@@ -93,7 +93,15 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_open_weapon_empty', 'sndOpenEmpty', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_only', 'sndReloadOnly', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_only_detector', 'sndReloadOnlyDetector', 1, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_only_ammochange', 'sndReloadOnlyAmmochange', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_reload_only_ammochange_detector', 'sndReloadOnlyAmmochangeDetector', 1, $80040000);
+
+    HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype_one', 'sndChangeCartridgeTypeOne', 1, $80040000);
+    HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype_one_detector', 'sndChangeCartridgeTypeOneDetector', 1, $80040000);    
+
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype_only', 'sndChangeCartridgeTypeOnly', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype_one_only_detector', 'sndChangeCartridgeTypeDetectorOneOnly', 1, $80040000);  
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype_one_only', 'sndChangeCartridgeTypeOneOnly', 1, $80040000);  
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_changecartridgetype_only_detector', 'sndChangeCartridgeTypeDetectorOnly', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_light_misfire', 'sndLightMisfire', 1, $80040000);

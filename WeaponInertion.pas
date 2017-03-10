@@ -111,23 +111,25 @@ begin
     end;
   end;
 
+  i_p:=def_inert;
+
 {  i_p.pitch_offset_r:=i_p.pitch_offset_r-clamp(i_p.pitch_offset_r-def_inert.pitch_offset_r, -eps, eps);
   i_p.pitch_offset_n:=i_p.pitch_offset_n-clamp(i_p.pitch_offset_n-def_inert.pitch_offset_n, -eps, eps);
   i_p.pitch_offset_d:=i_p.pitch_offset_d-clamp(i_p.pitch_offset_d-def_inert.pitch_offset_d, -eps, eps);
   i_p.origin_offset:=i_p.origin_offset-clamp(i_p.origin_offset-def_inert.origin_offset, -eps, eps);
-  i_p.speed:=def_inert.speed;   }
+  i_p.speed:=def_inert.speed;
 
-{  i_p.pitch_offset_r:=i_p.pitch_offset_r+GradientClamp(def_inert.pitch_offset_r, i_p.pitch_offset_r, g_koef, eps);
+  i_p.pitch_offset_r:=i_p.pitch_offset_r+GradientClamp(def_inert.pitch_offset_r, i_p.pitch_offset_r, g_koef, eps);
   i_p.pitch_offset_n:=i_p.pitch_offset_n+GradientClamp(def_inert.pitch_offset_n, i_p.pitch_offset_n, g_koef, eps);
   i_p.pitch_offset_d:=i_p.pitch_offset_d+GradientClamp(def_inert.pitch_offset_d, i_p.pitch_offset_d, g_koef, eps);
   i_p.origin_offset:=i_p.origin_offset+GradientClamp(def_inert.origin_offset, i_p.origin_offset, g_koef, eps);
-  i_p.speed:=def_inert.speed; }
+  i_p.speed:=def_inert.speed;
 
   i_p.pitch_offset_r:=i_p.pitch_offset_r-clamp(i_p.pitch_offset_r-def_inert.pitch_offset_r, -eps, eps);
   i_p.pitch_offset_n:=i_p.pitch_offset_n-clamp(i_p.pitch_offset_n-def_inert.pitch_offset_n, -eps, eps);
   i_p.pitch_offset_d:=i_p.pitch_offset_d-clamp(i_p.pitch_offset_d-def_inert.pitch_offset_d, -eps, eps);
   i_p.origin_offset:=i_p.origin_offset+GradientClamp(def_inert.origin_offset, i_p.origin_offset, g_koef, eps);
-  i_p.speed:=def_inert.speed;
+  i_p.speed:=def_inert.speed;  }
 end;
 
 

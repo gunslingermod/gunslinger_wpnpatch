@@ -42,13 +42,19 @@ begin
 
     if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_empty_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_empty_detector_snd') then begin
       if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
-        result:='sndReloadOnlyDetector'
+        if (GetAmmoTypeChangingStatus(wpn)=$FF) then
+          result:='sndReloadOnlyDetector'
+        else
+          result:='sndReloadOnlyAmmochangeDetector';
       end else begin
         result:='sndReloadEmptyDetector'
       end;
     end else begin
       if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
-        result:='sndReloadOnly'
+        if (GetAmmoTypeChangingStatus(wpn)=$FF) then
+          result:='sndReloadOnly'
+        else
+          result:='sndReloadOnlyAmmochange';
       end else begin
         result:='sndReloadEmpty';
       end
@@ -59,9 +65,17 @@ begin
 
     if detector_now and game_ini_line_exist(GetHUDSection(wpn), 'use_changeammo_detector_snd') and game_ini_r_bool(GetHUDSection(wpn), 'use_changeammo_detector_snd') then begin
       if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
-       result:='sndChangeCartridgeTypeDetectorOnly'
+        if GetCurrentAmmoCount(wpn)=1 then begin
+          result:='sndChangeCartridgeTypeDetectorOneOnly'
+        end else begin
+          result:='sndChangeCartridgeTypeDetectorOnly'
+        end;
       end else begin
-        result:='sndChangeCartridgeTypeDetector';
+        if GetCurrentAmmoCount(wpn)=1 then begin
+          result:='sndChangeCartridgeTypeOneDetector';
+        end else begin
+          result:='sndChangeCartridgeTypeDetector';
+        end;
       end;
     end else begin
       if (GetClassName(wpn)='WP_BM16') and (CWeapon__GetAmmoCount(wpn, GetAmmoTypeToReload(wpn))<2) then begin
@@ -71,7 +85,11 @@ begin
           result:='sndChangeCartridgeTypeOnly'
         end;
       end else begin
-        result:='sndChangeCartridgeType';
+        if GetCurrentAmmoCount(wpn)=1 then begin
+          result:='sndChangeCartridgeTypeOne';
+        end else begin
+          result:='sndChangeCartridgeType';
+        end;
       end;
     end;
   end;

@@ -19,6 +19,8 @@ const
   RTTI_CTorch:cardinal = $61844C;
   RTTI_CAttachableItem:cardinal = $6274B4;
   RTTI_CInventoryItemOwner:cardinal = $618484;      
+  RTTI_CCustomOutfit:cardinal = $62cd70;
+  RTTI_CHelmet:cardinal = $635c9c;
 
 implementation
 uses BaseGameData;
