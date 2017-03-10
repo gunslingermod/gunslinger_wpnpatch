@@ -457,6 +457,34 @@ asm
 end;
 
 
+procedure CUIMotionIcon__Update_Patch(); stdcall
+asm
+  //выставляем в максимум индикатор видимости при суициде
+  pushad
+    call IsActorPlanningSuicide
+    test al, al
+    jne @set_max    
+    call IsActorSuicideNow
+    test al, al
+    jne @set_max
+    call GetActorActiveItem
+    cmp eax, 0
+    je @finish
+    push eax
+    call IsSuicideAnimPlaying
+    test al, al
+    je @finish
+
+    @set_max:
+    push $3f800000
+    movss xmm0, [esp]
+    pop eax
+    @finish:
+  popad
+
+  movss [esp+4], xmm0 //original
+end;
+
 function Init():boolean; stdcall;
 var
   addr:cardinal;
@@ -479,6 +507,9 @@ begin
 
   addr:=xrgame_addr+$1318DF;
   if not WriteJump(addr, cardinal(@CControllerPsyHit__activate_Patch), 6, true) then exit;
+
+  addr:= xrgame_addr+$45CB21;
+  if not WriteJump(addr, cardinal(@CUIMotionIcon__Update_Patch), 5, true) then exit;
 
   result:=true;
 end;

@@ -2290,11 +2290,8 @@ begin
   jmp_addr:= xrgame_addr+$442AF5;
   if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
 
-
   jmp_addr:= xrgame_addr+$2627D2;
   if not WriteJump(jmp_addr, cardinal(@CheckHeavyBreathAdditionalCondition_Patch), 5, true) then exit;
-
-
 
   result:=true;
 end;

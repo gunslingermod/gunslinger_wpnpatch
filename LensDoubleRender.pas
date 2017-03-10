@@ -4,16 +4,19 @@ interface
 function Init():boolean; stdcall;
 function IsLensFrameNow():boolean; stdcall;
 function NeedLensFrameNow():boolean; stdcall;
+function GetLensFOV():single;stdcall;
 
 
 implementation
-uses BaseGameData, Windows, SysUtils, CRT, Misc, gunsl_config, ActorUtils, HudItemUtils;
+uses BaseGameData, Windows, SysUtils, CRT, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster;
 
 var
   pD3DXLoadSurfaceFromSurface:pointer;
   pHW_Device:cardinal;
 
-  is_lens_frame:boolean;      //flag
+  _is_lens_frame:boolean;      //flag
+
+  _restore_fov_after_lens_frame:single;
 
 const
   D3DBACKBUFFER_TYPE_MONO:cardinal = 0;
@@ -101,7 +104,7 @@ end;
 
 function IsLensFrameNow():boolean; stdcall;
 begin
-  result:=is_lens_frame;
+  result:=_is_lens_frame;
 end;
 
 function NeedLensFrameNow():boolean; stdcall;
@@ -111,8 +114,46 @@ begin
   result:=(GetDevicedwFrame() mod GetLensRenderFactor())=0;
   if result then begin
     wpn:=GetActorActiveItem();
-    result:= (wpn<>nil) and (IsAimNow(wpn) or IsHolderInAimState(wpn));
+    result:= (wpn<>nil) and (IsAimNow(wpn) or IsHolderInAimState(wpn) or ((dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)<>nil) and (GetAimFactor(wpn)>0.001)));
   end;
+end;
+
+function GetLensFOV():single; stdcall;
+begin
+  result:=20;
+end;
+
+procedure CCameraManager__Update_Lens_FOV_manipulation(value:pSingle); stdcall;
+begin
+
+//  _is_lens_frame:=NeedLensFrameNow();
+
+  if _restore_fov_after_lens_frame = 0 then begin
+    //мы не меняли ФОВ ранее. Если рисуется кадр линзы - сохраним и выставим фов линзы
+    if _is_lens_frame then begin
+      _restore_fov_after_lens_frame:=value^;
+      value^:=GetLensFOV();
+    end;
+  end else begin
+    //Мы ранее уже изменили фов. Если до сих пор нужно делать кадр линзы - просто выставим его фов, иначе - восстановим то, что изменили
+    if _is_lens_frame then begin
+      value^:=GetLensFOV();
+    end else begin
+      value^:= _restore_fov_after_lens_frame;
+      _restore_fov_after_lens_frame:=0;
+    end;
+  end;
+end;
+
+procedure CCameraManager__Update_Lens_FOV_manipulation_Patch(); stdcall;
+asm
+  movss [esi+$3c], xmm1
+  mov byte ptr [esi+$40], 0
+  pushad
+    add esi, $34
+    push esi
+    call CCameraManager__Update_Lens_FOV_manipulation
+  popad
 end;
 
 
@@ -122,7 +163,8 @@ var
  dHandle:cardinal;
 begin
   result:=false;
-  is_lens_frame:=false;
+  _is_lens_frame:=false;
+  _restore_fov_after_lens_frame:=0;
   
   if xrRender_R2_addr<>0 then begin
     dHandle := LoadLibrary('d3dx9_42.dll');
@@ -139,6 +181,9 @@ begin
 
   jmp_addr:=xrGame_addr+$232C34;
   if not WriteJump(jmp_addr, cardinal(@CLevel__OnRender_After_Patch), 6, true) then exit;
+
+  jmp_addr:=xrEngine_addr+$2CAB9;
+  if not WriteJump(jmp_addr, cardinal(@CCameraManager__Update_Lens_FOV_manipulation_Patch), 9, true) then exit;
 
   pD3DXLoadSurfaceFromSurface:=GetProcAddress(dHandle, 'D3DXLoadSurfaceFromSurface');
   FreeLibrary(dHandle);
