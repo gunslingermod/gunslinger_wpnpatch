@@ -40,6 +40,7 @@ function xrMemory__release(addr:pointer):pointer;stdcall;
 
 function CALifeSimulator__spawn_item2(section:PChar; position:pFVector3; level_vertex_id:cardinal; game_vertex_id:cardinal; id_parent:cardinal):{CSE_Abstract*}pointer; stdcall;
 function GetMaterialIdx(name:PChar):word; stdcall;
+function GetDevicedwFrame():cardinal; stdcall;
 
 
 implementation
@@ -315,6 +316,13 @@ asm
   popad
 end;
 
+function GetDevicedwFrame():cardinal; stdcall;
+asm
+  mov eax, xrEngine_addr
+  mov eax, [eax+$92EF0]
+  mov @result, eax
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -323,6 +331,10 @@ begin
   result:=false;
   jmp_addr:=xrGame_addr+$4CCD0E;
   if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
+
+  //[bug] в CLevel::ClientSend исправляем if (GameID() == eGameIDSingle || OnClient()) на if (GameID() != eGameIDSingle || OnClient()) - thanks to Shoker
+  if not nop_code(xrGame_addr+$238D55, 1, CHR($75)) then exit;
+
 
   jmp_addr:=xrGame_addr+$1ECFF6;
   cscriptgameobject_restoreweaponimmediatly_addr := @CScriptgameobject__restoreweaponimmediatly;

@@ -14,7 +14,6 @@ uses
   WeaponEvents in 'WeaponEvents.pas',
   WeaponAnims in 'WeaponAnims.pas',
   ActorUtils in 'ActorUtils.pas',
-  HudTransparencyFix in 'HudTransparencyFix.pas',
   WeaponAdditionalBuffer in 'WeaponAdditionalBuffer.pas',
   DetectorUtils in 'DetectorUtils.pas',
   Messenger in 'Messenger.pas',
@@ -97,5 +96,4 @@ begin
 //  AutoUpdater.Init();
 //
 //  Messenger.Init;
-//  HudTransparencyFix.Init;
 end.

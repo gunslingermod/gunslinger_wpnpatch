@@ -2,15 +2,19 @@ unit LensDoubleRender;
 
 interface
 function Init():boolean; stdcall;
+function IsLensFrameNow():boolean; stdcall;
+function NeedLensFrameNow():boolean; stdcall;
 
 
 implementation
-uses BaseGameData, Windows, SysUtils, CRT;
+uses BaseGameData, Windows, SysUtils, CRT, Misc, gunsl_config, ActorUtils, HudItemUtils;
 
 var
   pD3DXLoadSurfaceFromSurface:pointer;
   pHW_Device:cardinal;
-  
+
+  is_lens_frame:boolean;      //flag
+
 const
   D3DBACKBUFFER_TYPE_MONO:cardinal = 0;
 
@@ -55,22 +59,10 @@ asm
 end;
 /////////////////////////////////////////////
 
-
-
 // До рендера
 procedure BeginSecondVP( ); stdcall;
 begin
   // TODO: Делать проверку, что двойной рендер и изменять матрицу проекции рендера
-end;
-
-procedure CLevel__OnRender_Before_Patch(); stdcall
-asm
-    pushad
-    call BeginSecondVP
-    popad
-
-    mov eax, xrgame_addr
-    call [eax+$512f30]
 end;
 
 // После рендера мира и до UI
@@ -87,6 +79,16 @@ begin
   LoadSurfaceFromSurface(backbuffer, GetScoperenderRT());
 end;
 
+procedure CLevel__OnRender_Before_Patch(); stdcall
+asm
+    pushad
+    call BeginSecondVP
+    popad
+
+    mov eax, xrgame_addr
+    call [eax+$512f30]
+end;
+
 procedure CLevel__OnRender_After_Patch(); stdcall
 asm
    pushad
@@ -97,6 +99,22 @@ asm
    mov ecx, [ecx+$512D30]
 end;
 
+function IsLensFrameNow():boolean; stdcall;
+begin
+  result:=is_lens_frame;
+end;
+
+function NeedLensFrameNow():boolean; stdcall;
+var
+  wpn:pointer;
+begin
+  result:=(GetDevicedwFrame() mod GetLensRenderFactor())=0;
+  if result then begin
+    wpn:=GetActorActiveItem();
+    result:= (wpn<>nil) and (IsAimNow(wpn) or IsHolderInAimState(wpn));
+  end;
+end;
+
 
 function Init():boolean; stdcall;
 var
@@ -104,6 +122,7 @@ var
  dHandle:cardinal;
 begin
   result:=false;
+  is_lens_frame:=false;
   
   if xrRender_R2_addr<>0 then begin
     dHandle := LoadLibrary('d3dx9_42.dll');

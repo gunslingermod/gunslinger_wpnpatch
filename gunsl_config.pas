@@ -105,6 +105,8 @@ function GetKickAnimator():PChar;
 function GetPDAShowAnimator():PChar;
 function GetPDAHideAnimator():PChar;
 
+function GetLensRenderFactor():cardinal;
+
 function GetModVer():PChar;
 
 
@@ -150,6 +152,8 @@ var
   _kick_animator:PChar;
   _pda_show_animator:PChar;
   _pda_hide_animator:PChar;
+
+  _lens_render_factor:cardinal;
 
   _mod_ver:PChar;
 
@@ -540,6 +544,8 @@ begin
   _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
   _pda_hide_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_hide_animator');
 
+  _lens_render_factor:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'lens_render_factor', 2);
+
   _mod_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'version');
 
   result:=true;
@@ -658,6 +664,11 @@ end;
 function GetPDAHideAnimator():PChar;
 begin
   result:=_pda_hide_animator;
+end;
+
+function GetLensRenderFactor():cardinal;
+begin
+  result:=_lens_render_factor;
 end;
 
 function GetModVer():PChar;
