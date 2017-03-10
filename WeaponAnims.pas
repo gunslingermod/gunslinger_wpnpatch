@@ -301,7 +301,7 @@ begin
   anim_name := ModifierStd(wpn, base_anim);
   if ReadActionDOFVector(wpn, v, anim_name, false) then begin
     SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
-  end;  
+  end;
   result:=PChar(anim_name);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_'+anim_name));
   PlaySoundByAnimName(wpn, result)
@@ -523,18 +523,54 @@ begin
   end;
 end;
 
+function anm_close_selector(wpn:pointer):pchar; stdcall;
+var
+  buf:WpnBuf;
+  hud_sect:PChar;
+  v:FVector3;
+  preload:boolean;
+begin
+  preload:=false;
+  anim_name := ModifierStd(wpn, 'anm_close');
+
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    if (buf.IsPreloadMode()) and (buf.IsPreloaded()) then begin
+      preload:=true;
+      anim_name:=anim_name+'_preloaded';
+      buf.SetPreloadedStatus(false);
+    end;
+
+    buf.SetReloaded(false);
+    hud_sect:=GetHUDSection(wpn);
+    MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
+  end;
+
+  if ReadActionDOFVector(wpn, v, anim_name, true) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;
+
+  result:=PChar(anim_name);
+  if PlaySoundByAnimName(wpn, result) then begin
+  end else if preload then begin
+    CHudItem_Play_Snd(wpn, 'sndClosePreloaded');
+  end else if GetCurrentAmmoCount(wpn)>0 then begin
+    CHudItem_Play_Snd(wpn, 'sndClose');
+  end else begin
+    CHudItem_Play_Snd(wpn, 'sndCloseEmpty');
+  end;
+end;
+
 
 
 procedure anm_close_std_patch();stdcall;
-const anm_close:PChar = 'anm_close';
 begin
   asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
-    push anm_close
     push esi
-    call anm_std_selector  //получаем строку с именем анимы
+    call anm_close_selector  //получаем строку с именем анимы
     mov ecx, [esp+$28]      //запоминаем адрес возврата
     mov [esp+$28], eax      //кладем на его место результирующую строку
     mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
@@ -562,12 +598,20 @@ function anm_add_cartridge_selector(wpn:pointer):pchar;stdcall;
 var
   buf:WpnBuf;
   hud_sect:PChar;
+  v:FVector3;
+  preload:boolean;
 begin
+  preload:=false;
   anim_name := ModifierStd(wpn, 'anm_add_cartridge');
-  result:=PChar(anim_name);
-  buf:=GetBuffer(wpn);
 
+  buf:=GetBuffer(wpn);
   if buf <> nil then begin
+    if (buf.IsPreloadMode()) and (buf.IsPreloaded()) then begin
+      preload:=true;
+      anim_name:=anim_name+'_preloaded';
+      buf.SetPreloadedStatus(false);
+    end;
+
     buf.SetReloaded(false);
     hud_sect:=GetHUDSection(wpn);
     if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
@@ -576,7 +620,20 @@ begin
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
     end;
   end;
-  PlaySoundByAnimName(wpn, result);
+
+  if ReadActionDOFVector(wpn, v, anim_name, true) then begin
+    SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
+  end;  
+
+  result:=PChar(anim_name);
+  if PlaySoundByAnimName(wpn, result) then begin
+  end else if preload then begin
+    CHudItem_Play_Snd(wpn, 'sndAddCartridgePreloaded');
+  end else if GetCurrentAmmoCount(wpn)>0 then begin
+    CHudItem_Play_Snd(wpn, 'sndAddCartridge');
+  end else begin
+    CHudItem_Play_Snd(wpn, 'sndAddCartridgeEmpty');
+  end;
 end;
 
 
@@ -646,6 +703,7 @@ begin
 
   buf:=GetBuffer(wpn);
   if buf <> nil then begin
+    buf.SetPreloadedStatus((GetCurrentAmmoCount(wpn)=0) and buf.IsPreloadMode());
     buf.SetReloaded(false);
     hud_sect:=GetHUDSection(wpn);
     if buf.AddCartridgeAfterOpen() then begin
@@ -1706,6 +1764,10 @@ begin
 
   //глушим звук sndOpen у дробовиков, т.к. теперь он полностью под нашим контролем
   nop_code(xrGame_addr+$2DE6D5, 8);
+  //аналогично с sndAddCartridge
+  nop_code(xrGame_addr+$2DE735, 8);
+  //и sndClose
+  nop_code(xrGame_addr+$2DE79E, 8);
 
   //теперь прописываем обработчики анимаций
   jump_addr:=xrGame_addr+$2F9FBC; //anm_idle

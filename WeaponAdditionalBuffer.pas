@@ -82,6 +82,8 @@ type
     _shells_needed:boolean;
     _shells_offset:FVector3;
     _shells_impulse:single;
+    _preloaded:boolean;
+    _is_preload_mode:boolean;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
@@ -156,6 +158,10 @@ type
     function IsShellsNeeded():boolean;
     function GetShellsImpulse():single;
     function GetShellsOffset:FVector3;
+
+    function IsPreloadMode():boolean;
+    function IsPreloaded():boolean;
+    procedure SetPreloadedStatus(status:boolean);
 
   end;
 
@@ -236,6 +242,8 @@ begin
   _save_cartridge_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'save_cartridge_in_ammochange', true);
 
   _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
+  self._preloaded:=false;
+  self._is_preload_mode:=game_ini_r_bool_def(GetHUDSection(wpn), 'empty_preload_mode', true);
 
   _actor_camera_speed:=game_ini_r_single_def(GetSection(wpn), 'actor_camera_speed_factor', 1.0)*GetCamSpeedDef();
   _is_alter_zoom_now:=false;
@@ -258,6 +266,8 @@ begin
   _shells_needed:=game_ini_r_bool_def(GetSection(wpn), 'spawn_shells', false);
   _shells_offset:=game_ini_read_vector3_def(GetSection(wpn), 'shells_offset', @tmpvec);
   _shells_impulse:=game_ini_r_single_def(GetSection(wpn), 'shells_impulse', 75);
+
+
 end;
 
 destructor WpnBuf.Destroy;
@@ -1104,6 +1114,21 @@ end;
 function WpnBuf.IsShellsNeeded: boolean;
 begin
   result:=self._shells_needed;
+end;
+
+function WpnBuf.IsPreloaded: boolean;
+begin
+  result:=self._preloaded;
+end;
+
+function WpnBuf.IsPreloadMode: boolean;
+begin
+  result:=self._is_preload_mode;
+end;
+
+procedure WpnBuf.SetPreloadedStatus(status: boolean);
+begin
+  _preloaded:=status;
 end;
 
 end.
