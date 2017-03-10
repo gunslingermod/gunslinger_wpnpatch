@@ -118,6 +118,7 @@ procedure HeadlampCallback(wpn:pointer; param:integer); stdcall;
 procedure NVCallback(wpn:pointer; param:integer); stdcall;
 procedure KickCallback(wpn:pointer; param:integer); stdcall;
 procedure SetActorActionCallback(cb:TAnimationEffector);
+procedure OnPDAHide(); stdcall;
 
 procedure add_pp_effector(fn:pchar; id:integer; cyclic:boolean); stdcall;
 procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
@@ -132,6 +133,8 @@ var
   _keyflags:cardinal;
   _last_act_slot:integer;
   _prev_act_slot:integer;
+
+  _last_before_pda_slot:integer;
 
   _jitter_time_remains:cardinal;
 
@@ -487,6 +490,7 @@ begin
   act:=GetActor;
   if (act=nil) or CActor__get_inventory_disabled(act) then exit;
   HidePDAMenu();
+  ActivateActorSlot(_last_before_pda_slot);
 end;
 
 //-----------------------------------------------------------------------------------------------------------
@@ -496,6 +500,7 @@ var
 begin
   act:=GetActor;
   if (act=nil) or CActor__get_inventory_disabled(act) or IsActorControlled() then exit;
+  _last_before_pda_slot:=GetActorActiveSlot();
   OnActorSwithesSmth('disable_pda_show_anim', GetPDAShowAnimator(), 'anm_pda_show', 'sndPDAShow', kfPDASHOW, PDAShowCallback, 0);
 end;
 
@@ -1468,7 +1473,9 @@ begin
     state:=GetCurrentState(wpn);
   end;
 
-  if dik = kDETECTOR then begin
+  if (dik=kJUMP) then begin
+    result:=not IsActorControlled();
+  end else if dik = kDETECTOR then begin
       if (wpn<>nil) then begin
         if
           (iswpnthrowable and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)))
@@ -1480,6 +1487,10 @@ begin
           (canshoot or is_bino) and (IsAimNow(wpn) or IsHolderinAimState(wpn))
           or
           GetActorActionState(act, actModDetectorSprintStarted)
+          or
+          (GetCurrentState(wpn)<>EHudStates__eIdle)
+          or
+          ((GetBuffer(wpn)<>nil) and not CanStartAction(wpn))
         then begin
           result:=false;
         end;
@@ -1573,6 +1584,8 @@ begin
   _action_animator_param := 0;
   _action_ppe:=-1;
 
+  _last_before_pda_slot :=0;
+
   ForgetDetectorAutoHide();
 end;
 
@@ -1607,6 +1620,8 @@ begin
     remove_pp_effector(_action_ppe);
     _action_ppe:=-1;
   end;
+
+  _last_before_pda_slot:=0;
   ForgetDetectorAutoHide();
 end;
 

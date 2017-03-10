@@ -384,7 +384,7 @@ end;
 
 procedure CWeapon_NetSpawn_Patch_end();
 asm
-    mov [esi+$6a0], al
+    mov byte ptr [esi+$6a0], al
     pushad
     pushfd
 

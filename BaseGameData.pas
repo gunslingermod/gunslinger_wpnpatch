@@ -35,7 +35,8 @@ var
   xrRender_R1_addr:cardinal;
   xrRender_R2_addr:cardinal;
   xrRender_R3_addr:cardinal;
-  xrRender_R4_addr:cardinal;      
+  xrRender_R4_addr:cardinal;
+  mydll_handle:cardinal;
   hndl:cardinal;
 
 const
@@ -54,7 +55,8 @@ const
   xrRender_R1:PChar='xrRender_R1';  
   xrRender_R2:PChar='xrRender_R2';
   xrRender_R3:PChar='xrRender_R3';
-  xrRender_R4:PChar='xrRender_R4';    
+  xrRender_R4:PChar='xrRender_R4';
+  mydll:PChar='gunslinger_wpnpatch';
 
 function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
 var rb:cardinal;
@@ -256,7 +258,9 @@ begin
   xrRender_R1_addr:=GetModuleHandle(xrRender_R1);
   xrRender_R2_addr:=GetModuleHandle(xrRender_R2);
   xrRender_R3_addr:=GetModuleHandle(xrRender_R3);
-  xrRender_R4_addr:=GetModuleHandle(xrRender_R4);      
+  xrRender_R4_addr:=GetModuleHandle(xrRender_R4);
+
+  mydll_handle:=GetModuleHandle(mydll);
   
   if xrEngine_addr=0 then xrEngine_addr:=$400000;
 

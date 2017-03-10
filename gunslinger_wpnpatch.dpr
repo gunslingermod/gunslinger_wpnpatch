@@ -46,6 +46,8 @@ uses
   ControllerMonster in 'ControllerMonster.pas';
 
 {$R *.res}
+var
+  n:array[0..255] of char;
 
 begin
   randomize;
@@ -85,4 +87,7 @@ begin
 //  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;
+  GetModuleFileNameA(mydll_handle, @n, 254);
+  log('Module name:');
+  log(n, false);
 end.

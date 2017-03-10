@@ -214,6 +214,7 @@ begin
 
   act:=GetActor();
   if GetActor=nil then exit;
+
   //Если активен бустер псиблокады, то суицид не делаем
   if IsPsiBlocked(act) and not IsActorSuicideNow() and not IsSuicideInreversible() then begin
     result:=false;
@@ -227,6 +228,14 @@ begin
 
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
+
+  if IsPDAShown() or (wpn<>nil) and (GetSection(wpn)=GetPDAHideAnimator()) then begin
+    result:=false;
+    _planning_suicide:=false;
+    _suicide_now:=false;
+    SetHandsJitterTime(GetControllerTime());
+    exit;
+  end;
 
   if (det<>nil) or ((wpn<>nil) and not CanUseItemForSuicide(wpn)) then begin
     _planning_suicide:=CanUseItemForSuicide(wpn);
@@ -303,6 +312,7 @@ begin
     CActor__set_inventory_disabled(act, true);
     _inventory_disabled_set:=true;
   end;
+
   if result then begin
     wpn:=GetActorActiveItem();
     if (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'suicide_by_animation', false) and (IsKnife(PChar(GetClassName(wpn))) or WpnCanShoot(PChar(GetClassName(wpn)))) then begin

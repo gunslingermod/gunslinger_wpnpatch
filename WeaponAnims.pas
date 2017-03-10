@@ -793,6 +793,11 @@ begin
   actor:=GetActor();
   buf:=GetBuffer(wpn);
 
+  if buf=nil then begin
+    log('anm_reload_selector: buf=nil!!! wpn '+GetClassName(wpn)+', '+GetSection(wpn)+', state='+inttostr(GetCurrentState(wpn)), true);
+    exit;
+  end;
+
   if GetClassName(wpn)<>'WP_BM16' then begin
     buf.ammo_cnt_to_reload:=-1;
   end else begin

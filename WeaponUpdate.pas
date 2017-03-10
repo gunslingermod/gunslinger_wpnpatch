@@ -457,7 +457,7 @@ begin
             if GetActorTargetSlot()=GetActorActiveSlot() then begin
               prevslot:=GetActorPreviousSlot();
 //              log ('activating '+inttostr(prevslot)+', state='+inttostr(GetCurrentState(wpn)));
-              if (prevslot>=0) and (ItemInSlot(GetActor, prevslot)<>nil) then
+              if (prevslot>=0) and (prevslot<>GetActorActiveSlot()) and (ItemInSlot(GetActor, prevslot)<>nil) then
                 ActivateActorSlot(prevslot)
               else
                 ActivateActorSlot(0);
