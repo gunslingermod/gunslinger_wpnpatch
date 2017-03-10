@@ -99,9 +99,9 @@ begin
   if wpn=nil then exit;
   sect:=GetSection(wpn);
   if sect=nil then exit;
-  if not(game_ini_line_exist(sect, 'supports_detector') and game_ini_r_bool(sect,'supports_detector')) then begin
-    result:=false;
-  end;  
+
+  result:=game_ini_r_bool_def(sect,'supports_detector', false);
+  result:=FindBoolValueInUpgradesDef(wpn, 'supports_detector', result);
 end;
 
 function GetItemInSlotByWeapon(wpn:pointer; slot:integer):pointer; stdcall;

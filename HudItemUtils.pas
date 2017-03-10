@@ -24,6 +24,7 @@ function IsWeaponJammed(wpn:pointer):boolean; stdcall;
 function CurrentQueueSize(wpn:pointer):integer; stdcall;
 function GetInstalledUpgradesCount(wpn:pointer):cardinal; stdcall;
 function GetInstalledUpgradeSection(wpn:pointer; index:cardinal):PChar; stdcall;
+function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean):boolean; stdcall;
 function GetSection(wpn:pointer):PChar; stdcall;
 function GetID(wpn:pointer):word; stdcall;
 function GetHUDSection(wpn:pointer):PChar; stdcall;
@@ -269,6 +270,22 @@ asm
     shr eax, 2
     mov @result, eax
     @finish:
+end;
+
+function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean):boolean; stdcall;
+var
+  i:integer;
+  str:PChar;
+begin
+  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+    str:=GetInstalledUpgradeSection(wpn, i);
+    str:=game_ini_read_string(str, 'section');
+    if game_ini_line_exist(str, key) then begin
+      result:=game_ini_r_bool(str, key);
+      if result<>def then exit;
+    end;
+  end;
+  result:=def;
 end;
 
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;

@@ -25,6 +25,7 @@ var
   HID:pointer;
   b:boolean;
 
+  lb:conditional_breaking_params;
 begin
   buf:=GetBuffer(wpn);
   if not buf.IsLaserInstalled() then exit;
@@ -45,6 +46,20 @@ begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
     buf.StopLaserdotParticle();
     exit;
+  end;
+
+  lb:=buf.GetLaserBreakingParams();
+
+  if GetCurrentCondition(wpn)<lb.end_condition then begin
+    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+    buf.StopLaserdotParticle();
+    exit;
+  end else if GetCurrentCondition(wpn)<lb.start_condition then begin
+    if random<lb.start_probability+(lb.start_condition-GetCurrentCondition(wpn))* (1-lb.start_probability)/(lb.start_condition-lb.end_condition) then begin
+      SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+      buf.StopLaserdotParticle();
+      exit;
+    end;
   end;
 
 
@@ -90,7 +105,7 @@ begin
     dotpos.y:=dotpos.y+dotdir.y*dist;
     dotpos.z:=dotpos.z+dotdir.z*dist;
 
-    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, buf.PlayLaserdotParticle(@dotpos, dist, true, b));
+    buf.PlayLaserdotParticle(@dotpos, dist, true, b);
     buf.SetLaserDotParticleHudStatus(b);
   end else if (GetOwner(wpn)=GetActor()) and (GetActorActiveItem()=wpn) then begin
     viewpos:=laserdot_data.world_offset;
@@ -100,7 +115,7 @@ begin
     dotpos.x:=dotpos.x+dotdir.x*dist;
     dotpos.y:=dotpos.y+dotdir.y*dist;
     dotpos.z:=dotpos.z+dotdir.z*dist;
-    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones,buf.PlayLaserdotParticle(@dotpos, dist, false, false));
+    buf.PlayLaserdotParticle(@dotpos, dist, false, false);
     buf.SetLaserDotParticleHudStatus(false);
 
     //messenger.SendMessage(PChar(inttohex(cardinal(wpn),8)));
@@ -461,7 +476,7 @@ begin
 
       if (game_ini_line_exist(GetSection(wpn), 'collimator_sights_bones')) then begin
         bp:=buf.GetCollimatorBreakingParams();
-        if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter()) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
+        if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter() and game_ini_r_bool_def(GetSection(wpn),'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
           SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), false);
         end else if GetCurrentCondition(wpn)<bp.start_condition then begin
           SetWeaponMultipleBonesStatus(

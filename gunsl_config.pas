@@ -81,11 +81,16 @@ function GetCamSpeedDef():single;
 function GetCamLandingParams():landing_params;
 
 function GetControllerTime():cardinal; stdcall;
+function GetControllerBlockedTime():cardinal; stdcall;
+function GetShockTime():cardinal; stdcall;
+
+function GetControlledActorSpeedKoef():single; stdcall;
+
 function GetBaseJitterParams():jitter_params; stdcall;
 function GetCurJitterParams(hud_sect:PChar):jitter_params; stdcall;
 function GetControllerPhantomsParams():phantoms_params; stdcall;
 
-function GetMaxCorpseWeight():single;
+function GetMaxCorpseWeight():single; stdcall;
 function IsCorpseCollisionEnabled():boolean; stdcall;
 
 
@@ -110,10 +115,14 @@ var
   _weaponmove_enabled:boolean;
   _collimaim_enabled:boolean;
   _controller_time:cardinal;
+  _controller_blocked_time:cardinal;
   _controller_phantoms:phantoms_params;
+
+  _actor_shocked_time:cardinal;
 
   _max_corpse_weight:single;
   _enable_corpse_collision:boolean;
+  _controlled_actor_speed_koef:single;
 
 //данные консольных команд
 //булевские флаги
@@ -472,9 +481,13 @@ begin
   _cam_landing.time_landing2:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_time', 0.5)*1000);
 
   _controller_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_time', 3)*1000);
+  _controller_blocked_time :=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psyblocked_time ', 5)*1000);
+  _actor_shocked_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_shock_time', 10)*1000);
 
   _jitter.pos_amplitude:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'base_jitter_pos_amplitude', 0.001);
   _jitter.rot_amplitude:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'base_jitter_rot_amplitude', 0.1);
+
+  _controlled_actor_speed_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controlled_actor_speed_koef', 1.0);
 
   _max_corpse_weight:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_corpse_weight', 100.0);
   _enable_corpse_collision:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_corpse_collision', true);;
@@ -482,7 +495,7 @@ begin
   _controller_phantoms.min_cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min', 0);
   _controller_phantoms.max_cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max', 0);
   _controller_phantoms.max_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max_radius', 10);
-  _controller_phantoms.min_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min_radius', 0);  
+  _controller_phantoms.min_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min_radius', 0);
 
   result:=true;
 end;
@@ -541,6 +554,21 @@ end;
 function GetControllerPhantomsParams():phantoms_params; stdcall;
 begin
   result:=_controller_phantoms;
+end;
+
+function GetShockTime():cardinal; stdcall;
+begin
+  result:=_actor_shocked_time;
+end;
+
+function GetControllerBlockedTime():cardinal; stdcall;
+begin
+  result:=_controller_blocked_time;
+end;
+
+function GetControlledActorSpeedKoef():single; stdcall;
+begin
+  result:=_controlled_actor_speed_koef;
 end;
 
 end.

@@ -29,9 +29,10 @@ begin
   if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit; 
 
   if IsScopeAttached(wpn) then begin
-    result:=game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'alter_zoom_allowed', false)
+    result:=game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'alter_zoom_allowed', false);
   end else begin
-    result:=game_ini_r_bool_def(GetHudSection(wpn), 'alter_zoom_allowed', false)
+    result:=game_ini_r_bool_def(GetHudSection(wpn), 'alter_zoom_allowed', false);
+    result:=FindBoolValueInUpgradesDef(wpn, 'alter_zoom_allowed', result);
   end;
 end;
 

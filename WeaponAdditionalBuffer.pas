@@ -122,7 +122,7 @@ type
     procedure InstallLaser(params_section:PChar);
 
     procedure SetLaserEnabledStatus(status:boolean);
-    function PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean):boolean;
+    procedure PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean);
     procedure StopLaserdotParticle();
     procedure SetLaserDotParticleHudStatus(status:boolean);
 
@@ -817,26 +817,14 @@ begin
   result:=self._laserdot;
 end;
 
-function WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean):boolean;
+procedure WpnBuf.PlayLaserdotParticle(pos:pFVector3; dist:single; is1stpersonview:boolean; hud_mode:boolean);
 var
   zero_vel, viewpos:FVector3;
   index, i, l:integer;
   newdist, tmpdist, dist_to_cam:single;
 begin
-  result:=false;
   if (not self.IsLaserInstalled) or (not self.IsLaserEnabled) then exit;
 
-  if GetCurrentCondition(_my_wpn)<_laser_breaking.end_condition then begin
-    StopLaserdotParticle();
-    exit;
-  end else if GetCurrentCondition(_my_wpn)<_laser_breaking.start_condition then begin
-    if random<_laser_breaking.start_probability+(_laser_breaking.start_condition-GetCurrentCondition(_my_wpn))* (1-_laser_breaking.start_probability)/(_laser_breaking.start_condition-_laser_breaking.end_condition) then begin
-      StopLaserdotParticle();
-      exit;
-    end;
-  end;
-
-  result:=true;
   if is1stpersonview then begin
     if hud_mode then begin
       StopLaserdotParticle();

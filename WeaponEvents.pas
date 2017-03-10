@@ -912,12 +912,14 @@ begin
         CHudItem_Play_Snd(knife, 'sndPrepareSuicide');
         result:='anm_prepare_suicide';
       end else begin
+        SetDisableInputStatus(true);
         result:='anm_selfkill';
         CHudItem_Play_Snd(knife, 'sndSelfKill');
       end;
       exit;
     end else if IsSuicideAnimPlaying(knife) then begin
       SetExitKnifeSuicide(false);
+      SetHandsJitterTime(GetShockTime());
       CHudItem_Play_Snd(knife, 'sndStopSuicide');
       result:='anm_stop_suicide';
       exit;
@@ -1107,6 +1109,13 @@ var
   buf:WpnBuf;
 begin
   result:=false;
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and ((id=kWPN_ZOOM_ALTER) or (id= kWPN_ZOOM)) and (GetAimFactor(wpn)>0) and not IsAimNow(wpn) and (buf.IsAlterZoomMode()<>buf.IsLastZoomAlter())  then begin
+    result:=true;
+    exit;
+  end;
+
+
   if (id=kLASER) and (flags=kActPress) then begin
     OnLaserButton(wpn);
   end else if (id=kTACTICALTORCH) and (flags=kActPress) then begin
@@ -1114,12 +1123,10 @@ begin
   end else if (id=kWPN_ZOOM_ALTER) then begin
     OnZoomAlterButton(wpn, flags);
   end else if (id=kWPN_ZOOM) then begin
-    buf:=GetBuffer(wpn);
     if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
       result:=true;
     end;
   end else if (id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) then begin
-    buf:=GetBuffer(wpn);
     if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
       result:=true;
     end;  

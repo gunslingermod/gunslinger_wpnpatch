@@ -78,6 +78,10 @@ procedure ActivateActorSlot(slot:cardinal); stdcall;
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
 function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
 
+function IsHandJitter(itm:pointer):boolean; stdcall;
+procedure SetHandsJitterTime(time:cardinal); stdcall;
+function GetHandJitterScale(itm:pointer):single; stdcall;
+
 procedure SetFOV(fov:single); stdcall;
 function GetFOV():single; stdcall;
 procedure SetHudFOV(fov:single); stdcall;
@@ -101,6 +105,8 @@ function CActor__get_inventory_disabled(this:pointer):boolean; stdcall;
 function CInventory__CalcTotalWeight(this:pointer):single; stdcall;
 function CInventoryOwner__GetInventory(this:pointer):pointer; stdcall;
 
+procedure SetDisableInputStatus(status:boolean); stdcall;
+
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils,WeaponAdditionalBuffer, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster;
@@ -109,6 +115,8 @@ var
   _keyflags:cardinal;
   _last_act_slot:integer;
   _prev_act_slot:integer;
+
+  _jitter_time_remains:cardinal;
 
 
   _thirst_value:single;
@@ -711,6 +719,8 @@ begin
   UpdateWeaponOffset(act, dt);
   ControllerMonster.Update(dt);
 
+  if _jitter_time_remains>dt then _jitter_time_remains:=_jitter_time_remains-dt else _jitter_time_remains:=0;
+
   if (_lefthanded_torch.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
 //    log('Destroy lefthand light');
     SwitchLefthandedTorch(false);
@@ -912,6 +922,7 @@ begin
   _last_act_slot:=-1;
   ResetDOF(1000);
   _thirst_value:=1;
+  _jitter_time_remains:=0;
 
   _last_update_time:=GetGameTickCount();
 end;
@@ -1331,6 +1342,152 @@ asm
   @finish:
 end;
 
+//-------------------------------------------------------------------------------------------------------------
+procedure CTorch__Switch(CTorch:pointer; status:boolean);stdcall;
+asm
+  pushad
+    movzx eax, status
+    push eax
+
+    mov ecx, CTorch
+
+    mov eax, xrgame_addr
+    add eax, $2f13f0
+    call eax
+  popad
+end;
+
+procedure CTorch__SwitchNightVision(CTorch:pointer; status:boolean; use_sounds:boolean);stdcall;
+asm
+  pushad
+    movzx eax, use_sounds
+    push eax
+
+    movzx eax, status
+    push eax
+
+    mov ecx, CTorch
+
+    mov eax, xrgame_addr
+    add eax, $2f26d0
+    call eax
+  popad
+end;
+
+function IsItemAllowsUsingTorch(itm:pointer):boolean; stdcall;
+begin
+  result:=false;
+  if itm = nil then exit;
+
+  result:=game_ini_r_bool_def(GetSection(itm), 'torch_available', false);
+  result:=FindBoolValueInUpgradesDef(itm, 'torch_available', result);
+end;
+
+function CanUseTorch(CTorch:pointer):boolean; stdcall;
+var
+  act, outfit, helmet:pointer;
+begin
+  result:=true;
+  act:=GetActor();
+  if (act=nil) or (GetOwner(CTorch)<>act) then exit;
+  
+  helmet := ItemInSlot(act, 12);
+  outfit := ItemInSlot(act, 7);
+  result := IsItemAllowsUsingTorch(helmet) or IsItemAllowsUsingTorch(outfit);
+end;
+
+
+procedure OnOutfitOrHelmInRuck(CTorch:pointer); stdcall;
+begin
+  if not CanUseTorch(CTorch) then begin
+    CTorch__Switch(CTorch, false);
+  end;
+end;
+
+procedure OnOutfitOrHelmInRuck_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    call OnOutfitOrHelmInRuck
+  popad
+  push 1
+  push 0
+  push ecx
+  call CTorch__SwitchNightVision
+  ret 8
+end;
+
+procedure CTorch__Switch_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    call CanUseTorch
+    cmp al, 1
+  popad
+  je @finish
+  //нельзя пользоваться фонарем! выставляем аргумент статуса в 0
+  xor ebx, ebx
+  mov [esp+$14], 0
+
+  @finish:
+  lea edi, [esi+$e8]
+end;
+
+function IsHandJitter(itm:pointer):boolean; stdcall;
+begin
+ result := ((IsActorControlled() or IsSuicideAnimPlaying(itm)) and not IsSuicideInreversible()) or (_jitter_time_remains>0);
+end;
+
+function GetHandJitterScale(itm:pointer):single; stdcall;
+var
+  restore_time:cardinal;
+begin
+  restore_time:=floor(game_ini_r_single_def(GetHUDSection(itm), 'jitter_stop_time', 3)*1000);
+  if (IsActorControlled() or IsSuicideAnimPlaying(itm)) or (_jitter_time_remains>restore_time) then begin
+    result:=1;
+  end else if _jitter_time_remains=0 then begin
+    result:=0;
+  end else begin
+    result:= _jitter_time_remains/restore_time;
+  end;
+end;
+
+procedure SetDisableInputStatus(status:boolean); stdcall;
+asm
+  push eax
+  push ebx
+
+  movzx eax, status
+  mov ebx, xrgame_addr
+  mov byte ptr [ebx+$64db8a], al 
+
+  pop ebx
+  pop eax
+end;
+
+procedure SetHandsJitterTime(time:cardinal); stdcall;
+begin
+  _jitter_time_remains:=time;
+end;
+
+
+procedure CorrectActorSpeed(); stdcall;
+asm
+  push eax
+  movss [esp], xmm0
+
+  pushad
+  call GetCurrentSuicideWalkKoef
+  popad
+
+  movss xmm0, [esp]
+  fstp [esp]
+  mulss xmm0, [esp]
+
+  add esp, 4
+  mov eax, [esi+$594]
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -1402,6 +1559,25 @@ begin
   //и в CWeapon::CWeapon
   jmp_addr:= xrgame_addr+$2BF6F7;
   if not WriteJump(jmp_addr, cardinal(@ResetZoomFov_Patch), 16, true) then exit;
+
+
+  //возможность использовать налобный фонарь теперь зависит от костюма
+  jmp_addr:= xrgame_addr+$2F13F9;
+  if not WriteJump(jmp_addr, cardinal(@CTorch__Switch_Patch), 6, true) then exit;
+
+
+  jmp_addr:= xrgame_addr+$2F6235;
+  if not WriteJump(jmp_addr, cardinal(@OnOutfitOrHelmInRuck_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$2F6235;
+  if not WriteJump(jmp_addr, cardinal(@OnOutfitOrHelmInRuck_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$2F8102;
+  if not WriteJump(jmp_addr, cardinal(@OnOutfitOrHelmInRuck_Patch), 5, true) then exit;
+
+
+  jmp_addr:= xrgame_addr+$269ab0;
+  if not WriteJump(jmp_addr, cardinal(@CorrectActorSpeed), 6, true) then exit;
 
   result:=true;
 end;

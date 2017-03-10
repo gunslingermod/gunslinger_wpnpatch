@@ -374,19 +374,19 @@ begin
 
 
     //если актор в зоне действия контролера - добавим дрожание рук
-    if (IsActorControlled() or IsSuicideAnimPlaying(itm)) and not IsSuicideInreversible() then begin
+    if IsHandJitter(itm) then begin;
       jitter:=GetCurJitterParams(section);
 
       pos.x:=random(1000)-500;
       pos.y:=random(500)-250;
       pos.z:=random(1000)-500;
-      v_setlength(@pos, jitter.pos_amplitude);
+      v_setlength(@pos, jitter.pos_amplitude*GetHandJitterScale(itm));
       v_add(@cur_pos, @pos);
 
       rot.x:=random(1000)-500;
       rot.y:=random(1000)-500;
       rot.z:=random(1000)-500;
-      v_setlength(@rot, jitter.rot_amplitude);
+      v_setlength(@rot, jitter.rot_amplitude*GetHandJitterScale(itm));
       v_add(@cur_rot, @rot);
     end;
     

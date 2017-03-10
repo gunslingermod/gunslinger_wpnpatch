@@ -14,10 +14,9 @@ procedure ResetActorControl(); stdcall;
 procedure Update(dt:cardinal); stdcall;
 procedure DoSuicideShot(); stdcall;
 function CanUseItemForSuicide(wpn:pointer):boolean;
+function GetCurrentSuicideWalkKoef():single;
 
 
-//todo: переключение с подствола в обычный режим, не давать стрелять под контролем с некоторой вероятность. заблокировать действия в режиме суицида, направление камеры на контролера, если он видим
-//todo: две схемы: через сдвиг худа и контроль достижения конечной точки и через анимацию (по моменту); дрожание рук через сдвиг худа
 implementation
 uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors;
 
@@ -29,6 +28,39 @@ var
   _death_action_started:boolean;
   _inventory_disabled_set:boolean;
   _knife_suicide_exit:boolean;
+
+function IsPsiBlocked(act:pointer):boolean;
+asm
+  mov @result, 0
+  pushad
+    mov eax, act
+    mov eax, [eax+$26C]
+    mov eax, [eax+$E4]
+
+    cmp eax, 0
+    je @finish
+    mov @result, 1
+
+    @finish:
+  popad
+end;
+
+function GetCurrentSuicideWalkKoef():single;
+var
+  itm:pointer;
+begin
+  result:=1.0;
+  if IsActorControlled() or IsActorSuicideNow() then begin
+    result:=GetControlledActorSpeedKoef();
+    exit;
+  end;
+
+  itm:=GetActorActiveItem();
+  if (itm<>nil) and IsSuicideAnimPlaying(itm) then begin
+    result:=GetControlledActorSpeedKoef();
+    exit;
+  end;
+end;
 
 function IsActorControlled():boolean;stdcall;
 begin
@@ -76,17 +108,21 @@ end;
 procedure Update(dt:cardinal); stdcall;
 var
   wpn, act, det:pointer;
+  last_contr_time:cardinal;
 begin
   act:=GetActor();
   wpn:=GetActorActiveItem();
   if act<>nil then det:=GetActiveDetector(act) else det:=nil;
 
+  last_contr_time:=_controlled_time_remains;
   if _controlled_time_remains>dt then _controlled_time_remains:=_controlled_time_remains-dt else _controlled_time_remains:=0;
   if (_controlled_time_remains=0) and (_lastshot_done_time=0) and not _death_action_started then begin
     if _inventory_disabled_set then begin
       CActor__set_inventory_disabled(act, false);
       _inventory_disabled_set:=false;
     end;
+
+    if last_contr_time>0 then SetHandsJitterTime(GetShockTime());
     ResetActorControl();
   end else if (wpn<>nil) and IsKnife(PChar(GetClassName(wpn))) then begin
     if _planning_suicide and (GetActualCurrentAnim(wpn)='anm_prepare_suicide') then begin
@@ -146,6 +182,7 @@ begin
     exit;
   end;
 
+  SetDisableInputStatus(true);
   _lastshot_done_time:=GetGameTickCount();
   _death_action_started:=true;
 //  virtual_CHudItem_SwitchState(wpn, EWeaponStates__eFire);
@@ -155,11 +192,15 @@ end;
 
 procedure OnSuicideAnimEnd(wpn:pointer; param:integer);stdcall;
 begin
+
   if (wpn<>GetActorActiveItem()) then exit;
-  if _suicide_now or _planning_suicide then begin
+  if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) then begin
     DoSuicideShot();
   end else begin
+    _suicide_now:=false;
+    _planning_suicide:=false;
     WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_stop_suicide', 'sndStopSuicide');
+    SetHandsJitterTime(GetShockTime());
   end;
 end;
 
@@ -173,13 +214,20 @@ begin
 
   act:=GetActor();
   if GetActor=nil then exit;
-  _controlled_time_remains:=GetControllerTime();  
+  //Если активен бустер псиблокады, то суицид не делаем
+  if IsPsiBlocked(act) and not IsActorSuicideNow() and not IsSuicideInreversible() then begin
+    result:=false;
+    _planning_suicide:=false;
+    _suicide_now:=false;
+    SetHandsJitterTime(GetControllerBlockedTime());
+    exit;
+  end;
 
-  //todo:учет коэффициентов брони
+  _controlled_time_remains:=GetControllerTime();
 
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
-    
+
   if (det<>nil) or ((wpn<>nil) and not CanUseItemForSuicide(wpn)) then begin
     _planning_suicide:=CanUseItemForSuicide(wpn);
     _suicide_now:=false;
