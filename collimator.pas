@@ -8,7 +8,7 @@ function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, sysutils, windows, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer;
+uses BaseGameData, gunsl_config, HudItemUtils, sysutils, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer, windows;
 
 var
   last_hud_data:pointer;
@@ -51,8 +51,10 @@ function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
 begin
-  buf:=GetBuffer(wpn);
-  result:=IsCollimatorInstalled(wpn) or ((buf<>nil) and buf.IsAlterZoomMode()); 
+  HudItemUtils.GetClassName(wpn);
+  result:=true;
+{  buf:=GetBuffer(wpn);
+  result:=IsCollimatorInstalled(wpn) or ((buf<>nil) and buf.IsAlterZoomMode());}
 end;
 
 procedure PatchHudVisibility(); stdcall;

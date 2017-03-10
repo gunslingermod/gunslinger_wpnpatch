@@ -180,7 +180,7 @@ const
 
 
 implementation
-uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster;
 var
   PlayHudAnim_Func:cardinal;
 
@@ -331,9 +331,23 @@ end;
 
 function IsAimNow(wpn:pointer):boolean; stdcall;
 asm
+  mov @result, 0
+  pushad
+    push 0
+    push RTTI_CWeapon
+    push RTTI_CHudItemObject
+    push 0
+    push wpn
+    call dynamic_cast
+    cmp eax, 0
+    je @finish
+
     mov ecx, wpn
     mov al, [ecx+$496]
     mov @result, al
+    
+    @finish:
+  popad
 end;
 
 function GetOwner(wpn:pointer):pointer; stdcall;

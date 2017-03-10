@@ -23,6 +23,7 @@ function Is16x9():boolean;stdcall;
 function str_container_dock(str:PChar):pointer; stdcall;
 
 function get_device_timedelta():single; stdcall;
+procedure fs_update_path(buf:PChar{512}; root:PChar; append:PChar); stdcall;
 
 function Clamp(val:single; low:single; high:single):single; stdcall;
 
@@ -245,6 +246,21 @@ begin
     result:=val;
 end;
 
+
+procedure fs_update_path(buf:PChar{512}; root:PChar; append:PChar); stdcall;
+asm
+  pushad
+    mov eax, xrcore_addr
+    mov ecx, [eax+$BE910]
+    lea ebx, [eax+$11a00]
+
+    push append
+    push root
+    push buf
+    call ebx
+
+  popad
+end;
 
 
 function Init:boolean;

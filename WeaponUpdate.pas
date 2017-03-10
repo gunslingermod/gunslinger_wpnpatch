@@ -156,8 +156,10 @@ begin
   sect_w_ammotype:='ammo_params_section_'+inttostr(ammotype);
   if game_ini_line_exist(hud_sect, PChar(sect_w_ammotype)) then begin
     bones_sect:= game_ini_read_string(hud_sect, PChar(sect_w_ammotype));
-  end else begin
+  end else if game_ini_line_exist(hud_sect, 'ammo_params_section') then begin
     bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
+  end else begin
+    exit;
   end;
 
   cnt:=GetAmmoInMagCount(wpn);
@@ -657,7 +659,7 @@ begin
 
   //общий патч сокрыти€ прицела от уровн€ сложности
   patch_addr:=xrGame_addr+$4d8c43;
-  if not WriteJump(patch_addr, cardinal(@CHudTarget__Render_Patch), 6, true) then exit;
+  if not WriteJump(patch_addr, cardinal(@CHudTarget__Render_Patch), 6, true) then exit; 
 
   result:=true;
 end;

@@ -1083,6 +1083,38 @@ begin
 
   if (wpn=nil) then exit;
 
+  if (_keyflags and kfHEADLAMP)<>0 then begin
+    if CanStartAction(wpn) then begin
+      torch:=ItemInSlot(act, 10);
+      if torch<>nil then OnActorSwithesTorch(torch);
+      SetActorKeyRepeatFlag(kfHEADLAMP, false);
+    end;
+  end;
+
+  if (_keyflags and kfNIGHTVISION)<>0 then begin
+    if CanStartAction(wpn) then begin
+      torch:=ItemInSlot(act, 10);
+      if torch<>nil then OnActorSwithesNV(torch);
+      SetActorKeyRepeatFlag(kfNIGHTVISION, false);
+    end;
+  end;
+
+  if (_keyflags and kfQUICKKICK)<>0 then begin
+    if CanStartAction(wpn) then begin
+      OnActorKick();
+      SetActorKeyRepeatFlag(kfQUICKKICK, false);
+    end;
+  end;
+
+  if ((_keyflags and kfPDASHOW)<>0) then begin
+    if (wpn=nil) or CanStartAction(wpn) then begin
+      if not IsPDAShown() then OnPDAShow();
+      SetActorKeyRepeatFlag(kfPDASHOW, false);
+    end;
+  end;
+
+
+
   if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
     if not IsAimToggle() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
       virtual_Action(wpn, kWPN_ZOOM, kActPress);
@@ -1158,35 +1190,6 @@ begin
     end;
   end;
 
-  if (_keyflags and kfHEADLAMP)<>0 then begin
-    if CanStartAction(wpn) then begin
-      torch:=ItemInSlot(act, 10);
-      if torch<>nil then OnActorSwithesTorch(torch);
-      SetActorKeyRepeatFlag(kfHEADLAMP, false);
-    end;
-  end;
-
-  if (_keyflags and kfNIGHTVISION)<>0 then begin
-    if CanStartAction(wpn) then begin
-      torch:=ItemInSlot(act, 10);
-      if torch<>nil then OnActorSwithesNV(torch);
-      SetActorKeyRepeatFlag(kfNIGHTVISION, false);
-    end;
-  end;
-
-  if (_keyflags and kfQUICKKICK)<>0 then begin
-    if CanStartAction(wpn) then begin
-      OnActorKick();
-      SetActorKeyRepeatFlag(kfQUICKKICK, false);
-    end;
-  end;
-
-  if ((_keyflags and kfPDASHOW)<>0) then begin
-    if (wpn=nil) or CanStartAction(wpn) then begin
-      if not IsPDAShown() then OnPDAShow();
-      SetActorKeyRepeatFlag(kfPDASHOW, false);
-    end;
-  end;  
 
 
 {  //принудительный сброс бега во время действия
@@ -1710,10 +1713,10 @@ begin
   fov:=GetBaseHudFOV();
   if (wpn<>nil) then begin
     hud_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_factor', 1.0);
-    if IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then begin
+    if (IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim')) then begin
       buf:=GetBuffer(wpn);
       if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
-          zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_gl_zoom_factor', hud_fov);
+          zoom_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_gl_zoom_factor', hud_fov);
       end else if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
           zoom_fov:=game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_zoom_factor', hud_fov);
           if (buf<>nil) and buf.IsAlterZoomMode() then begin

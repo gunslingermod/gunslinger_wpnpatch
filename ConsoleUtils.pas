@@ -43,6 +43,8 @@ procedure CConsole__AddCommand(C:pIConsole_Command); stdcall;
 function IsDemoRecord():boolean; stdcall;
 function IsConsoleShown():boolean;stdcall;
 
+procedure Console__Execute(cmd:PChar); stdcall;
+
 function Init():boolean;
 
 
@@ -102,6 +104,23 @@ asm
     mov eax, xrengine_addr
     add eax, $472b0
     call eax //CConsole::AddCommand(IConsole_Command* C);
+  popad
+end;
+
+procedure Console__Execute(cmd:PChar); stdcall;
+asm
+  pushad
+    call GetConsole
+    test eax, eax
+    je @finish
+    push cmd
+
+    mov ecx, eax
+    mov ebx, xrengine_addr
+    add ebx, $48560
+    call ebx
+
+    @finish:
   popad
 end;
 

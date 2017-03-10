@@ -79,6 +79,10 @@ type
     _laser_breaking:conditional_breaking_params;
     _torch_breaking:conditional_breaking_params;
 
+    _shells_needed:boolean;
+    _shells_offset:FVector3;
+    _shells_impulse:single;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -88,7 +92,6 @@ type
     ammos:array of byte;
     is_firstlast_ammo_swapped:boolean;
     ammo_cnt_to_reload:integer;
-
 
 
     constructor Create(wpn:pointer);
@@ -149,6 +152,10 @@ type
 
     function GetCollimatorBreakingParams():conditional_breaking_params;
     function GetLaserBreakingParams():conditional_breaking_params;
+
+    function IsShellsNeeded():boolean;
+    function GetShellsImpulse():single;
+    function GetShellsOffset:FVector3;
 
   end;
 
@@ -244,6 +251,13 @@ begin
   _collimator_breaking.end_condition:=tmpvec.y;
   _collimator_breaking.start_probability:=tmpvec.z;
 
+
+  tmpvec.x := 0;
+  tmpvec.y := 0;
+  tmpvec.z := 0;
+  _shells_needed:=game_ini_r_bool_def(GetSection(wpn), 'spawn_shells', false);
+  _shells_offset:=game_ini_read_vector3_def(GetSection(wpn), 'shells_offset', @tmpvec);
+  _shells_impulse:=game_ini_r_single_def(GetSection(wpn), 'shells_impulse', 75);
 end;
 
 destructor WpnBuf.Destroy;
@@ -1070,6 +1084,21 @@ end;
 function WpnBuf.GetLaserBreakingParams: conditional_breaking_params;
 begin
   result:=self._laser_breaking;
+end;
+
+function WpnBuf.GetShellsImpulse: single;
+begin
+  result:=self._shells_impulse;
+end;
+
+function WpnBuf.GetShellsOffset: FVector3;
+begin
+  result:=self._shells_offset;
+end;
+
+function WpnBuf.IsShellsNeeded: boolean;
+begin
+  result:=self._shells_needed;
 end;
 
 end.

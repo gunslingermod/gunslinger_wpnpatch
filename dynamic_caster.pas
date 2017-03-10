@@ -13,6 +13,7 @@ const
   RTTI_IPhysicsShellHolder:cardinal = $61d560;
   RTTI_CCustomRocket:cardinal = $6361cc;
   RTTI_CHudItem:cardinal = $635F48;
+  RTTI_CHudItemObject:cardinal = $637280;  
   RTTI_CWeapon:cardinal = $637268;
   RTTI_CObject:cardinal = $616020;
   RTTI_CActor:cardinal = $635AB8;

@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -671,6 +671,28 @@ begin
 end;
 
 //----------------------------------------------------------anm_shots------------------------------------------------
+procedure SpawnShells(wpn:pointer); stdcall;
+var
+  ammo_sect:PChar;
+  buf:WpnBuf;
+  off, pos, dir:FVector3;
+  sitm:pointer;
+begin
+{  buf:=GetBuffer(wpn);
+  if (buf=nil) or not buf.IsShellsNeeded() then exit;
+  ammo_sect:=GetMainCartridgeSectionByType(wpn, GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype);
+  if not game_ini_line_exist(ammo_sect, 'shell_sect') then exit;
+  ammo_sect:=game_ini_read_string(ammo_sect, 'shell_sect');
+
+  off:=buf.GetShellsOffset();
+  transform_tiny(GetXFORM(wpn), @pos, @off);
+  off:=GetLastFD(wpn);
+
+  sitm:=alife_create(ammo_sect, @pos, GetLevelVertexID(wpn), GetGameVertexID(wpn));
+  if sitm<>nil then CSE_SetAngle(sitm, @off);
+}
+end;
+    
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 var
   hud_sect:PChar;
@@ -694,6 +716,8 @@ begin
   hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_shoot';
   modifier:='';
+
+  SpawnShells(wpn);
 
   ProcessAmmo(wpn, true);
   actor:=GetActor();

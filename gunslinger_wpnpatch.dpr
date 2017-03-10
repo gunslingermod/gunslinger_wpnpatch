@@ -43,11 +43,12 @@ uses
   Level in 'Level.pas',
   CrosshairInertion in 'CrosshairInertion.pas',
   WeaponInertion in 'WeaponInertion.pas',
-  ControllerMonster in 'ControllerMonster.pas';
+  ControllerMonster in 'ControllerMonster.pas',
+  AutoUpdater in 'AutoUpdater.pas';
 
 {$R *.res}
-var
-  n:array[0..255] of char;
+//var
+//  n:array[0..255] of char;
 
 begin
   randomize;
@@ -84,10 +85,9 @@ begin
   BallisticsCorrection.Init();
   WeaponInertion.Init();
   ControllerMonster.Init();
+
+//  AutoUpdater.Init();
 //  LensDoubleRender.Init()
 //  Messenger.Init;
 //  HudTransparencyFix.Init;
-  GetModuleFileNameA(mydll_handle, @n, 254);
-  log('Module name:');
-  log(n, false);
 end.
