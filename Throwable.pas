@@ -16,7 +16,7 @@ const
 		EMissileStates__eThrowEnd:cardinal = 8;
 
 implementation
-uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster;
+uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster, WeaponEvents;
 
 var
   _activate_key_state:TKeyHoldState;
@@ -161,7 +161,12 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_throw_quick', 'sndThrowQuick', 0, $80040000);
 
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_start', 'sndSprintStart', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_end', 'sndSprintEnd', 1, $80040000);  
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_sprint_end', 'sndSprintEnd', 1, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_on', 'sndHeadlampOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_off', 'sndHeadlampOff', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_on', 'sndNVOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_off', 'sndNVOff', 1, $80040000);
 
 end;
 
@@ -519,6 +524,7 @@ end;
 function CMissile__OnMotionMark(CMissile:pointer; state:cardinal):boolean;stdcall;
 //возвращением true заставим бросить грену, иначе - не бросать пока
 begin
+  CHudItem__OnMotionMark(CMissile);
   result:=false;
 
   if (GetActualCurrentAnim(CMissile)='anm_throw_quick') then begin

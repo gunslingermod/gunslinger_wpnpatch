@@ -125,6 +125,10 @@ procedure SetWorkingState(wpn:pointer; state:boolean); stdcall;
 
 procedure AllowWeaponInertion(wpn:pointer; status:boolean);stdcall;
 
+function IsPending(wpn:pointer):boolean; stdcall;
+procedure StartPending(wpn:pointer); stdcall;
+procedure EndPending(wpn:pointer); stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -1673,6 +1677,32 @@ asm
   movss [eax+$498], xmm0
   movss xmm0, [esp]
   add esp, 4
+  pop eax
+end;
+
+function IsPending(wpn:pointer):boolean; stdcall;
+asm
+  push eax
+  mov eax, wpn
+  mov eax, [eax+$2F4]
+  and eax, 1
+  mov @result, al
+  pop eax
+end;
+
+procedure StartPending(wpn:pointer); stdcall;
+asm
+  push eax
+  mov eax, wpn
+  or byte ptr [eax+$2F4], 1
+  pop eax
+end;
+
+procedure EndPending(wpn:pointer); stdcall;
+asm
+  push eax
+  mov eax, wpn
+  and byte ptr [eax+$2F4], $FE
   pop eax
 end;
 

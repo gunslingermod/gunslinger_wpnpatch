@@ -1,6 +1,7 @@
 unit Misc;
 
 interface
+uses MatVectors;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
 function Init():boolean;stdcall;
@@ -12,6 +13,8 @@ function alife():pointer;stdcall;
 function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pointer;stdcall;
 function alife_release(srv_obj:pointer):boolean;stdcall;
 function xrMemory__allocate(count:cardinal):pointer;stdcall;
+
+function CALifeSimulator__spawn_item2(section:PChar; position:pFVector3; level_vertex_id:cardinal; game_vertex_id:cardinal; id_parent:cardinal):{CSE_Abstract*}pointer; stdcall;
 
 
 implementation
@@ -125,6 +128,32 @@ asm
     
     add esp, $14
     mov @result, eax
+    @finish:
+  popad
+end;
+
+function CALifeSimulator__spawn_item2(section:PChar; position:pFVector3; level_vertex_id:cardinal; game_vertex_id:cardinal; id_parent:cardinal):{CSE_Abstract*}pointer; stdcall;
+asm
+  mov @result, 0
+  pushad
+    call alife
+    cmp eax, 0
+    je @finish
+
+    push id_parent
+    push game_vertex_id
+    push level_vertex_id
+    push position
+    push section
+    push eax
+
+    mov eax, xrgame_addr
+    add eax, $99490
+    call eax
+
+    mov @result, eax
+
+    add esp, $18
     @finish:
   popad
 end;

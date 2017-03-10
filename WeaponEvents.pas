@@ -10,6 +10,7 @@ procedure OnWeaponShow(wpn:pointer);stdcall;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
+procedure CHudItem__OnMotionMark(wpn:pointer); stdcall;
 
 implementation
 uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator;
@@ -332,6 +333,7 @@ var
   i:word;
   c:pointer;
   sect:PChar;
+  slot:integer;
 begin
 
   //выставим сохраненные типы патронов
@@ -1053,7 +1055,7 @@ begin
       end;
     end;
 
-    //подобная схема назначения лока нужна из-за того, что анима после переклюения должна продолжать играться
+    //подобная схема назначения лока нужна из-за того, что анима после переключения должна продолжать играться
     curanm:=GetActualCurrentAnim(wpn);
     if res then  begin
       StartCompanionAnimIfNeeded(rightstr(curanm, length(curanm)-4), wpn, false);
@@ -1344,6 +1346,66 @@ asm
 end;
 
 //----------------------------------------------------------------------------------------------------------
+procedure CHudItem__OnAnimationEnd(wpn:pointer); stdcall;
+begin
+  if (GetCurrentState(wpn) = EHudStates__eIdle) and IsPending(wpn) then begin
+    EndPending(wpn);
+  end;
+end;
+
+procedure CHudItem__OnAnimationEnd_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CHudItem__OnAnimationEnd
+  popad
+  cmp [esp+8], 4
+end;
+
+procedure CHudItem__OnMotionMark(wpn:pointer); stdcall;
+var
+  anm:pchar;
+begin
+  //работает для ножа и бросабельных
+{  if IsPending(wpn) and (GetCurrentState(wpn)=EHudStates__eIdle) then begin
+    anm:=GetActualCurrentAnim(wpn);
+    if anm='anm_headlamp_on' then begin
+    end else if anm='anm_headlamp_off' then begin
+    end else if anm='anm_nv_on' then begin
+    end else if anm='anm_nv_off' then begin
+    end;
+  end;  }
+end;
+
+procedure CWeaponKnife__OnMotionMark_Patch(); stdcall;
+asm
+  pushad
+    sub ecx, $2e0
+    push ecx
+    call CHudItem__OnMotionMark
+  popad
+  push eax
+  push eax
+
+
+  //was original: cmp eax, 05 || push esi ||mov esi, ecx
+  mov eax, [esp+8]
+  mov [esp+4], eax
+  mov [esp+8], esi
+
+  pop eax
+  cmp eax, 05
+  mov esi, ecx
+end;
+
+//----------------------------------------------------------------------------------------------------------
+procedure CWeaponKnife__OnStateSwitch_SetPending_Patch(); stdcall;
+asm
+  mov eax, [esi-$2e0]
+  or word ptr [esi-$2e0+$2f4], 01 //SetPending(true)
+end;
+//----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -1456,6 +1518,17 @@ begin
   //[bug] фикс неопределенного поведения при аттаче прицела с переменной кратностью к только что заспавненному оружию
   jmp_addr:=xrGame_addr+$2CDD6B;
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__InitAddons_Patch), 6, true) then exit;
+  //[bug] фикс возможности прервать анимацию доставания у ножа
+  jmp_addr:=xrGame_addr+$2D5C87;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnStateSwitch_SetPending_Patch), 6, true) then exit;
+  jmp_addr:=xrGame_addr+$2D5CA0;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnStateSwitch_SetPending_Patch), 6, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2F9640;
+  if not WriteJump(jmp_addr, cardinal(@CHudItem__OnAnimationEnd_Patch), 5, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2D6B97;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnMotionMark_Patch), 6, true) then exit;
 
   result:=true;
 end;

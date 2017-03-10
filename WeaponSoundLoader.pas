@@ -106,6 +106,11 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_3', 'sndScream3', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_4', 'sndScream4', 1, $80040000);
 
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_on', 'sndHeadlampOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_off', 'sndHeadlampOff', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_on', 'sndNVOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_off', 'sndNVOff', 1, $80040000);
+
 end;
 
 procedure LoadSounds_Knife(HUD_SOUND_COLLECTION:pointer; section:PChar); stdcall;
@@ -124,7 +129,12 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_1', 'sndScream1', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_2', 'sndScream2', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_3', 'sndScream3', 1, $80040000);
-  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_4', 'sndScream4', 1, $80040000);  
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_scream_4', 'sndScream4', 1, $80040000);
+
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_on', 'sndHeadlampOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_headlamp_off', 'sndHeadlampOff', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_on', 'sndNVOn', 1, $80040000);
+  HUD_SOUND_COLLECTION__LoadSound(HUD_SOUND_COLLECTION, section, 'snd_nv_off', 'sndNVOff', 1, $80040000);    
 end;
 
 procedure SoundLoader_Knife_Patch; stdcall;

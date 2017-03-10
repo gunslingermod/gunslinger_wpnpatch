@@ -83,6 +83,7 @@ function GetCamLandingParams():landing_params;
 function GetControllerTime():cardinal; stdcall;
 function GetControllerBlockedTime():cardinal; stdcall;
 function GetShockTime():cardinal; stdcall;
+function GetMaxJitterHealth():single; stdcall;
 
 function GetControlledActorSpeedKoef():single; stdcall;
 
@@ -93,6 +94,10 @@ function GetControllerPhantomsParams():phantoms_params; stdcall;
 function GetMaxCorpseWeight():single; stdcall;
 function IsCorpseCollisionEnabled():boolean; stdcall;
 
+function GetHeadlampEnableAnimator():PChar;
+function GetHeadlampDisableAnimator():PChar;
+function GetNVEnableAnimator():PChar;
+function GetNVDisableAnimator():PChar;
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
@@ -124,14 +129,21 @@ var
   _enable_corpse_collision:boolean;
   _controlled_actor_speed_koef:single;
 
+  _max_jitter_health:single;
+
+  _headlamp_enable_animator_section:PChar;
+  _nv_enable_animator_section:PChar;
+  _headlamp_disable_animator_section:PChar;
+  _nv_disable_animator_section:PChar;
+
+
+  
 //данные консольных команд
 //булевские флаги
   _console_bool_flags:cardinal;
   _max_actor_cam_speed:single;
   _cam_landing:landing_params;
   _jitter:jitter_params;
-
-
 
 //Сами консольные команды
   CCC_dyndof:CCC_Mask;
@@ -497,6 +509,14 @@ begin
   _controller_phantoms.max_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max_radius', 10);
   _controller_phantoms.min_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min_radius', 0);
 
+  _max_jitter_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_jitter_health', 0.3);
+
+  _headlamp_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'headlamp_enable_animator');
+  _headlamp_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'headlamp_disable_animator');
+
+  _nv_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_enable_animator');
+  _nv_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_disable_animator');
+
   result:=true;
 end;
 
@@ -569,6 +589,31 @@ end;
 function GetControlledActorSpeedKoef():single; stdcall;
 begin
   result:=_controlled_actor_speed_koef;
+end;
+
+function GetMaxJitterHealth():single; stdcall;
+begin
+  result:=_max_jitter_health;
+end;
+
+function GetHeadlampEnableAnimator():PChar;
+begin
+  result:=_headlamp_enable_animator_section;
+end;
+
+function GetHeadlampDisableAnimator():PChar;
+begin
+  result:=_headlamp_disable_animator_section;
+end;
+
+function GetNVEnableAnimator():PChar;
+begin
+  result:=_nv_enable_animator_section;
+end;
+
+function GetNVDisableAnimator():PChar;
+begin
+  result:=_nv_disable_animator_section;
 end;
 
 end.

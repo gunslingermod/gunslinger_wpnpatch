@@ -444,11 +444,35 @@ var
   sect:PChar;
 
   offset:integer;
-
+  slot, prevslot:integer;
+  
   bp:conditional_breaking_params;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
     sect:=GetSection(wpn);
+
+    if game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
+        if (wpn=GetActorActiveItem()) then begin
+          if (GetCurrentState(wpn)=EHudStates__eShowing) then begin
+            if GetActorTargetSlot()=GetActorActiveSlot() then begin
+              prevslot:=GetActorPreviousSlot();
+//              log ('activating '+inttostr(prevslot)+', state='+inttostr(GetCurrentState(wpn)));
+              if (prevslot>=0) and (ItemInSlot(GetActor, prevslot)<>nil) then
+                ActivateActorSlot(prevslot)
+              else
+                ActivateActorSlot(0);
+              RestoreLastActorDetector();
+            end;
+          end;
+        end else begin
+          if (GetActor=nil) or (GetOwner(wpn)<>GetActor()) then begin
+            alife_release(get_server_object_by_id(GetID(wpn)));
+          end else begin
+            slot:=game_ini_r_int_def(GetSection(wpn), 'slot', 0)+1;
+            if (GetActorTargetSlot() <> slot) then alife_release(get_server_object_by_id(GetID(wpn)))
+          end;
+        end;
+    end;
 
     if (GetActorActiveItem=wpn) and DOFChanged() and (not IsAimNow(wpn)) and (not IsHolderInAimState(wpn)) and (GetAnimTimeState(wpn, ANM_TIME_CUR)>0) then begin
       offset:=ReadActionDOFTimeOffset(wpn, GetActualCurrentAnim(wpn));

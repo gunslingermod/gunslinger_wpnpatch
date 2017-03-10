@@ -314,7 +314,7 @@ begin
 
   if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
     ResetItmHudOffset(wpn);
-    if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') then begin
+    if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') and not game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
       ForgetDetectorAutoHide();
     end;
   end;

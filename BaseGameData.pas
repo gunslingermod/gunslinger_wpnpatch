@@ -24,6 +24,8 @@ function str_container_dock(str:PChar):pointer; stdcall;
 
 function get_device_timedelta():single; stdcall;
 
+function Clamp(val:single; low:single; high:single):single; stdcall;
+
 
 var
   xrGame_addr:cardinal;
@@ -229,6 +231,16 @@ asm
 
   movss xmm0, [esp]
   add esp, 4
+end;
+
+function Clamp(val:single; low:single; high:single):single; stdcall;
+begin
+  if val<low then
+    result:=low
+  else if val>high then
+    result:=high
+  else
+    result:=val;
 end;
 
 
