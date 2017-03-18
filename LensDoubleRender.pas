@@ -13,7 +13,7 @@ procedure CopyRenderTargetData(src:pCRT_rec; dest:pCRT_rec); stdcall;
 
 
 implementation
-uses BaseGameData, Windows, SysUtils, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, MatVectors, math, ConsoleUtils, ActorDOF, UIUtils;
+uses BaseGameData, Windows, SysUtils, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, MatVectors, math, ConsoleUtils, ActorDOF, UIUtils, KeyUtils;
 
 type
   render_f=function():pCRT_rec;
@@ -41,6 +41,9 @@ var
 
   _dof_context:DofContext;
   _last_cursor_frame:cardinal;
+  _last_cursor_pos:FVector2;
+  _last_prev_cursor_pos:FVector2;
+  _last_pda_frame:cardinal;
 
 
 const
@@ -161,17 +164,6 @@ asm
   popad
 end;
 
-procedure ForcedRenderCursor(); stdcall;
-asm
-  pushad
-    call GetUICursor
-    mov eax, ecx
-    mov eax, [eax]
-    mov eax, [eax]
-    call eax
-
-  popad
-end;
 
 function GetBackBuffer(iSwapChain: LongWord; iBackBuffer: LongWord; _Type: cardinal; ppBackBuffer:pointer):cardinal; stdcall;
 asm
@@ -345,13 +337,21 @@ end;
 /////////////////////////////////////////////
 // До рендера
 procedure BeginSecondVP( ); stdcall;
+var
+  pda:pCUIPdaWnd;
+  cursor:pCUICursor;
+  pause_status:boolean;
 begin
+  pda:=GetPDA();
 
-
-  if IsPDAWindowEnabled() then begin
+  if (pda<>nil) and IsPDAWindowVisible() then begin
+    pause_status:=bShowPauseString^;
+    bShowPauseString^:=false;
     ForcedRenderUI();
-    ForcedRenderCursor();
+    cursor:=GetUICursor();
+    if cursor<>nil then virtual_CUICursor__OnRender(cursor);
     _scopeframe_renderspecific_end(@GetUirender);
+    bShowPauseString^:=pause_status;
   end;
 
   if _is_lens_frame then begin
@@ -379,17 +379,8 @@ end;
 
 //после рендера мира рендерим UI
 procedure EndSecondVP_OnUIRender( ); stdcall;
-var
-  pda_cursor:FVector2;
 begin
-
-  if IsPDAWindowEnabled() then begin
-    SetPDAWindowVisible(false);
-    ForcedRenderUI();
-    SetPDAWindowVisible(true);
-  end else begin
-    ForcedRenderUI();
-  end;
+  ForcedRenderUI();
 end;
 
 procedure CLevel__OnRender_Before_Patch(); stdcall
@@ -562,7 +553,7 @@ asm
     cmp al, 0
   popad
   je @exit
-  
+
   pop eax
   push esi
   mov esi, ecx
@@ -573,9 +564,45 @@ asm
 
   @exit:
   //рендерить не надо, уходим
+  add esp, 4
+  ret  // return address from CUICursor::OnRender
+
+end;
+
+function CUIPdaWnd__Draw_DisableMultiRender_Check():boolean; stdcall;
+var
+  curframe:cardinal;
+begin
+  //отключаем отрисовку ПДА, если в этом кадре он уже рисовался
+
+ curframe:=GetCurrentFrame();
+ result:= not (_last_pda_frame=curframe);
+ _last_pda_frame:=curframe;
+end;
+
+procedure CUIPdaWnd__Draw_DisableMultiRender_Patch(); stdcall;
+asm
+  pushad
+    call CUIPdaWnd__Draw_DisableMultiRender_Check
+    cmp al, 0
+  popad
+  je @exit
+
+  //делаем вырезанное
   pop eax
-  pop eax // return address from CUICursor::OnRender
-  jmp eax
+  push esi
+  push eax
+
+  mov esi, ecx
+  mov eax, xrgame_addr
+  add eax, $484F80         //CUIWindow::Draw
+  call eax
+  ret
+
+  @exit:
+  //рендерить не надо, уходим
+  add esp, 4
+  ret // return address from CUIPdaWnd::Draw
 
 end;
 
@@ -594,6 +621,14 @@ begin
   _scoped_frames:=0;
   _non_scoped_frames:=0;
   _dof_context.valid:=false;
+
+  _last_cursor_pos.x:=-1;
+  _last_cursor_pos.y:=-1;
+  _last_prev_cursor_pos.x:=-1;
+  _last_prev_cursor_pos.y:=-1;
+
+  _last_pda_frame:=0;
+  _last_cursor_frame:=0;
   
   if xrRender_R1_addr<>0 then begin
     dHandle := LoadLibrary('d3dx9_42.dll');
@@ -699,7 +734,8 @@ begin
   jmp_addr:=xrGame_addr+$4D9690;
   if not WriteJump(jmp_addr, cardinal(@CUICursor__OnRender_DisableMultiRender_Patch), 9, true) then exit;
 
-
+  jmp_addr:=xrGame_addr+$442770;
+  if not WriteJump(jmp_addr, cardinal(@CUIPdaWnd__Draw_DisableMultiRender_Patch), 8, true) then exit;
 
   result:=true;
 end;

@@ -33,6 +33,11 @@ interface
     k:FVector3;
   end;
 
+  type FRect = packed record
+    lt:FVector2;
+    rb:FVector2;
+  end;
+
   type PFVector2 = ^FVector2;
   type PFVector3 = ^FVector3;
   type PFVector4 = ^FVector4;

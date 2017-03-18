@@ -224,8 +224,27 @@ begin
   end;
 end;
 
+function IsUIForceHiding(wpn:pointer): boolean;stdcall;
+begin
+  result:=IsBino(wpn) and IsAimNow(wpn) and game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false);
+end;
+
 procedure CWeapon_show_indicators_Patch(); stdcall;
 asm
+  pushad
+    push esi
+    call IsUIForceHiding
+    cmp al, 0
+  popad
+  je @check_unhiding
+
+  add esp, 4
+  xor eax, eax
+  pop esi
+  ret
+
+
+  @check_unhiding:
   pushad
     push esi
     call IsUINotNeededToBeHidden

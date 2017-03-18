@@ -1377,7 +1377,7 @@ begin
   //Общая идея - если у окна ПДА в статусе стоит "показывается" (в реале идет отрисовка в текстуру), то всучиваем предмет  ПДА актору
   //Если же пда "выключен - убираем этот предмет из рук.
   
-  if IsPDAWindowEnabled then begin
+  if IsPDAWindowVisible then begin
     //ПДА активирован.
     if not _was_pda_animator_spawned then begin
       //только что включился. Заспавним аниматор, если можно.
@@ -1589,7 +1589,7 @@ begin
 
 end;
 
-procedure OnKeyPressPatch1();stdcall;
+procedure CActor__IR_OnKeyboardPress_Patch();stdcall;
 asm
   pushad
     push ebp
@@ -1601,6 +1601,47 @@ asm
   mov ebx, 00000001
   test bl, cl
   @ignore:
+end;
+
+
+function CUIGameSP__IR_OnKeyboardPress_process_key(dik:cardinal):boolean; stdcall;
+var
+  itm:pointer;
+begin
+  if ((dik=get_action_dik(kWPN_ZOOM,0)) or (dik=get_action_dik(kWPN_ZOOM,1))) and IsPDAWindowVisible() then begin
+    //если в руках аниматор и мы нажали клавишу зума - передаем команду аниматору
+    itm:=GetActorActiveItem;
+    if (itm<>nil) and (GetSection(itm)=GetPDAShowAnimator()) then begin
+      if IsAimNow(itm) then begin
+        if IsAimToggle() then virtual_Action(itm, kWPN_ZOOM, kActPress) else virtual_Action(itm, kWPN_ZOOM, kActRelease);
+      end else begin
+        virtual_Action(itm, kWPN_ZOOM, kActPress);
+      end;
+    end;
+  end;
+  result:=false;
+end;
+
+procedure CUIGameSP__IR_OnKeyboardPress_Patch(); stdcall;
+asm
+  mov eax, [esp+8]
+  pushad
+    push eax
+    call CUIGameSP__IR_OnKeyboardPress_process_key
+    cmp al, 0
+  popad
+  jne @finish_processing
+
+  pop eax
+  push ebx
+  push edi
+  mov edi, [esp+$0c]
+  jmp eax
+
+  @finish_processing:
+  add esp, 4
+  mov al, 1
+  ret 4 //return from CUIGameSP::IR_OnKeyboardPress
 end;
 
 
@@ -2486,7 +2527,10 @@ begin
   if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
 
   jmp_addr:= xrgame_addr+$2783F9;  //CActor::IR_OnKeyboardPress
-  if not WriteJump(jmp_addr, cardinal(@OnKeyPressPatch1), 7, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnKeyboardPress_Patch), 7, true) then exit;
+
+  jmp_addr:= xrgame_addr+$4B60E0;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameSP__IR_OnKeyboardPress_Patch), 6, true) then exit;
 
   jmp_addr:= xrgame_addr+$26D115;
   if not WriteJump(jmp_addr, cardinal(@CActor__netSpawn_Patch), 8) then exit;

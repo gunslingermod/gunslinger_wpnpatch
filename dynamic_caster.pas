@@ -35,6 +35,8 @@ const
   RTTI_CUIDialogWnd:cardinal = $6342C4;
   RTTI_CRocketLauncher:cardinal = $6373E8;
   RTTI_CShootingObject:cardinal = $62C4E8;
+  RTTI_CMapSpot:cardinal = $63EFA0;
+  RTTI_CWindow:cardinal = $62D6E8;  
 
 
 implementation

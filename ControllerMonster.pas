@@ -18,7 +18,7 @@ function GetCurrentSuicideWalkKoef():single;
 
 
 implementation
-uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors;
+uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc;
 
 var
   _controlled_time_remains:cardinal;
@@ -155,7 +155,9 @@ begin
       SetActorKeyRepeatFlag(kfUNZOOM, true, true);
     end;
 
-    if (wpn<>nil) and IsThrowable(wpn) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+    if (wpn<>nil) and (GetSection(wpn)=GetPDAShowAnimator()) then begin 
+      if IsPDAWindowVisible() then HidePDAMenu();
+    end else if (wpn<>nil) and IsThrowable(wpn) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
       _planning_suicide:=true;
       ActivateActorSlot__CInventory(1, false);
     end else begin
@@ -232,13 +234,13 @@ begin
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
 
-{  if IsPDAWindowEnabled() or (wpn<>nil) and (GetSection(wpn)=GetPDAHideAnimator()) then begin
-    result:=false;
+  if IsPDAWindowVisible() or ((wpn<>nil) and (GetSection(wpn)=GetPDAShowAnimator())) then begin
+    result:=false;            //бьем стандартным пси-хитом
     _planning_suicide:=false;
     _suicide_now:=false;
     SetHandsJitterTime(GetControllerTime());
     exit;
-  end;}
+  end;
 
   if (det<>nil) or ((wpn<>nil) and not CanUseItemForSuicide(wpn)) then begin
     _planning_suicide:=CanUseItemForSuicide(wpn);

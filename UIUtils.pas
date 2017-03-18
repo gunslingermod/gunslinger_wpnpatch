@@ -1,24 +1,173 @@
 unit UIUtils;
 
 interface
-uses MatVectors;
+uses MatVectors, xr_strings;
 
-{type CUIWindow = packed record
-  _unknown:array [0..54] of byte;
+type
+
+pCDialogHolder = pointer;
+pCUITabControl=pointer;
+pCUI3tButton=pointer;
+pCUILines=pointer;
+pCUITextWnd=pointer;
+pUIHint=pointer;
+pCUITaskWnd=pointer;
+pCUIRankingWnd=pointer;
+pCLAItem=pointer;
+ui_shader = pointer;
+pCMapLocation=pointer;
+
+ITextureOwner = packed record
+  vftable:pointer;
+end;
+pITextureOwner=^ITextureOwner;
+
+CUILightAnimColorConroller = packed record
+  vftable:pointer;
+end;
+pCUILightAnimColorConroller=^CUILightAnimColorConroller;
+
+color_animation = packed record
+  m_lanim:pCLAItem;
+  m_lanim_start_time:single;
+  m_lanim_delay_time:single;
+  m_lanimFlags:byte;
+  _unused1:byte;
+  _unused2:word;  
+end;
+pcolor_animation=^color_animation;
+
+CUILightAnimColorConrollerImpl = packed record
+  base_CUILightAnimColorConroller:CUILightAnimColorConroller;
+  m_lanim_clr:color_animation;
+end;
+pCUILightAnimColorConrollerImpl=^CUILightAnimColorConrollerImpl;
+
+CUISimpleWindow = packed record
+  vftable:pointer;
+  m_bShowMe:byte;
+  m_wndPos:FVector2;
+  m_wndSize:FVector2;
+  m_alignment:cardinal;
+  _unused1:byte;
+  _unused2:word;
+end;
+pCUISimpleWindow=^CUISimpleWindow;
+
+WINDOW_LIST = packed record
+  vec_start:pointer;
+  vec_end:pointer;
+  vec_memend:pointer;    
 end;
 
-type CUIStatic = packed record
+CUIWindow = packed record
+  base_CUISimpleWindow:CUISimpleWindow;
+  _unknown:cardinal;
+  m_ChildWndList:WINDOW_LIST;
+  m_pParentWnd:pointer; {CUIWindow}
+  m_pMouseCapturer:pointer; {CUIWindow}
+  m_pKeyboardCapturer:pointer; {CUIWindow}
+  m_pMessageTarget:pointer; {CUIWindow}
+  cursor_pos:FVector2;
+  m_dwLastClickTime:cardinal;
+  m_dwFocusReceiveTime:cardinal;
+  m_bAutoDelete:byte;
+  m_bPP:byte;
+  m_bIsEnabled:byte;
+  m_bCursorOverWindow:byte;
+  m_bCustomDraw:byte;
+  _unused1:byte;
+  _unused2:word;
 end;
-type pCUIStatic = ^CUIStatic;
+pCUIWindow=^CUIWindow;
 
-type CUITextWnd = packed record
+lanim_cont = packed record
+  m_lanim:pCLAItem;
+  m_lanim_start_time:single;
+  m_lanim_delay_time:single;
+  m_lanimFlags:byte;
+  _unused1:byte;
+  _unused2:word;
 end;
-type pCUITextWnd = ^CUITextWnd;
+planim_cont=^lanim_cont;
 
-type CUIMotionIcon = packed record
+lanim_cont_xf = packed record
+  base_lanim_cont:lanim_cont;
+  m_origSize:FVector2;
 end;
-type pCUIMotionIcon = ^CUIMotionIcon;
 
+CUIStaticItem = packed record
+  TextureRect:FRect;
+  vHeadingPivot:FVector2;
+  vHeadingOffset:FVector2;
+  uFlags:byte;
+  _unused1:byte;
+  _unused2:word;
+  hShader:ui_shader;
+  vPos:FVector2;
+  vSize:FVector2;
+  color:cardinal
+end;
+pCUIStaticItem=^CUIStaticItem;
+
+CUIStatic = packed record
+  base_CUIWindow:CUIWindow;
+  base_ITextureOwner:ITextureOwner;
+  base_CUILightAnimColorConrollerImpl:CUILightAnimColorConrollerImpl;
+  m_lanim_xform:lanim_cont_xf;
+  m_pTextControl:pCUILines;
+  m_bStretchTexture:byte;
+  m_bTextureEnable:byte;
+  m_bHeading:byte;
+  m_bConstHeading:byte;  
+  m_UIStaticItem:CUIStaticItem;
+  m_fHeading:single;
+  m_TextureOffset:FVector2;
+  TextItemControl:pCUILines;
+  m_stat_hint_text:shared_str;
+end;
+pCUIStatic=^CUIStatic;
+
+CMapSpot = packed record
+  base_CUIStatic:CUIStatic;
+  m_map_location:pCMapLocation;
+  m_location_level:integer;
+  m_border_static:pCUIStatic;
+  m_mark_focused:byte;
+  m_bScale:byte;
+//  _unused1:word;
+  m_scale_bounds:FVector2;
+  m_originSize:FVector2;
+end;
+pCMapSpot=^CMapSpot;
+
+CUIDialogWnd = packed record
+  base_CUIWindow:CUIWindow;
+  m_pParentHolder:pCDialogHolder;
+  m_bWorkInPause:byte;
+  _unused1:byte;
+  _unused2:word;
+end;
+pCUIDialogWnd=^CUIDialogWnd;
+
+CUIPdaWnd = packed record
+  base_CUIDialogWnd:CUIDialogWnd;
+  UITabControl:pCUITabControl;
+  m_btn_close:pCUI3tButton;
+  UIMainPdaFrame:pCUIStatic;
+  UINoice:pCUIStatic;
+  m_caption:pCUITextWnd;
+  m_caption_const:shared_str;
+  m_clock:pCUITextWnd;
+  m_pActiveDialog:pCUIWindow;
+  m_sActiveSection:shared_str;
+  m_hint_wnd:pUIHint;
+  pUITaskWnd:pCUITaskWnd;
+  pUIRankingWnd:pCUIRankingWnd;
+end;
+pCUIPDAWnd = ^CUIPDAWnd;
+
+{
 type CUIMainIngameWnd = packed record
   base:CUIWindow;
   UIStaticDiskIO:pCUIStatic;
@@ -37,6 +186,7 @@ type CUICursor = packed record
 end;
 pCUICursor=^CUICursor;
 
+
 function GetUICursor():pCUICursor; stdcall;
 
 function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
@@ -47,24 +197,31 @@ function g_hud():{CCustomHUD*}pointer; stdcall;
 procedure CUILines__SetText(cuilines: pointer; msg:PChar); stdcall;
 procedure virtual_CUIWindow__Show (cuiwindow: pointer; status:cardinal); stdcall;
 procedure CustomStaticSetText(sdrawstaticstruct:pointer; text:pchar); stdcall;
-function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
+function CDialogHolder__TopInputReceiver(): pCUIDialogWnd; stdcall;
 procedure HideShownDialogs(); stdcall;
 function IsUIShown():boolean; stdcall;
 
 procedure ShowPDAMenu(); stdcall;
 procedure HidePDAMenu(); stdcall;
-function IsPDAWindowEnabled():boolean; stdcall;
-procedure SetPDAWindowVisible(status:boolean); stdcall;
-procedure SetPDAWindowEnabled(status:boolean); stdcall;
+function GetPDA():pCUIPDAWnd; stdcall;
+//function IsPDAWindowEnabled():boolean; stdcall;
 function IsPDAWindowVisible():boolean; stdcall;
-function GetPDACursorCoords():PFVector2;
+
+procedure virtual_CUIWindow__Draw(window:pCUIWindow); stdcall;
+procedure virtual_CUICursor__OnRender(cursor:pCUICursor); stdcall;
+procedure virtual_CUIDialogWnd__Show(dlg:pCUIDialogWnd; status:boolean); stdcall;
 
 function IsInventoryShown():boolean; stdcall;
 
 function Init():boolean;stdcall;
 
+
+
+var
+  bShowPauseString:pBoolean;
+
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -148,7 +305,7 @@ asm
   popad
 end;
 
-function CDialogHolder__TopInputReceiver(): {CUIDialogWnd} pointer; stdcall;
+function CDialogHolder__TopInputReceiver(): pCUIDialogWnd; stdcall;
 asm
   pushad
     call CurrentGameUI
@@ -184,7 +341,7 @@ asm
   popad
 end;
 
-procedure HidePDAMenu_Internal(); stdcall;
+procedure HidePDAMenu(); stdcall;
 asm
   pushad
     call CurrentGameUI
@@ -200,98 +357,39 @@ asm
   popad
 end;
 
-procedure HidePDAMenu(); stdcall;
-begin
-  if not IsPDAWindowVisible() and IsPDAWindowEnabled() then begin
-    SetPDAWindowVisible(true);
-  end;
-  HidePDAMenu_Internal
-end;
-
 function IsPDAWindowEnabled():boolean; stdcall;
-asm
-  pushad
-    mov @result, 0
-    call CurrentGameUI
-    cmp eax, 0
-    je @finish
-    
-    mov ecx, [eax+$54]
-    cmp ecx, 0
-    je @finish
-
-//    mov bl, [ecx+4] //CUISimpleWindow.m_bShowMe
-//    mov bl, [ecx+$4E] //CUIWindow.m_bIsEnabled
-//    mov @result, bl
-
-    mov ebx, [ecx+$54]//CUIDialogWnd.m_pParentHolder
-    cmp ebx, 0
-    je @finish
-    mov @result, 1
-
-    @finish:
-  popad
+var
+  pda:pCUIPdaWnd;
+begin
+  pda:=GetPDA();
+  if pda<>nil then begin
+    result:=pda.base_CUIDialogWnd.m_pParentHolder<>nil;
+  end else begin
+    result:=false;
+  end;
 end;
 
 function IsPDAWindowVisible():boolean; stdcall;
-asm
-  pushad
-    mov @result, 0
-    call CurrentGameUI
-    cmp eax, 0
-    je @finish
-    
-    mov ecx, [eax+$54]
-    cmp ecx, 0
-    je @finish
-
-    mov bl, [ecx+4] //CUISimpleWindow.m_bShowMe
-    mov @result, bl
-    @finish:
-  popad
+var
+  pda:pCUIPdaWnd;
+begin
+  pda:=GetPDA();
+  if pda<>nil then begin
+    result:=pda.base_CUIDialogWnd.base_CUIWindow.base_CUISimpleWindow.m_bShowMe<>0;
+  end else begin
+    result:=false;
+  end;
 end;
 
-procedure SetPDAWindowVisible(status:boolean); stdcall;
-asm
-  pushad
-    call CurrentGameUI
-    cmp eax, 0
-    je @finish
-    mov ecx, [eax+$54]
-
-    mov bl, status
-    mov [ecx+4], bl //CUISimpleWindow.m_bShowMe
-    @finish:
-  popad
-end;
-
-procedure SetPDAWindowEnabled(status:boolean); stdcall;
-asm
-  pushad
-    call CurrentGameUI
-    cmp eax, 0
-    je @finish
-    mov ecx, [eax+$54]
-
-    mov bl, status
-    mov [ecx+$4E], bl //CUIWindow.m_bIsEnabled
-    @finish:
-  popad
-end;
-
-function GetPDACursorCoords():PFVector2;
+function GetPDA():pCUIPDAWnd; stdcall;
 asm
   mov @result, 0
   pushad
     call CurrentGameUI
     cmp eax, 0
     je @finish
-    mov ecx, [eax+$54]
-    cmp ecx, 0
-    je @finish
-
-    add ecx, $3C //CUIWindow.cursor_pos
-    mov @result, ecx
+    mov eax, [eax+$54]
+    mov @result, eax
 
     @finish:
   popad
@@ -336,7 +434,68 @@ begin
   if result then begin
     wpn:=GetActorActiveItem();
     result:= (wpn=nil) or not ( (IsAimNow(wpn) and not IsGrenadeMode(wpn)) and (IsScopeAttached(wpn) or (GetScopeStatus(wpn)=1)) and not IsUINotNeededToBeHidden(wpn));
+    if result and (wpn<>nil) and IsBino(wpn) and IsAimNow(wpn) and game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false) then begin
+      result:=false;
+    end;
   end;
+end;
+
+procedure virtual_CUIWindow__Draw(window:pCUIWindow); stdcall;
+asm
+  pushad
+    mov ecx, window
+    cmp ecx, 0
+    je @finish
+
+    mov eax, [ecx]
+    mov eax, [eax+$60]
+    call eax
+
+    @finish:
+  popad
+end;
+
+procedure virtual_CUIDialogWnd__Show(dlg:pCUIDialogWnd; status:boolean); stdcall;
+asm
+  pushad
+    mov ecx, dlg
+    cmp ecx, 0
+    je @finish
+
+    movzx ebx, status
+    push ebx
+
+    mov eax, [ecx]
+    mov eax, [eax+$54]
+    call eax
+
+    @finish:
+  popad
+end;
+
+function GetUICursor():pCUICursor; stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    add eax, $43C8B0
+    call eax
+    mov @result, eax
+  popad
+end;
+
+procedure virtual_CUICursor__OnRender(cursor:pCUICursor); stdcall;
+asm
+  pushad
+    mov ecx, cursor
+    cmp ecx, 0
+    je @finish
+
+    mov eax, [ecx]
+    mov eax, [eax]
+    call eax
+
+    @finish:
+  popad
 end;
 
 function IndicatorsShown_adapter():boolean; stdcall;
@@ -483,21 +642,13 @@ asm
   ret
 end;
 
-function GetUICursor():pCUICursor; stdcall;
-asm
-  pushad
-    mov eax, xrgame_addr
-    add eax, $43C8B0
-    call eax
-    mov @result, eax
-  popad
-end;
-
 
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
 begin
+  bShowPauseString:=pointer(xrengine_addr+$9032c);
+
   jmp_addr:=xrGame_addr+$24A762;
   register_level_isuishown_ret:=xrgame_addr+$24a768;
   IsUIShown_ptr:=@IsUIShown;
@@ -517,7 +668,20 @@ begin
   nop_code(xrgame_addr+$4b0bc5, 1, char(00)); //pda
   nop_code(xrgame_addr+$4b1be5, 1, char(00)); //inventory
   nop_code(xrgame_addr+$466778, 5);           //отключение повторной отрисовки квикслотов и бустеров, когда активен инвентарь
-  nop_code(xrgame_addr+$46676B, 5);           //отключение повторной отрисовки миникарты, когда активен инвентарь    
+  nop_code(xrgame_addr+$46676B, 5);           //отключение повторной отрисовки миникарты, когда активен инвентарь
+
+  //[bug] баг в CUICheckButton::OnMouseDown - при нажатии правой/средней клавиши мыши состояние кнопки не поменяется, а сигнал о клике отправится. Критично для ПДА.
+  nop_code(xrgame_addr+$495EFC, 1, char($24));
+
+  //[bug] баг - при смене соотношения сторон экрана метки на карте (CMapSpot) не изменяют пропорции
+  //По аналогичным причинам имеются проблемы с оваласи на ПДА
+  //отключаем движковое применение коэффициента сжатия в CMapSpot::Load (вызовы SetWidth)
+  nop_code(xrgame_addr+$443F0A, 8);
+  nop_code(xrgame_addr+$44406E, 12);
+  //переносим учет этих факторов в CUILevelMap::Draw и CUIMiniMap::Draw (vftable:0x60), домножая перед отображением на свои коэффициенты
+
+  //TODO:CUIRankingWnd::get_favorite_weapon - избавиться от вызова get_current_kx 
+   
 
   result:=true;
 end;

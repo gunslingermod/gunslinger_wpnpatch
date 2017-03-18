@@ -802,6 +802,14 @@ begin
     if (act<>nil) and (owner=act) and IsThrowable(wpn) and ((state=EMissileStates__eReady) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd)) then begin
       result:=false;
     end;
+
+    if IsBino(wpn) and (IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim')) then begin
+      if IsAimNow(wpn) then begin
+        if IsAimToggle() then virtual_Action(wpn, kWPN_ZOOM, kActPress) else virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+        SetActorActionState(act, actModNeedMoveReassign, true);
+      end;
+      result:=false
+    end;
     exit;
   end;
 
