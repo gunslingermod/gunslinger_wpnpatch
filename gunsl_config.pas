@@ -56,7 +56,6 @@ type actor_tiredness_params = record
   max_speed_idle_crouch_moving:single;
   max_speed_idle_crouch_slow_moving:single;
 
-
   increment_per_second:single;
   decrement_per_second:single;
 end;
@@ -133,6 +132,7 @@ function GetNVEnableAnimator():PChar;
 function GetNVDisableAnimator():PChar;
 function GetKickAnimator():PChar;
 function GetPDAShowAnimator():PChar;
+function GetPDAScreen_kx():single; stdcall;
 
 function GetLensRenderFactor():cardinal;  stdcall;
 function IsForcedLens:boolean;  stdcall;
@@ -147,7 +147,7 @@ function IsVSyncEnabled():boolean; stdcall;
 
 
 implementation
-uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
+uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils;
 
 var
   std_inertion:weapon_inertion_params;
@@ -197,6 +197,8 @@ var
   _mod_ver:PChar;
 
   psDeviceFlags:pointer;
+
+  _pda_screen_kx:single;  
 
 
   
@@ -688,6 +690,9 @@ begin
     _quickuse_functor:=nil;
   end;
 
+
+  _pda_screen_kx:=game_ini_r_single_def(GetPDAShowAnimator, 'screen_kx', 1.0);
+
   result:=true;
 end;
 
@@ -845,6 +850,13 @@ end;
 function IsVSyncEnabled():boolean; stdcall;
 begin
   result:= (pCardinal(psDeviceFlags)^ and (1 shl 2))>0;
+end;
+
+function GetPDAScreen_kx():single; stdcall;
+var
+  anm:PChar;
+begin
+  result:=_pda_screen_kx;
 end;
 
 end.

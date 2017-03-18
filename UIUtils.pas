@@ -17,6 +17,7 @@ pCLAItem=pointer;
 ui_shader = pointer;
 pCMapLocation=pointer;
 
+
 ITextureOwner = packed record
   vftable:pointer;
 end;
@@ -221,7 +222,7 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -642,6 +643,75 @@ asm
   ret
 end;
 
+procedure ResizeMapSpots(map:pCUIWindow; k:single); stdcall;
+var
+  vec_element:pointer;
+  spot:pCMapSpot;
+  scale:single;
+begin
+  if cardinal(map.m_ChildWndList.vec_start)=0 then exit;
+  vec_element:=map.m_ChildWndList.vec_start;
+  while vec_element<>map.m_ChildWndList.vec_end do begin
+    spot:=pCMapSpot(pcardinal(vec_element)^);
+    if dynamic_cast(spot, 0, RTTI_CUIWindow, RTTI_CMapSpot, false)=nil then continue;
+    scale:=spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y/spot.m_originSize.y;
+    spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_originSize.x*scale*k;
+    if spot.m_border_static<>nil then begin
+      //only square borders suported now! If you need not square - use unused bytes to store origin sizes
+      spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y*k;
+    end;
+
+    vec_element:=pointer(cardinal(vec_element)+sizeof(pointer));
+  end;
+end;
+
+procedure CUILevelMap__Draw_Patch(); stdcall;
+asm
+  pushad
+    push edi
+    push edi
+    call GetPDAScreen_kx
+    fstp [esp+4]
+    call ResizeMapSpots
+  popad
+  lea eax, [edi+$108]
+end;
+
+procedure CUIMiniMap__Draw_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    push ecx
+    call get_current_kx
+    fstp [esp+4]
+    call ResizeMapSpots
+  popad
+  pop eax
+  add esp, $320
+  jmp eax
+end;
+
+procedure GetPDAScreen_kx_patcher(); stdcall;
+asm
+  pushad
+    call GetPDAScreen_kx
+  popad
+end;
+
+procedure CUICursor__UpdateCursorPosition_Patch();
+asm
+  mov esi, ecx
+  cmp byte ptr [esi+$19], 0
+  je @finish  //уже не используем виндовый курсор
+
+  pushad
+    call IsInputExclusive
+    cmp al, 1
+  popad
+
+
+  @finish:
+end;
 
 function Init():boolean;stdcall;
 var
@@ -679,9 +749,42 @@ begin
   nop_code(xrgame_addr+$443F0A, 8);
   nop_code(xrgame_addr+$44406E, 12);
   //переносим учет этих факторов в CUILevelMap::Draw и CUIMiniMap::Draw (vftable:0x60), домножая перед отображением на свои коэффициенты
+  jmp_addr:=xrGame_addr+$44711B;
+  if not WriteJump(jmp_addr, cardinal(@CUILevelMap__Draw_Patch), 6, true) then exit;
+  jmp_addr:=xrGame_addr+$446C25;  
+  if not WriteJump(jmp_addr, cardinal(@CUIMiniMap__Draw_Patch), 6, true) then exit;
 
-  //TODO:CUIRankingWnd::get_favorite_weapon - избавиться от вызова get_current_kx 
-   
+  //фиксим коэффициенты самой глобальной карты для пда
+  //1.CUICustomMap::Init_internal
+  jmp_addr:=xrGame_addr+$445A4F;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$445A61;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  //2.CUILevelMap::Init_internal
+  jmp_addr:=xrGame_addr+$4466A4;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$4466B6;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  //3.CUICustomMap::ConvertRealToLocal
+  jmp_addr:=xrGame_addr+$446DD1;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$446DE3;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$446E4F;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+
+  //CUIRankingWnd::get_favorite_weapon - избавиться от вызова get_current_kx в отрисовке иконуки оружия
+  jmp_addr:=xrGame_addr+$44C254;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+
+  //правим CUIPdaWnd::Show, чтобы всегда при доставании пда отрисовывалась карта
+  if not nop_code(xrgame_addr+$442b23, 2) then exit;
+
+  //фикс позиции курсора - чтобы не скакал при переключениях режима мыши в ПДА
+  jmp_addr:=xrGame_addr+$4D9834;  
+  if not WriteJump(jmp_addr, cardinal(@CUICursor__UpdateCursorPosition_Patch), 6, true) then exit;
+
+
 
   result:=true;
 end;

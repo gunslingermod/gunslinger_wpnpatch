@@ -137,9 +137,23 @@ function GetCameraManager():pointer; stdcall;
 function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
 procedure CCameraManager__RemoveCamEffector(index:cardinal); stdcall;
 
+function GetPDAJoystickAnimationModifier():string;
+
+var
+  _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
+
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows;
+
+type
+  TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
+  TCursorState = packed record
+    last_moving_time:cardinal;
+    last_click_time:cardinal;
+    dir_accumulator:FVector2;
+    current_dir:TCursorDirection;
+  end;
 
 var
   _keyflags:cardinal;
@@ -167,6 +181,8 @@ var
   _sprint_tiredness:single; //как долго мы бежали
 
   _was_pda_animator_spawned:boolean;
+  _pda_cursor_state:TCursorState;
+
 
 
 //-------------------------------------------------------------------------------------------------------------
@@ -401,9 +417,14 @@ begin
     wpn:= pointer(cardinal(act)-$e8); //псевдооружие :)
 //    log('spawn');
     CALifeSimulator__spawn_item2(animator_item_section, GetPosition(wpn), GetLevelVertexID(wpn), GetGameVertexID(wpn), GetID(wpn));
-    //хак - так как первое не может активировать слот, в котором ничего нет, а второе косячно скрывает предмет с детектором
-    ActivateActorSlot__CInventory(0, false);
-    ActivateActorSlot(slot);
+
+    if GetActorActiveSlot()<>0 then begin
+      //хак - так как первое не может активировать слот, в котором ничего нет, а второе косячно скрывает предмет с детектором
+      //если же в руках ничего нет - активация слота идет автоматом
+      ActivateActorSlot__CInventory(0, false);
+      ActivateActorSlot(slot);
+    end;
+
     _action_animator_callback:=callback;
     _action_animator_param:=callback_param;
     result:=true;
@@ -1258,6 +1279,44 @@ begin
   result:=GetSection(itm)=GetPDAShowAnimator();
 end;
 
+function GetPDADirByAngle(angle:single):TCursorDirection;
+begin
+  if (angle>=0.393) and (angle<1.18) then begin
+    result:=DownRight;
+  end else if (angle>=1.18) and (angle<1.96) then begin
+    result:=Down;
+  end else if (angle>=1.96) and (angle<2.74) then begin
+    result:=DownLeft;
+  end else if (angle>=2.74) and (angle<3.53) then begin
+    result:=Left;
+  end else if (angle>=3.53) and (angle<4.32) then begin
+    result:=UpLeft;
+  end else if (angle>=4.32) and (angle<5.10) then begin
+    result:=Up;
+  end else if (angle>=5.10) and (angle<5.89) then begin
+    result:=UpRight;
+  end else begin
+    result:=Right;  
+  end;
+end;
+
+function GetPDAJoystickAnimationModifier():string;
+begin
+  case _pda_cursor_state.current_dir of
+    Up:result:='_up';
+    UpRight:result:='_up_right';
+    Right:result:='_right';
+    DownRight:result:='_down_right';
+    Down:result:='_down';
+    DownLeft:result:='_down_left';
+    Left:result:='_left';
+    UpLeft:result:='_up_left';
+    Click:result:='_click';       
+  else
+    result:='';
+  end;
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -1269,6 +1328,13 @@ var
 
   ppe:PChar;
   ppe_start, ppe_end:cardinal;
+
+  dir:TCursorDirection;
+  angle:single;
+
+const
+  PDA_CURSOR_UPDATE_TIME:cardinal=200;
+  PDA_CURSOR_MOVE_TREASURE:cardinal=5;
 begin
   ct:=GetGameTickCount();
   dt:=GetTimeDeltaSafe(_last_update_time, ct);
@@ -1387,6 +1453,12 @@ begin
       end else begin
         //все ок, заспавнилось, активация в обработчике аниматоров в апдейте
         _was_pda_animator_spawned:=true;
+        _is_pda_lookout_mode:=true;
+        _pda_cursor_state.last_moving_time:=GetGameTickCount();
+        _pda_cursor_state.current_dir:=Idle;
+        _pda_cursor_state.last_click_time:=GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime;
+        _pda_cursor_state.dir_accumulator.x:=0;
+        _pda_cursor_state.dir_accumulator.y:=0;
       end;
     end else begin
       //пда уже был включен и заспавнен. Убеждаемся, что до сих пор в слоте
@@ -1394,6 +1466,31 @@ begin
         //почему-то не в слоте... Гасим ПДА, об остальном позаботится обработчик аниматоров в апдейте предмета
         HidePDAMenu();
         _was_pda_animator_spawned:=false;
+      end else begin
+        if GetTimeDeltaSafe(_pda_cursor_state.last_moving_time)>PDA_CURSOR_UPDATE_TIME then begin
+          //Пришло время обновить аниму курсора
+          if _pda_cursor_state.last_click_time<>GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime then begin
+            dir:=Click;
+            _pda_cursor_state.last_click_time:=GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime
+          end else if (abs(_pda_cursor_state.dir_accumulator.x)<PDA_CURSOR_MOVE_TREASURE) and (abs(_pda_cursor_state.dir_accumulator.y)<PDA_CURSOR_MOVE_TREASURE) then begin
+            //курсор неподвижен
+            dir:=Idle;
+          end else begin
+            angle:=GetAngleByLegs(_pda_cursor_state.dir_accumulator.x, _pda_cursor_state.dir_accumulator.y);
+            dir:=GetPDADirByAngle(angle);
+          end;
+
+          if (dir<>_pda_cursor_state.current_dir) then begin
+            //анима изменилась
+            _pda_cursor_state.current_dir:=dir;
+            SetActorActionState(act, actModNeedMoveReassign, true);
+          end;
+
+          //сбрасываем текущее состояние накопителя движения
+          _pda_cursor_state.dir_accumulator.x:=0;
+          _pda_cursor_state.dir_accumulator.y:=0;
+          _pda_cursor_state.last_moving_time:=GetGameTickCount();
+        end;
       end;
     end;
   end else begin
@@ -1618,6 +1715,8 @@ begin
         virtual_Action(itm, kWPN_ZOOM, kActPress);
       end;
     end;
+  end else if ((dik=get_action_dik(kWPN_ZOOM_ALTER,0)) or (dik=get_action_dik(kWPN_ZOOM_ALTER,1))) and IsPDAWindowVisible() then begin
+    _is_pda_lookout_mode:=not _is_pda_lookout_mode;
   end;
   result:=false;
 end;
@@ -2504,6 +2603,39 @@ asm
   popad
 end;
 
+function CDialogHolder__IR_UIOnMouseMove(dx, dy:integer):boolean; stdcall;
+const
+  ACCUMULATOR_RESET_PERIOD:cardinal=100;
+begin
+
+  if _is_pda_lookout_mode and IsPDAWindowVisible() and not IsMainMenuActive() then begin
+    result:=false;
+    exit;
+  end else if not IsMainMenuActive() and IsPDAWindowVisible() then begin
+    _pda_cursor_state.dir_accumulator.x:=_pda_cursor_state.dir_accumulator.x+dx;
+    _pda_cursor_state.dir_accumulator.y:=_pda_cursor_state.dir_accumulator.y+dy;
+  end;
+
+  result:=true;
+end;
+
+procedure CDialogHolder__IR_UIOnMouseMove_Patch(); stdcall;
+asm
+  mov esi, esp
+  pushad
+    push [esi+$18]
+    push [esi+$14]
+    call CDialogHolder__IR_UIOnMouseMove
+    cmp al, 0
+  popad
+
+  je @finish
+  mov esi, [ecx-8]
+  test esi, esi
+
+  @finish:
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -2520,6 +2652,10 @@ begin
   _lefthanded_torch.omni:=nil;
   _lefthanded_torch.glow:=nil;
   _lefthanded_torch.enabled:=false;
+  _pda_cursor_state.last_moving_time:=0;
+  _pda_cursor_state.current_dir:=Idle;
+  _pda_cursor_state.last_click_time:=0;
+  _is_pda_lookout_mode:=false;
 
 
   result:=false;
@@ -2623,6 +2759,9 @@ begin
   jmp_addr:= xrgame_addr+$78F9C;
   if not WriteJump(jmp_addr, cardinal(@CStepManager__material_sound__play_next_OnStepSnd), 5, true) then exit;
 
+  //обработка разных режимов мыши (обзор/курсор) в ПДА;
+  jmp_addr:=xrGame_addr+$43e2b3;
+  if not WriteJump(jmp_addr, cardinal(@CDialogHolder__IR_UIOnMouseMove_Patch), 5, true) then exit;
 
   result:=true;
 end;

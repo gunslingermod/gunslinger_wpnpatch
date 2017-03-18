@@ -22,11 +22,13 @@ function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)
 procedure Log(text:string; IsError:boolean = false);stdcall;
 function Is16x9():boolean;stdcall;
 procedure GetScreenParams(width:pCardinal; height:pCardinal);stdcall;
+function get_current_kx():single; stdcall;
 
 function get_device_timedelta():single; stdcall;
 procedure fs_update_path(buf:PChar{512}; root:PChar; append:PChar); stdcall;
 
 function Clamp(val:single; low:single; high:single):single; stdcall;
+
 
 
 var
@@ -265,6 +267,15 @@ asm
 
   popad
 end;
+
+function get_current_kx():single; stdcall;
+var
+  w,h:cardinal;
+begin
+  GetScreenParams(@w,@h);
+  result:=(h/w)/(768/1024);
+end;
+
 
 
 function Init:boolean;

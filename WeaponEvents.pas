@@ -13,7 +13,7 @@ function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolea
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -1340,6 +1340,9 @@ end;
 procedure CWeaponMagazined__OnAnimationEnd(wpn:pointer); stdcall;
 begin
   //тут что-то было... И может быть будет
+  if (GetSection(wpn)=GetPDAShowAnimator()) and not IsPDAWindowVisible() and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim_end'))='anm_idle_aim_end') then begin
+      virtual_CHudItem_SwitchState(wpn, EHudStates__eHidden);
+  end;
 end;
 
 procedure CWeaponMagazined__OnAnimationEnd_Patch(); stdcall;
@@ -1417,6 +1420,10 @@ begin
   if IsDynamicDOF() then begin
     ResetDOF(game_ini_r_single_def(GetHUDSection(wpn),'zoom_out_dof_speed', GetDefaultDOFSpeed_Out()));
   end;
+
+  if IsPDAWindowVisible() then begin
+    ActorUtils._is_pda_lookout_mode:=true;
+  end;
 end;
 
 procedure CWeapon__OnZoomOut_Patch(); stdcall;
@@ -1448,6 +1455,10 @@ begin
       scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
     end;
     buf.LoadNightBrightnessParamsFromSection(scope_sect);
+  end;
+
+  if IsPDAWindowVisible() then begin
+    ActorUtils._is_pda_lookout_mode:=false;
   end;
 end;
 

@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster, UIUtils;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -50,9 +50,13 @@ procedure ModifierMoving(wpn:pointer; actor:pointer; var anm:string; config_enab
 var hud_sect:PChar;
 begin
   hud_sect:=GetHUDSection(wpn);
-    if (config_enabler_main<>'') then begin
-       if not game_ini_line_exist(hud_sect, PChar(config_enabler_main)) or not game_ini_r_bool(hud_sect, PChar(config_enabler_main)) then exit;
-    end;
+  if GetSection(wpn)=GetPDAShowAnimator() then begin
+    anm:=anm+GetPDAJoystickAnimationModifier();
+  end;
+
+  if (config_enabler_main<>'') then begin
+     if not game_ini_line_exist(hud_sect, PChar(config_enabler_main)) or not game_ini_r_bool(hud_sect, PChar(config_enabler_main)) then exit;
+  end;
   if GetActorActionState(actor, actMovingForward or actMovingBack or actMovingLeft or actMovingRight) then begin
     anm:=anm+'_moving';
     
@@ -126,6 +130,7 @@ begin
       if companion<>nil then assign_detector_anim:=true;
     end else if (canshoot or is_bino) and GetActorActionState(actor, actAimStarted) then begin
       anim_name:=anim_name+'_aim_end';
+      if (GetSection(wpn)=GetPDAShowAnimator()) and not IsPDAWindowVisible() then anim_name:=anim_name+'_hide';
       if canshoot then snd_label:='sndAimEnd';
       SetActorActionState(actor, actAimStarted, false);
       if companion<>nil then assign_detector_anim:=true;

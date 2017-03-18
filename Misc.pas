@@ -58,9 +58,13 @@ function GetCObjectID(CObject:pointer):word; stdcall;
 function GetCObjectXForm(CObject:pointer):pFMatrix4x4; stdcall;
 function GetCObjectVisual(CObject:pointer):pointer; stdcall;
 
+function GetAngleByLegs(x,y:single):single;
+
+function IsInputExclusive:boolean; stdcall;
+
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config;
+uses BaseGameData, ActorUtils, gunsl_config, Math;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
 
@@ -474,6 +478,27 @@ asm
       mov [ebx+$A8], $80000000 //D3DPRESENT_INTERVAL_IMMEDIATE
     @finish:
   popad
+end;
+
+function IsInputExclusive:boolean; stdcall;
+asm
+  mov eax, xrengine_addr
+  add eax, $9032B
+  mov al, byte ptr [eax]
+  mov @result, al
+end;
+
+function GetAngleByLegs(x,y:single):single;
+var
+  gyp, k:single;
+begin
+  gyp:=sqrt(x*x+y*y);
+  k:=clamp(y/gyp, -1.0, 1.0);
+  result:=arcsin(k);
+  if (x<0) then begin
+     result:=pi-result
+  end;
+  if result<0 then result:=result+2*pi;
 end;
 
 
