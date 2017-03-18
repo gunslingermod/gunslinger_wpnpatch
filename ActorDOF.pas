@@ -29,10 +29,13 @@ procedure SetDOF(v:FVector3; speed:single); stdcall; overload;
 procedure ResetDOF(speed:single); stdcall;
 function ReadActionDOFVector(wpn:pointer; var v:FVector3; param:string; def:boolean=true):boolean; stdcall;
 function ReadZoomDOFVector(wpn:pointer):FVector3; stdcall;
+function ReadGLDOFVector(wpn:pointer):FVector3; stdcall;
 function ReadLensDOFVector(wpn:pointer):FVector3; stdcall;
 function ReadActionDOFSpeed_In(wpn:pointer; param:string):single;
 function ReadActionDOFSpeed_Out(wpn:pointer; param:string):single;
 function ReadActionDOFTimeOffset(wpn:pointer; param:string):integer;
+
+function CWeapon__OnZoomIn_needDOF(wpn:pointer):boolean; stdcall;
 
 
 procedure SetDofSpeedfactor(speed:single); stdcall;
@@ -68,13 +71,15 @@ function CWeapon__OnZoomIn_needDOF(wpn:pointer):boolean; stdcall;
 begin
   if not IsDofEnabled() then begin
     result:=false;
-  end else if LensConditions() then begin
+  end else if LensConditions() and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'doblerendered_gl_zoom', false)) then begin
     //в режиме линзы
     result:=false;
     SetDOF(ReadLensDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
   end else if IsConstZoomDOF() then begin
     result:=false;  //в родном дофе не нуждаемся
-    if (not IsScopeAttached(wpn)) and (GetScopeStatus(wpn)<>1) and CHudItem__GetHUDMode(wpn) then begin
+    if IsGrenadeMode(wpn) and CHudItem__GetHUDMode(wpn) then begin
+      SetDOF(ReadGLDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'gl_in_dof_speed', GetDefaultDOFSpeed_In()));
+    end else if (not IsScopeAttached(wpn)) and (GetScopeStatus(wpn)<>1) and CHudItem__GetHUDMode(wpn) then begin
       SetDOF(ReadZoomDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
     end;
   end else begin
@@ -277,6 +282,17 @@ begin
   result.x:=game_ini_r_single_def(sect, PChar('zoom_dof_near'), result.x);
   result.y:=game_ini_r_single_def(sect, PChar('zoom_dof_focus'), result.y);
   result.z:=game_ini_r_single_def(sect, PChar('zoom_dof_far'), result.z);
+end;
+
+function ReadGLDOFVector(wpn:pointer):FVector3; stdcall;
+var
+  sect:PChar;
+begin
+  sect:=GetHUDSection(wpn);
+  result:=GetDefaultZoomDOF();
+  result.x:=game_ini_r_single_def(sect, PChar('gl_dof_near'), result.x);
+  result.y:=game_ini_r_single_def(sect, PChar('gl_dof_focus'), result.y);
+  result.z:=game_ini_r_single_def(sect, PChar('gl_dof_far'), result.z);
 end;
 
 function ReadLensDOFVector(wpn:pointer):FVector3; stdcall;

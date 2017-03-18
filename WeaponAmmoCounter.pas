@@ -10,7 +10,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils, ActorDOF;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils, ActorDOF, gunsl_config, sysutils, dynamic_caster;
 
 
 procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
@@ -73,7 +73,7 @@ begin
     mod_magsize:=curammocnt;
   end else if IsBM16(wpn) then begin
     mod_magsize:=buf.ammo_cnt_to_reload;
-  end else if buf.IsAmmoInChamber() and ((curammocnt=0) or ((GetAmmoTypeChangingStatus(wpn)<>$FF) and not buf.SaveAmmoInChamber() )) then begin
+  end else if not IsGrenadeMode(wpn) and buf.IsAmmoInChamber() and ((curammocnt=0) or ((GetAmmoTypeChangingStatus(wpn)<>$FF) and not buf.SaveAmmoInChamber() )) then begin
     mod_magsize:=def_magsize-1;
   end else begin
     mod_magsize:=def_magsize;
@@ -103,7 +103,7 @@ var
 begin
   buf:=GetBuffer(wpn);
   if
-    not(((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn))
+    not IsGrenadeMode(wpn)
   and
     (buf<>nil)    
   and
@@ -315,6 +315,70 @@ asm
   @finish:
 end;
 //------------------------------------------------------------------------------------------------------------------
+procedure CWeapon__Weight_CalcAmmoWeight(wpn:pointer; total_weight:psingle); stdcall;
+var
+  weight:single;
+  cnt, i:cardinal;
+  c:pCCartridge;
+  box_weight, box_count:single;
+  sect:PChar;
+begin
+  if dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponMagazined, false) = nil then exit;
+
+  weight:=0;
+
+  cnt:=GetAmmoInMagCount(wpn);
+  if cnt>0 then begin
+    for i:=0 to cnt-1 do begin
+      c:=GetCartridgeFromMagVector(wpn, i);
+      if c<>nil then begin
+        sect:= GetCartridgeSection(c);
+        if sect<>nil then begin
+          box_count:=game_ini_r_single_def(sect, 'box_size', 1);
+          box_weight:=game_ini_r_single_def(sect, 'inv_weight', 0);
+
+          weight:=weight+ (box_weight/box_count);
+        end;
+      end;
+    end;
+  end;
+
+  cnt:=GetAmmoInGLCount(wpn);
+  if cnt>0 then begin
+    for i:=0 to cnt-1 do begin
+      c:=GetGrenadeCartridgeFromGLVector(wpn, i);
+      if c<>nil then begin
+        sect:= GetCartridgeSection(c);
+        if sect<>nil then begin
+          box_count:=game_ini_r_single_def(sect, 'box_size', 1);
+          box_weight:=game_ini_r_single_def(sect, 'inv_weight', 0);
+
+          weight:=weight+ (box_weight/box_count);
+        end;
+      end;
+    end;
+  end;
+
+  total_weight^:=total_weight^+weight;
+end;
+
+
+procedure CWeapon__Weight_CalcAmmoWeight_Patch(); stdcall;
+asm
+  lea eax, [esp+8]
+  pushad
+
+  push eax
+  push esi
+  call CWeapon__Weight_CalcAmmoWeight
+
+
+  xor eax, eax
+  cmp eax, 0 //чтобы стандартный недокод подсчета даже не думал выполняться!
+  popad;
+end;
+
+
 function Init:boolean;
 var
     debug_bytes:array of byte;
@@ -389,6 +453,10 @@ begin
   addr:=xrGame_addr+$2DE849;
   if not WriteJump(addr, cardinal(@CWeaponShotgun__HaveCartridgeInInventory_Patch), 6, false) then exit;
 {$endif}
+
+  //[bug] баг с неправильным расчетом веса оружия в CWeapon::Weight: не учитывается возможность наличия в магазине боеприпасов разных типов, а также зарядов в подствольнике
+  addr:=xrGame_addr+$2BE9B7;
+  if not WriteJump(addr, cardinal(@CWeapon__Weight_CalcAmmoWeight_Patch), 7, true) then exit;
 
 
 

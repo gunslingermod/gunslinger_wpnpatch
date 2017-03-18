@@ -54,6 +54,8 @@ function IsMainMenuActive():boolean; stdcall;
 procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
 procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
 
+function GetCObjectID(CObject:pointer):word; stdcall;
+
 
 implementation
 uses BaseGameData, ActorUtils;
@@ -419,6 +421,14 @@ asm
   mov eax, [eax+$92ED8+$1C]
   mov @result, eax
 end;
+
+function GetCObjectID(CObject:pointer):word; stdcall;
+asm
+  mov eax, [CObject]
+  movzx eax, word ptr [eax+$A4]
+  mov @result, ax
+end;
+
 //-----------------------------------------------------------------------------------------------------------
 
 function Init():boolean;stdcall;
@@ -444,4 +454,6 @@ begin
   if not WriteJump(jmp_addr, cardinal(@register_cscriptgameobject_restoreweaponimmediatly), 8, true) then exit;
   result:=true;
 end;
+
+
 end.

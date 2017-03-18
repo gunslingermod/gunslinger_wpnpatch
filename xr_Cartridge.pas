@@ -28,6 +28,7 @@ type pCCartridge = ^CCartridge;
 procedure CCartridge__Load(this:pointer; name:PChar; local_ammotype:byte); stdcall;
 procedure CopyCartridge(var src:CCartridge; var dst:CCartridge); stdcall;
 function GetCartridgeFromMagVector(wpn:pointer; index:cardinal):pCCartridge; stdcall;
+function GetGrenadeCartridgeFromGLVector(wpn:pointer; index:cardinal):pCCartridge; stdcall;
 function GetMainAmmoTypesCount(wpn:pointer):integer; stdcall;
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
@@ -36,6 +37,8 @@ procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
 function GetAmmoTypeIndex(wpn:pointer):byte; stdcall;
 function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
+function GetCartridgeSection(c:pCCartridge):PChar; stdcall;
+
 procedure InitCartridge(c:pCCartridge); stdcall;
 
 
@@ -85,6 +88,22 @@ begin
     ptr:= PChar(wpn)+$6C8;
   tmp:=(pcardinal(ptr))^;
   result:=pointer(tmp+$3C*index);
+end;
+
+function GetGrenadeCartridgeFromGLVector(wpn:pointer; index:cardinal):pCCartridge; stdcall;
+var
+  tmp:cardinal;
+  ptr:pointer;
+begin
+  result:=nil;
+  if (wpn=nil) or (GetGLStatus(wpn)=0) or not (IsGLAttached(wpn)) or (index>=GetAmmoInGLCount(wpn)) then exit;
+  if IsGrenadeMode(wpn) then
+    ptr:= PChar(wpn)+$6C8
+  else
+    ptr:= PChar(wpn)+$7EC;
+
+  tmp:=(pcardinal(ptr))^;
+  result:=pointer(tmp+sizeof(CCartridge)*index);
 end;
 
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
@@ -187,6 +206,14 @@ asm
 
     mov @result, eax
   popad
+end;
+
+function GetCartridgeSection(c:pCCartridge):PChar;
+begin
+  result:=nil;
+  if c.m_ammo_sect<>nil then begin
+    result:=PChar(cardinal(c.m_ammo_sect)+$10);
+  end;
 end;
 
 procedure InitCartridge(c:pCCartridge); stdcall;

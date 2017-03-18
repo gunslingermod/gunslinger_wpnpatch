@@ -234,7 +234,7 @@ begin
   result:=IsUIShown();
   if result then begin
     wpn:=GetActorActiveItem();
-    result:= (wpn=nil) or not (IsAimNow(wpn) and (IsScopeAttached(wpn) or (GetScopeStatus(wpn)=1)) and not IsUINotNeededToBeHidden(wpn));
+    result:= (wpn=nil) or not ( (IsAimNow(wpn) and not IsGrenadeMode(wpn)) and (IsScopeAttached(wpn) or (GetScopeStatus(wpn)=1)) and not IsUINotNeededToBeHidden(wpn));
   end;
 end;
 

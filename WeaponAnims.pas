@@ -278,10 +278,10 @@ begin
       end;
 
       ModifierMoving(wpn, actor, base_anim, 'enable_directions_'+base_anim, 'enable_moving_'+base_anim);
-      ModifierGL(wpn, base_anim);
     end;
   end;
-
+  
+  ModifierGL(wpn, base_anim);
   ModifierBM16(wpn, base_anim);
   if not disable_noanim_hint then begin
     if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
@@ -1009,6 +1009,12 @@ begin
       SetActorActionState(actor, actShowDetectorNow, true);
     end;
 
+    if IsWeaponJammed(wpn) then begin
+      anim_name:=anim_name+'_jammed';
+    end else if (GetAmmoInMagCount(wpn)<=0) then begin
+      anim_name:=anim_name+'_empty';
+    end;
+
     ModifierGL(wpn, anim_name);
     //назначим аниму детектору при необходимости
     StartCompanionAnimIfNeeded(rightstr(anim_name, length(anim_name)-4), wpn, false);
@@ -1022,7 +1028,8 @@ begin
   end;
   result:=PChar(anim_name);
 
-  CHudItem_Play_Snd(wpn, PChar(snd));
+  if not PlaySoundByAnimName(wpn, anim_name) then CHudItem_Play_Snd(wpn, PChar(snd));
+
 
   if ReadActionDOFVector(wpn, v, anim_name, true) then begin
     SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));

@@ -106,8 +106,16 @@ begin
   end;
 
   if last_hud_data<>nil then begin
-    pos_str:='aim_hud_offset_pos';
-    rot_str:='aim_hud_offset_rot';
+    if IsGrenadeMode(wpn) then begin
+      pos_str := 'gl';
+      rot_str := 'gl';
+    end else begin
+      pos_str := 'aim';
+      rot_str := 'aim';    
+    end;
+
+    pos_str:=pos_str+'_hud_offset_pos';
+    rot_str:=rot_str+'_hud_offset_rot';
 
     if Is16x9() then begin
       pos_str:=pos_str+'_16x9';
@@ -130,7 +138,8 @@ end;
 
 procedure RestoreHudOffsets(wpn:pointer); stdcall;
 var
-  section, pos_str, rot_str:PChar;
+  section:PChar;
+  pos_str, rot_str:string;
   pos, rot, zerovec:FVector3;
   rb:cardinal;
 
@@ -139,16 +148,25 @@ begin
   section:=GetHudSection(wpn);
   v_zero(@zerovec);
 
-  if Is16x9() then begin
-    pos_str:='aim_hud_offset_pos_16x9';
-    rot_str:='aim_hud_offset_rot_16x9';
+  if IsGrenadeMode(wpn) then begin
+    pos_str := 'gl';
+    rot_str := 'gl';
   end else begin
-    pos_str:='aim_hud_offset_pos';
-    rot_str:='aim_hud_offset_rot';
+    pos_str := 'aim';
+    rot_str := 'aim';
+  end;
+
+  pos_str:=pos_str+'_hud_offset_pos';
+  rot_str:=pos_str+'_hud_offset_rot';
+
+
+  if Is16x9() then begin
+    pos_str:=pos_str+'_16x9';
+    rot_str:=rot_str+'_16x9';
   end;
   
-  pos:=game_ini_read_vector3_def(section, pos_str, @zerovec);
-  rot:=game_ini_read_vector3_def(section, rot_str, @zerovec);
+  pos:=game_ini_read_vector3_def(section, PChar(pos_str), @zerovec);
+  rot:=game_ini_read_vector3_def(section, PChar(rot_str), @zerovec);
 
   writeprocessmemory(hndl, PChar(last_hud_data)+$2b, @pos, 12, rb);
   writeprocessmemory(hndl, PChar(last_hud_data)+$4f, @rot, 12, rb);

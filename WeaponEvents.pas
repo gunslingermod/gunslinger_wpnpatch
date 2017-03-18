@@ -13,7 +13,7 @@ function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolea
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -124,6 +124,13 @@ begin
           anim_name:='anm_detach_scope_'+addon_name;
           snd_name:='sndScopeDet';
         end;
+
+        if IsAimNow(wpn) then begin
+          if IsAimToggle() then
+            virtual_Action(wpn, kWPN_ZOOM, kActPress)
+          else
+            virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+        end;
       end;
     4:begin
         param_name:='use_sildetach_anim';
@@ -134,6 +141,14 @@ begin
         param_name:='use_gldetach_anim';
         anim_name:='anm_detach_gl';
         snd_name:='sndGLDet';
+
+        if IsAimNow(wpn) then begin
+          if IsAimToggle() then
+            virtual_Action(wpn, kWPN_ZOOM, kActPress)
+          else
+            virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+        end;
+                
       end;
     else begin
       log('WeaponEvents.OnAddonDetach: Invalid addontype!', true);
@@ -201,6 +216,11 @@ begin
           err_msg:='gunsl_msg_sil_restricts_scope';
         end else if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl') then begin
           err_msg:='gunsl_msg_gl_restricts_scope';
+        end else if IsAimNow(wpn) then begin
+          if IsAimToggle() then
+            virtual_Action(wpn, kWPN_ZOOM, kActPress)
+          else
+            virtual_Action(wpn, kWPN_ZOOM, kActRelease);
         end;
       end;
     4:begin
@@ -1510,6 +1530,26 @@ asm
   @finish:
 end;
 
+procedure CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge(wpn:pointer); stdcall;
+var
+  rl:pCRocketLauncher;
+begin
+  //[bug] баг со сменой типа грен в граниках - CCustomRocket не разряжается!
+  rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher,false);
+  if rl<>nil then begin
+    UnloadOneRocket(rl);
+  end;
+end;
+
+procedure CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge_Patch(); stdcall;
+asm
+  pushad
+    push ebp
+    call CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge
+  popad
+  cmp eax, [ebp+$6CC]
+end;
+
 
 function Init:boolean;
 var
@@ -1638,6 +1678,10 @@ begin
 
   jmp_addr:=xrGame_addr+$2D6B97;
   if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnMotionMark_Patch), 6, true) then exit;
+
+  //[bug]баг оружия с подстволом - при разрядке не разряжаются CCustomRocket'ы
+  jmp_addr:=xrGame_addr+$2CF7E7;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge_Patch), 6, true) then exit;
 
   result:=true;
 end;

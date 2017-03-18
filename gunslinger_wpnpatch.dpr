@@ -47,7 +47,8 @@ uses
   ScriptFunctors in 'ScriptFunctors.pas',
   CRT in 'CRT.pas',
   r_constants in 'r_constants.pas',
-  Crows in 'Crows.pas';
+  Crows in 'Crows.pas',
+  xr_RocketLauncher in 'xr_RocketLauncher.pas';
 
 {$R *.res}
 //var

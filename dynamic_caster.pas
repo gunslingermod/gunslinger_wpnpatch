@@ -28,7 +28,8 @@ const
   RTTI_CCustomOutfit:cardinal = $62cd70;
   RTTI_CHelmet:cardinal = $635c9c;
   RTTI_CUIPdaWnd:cardinal = $63EF80;
-  RTTI_CUIDialogWnd:cardinal = $6342C4;  
+  RTTI_CUIDialogWnd:cardinal = $6342C4;
+  RTTI_CRocketLauncher:cardinal = $6373E8;
 
 implementation
 uses BaseGameData;

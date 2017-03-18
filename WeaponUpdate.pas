@@ -24,6 +24,7 @@ var
   dist:single;
   HID:pointer;
   b:boolean;
+  time:cardinal;
 
   lb:conditional_breaking_params;
 begin
@@ -40,23 +41,37 @@ begin
     buf.SetLaserEnabledStatus(false);
   end;
 
-  if (IsGrenadeMode(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch')) and (buf.IsLaserEnabled() or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') ) then begin
-     //подствол при прицеливании может перекрывать ЛЦУ - тогда выключаем последний
-    if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserdot_when_gl_enabled', false)
-    and ( not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch')
-      or (    IsGLEnabled(wpn) and (GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR))>game_ini_r_int_def(GetHUDSection(wpn), PChar('laser_disable_time_'+GetActualCurrentAnim(wpn)), 0)))
-      or (not IsGLEnabled(wpn) and (GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR))<game_ini_r_int_def(GetHUDSection(wpn), PChar('laser_enable_time_'+GetActualCurrentAnim(wpn)), 0)))      
-    ) then begin
-      if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserray_when_gl_enabled', false) then begin
-        SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+  if buf.IsLaserEnabled() then begin
+     if not game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserdot_when_gl_enabled', false) then begin
+       SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
+     end else begin
+      //подствол при прицеливании может перекрывать ЛЦУ - тогда выключаем последний
+      if leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch' then begin
+        if rightstr(GetActualCurrentAnim(wpn), 2)='_g' then
+          time:=GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR))
+        else
+          time:=GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_CUR), GetAnimTimeState(wpn, ANM_TIME_END));
+
+        if time>game_ini_r_int_def(GetHUDSection(wpn), PChar('laser_switch_time_'+GetActualCurrentAnim(wpn)), 0) then begin
+          if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserray_when_gl_enabled', false) then begin
+            SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+          end;
+          buf.StopLaserdotParticle();
+          exit;
+        end else begin
+          SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
+        end;
+
+      end else if IsGrenadeMode(wpn) then begin
+        if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserray_when_gl_enabled', false) then begin
+          SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+        end;
+        buf.StopLaserdotParticle();
+        exit;
+      end else begin
+        SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
       end;
-      buf.StopLaserdotParticle();
-      exit;
-    end else begin
-      SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);    
-    end;
-  end else if (buf.IsLaserEnabled()) then begin
-    SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
+     end;
   end else begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
     buf.StopLaserdotParticle();
@@ -375,6 +390,10 @@ begin
 
     //для сокрытия костей, отвечающих за предыдущие апы ветки
     if game_ini_line_exist(section, 'hide_bones_override') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override'), false);
+
+    if IsGrenadeMode(wpn) then begin
+      if game_ini_line_exist(section, 'hide_bones_override_grenade') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_grenade'), false);    
+    end;
   end;
 end;
 

@@ -77,7 +77,7 @@ begin
       exit;
     end;
 
-    if IsAimNow(wpn) or IsHolderInAimState(wpn) or (GetAimFactor(wpn)>0.001) then begin
+    if (IsAimNow(wpn) or IsHolderInAimState(wpn) or (GetAimFactor(wpn)>0.001)) and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'doblerendered_gl_zoom', false)) then begin
       if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
         scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
         result:=game_ini_r_bool_def(scope_sect, 'need_lens_frame', false);

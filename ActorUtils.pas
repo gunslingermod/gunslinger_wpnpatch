@@ -365,7 +365,7 @@ begin
   if (det<>nil) and (GetCurrentState(det)<>CHUDState__eIdle) then begin
     exit;
   end;
-  
+
   if (wpn=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
     if not game_ini_r_bool_def(animator_item_section, 'action_animator', false) then begin
       log('Section ['+animator_item_section+'] defined as action animator in [gunslinger_base], but key action_animator is false or does not exist!', true);
@@ -479,9 +479,14 @@ begin
   if act=nil then exit;
   if wpn=nil then exit;
 
-  MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
-
   buf:=GetBuffer(wpn);
+  if (buf=nil) or not buf.IsLaserInstalled() or not buf.IsLaserEnabled() then begin
+    MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
+  end else begin
+    MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
+  end;
+
+
   if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
 end;
 
@@ -572,7 +577,13 @@ begin
       virtual_Action(wpn, kWPN_FIRE, kActPress);
     end else begin
       //проверяем, можем ли вообще бить сейчас
-      if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
+      //if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
+      if ((wpn=nil) or FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) and (ItemInSlot(act, 1)=nil) then exit;
+
+      if (wpn<>nil) and IsGrenadeMode(wpn) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_enabled', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_enabled', false)) then begin
+        OnActorSwithesSmth('disable_kick_anim_when_gl_enabled', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+        exit;      
+      end;
 
       if (wpn<>nil) and (GetSection(wpn)=GetKickAnimator()) then begin
         //хотим повторный удар :) Запомним это
@@ -2387,7 +2398,11 @@ begin
     end else begin
       sect:=GetSection(wpn);
     end;
-    sense^:=sense^*game_ini_r_single_def(sect, 'zoom_mouse_sense_koef', 1.0);
+
+    if not IsGrenadeMode(wpn) then
+      sense^:=sense^*game_ini_r_single_def(sect, 'zoom_mouse_sense_koef', 1.0)
+    else
+      sense^:=sense^*game_ini_r_single_def(sect, 'zoom_gl_mouse_sense_koef', 1.0);
   end;
 end;
 

@@ -38,6 +38,7 @@ function GetScopeSection(wpn:pointer; index:cardinal):PChar; stdcall;
 procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
+function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
 function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
 function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
@@ -193,7 +194,7 @@ const
 
 
 implementation
-uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster, xr_Cartridge;
 var
   PlayHudAnim_Func:cardinal;
 
@@ -315,6 +316,7 @@ asm
     call GetGLStatus
     cmp eax, 0
     je @use_main
+    
     push ebx
     call IsGLEnabled
     cmp al, 0
@@ -340,6 +342,24 @@ asm
 
     popfd
     popad
+end;
+
+function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
+var
+  pstart, pend:cardinal;
+  ptr:pointer;
+begin
+  result:=0;
+  if (wpn=nil) or (GetGLStatus(wpn)=0) or not IsGLAttached(wpn) then exit;
+  if IsGrenadeMode(wpn) then
+    ptr:= PChar(wpn)+$6C8
+  else
+    ptr:= PChar(wpn)+$7EC;
+
+  pstart:=(pcardinal(ptr))^;
+  pend:=(pcardinal(PChar(ptr)+4))^;
+
+  result:=(pend-pstart) div sizeof(CCartridge);
 end;
 
 function IsAimNow(wpn:pointer):boolean; stdcall;
