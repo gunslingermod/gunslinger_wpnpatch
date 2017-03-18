@@ -49,7 +49,8 @@ uses
   r_constants in 'r_constants.pas',
   Crows in 'Crows.pas',
   xr_RocketLauncher in 'xr_RocketLauncher.pas',
-  xr_strings in 'xr_strings.pas';
+  xr_strings in 'xr_strings.pas',
+  DynamicWallmarks in 'DynamicWallmarks.pas';
 
 {$R *.res}
 //var
@@ -97,6 +98,7 @@ begin
   ControllerMonster.Init();
   UIUtils.Init();
   xr_strings.Init();
+  DynamicWallmarks.Init();
 
 //  AutoUpdater.Init();
 //

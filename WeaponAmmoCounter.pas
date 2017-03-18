@@ -426,6 +426,10 @@ var
   queue:integer;
 begin
   ammo_sect:= GetMainCartridgeSectionByType(wpn, GetAmmoTypeIndex(wpn, false));
+//  if GetAmmoInMagCount(wpn)>0 then begin
+//    ammo_sect:=@(GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_ammo_sect.p_.value);
+//  end;
+  
   assign_string(@bi.name, game_ini_read_string(ammo_sect, 'inv_name_short'));
   assign_string(@bi.icon, ammo_sect);
   s:=inttostr(GetAmmoInMagCount(wpn));
@@ -573,6 +577,46 @@ asm
   ret 4
 end;
 
+procedure CWeaponMagazinedWGrenade__PerformSwitchGL_ammoinverse_Patch(); stdcall;
+asm
+  //свопаем патроны
+
+  mov edi, [esi+$6C8]
+  mov ebx, [esi+$7EC]
+  mov [esi+$6C8], ebx
+  mov [esi+$7EC], edi
+
+  mov edi, [esi+$6CC]
+  mov ebx, [esi+$7F0]
+  mov [esi+$6CC], ebx
+  mov [esi+$7F0], edi
+
+  mov edi, [esi+$6D0]
+  mov ebx, [esi+$7F4]
+  mov [esi+$6D0], ebx
+  mov [esi+$7F4], edi
+
+  //делаем остаток функции
+  mov eax, [esi+$6cc]
+  sub eax, [esi+$6c8]
+
+  xor edx, edx
+  mov ebx, $3c;
+  div ebx
+
+  mov [esi+$690], eax
+
+
+  mov [esi+$69C], 0
+  //валим
+  pop edi
+  pop esi
+  pop ebp
+  pop ebx
+  add esp, $4C
+  ret
+end;
+
 
 function Init:boolean;
 var
@@ -654,6 +698,12 @@ begin
   if not WriteJump(addr, cardinal(@CWeaponMagazined__GetBriefInfo_Replace_Patch), 5, false) then exit;
   addr:=xrGame_addr+$2D2110;
   if not WriteJump(addr, cardinal(@CWeaponMagazinedWGrenade__GetBriefInfo_Replace_Patch), 5, false) then exit;
+
+
+  //[bug] баг с инверсией порядка патронов в магазине при переключении на подствол и обратно - thanks to Shoker
+  addr:=xrGame_addr+$2D3810;
+  if not WriteJump(addr, cardinal(@CWeaponMagazinedWGrenade__PerformSwitchGL_ammoinverse_Patch), 6, false) then exit;
+
 
   setlength(debug_bytes, 0);  
   result:=true;

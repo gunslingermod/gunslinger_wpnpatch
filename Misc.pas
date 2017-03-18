@@ -55,6 +55,8 @@ procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); std
 procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
 
 function GetCObjectID(CObject:pointer):word; stdcall;
+function GetCObjectXForm(CObject:pointer):pFMatrix4x4; stdcall;
+function GetCObjectVisual(CObject:pointer):pointer; stdcall;
 
 
 implementation
@@ -427,6 +429,20 @@ asm
   mov eax, [CObject]
   movzx eax, word ptr [eax+$A4]
   mov @result, ax
+end;
+
+function GetCObjectXForm(CObject:pointer):pFMatrix4x4; stdcall;
+asm
+  mov eax, [CObject]
+  lea eax, [eax+$50]
+  mov @result, eax
+end;
+
+function GetCObjectVisual(CObject:pointer):pointer; stdcall;
+asm
+  mov eax, [CObject]
+  mov eax, [eax+$90]
+  mov @result, eax
 end;
 
 //-----------------------------------------------------------------------------------------------------------

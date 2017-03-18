@@ -1924,8 +1924,9 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CalcMotionSpeed_QuickItems_Patch), 5, false) then exit;
 
   //[bug] баг с неназначением нового эффектора камеры при неоконченном старом - thanks to SkyLoader
-  jmp_addr:=xrGame_addr+$2FEC28;
-  if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;  
+  //[upd ломается кой-чего еще... Отключаем, лучше уж так
+  //jmp_addr:=xrGame_addr+$2FEC28;
+  //if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;
 end;
 
 

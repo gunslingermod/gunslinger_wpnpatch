@@ -146,6 +146,7 @@ var
   _prev_act_slot:integer;
 
   _last_before_pda_slot:integer;
+  _last_before_pda_detector_status:boolean;
 
   _jitter_time_remains:cardinal;
 
@@ -501,6 +502,8 @@ begin
   act:=GetActor;
   if (act=nil) or CActor__get_inventory_disabled(act) then exit;
   _prev_act_slot:=0;
+  _last_before_pda_detector_status:=WasLastDetectorHiddenManually;
+  ForgetDetectorAutoHide();  
   ActivateActorSlot(0);
   if not IsPDAShown() then ShowPDAMenu();
 end;
@@ -512,6 +515,7 @@ begin
   act:=GetActor;
   if (act=nil) or CActor__get_inventory_disabled(act) then exit;
   HidePDAMenu();
+  if not _last_before_pda_detector_status then AssignDetectorAutoHide();
   ActivateActorSlot(_last_before_pda_slot);
 end;
 
@@ -540,7 +544,7 @@ begin
   if GetActorActiveSlot()<>0 then begin
     ActivateActorSlot__CInventory(0, true);
   end;
-  if not OnActorSwithesSmth('disable_pda_hide_anim', GetPDAShowAnimator(), 'anm_pda_hide', 'sndPDAHide', kfPDAHIDE, PDAHideCallback, 0) then begin
+  if not OnActorSwithesSmth('disable_pda_hide_anim', GetPDAHideAnimator(), 'anm_pda_hide', 'sndPDAHide', kfPDAHIDE, PDAHideCallback, 0) then begin
     SetActorKeyRepeatFlag(kfPDAHIDE, true);
   end;
 end;
