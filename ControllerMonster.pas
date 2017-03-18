@@ -232,13 +232,13 @@ begin
   det:=GetActiveDetector(act);
   wpn:=GetActorActiveItem();
 
-  if IsPDAShown() or (wpn<>nil) and (GetSection(wpn)=GetPDAHideAnimator()) then begin
+{  if IsPDAWindowEnabled() or (wpn<>nil) and (GetSection(wpn)=GetPDAHideAnimator()) then begin
     result:=false;
     _planning_suicide:=false;
     _suicide_now:=false;
     SetHandsJitterTime(GetControllerTime());
     exit;
-  end;
+  end;}
 
   if (det<>nil) or ((wpn<>nil) and not CanUseItemForSuicide(wpn)) then begin
     _planning_suicide:=CanUseItemForSuicide(wpn);

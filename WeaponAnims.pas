@@ -1560,7 +1560,8 @@ begin
   cur_anim:=GetActualCurrentAnim(wpn);
 
   if game_ini_r_bool_def(hud_sect, 'mix_shoot_after_idle', false) and (leftstr(cur_anim, length('anm_idle')) = 'anm_idle') then result:=true;
-  if game_ini_r_bool_def(hud_sect, 'mix_shoot_after_reload', false) and (leftstr(cur_anim, length('anm_reload')) = 'anm_reload') then result:=true;  
+  if game_ini_r_bool_def(hud_sect, 'mix_shoot_after_reload', false) and (leftstr(cur_anim, length('anm_reload')) = 'anm_reload') then result:=true;
+  if game_ini_r_bool_def(hud_sect, 'mix_shoot_after_shoot_in_queue', false) and (CurrentQueueSize(wpn)<0) and (leftstr(cur_anim, length('anm_shoot')) = 'anm_shoot') then result:=true;
 
 end;
 

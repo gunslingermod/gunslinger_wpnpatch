@@ -211,10 +211,6 @@ begin
   itm:=GetActorActiveItem();
   result:=true;
 
-  if IsPDAShown() then begin
-    result:=false;
-  end;
-
   if itm<>nil then begin
       param := GetCurAnim(itm);
       if param = '' then param:=GetActualCurrentAnim(itm);

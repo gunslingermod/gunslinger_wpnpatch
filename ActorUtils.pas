@@ -122,7 +122,8 @@ procedure HeadlampCallback(wpn:pointer; param:integer); stdcall;
 procedure NVCallback(wpn:pointer; param:integer); stdcall;
 procedure KickCallback(wpn:pointer; param:integer); stdcall;
 procedure SetActorActionCallback(cb:TAnimationEffector);
-procedure OnPDAHide(); stdcall;
+function GetActorActionCallback():TAnimationEffector;
+
 
 procedure add_pp_effector(fn:pchar; id:integer; cyclic:boolean); stdcall;
 procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
@@ -145,9 +146,6 @@ var
   _last_act_slot:integer;
   _prev_act_slot:integer;
 
-  _last_before_pda_slot:integer;
-  _last_before_pda_detector_status:boolean;
-
   _jitter_time_remains:cardinal;
 
 
@@ -167,6 +165,8 @@ var
   _action_ppe:integer;
 
   _sprint_tiredness:single; //как долго мы бежали
+
+  _was_pda_animator_spawned:boolean;
 
 
 //-------------------------------------------------------------------------------------------------------------
@@ -375,7 +375,7 @@ begin
     exit;
   end;
 
-  if (wpn=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
+  if (wpn=nil) or (restrictor_config_param=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
     if not game_ini_r_bool_def(animator_item_section, 'action_animator', false) then begin
       log('Section ['+animator_item_section+'] defined as action animator in [gunslinger_base], but key action_animator is false or does not exist!', true);
       if IsDebug then Messenger.SendMessage('Action animator: invalid configuration, see log!');
@@ -495,60 +495,11 @@ begin
   if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
 end;
 
-procedure PDAShowCallback(wpn:pointer; param:integer); stdcall;
-var
-  act:pointer;
+procedure FakeCallback(wpn:pointer; param:integer); stdcall;
 begin
-  act:=GetActor;
-  if (act=nil) or CActor__get_inventory_disabled(act) then exit;
-  _prev_act_slot:=0;
-  _last_before_pda_detector_status:=WasLastDetectorHiddenManually;
-  ForgetDetectorAutoHide();  
-  ActivateActorSlot(0);
-  if not IsPDAShown() then ShowPDAMenu();
-end;
-
-procedure PDAHideCallback(wpn:pointer; param:integer); stdcall;
-var
-  act:pointer;
-begin
-  act:=GetActor;
-  if (act=nil) or CActor__get_inventory_disabled(act) then exit;
-  HidePDAMenu();
-  if not _last_before_pda_detector_status then AssignDetectorAutoHide();
-  ActivateActorSlot(_last_before_pda_slot);
 end;
 
 //-----------------------------------------------------------------------------------------------------------
-procedure OnPDAShow(); stdcall;
-var
-  act:pointer;
-begin
-  act:=GetActor;
-  if (act=nil) or CActor__get_inventory_disabled(act) or IsActorControlled() then exit;
-  _last_before_pda_slot:=GetActorActiveSlot();
-  OnActorSwithesSmth('disable_pda_show_anim', GetPDAShowAnimator(), 'anm_pda_show', 'sndPDAShow', kfPDASHOW, PDAShowCallback, 0);
-end;
-
-procedure OnPDAHide(); stdcall;
-var
-  act:pointer;
-begin
-  act:=GetActor;
-  if act=nil then begin
-    if IsPDAShown then begin
-      HidePDAMenu();
-    end;
-    exit;
-  end;
-  if GetActorActiveSlot()<>0 then begin
-    ActivateActorSlot__CInventory(0, true);
-  end;
-  if not OnActorSwithesSmth('disable_pda_hide_anim', GetPDAHideAnimator(), 'anm_pda_hide', 'sndPDAHide', kfPDAHIDE, PDAHideCallback, 0) then begin
-    SetActorKeyRepeatFlag(kfPDAHIDE, true);
-  end;
-end;
-
 procedure OnActorSwithesNV(itm:pointer); stdcall;
 begin
   if IsActorControlled() or not (CanUseNV(itm)) then exit;
@@ -633,48 +584,6 @@ asm
   popad
 end;
 
-
-procedure CUIGameSP__IR_UIOnKeyboardPress_ShowPDA_Patch;
-asm
-  pushad
-    call OnPDAShow
-  popad
-end;
-
-function NeedImmediateHideDialog(CUIDialogWnd:pointer):boolean; stdcall;
-begin
-  result := (dynamic_cast(CUIDialogWnd, 0, RTTI_CUIDialogWnd, RTTI_CUIPdaWnd, false) = nil);
-end;
-
-procedure HidePDA_Patch; stdcall;
-asm
-  pushad
-    call OnPDAHide
-  popad
-end;
-
-
-procedure CLevel__IR_OnKeyboardPress_HidePDA_Patch;
-asm
-  pushad
-    push ecx
-    push ecx
-    call NeedImmediateHideDialog
-    cmp al, 0
-    pop ecx
-
-    je @pda
-    mov eax, xrgame_addr
-    add eax, $482280
-    call eax
-    je @finish
-
-    @pda:
-    call OnPDAHide
-
-    @finish:
-  popad
-end;
 
 //--------------------------------------------------------------------------------------------------------------------------
 
@@ -1131,14 +1040,6 @@ begin
     end;
   end;
 
-  if ((_keyflags and kfPDAHIDE)<>0) then begin
-      SetActorKeyRepeatFlag(kfPDAHIDE, false); //именно сейчас! потом может заново поставитьcя
-      if IsPDAShown() then begin
-        OnPDAHide();
-//        log('pda hide tried, state = '+booltostr(_keyflags and kfPDAHIDE<>0, true ));
-      end;
-  end;
-
   if (wpn=nil) then exit;
 
   if (_keyflags and kfHEADLAMP)<>0 then begin
@@ -1163,14 +1064,6 @@ begin
       SetActorKeyRepeatFlag(kfQUICKKICK, false);
     end;
   end;
-
-  if ((_keyflags and kfPDASHOW)<>0) then begin
-    if (wpn=nil) or CanStartAction(wpn) then begin
-      if not IsPDAShown() then OnPDAShow();
-      SetActorKeyRepeatFlag(kfPDASHOW, false);
-    end;
-  end;
-
 
 
   if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
@@ -1352,6 +1245,19 @@ begin
   end;
 end;
 
+function IsPDAAnimatorInSlot():boolean; stdcall;
+var
+  slot:cardinal;
+  itm:pointer;
+begin
+  result:=false;
+  if GetActor()=nil then exit;
+  slot:=game_ini_r_int_def(GetPDAShowAnimator(), 'slot', 0)+1;
+  itm:=ItemInSlot(GetActor(), slot);
+  if itm=nil then exit;
+  result:=GetSection(itm)=GetPDAShowAnimator();
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -1425,7 +1331,7 @@ begin
     if (itm<>nil) and (game_ini_r_bool_def(GetSection(itm), 'action_animator', false) or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=CHUDState__eIdle))) then begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
-      treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);      
+      treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);
       if (treasure_time<anim_time) then begin
         _action_animator_callback(itm, _action_animator_param);
         _action_animator_callback:=nil;
@@ -1466,6 +1372,39 @@ begin
       end;
     end;
   end;
+
+  //обработка анимированного ПДА
+  //Общая идея - если у окна ПДА в статусе стоит "показывается" (в реале идет отрисовка в текстуру), то всучиваем предмет  ПДА актору
+  //Если же пда "выключен - убираем этот предмет из рук.
+  
+  if IsPDAWindowEnabled then begin
+    //ПДА активирован.
+    if not _was_pda_animator_spawned then begin
+      //только что включился. Заспавним аниматор, если можно.
+      if not OnActorSwithesSmth(nil, GetPDAShowAnimator(), nil, nil, 0, @FakeCallback, 0) then begin
+        //почему-то не заспавнился... Вырубаем ПДА, пусть игрок подумает получше над тем, что ему надо :)
+        HidePDAMenu();
+      end else begin
+        //все ок, заспавнилось, активация в обработчике аниматоров в апдейте
+        _was_pda_animator_spawned:=true;
+      end;
+    end else begin
+      //пда уже был включен и заспавнен. Убеждаемся, что до сих пор в слоте
+      if not IsPDAAnimatorInSlot() then begin
+        //почему-то не в слоте... Гасим ПДА, об остальном позаботится обработчик аниматоров в апдейте предмета
+        HidePDAMenu();
+        _was_pda_animator_spawned:=false;
+      end;
+    end;
+  end else begin
+    //ПДА выключен
+    if (GetActorActiveItem()<>nil) and (GetSection(GetActorActiveItem())=GetPDAShowAnimator()) then begin
+      //если в рюкзаке завалялся его аниматор - восстанавливаем предыдущий слот
+      ActivateActorSlot(GetActorPreviousSlot());
+    end;
+    _was_pda_animator_spawned:=false;
+  end;
+
 
   //[bug]Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
   DisableNVIfNeeded(act);
@@ -1695,8 +1634,8 @@ begin
   _action_animator_param := 0;
   _action_ppe:=-1;
 
-  _last_before_pda_slot :=0;
   _sprint_tiredness:=0;
+  _was_pda_animator_spawned:=false;
 
   ForgetDetectorAutoHide();
 end;
@@ -1733,7 +1672,6 @@ begin
     _action_ppe:=-1;
   end;
 
-  _last_before_pda_slot:=0;
   ForgetDetectorAutoHide();
 end;
 
@@ -2319,6 +2257,11 @@ begin
   _action_animator_callback:=cb;
 end;
 
+function GetActorActionCallback():TAnimationEffector;
+begin
+  result:=_action_animator_callback;
+end;
+
 
 function CheckHeavyBreathAdditionalCondition(bs:single; health:single):single; stdcall;
 begin
@@ -2618,20 +2561,6 @@ begin
   jmp_addr:= xrgame_addr+$277FE5;
   if not WriteJump(jmp_addr, cardinal(@CActor__SwitchNightVision_Patch), 5, false) then exit;
 
-  jmp_addr:= xrgame_addr+$4B61E5;
-  if not WriteJump(jmp_addr, cardinal(@CUIGameSP__IR_UIOnKeyboardPress_ShowPDA_Patch), 5, true) then exit;
-
-  jmp_addr:= xrgame_addr+$237864;
-  if not WriteJump(jmp_addr, cardinal(@CLevel__IR_OnKeyboardPress_HidePDA_Patch), 5, true) then exit;
-
-  jmp_addr:= xrgame_addr+$4424E0;
-  if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
-
-  jmp_addr:= xrgame_addr+$4B1B9E;
-  if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
-
-  jmp_addr:= xrgame_addr+$442AF5;
-  if not WriteJump(jmp_addr, cardinal(@HidePDA_Patch), 5, true) then exit;
 
   jmp_addr:= xrgame_addr+$2627D2;
   if not WriteJump(jmp_addr, cardinal(@CheckHeavyBreathAdditionalCondition_Patch), 5, true) then exit;

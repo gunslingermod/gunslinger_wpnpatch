@@ -152,8 +152,6 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_on', 'sndNVOn', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_show', 'sndPDAShow', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_hide', 'sndPDAHide', 1, $FFFFFFFF);
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_add_cartridge_preloaded', 'sndAddCartridgePreloaded', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_close_weapon_preloaded', 'sndClosePreloaded', 1, $FFFFFFFF);
@@ -190,8 +188,8 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $FFFFFFFF);
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_show', 'sndPDAShow', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_hide', 'sndPDAHide', 1, $FFFFFFFF);
+
+
 end;
 
 procedure SoundLoader_Knife_Patch; stdcall;

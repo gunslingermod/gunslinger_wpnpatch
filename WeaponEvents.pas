@@ -401,6 +401,7 @@ begin
     end;
   end;
   SetAnimForceReassignStatus(wpn, true);
+
 end;
 
 procedure CWeapon_NetSpawn_Patch_middle();

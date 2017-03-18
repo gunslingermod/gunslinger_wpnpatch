@@ -1,6 +1,7 @@
 unit UIUtils;
 
 interface
+uses MatVectors;
 
 {type CUIWindow = packed record
   _unknown:array [0..54] of byte;
@@ -25,6 +26,19 @@ type CUIMainIngameWnd = packed record
   UIMotionIcon:pCUIMotionIcon;
 end;        }
 
+type CUICursor = packed record
+  vftable_pureRender:pointer;
+  vftable_pureScreenResolutionChanged:pointer;
+  bVisible:byte;
+  vPos:FVector2;
+  vPrevPos:FVector2;
+  m_b_use_win_cursor:byte;
+  m_static:pointer; {CUIStatic*}
+end;
+pCUICursor=^CUICursor;
+
+function GetUICursor():pCUICursor; stdcall;
+
 function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
 function AddCustomStatic(cuigamecustom_this: pointer; id:PChar; bSingleInstance: boolean): {SDrawStaticStruct*} pointer; stdcall;
 
@@ -39,7 +53,11 @@ function IsUIShown():boolean; stdcall;
 
 procedure ShowPDAMenu(); stdcall;
 procedure HidePDAMenu(); stdcall;
-function IsPDAShown():boolean; stdcall;
+function IsPDAWindowEnabled():boolean; stdcall;
+procedure SetPDAWindowVisible(status:boolean); stdcall;
+procedure SetPDAWindowEnabled(status:boolean); stdcall;
+function IsPDAWindowVisible():boolean; stdcall;
+function GetPDACursorCoords():PFVector2;
 
 function IsInventoryShown():boolean; stdcall;
 
@@ -166,7 +184,7 @@ asm
   popad
 end;
 
-procedure HidePDAMenu(); stdcall;
+procedure HidePDAMenu_Internal(); stdcall;
 asm
   pushad
     call CurrentGameUI
@@ -182,7 +200,86 @@ asm
   popad
 end;
 
-function IsPDAShown():boolean; stdcall;
+procedure HidePDAMenu(); stdcall;
+begin
+  if not IsPDAWindowVisible() and IsPDAWindowEnabled() then begin
+    SetPDAWindowVisible(true);
+  end;
+  HidePDAMenu_Internal
+end;
+
+function IsPDAWindowEnabled():boolean; stdcall;
+asm
+  pushad
+    mov @result, 0
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+    
+    mov ecx, [eax+$54]
+    cmp ecx, 0
+    je @finish
+
+//    mov bl, [ecx+4] //CUISimpleWindow.m_bShowMe
+//    mov bl, [ecx+$4E] //CUIWindow.m_bIsEnabled
+//    mov @result, bl
+
+    mov ebx, [ecx+$54]//CUIDialogWnd.m_pParentHolder
+    cmp ebx, 0
+    je @finish
+    mov @result, 1
+
+    @finish:
+  popad
+end;
+
+function IsPDAWindowVisible():boolean; stdcall;
+asm
+  pushad
+    mov @result, 0
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+    
+    mov ecx, [eax+$54]
+    cmp ecx, 0
+    je @finish
+
+    mov bl, [ecx+4] //CUISimpleWindow.m_bShowMe
+    mov @result, bl
+    @finish:
+  popad
+end;
+
+procedure SetPDAWindowVisible(status:boolean); stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+    mov ecx, [eax+$54]
+
+    mov bl, status
+    mov [ecx+4], bl //CUISimpleWindow.m_bShowMe
+    @finish:
+  popad
+end;
+
+procedure SetPDAWindowEnabled(status:boolean); stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+    mov ecx, [eax+$54]
+
+    mov bl, status
+    mov [ecx+$4E], bl //CUIWindow.m_bIsEnabled
+    @finish:
+  popad
+end;
+
+function GetPDACursorCoords():PFVector2;
 asm
   mov @result, 0
   pushad
@@ -190,8 +287,12 @@ asm
     cmp eax, 0
     je @finish
     mov ecx, [eax+$54]
-    mov bl, [ecx+4]
-    mov @result, bl
+    cmp ecx, 0
+    je @finish
+
+    add ecx, $3C //CUIWindow.cursor_pos
+    mov @result, ecx
+
     @finish:
   popad
 end;
@@ -380,6 +481,16 @@ asm
   @need_draw:
   cmp esi, 0 //гарантированно неверно -> не уходим в Show(false)
   ret
+end;
+
+function GetUICursor():pCUICursor; stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    add eax, $43C8B0
+    call eax
+    mov @result, eax
+  popad
 end;
 
 

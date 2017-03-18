@@ -13,7 +13,10 @@ procedure CopyRenderTargetData(src:pCRT_rec; dest:pCRT_rec); stdcall;
 
 
 implementation
-uses BaseGameData, Windows, SysUtils, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, MatVectors, math, ConsoleUtils, ActorDOF;
+uses BaseGameData, Windows, SysUtils, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, MatVectors, math, ConsoleUtils, ActorDOF, UIUtils;
+
+type
+  render_f=function():pCRT_rec;
 
 var
 
@@ -34,9 +37,11 @@ var
   _restore_fov_after_lens_frame:single;
   _last_fov_changed_frame:cardinal; //кадр, в котором последний раз меняли фов
 
-  _scopeframe_renderspecific_end:procedure(); stdcall;
+  _scopeframe_renderspecific_end:procedure(f:render_f); stdcall;
 
   _dof_context:DofContext;
+  _last_cursor_frame:cardinal;
+
 
 const
   D3DBACKBUFFER_TYPE_MONO:cardinal = 0;
@@ -47,6 +52,7 @@ const
 
 
 //Exports////////////////////////////////////
+
 function IsLensFrameNow():boolean; stdcall;
 begin
   result:=_is_lens_frame;
@@ -142,6 +148,31 @@ begin
 end;
 
 /////////////////////////////////////////////
+procedure ForcedRenderUI(); stdcall;
+asm
+  pushad
+  mov ecx, xrgame_addr
+  mov ecx, [ecx+$512D30]
+  mov ecx, [ecx]
+  mov edx, [ecx]
+  mov eax, [edx+$2c]
+  call eax
+
+  popad
+end;
+
+procedure ForcedRenderCursor(); stdcall;
+asm
+  pushad
+    call GetUICursor
+    mov eax, ecx
+    mov eax, [eax]
+    mov eax, [eax]
+    call eax
+
+  popad
+end;
+
 function GetBackBuffer(iSwapChain: LongWord; iBackBuffer: LongWord; _Type: cardinal; ppBackBuffer:pointer):cardinal; stdcall;
 asm
   pushad
@@ -179,13 +210,13 @@ asm
   popad
 end;
 
-procedure RenderSpecific_End_R1_R2(); stdcall;
+procedure RenderSpecific_End_R1_R2(f:render_f); stdcall;
 var
   backbuffer:   {IDirect3DSurface9} pointer;
 begin
     GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, @backbuffer);
     if backbuffer = nil then exit;
-    LoadSurfaceFromSurface(backbuffer, GetScoperender().pRT);
+    LoadSurfaceFromSurface(backbuffer, f().pRT);
     IUnknown(backbuffer)._Release();
 end;
 
@@ -211,7 +242,7 @@ asm
 end;
 
 
-procedure RenderSpecific_End_R3_R4(); stdcall;
+procedure RenderSpecific_End_R3_R4(f:render_f); stdcall;
 asm
   pushad
 
@@ -230,7 +261,7 @@ asm
     mov eax, [ecx+$24]
     call eax //HW.m_pSwapChain->GetBuffer
 
-    call GetScoperender
+    call f
     push [eax+CRT_rec.pSurface]
 
     mov edx, [esp+4]
@@ -315,6 +346,14 @@ end;
 // До рендера
 procedure BeginSecondVP( ); stdcall;
 begin
+
+
+  if IsPDAWindowEnabled() then begin
+    ForcedRenderUI();
+    ForcedRenderCursor();
+    _scopeframe_renderspecific_end(@GetUirender);
+  end;
+
   if _is_lens_frame then begin
     _scoped_frames:=_scoped_frames+1;
     dof_lens_on();
@@ -333,8 +372,23 @@ end;
 procedure EndSecondVP( ); stdcall;
 begin
   if _is_lens_frame then begin
-    _scopeframe_renderspecific_end();
+    _scopeframe_renderspecific_end(@GetScoperender);
     dof_lens_off();
+  end;
+end;
+
+//после рендера мира рендерим UI
+procedure EndSecondVP_OnUIRender( ); stdcall;
+var
+  pda_cursor:FVector2;
+begin
+
+  if IsPDAWindowEnabled() then begin
+    SetPDAWindowVisible(false);
+    ForcedRenderUI();
+    SetPDAWindowVisible(true);
+  end else begin
+    ForcedRenderUI();
   end;
 end;
 
@@ -356,6 +410,13 @@ asm
 
    mov ecx, xrgame_addr
    mov ecx, [ecx+$512D30]
+end;
+
+procedure CLevel__OnUIRender_Patch(); stdcall
+asm
+   pushad
+   call EndSecondVP_OnUIRender
+   popad
 end;
 
 procedure CCameraManager__Update_Lens_FOV_manipulation(value:pSingle); stdcall;
@@ -483,6 +544,42 @@ asm
   @finish:
 end;
 
+function CUICursor__OnRender_DisableMultiRender_Check():boolean; stdcall;
+var
+  curframe:cardinal;
+begin
+  //отключаем отрисовку курсора, если в этом кадре он уже рисовался - надо для корректной работы ПДА
+
+ curframe:=GetCurrentFrame();
+ result:= not (_last_cursor_frame=curframe);
+ _last_cursor_frame:=curframe;
+end;
+
+procedure CUICursor__OnRender_DisableMultiRender_Patch(); stdcall;
+asm
+  pushad
+    call CUICursor__OnRender_DisableMultiRender_Check
+    cmp al, 0
+  popad
+  je @exit
+  
+  pop eax
+  push esi
+  mov esi, ecx
+  mov ecx, xrgame_addr
+  mov ecx, [ecx+$651e0c]
+  jmp eax
+
+
+  @exit:
+  //рендерить не надо, уходим
+  pop eax
+  pop eax // return address from CUICursor::OnRender
+  jmp eax
+
+end;
+
+
 //////////////////////////////////////////////////////////////////////
 function Init():boolean; stdcall;
 var
@@ -584,6 +681,10 @@ begin
   jmp_addr:=xrGame_addr+$232C34;
   if not WriteJump(jmp_addr, cardinal(@CLevel__OnRender_After_Patch), 6, true) then exit;
 
+  jmp_addr:=xrGame_addr+$232C3A;
+  if not WriteJump(jmp_addr, cardinal(@CLevel__OnUIRender_Patch), 10, true) then exit;
+
+
   jmp_addr:=xrEngine_addr+$2CAB9;
   if not WriteJump(jmp_addr, cardinal(@CCameraManager__Update_Lens_FOV_manipulation_Patch), 9, true) then exit;
 
@@ -593,6 +694,11 @@ begin
 
   jmp_addr:=xrGame_addr+$26211C;
   if not WriteJump(jmp_addr, cardinal(@CActor__UpdateCL_Crosshair_Patch), 15, true) then exit;
+
+
+  jmp_addr:=xrGame_addr+$4D9690;
+  if not WriteJump(jmp_addr, cardinal(@CUICursor__OnRender_DisableMultiRender_Patch), 9, true) then exit;
+
 
 
   result:=true;

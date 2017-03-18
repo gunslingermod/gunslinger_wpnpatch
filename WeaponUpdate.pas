@@ -648,7 +648,7 @@ begin
     if game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
         if (wpn=GetActorActiveItem()) then begin
           if (GetCurrentState(wpn)=EHudStates__eShowing) then begin
-            if GetActorTargetSlot()=GetActorActiveSlot() then begin
+            if (GetActorTargetSlot()=GetActorActiveSlot()) and not game_ini_r_bool_def(GetSection(wpn), 'disable_autochange_slot', false) then begin
               prevslot:=GetActorPreviousSlot();
 //              log ('activating '+inttostr(prevslot)+', state='+inttostr(GetCurrentState(wpn)));
               if (prevslot>=0) and (prevslot<>GetActorActiveSlot()) and (ItemInSlot(GetActor, prevslot)<>nil) then
@@ -657,7 +657,8 @@ begin
                 ActivateActorSlot(0);
             end;
           end else begin
-            if GetActorTargetSlot()=GetActorActiveSlot() then begin
+//            log(inttostr(GetCurrentState(wpn)));
+            if (GetActorTargetSlot()=GetActorActiveSlot()) and ((@GetActorActionCallback()<>nil) or not game_ini_r_bool_def(GetSection(wpn), 'disable_autochange_slot', false)) then begin
               virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
             end;
           end;

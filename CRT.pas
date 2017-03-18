@@ -15,18 +15,21 @@ interface
 
   function Init():boolean;
   function GetScoperender():pCRT_rec; stdcall;
+  function GetUirender():pCRT_rec; stdcall;  
 
 implementation
 uses BaseGameData, Misc;
 
 var
   scoperender_viewport:pCRT_rec;
+  uirender_viewport:pCRT_rec;
 
   resptrcode_crt___create:cardinal;
   resptrcode_crt___destroy:cardinal;
 
 const
   RT_SCOPERENDER_VIEWPORT:PChar='$user$scope';
+  RT_UIRENDER_VIEWPORT:PChar='$user$ui';
   D3DFMT_R32F:cardinal=114;
 
 //Common///////////////////////////////////////////////////////////////
@@ -34,6 +37,11 @@ const
 function GetScoperender():pCRT_rec; stdcall;
 begin
   result:=scoperender_viewport;
+end;
+
+function GetUirender():pCRT_rec; stdcall;
+begin
+  result:=uirender_viewport;
 end;
 
 procedure NewRT(dest:pointer; name:PChar; w:cardinal; h:cardinal; format:cardinal ); stdcall;
@@ -89,11 +97,13 @@ procedure CreateNewRTs (w:cardinal; h:cardinal; format:cardinal); stdcall;
 begin
 //*****************рендертаргеты добавлять здесь!!!***********************
   NewRT(@scoperender_viewport, RT_SCOPERENDER_VIEWPORT, w, h, format);
+  NewRT(@uirender_viewport, RT_UIRENDER_VIEWPORT, w, h, format);
 end;
 
 procedure RemoveNewRTs(); stdcall;
 begin
   DelRT(@scoperender_viewport);
+  DelRT(@uirender_viewport);
 end;
 
 //R1 specific///////////////////////////////////////////////////////////////

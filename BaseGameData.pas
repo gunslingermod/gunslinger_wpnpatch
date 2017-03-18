@@ -97,18 +97,19 @@ end;
 
 function GetGameTickCount:cardinal;
 asm
-  mov eax, $492ed8 //xrEngine.Device
+  mov eax, xrengine_addr
+  add eax, $92ed8 //xrEngine.Device
   mov eax, [eax+$28];
   mov @result, eax
 end;
 
 function GetCurrentFrame:cardinal;
 asm
-  mov eax, $492ed8 //xrEngine.Device
+  mov eax, xrengine_addr
+  add eax, $92ed8 //xrEngine.Device
   mov eax, [eax+$18];
   mov @result, eax
 end;
-
 
 function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
 var

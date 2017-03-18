@@ -168,8 +168,7 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_on', 'sndNVOn', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_show', 'sndPDAShow', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_pda_hide', 'sndPDAHide', 1, $FFFFFFFF);
+
 
 end;
 
