@@ -90,7 +90,7 @@ begin
   g_string:=g_string+chr(0)+chr(0)+chr(0)+chr(0);
   g_string:=g_string+chr(0)+chr(0)+chr(0)+chr(0);
   g_string:=g_string+g_section+chr(0);
-  cgo:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CObject, false); 
+  cgo:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CGameObject, false); 
 
   s:=PChar(g_string);
   pps:=@s;

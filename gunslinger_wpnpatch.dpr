@@ -48,7 +48,8 @@ uses
   CRT in 'CRT.pas',
   r_constants in 'r_constants.pas',
   Crows in 'Crows.pas',
-  xr_RocketLauncher in 'xr_RocketLauncher.pas';
+  xr_RocketLauncher in 'xr_RocketLauncher.pas',
+  xr_strings in 'xr_strings.pas';
 
 {$R *.res}
 //var
@@ -95,7 +96,7 @@ begin
   WeaponInertion.Init();
   ControllerMonster.Init();
   UIUtils.Init();
-
+  xr_strings.Init();
 
 //  AutoUpdater.Init();
 //

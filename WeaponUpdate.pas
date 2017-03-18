@@ -159,6 +159,16 @@ begin
   end;
 end;
 
+function GetOrdinalAmmotype(wpn:pointer):byte; stdcall;
+begin
+  if game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
+    //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
+    result:=GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype;
+  end else begin
+    result:=GetAmmoTypeIndex(wpn, IsGrenadeMode(wpn));
+  end;
+end;
+
 procedure ProcessAmmoAdv(wpn: pointer; forced:boolean=false);
 var
   hud_sect:PChar;
@@ -166,27 +176,60 @@ var
   bones:PChar;
   cnt, ammotype:integer;
   sect_w_ammotype:string;
+  g_b:boolean;
 begin
   hud_sect:=GetHUDSection(wpn);
+  g_b:=IsGrenadeMode(wpn);
 
-  if (GetCurrentState(wpn)=cardinal(EWeaponStates__eFire)) and not forced and game_ini_r_bool_def(hud_sect, 'ammo_params_toggle_shooting', false) then begin
+  if (not g_b) and (GetCurrentState(wpn)=cardinal(EWeaponStates__eFire)) and not forced and game_ini_r_bool_def(hud_sect, 'ammo_params_toggle_shooting', false) then begin
     //во врем€ стрельбы не производить обновление костей - нужно дл€ корректных гильз у дробовиков
     exit;
   end;
 
-  if (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) and game_ini_r_bool_def(hud_sect, 'ammo_params_changing_when_reload_starts', false) then begin
+  cnt:=GetAmmoInMagCount(wpn);
+  if
+    (IsWeaponJammed(wpn) and game_ini_line_exist(bones_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(bones_sect, 'additional_ammo_bone_when_jammed'))
+  then
+    cnt:=cnt+1;
+
+  if g_b then begin
+    //ќружие в режиме стрельбы подстволом
+    ammotype:=GetOrdinalAmmoType(wpn);
+
+  end else if (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) then begin
+    if IsWeaponJammed(wpn) then begin
+      //идет расклин
+      ammotype:=GetOrdinalAmmoType(wpn);
+    end else if IsTriStateReload(wpn)  then begin
+      //идет перезар€дка по типу дробовика
+      ammotype:=GetAmmoTypeToReload(wpn);
+      cnt:=cnt+1;
+    end else begin
+      //идет обычна€ перезар€дка
+      //патрон в патроннике может быть старого типа! учитываем это
+      //обновление синхронно со счетчиком
+      ammotype:=GetAmmoTypeIndex(wpn, g_b);
+    end
+
+  end else begin
+    //не в состо€нии перезар€дки, подствол выключен
+    ammotype:=GetOrdinalAmmotype(wpn);
+  end;
+
+  {  if (not g_b) and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) and game_ini_r_bool_def(hud_sect, 'ammo_params_changing_when_reload_starts', false) then begin
     //обновление нужно производить в начале перезар€дки - дл€ дробашей
     ammotype:=GetAmmoTypeToReload(wpn);
-  end else if (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) then begin
+    if IsTriStateReload(wpn) and not IsWeaponJammed(wpn) then cnt:=cnt+1;
+  end else if (not g_b) and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) and not IsWeaponJammed(wpn) then begin
     //обновление в перезар€дке синхронно со счетчиком
-    ammotype:=GetAmmoTypeIndex(wpn);
+    ammotype:=GetAmmoTypeIndex(wpn, g_b);
   end else if game_ini_r_bool_def(hud_sect, 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
     //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
     ammotype:=GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype;
   end else begin
     //за тип секции отвечает общий тип оружи€
-    ammotype:=GetAmmoTypeIndex(wpn);
-  end;
+    ammotype:=GetAmmoTypeIndex(wpn, g_b);
+  end; }
 
   sect_w_ammotype:='ammo_params_section_'+inttostr(ammotype);
   if game_ini_line_exist(hud_sect, PChar(sect_w_ammotype)) then begin
@@ -197,11 +240,45 @@ begin
     exit;
   end;
 
-  cnt:=GetAmmoInMagCount(wpn);
+  //скрываем все
+  bones:= game_ini_read_string(bones_sect, 'all_bones');
+  SetWeaponMultipleBonesStatus(wpn, bones, false);
 
-  if IsWeaponJammed(wpn) and game_ini_line_exist(bones_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(bones_sect, 'additional_ammo_bone_when_jammed') then
-    cnt:=cnt+1;
+  //отображаем нужные
+  bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
+  SetWeaponMultipleBonesStatus(wpn, bones, true);
+end;
 
+procedure ProcessAmmoGL(wpn: pointer; forced:boolean=false);
+var
+  hud_sect, bones_sect, bones:PChar;
+  ammotype, cnt:integer;
+  sect_w_ammotype:string;
+  g_m:boolean;
+begin
+
+  if (GetGLStatus(wpn)=0) then exit; 
+
+  g_m:=IsGrenadeMode(wpn);
+  hud_sect:=GetHUDSection(wpn);
+
+  cnt:=GetAmmoInGLCount(wpn);
+  if g_m and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) then begin
+    ammotype:=GetAmmoTypeToReload(wpn);
+    if cnt=0 then cnt:=1;
+  end else begin
+    ammotype:=GetAmmoTypeIndex(wpn, not g_m);
+  end;
+
+  sect_w_ammotype:='gl_ammo_params_section_'+inttostr(ammotype);
+  if game_ini_line_exist(hud_sect, PChar(sect_w_ammotype)) then begin
+    bones_sect:= game_ini_read_string(hud_sect, PChar(sect_w_ammotype));
+  end else if game_ini_line_exist(hud_sect, 'ammo_params_section') then begin
+    bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
+  end else begin
+    exit;
+  end;
+  
   //скрываем все
   bones:= game_ini_read_string(bones_sect, 'all_bones');
   SetWeaponMultipleBonesStatus(wpn, bones, false);
@@ -318,7 +395,8 @@ begin
   buf:=GetBuffer(wpn);
   //—кроем все кости, которые надо скрыть, исход€ из данных секции оружи€
   if game_ini_line_exist(section, 'def_hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones'), false);
-  if game_ini_line_exist(section, 'def_show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_show_bones'), true);  
+  if game_ini_line_exist(section, 'def_show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_show_bones'), true);
+  if IsGrenadeMode(wpn) and game_ini_line_exist(section, 'def_hide_bones_grenade') and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_grenade'), false);
   
   //ѕрочитаем секции всех доступных апов из конфига
   if not game_ini_line_exist(section, 'upgrades') then exit;
@@ -391,7 +469,7 @@ begin
     //дл€ сокрыти€ костей, отвечающих за предыдущие апы ветки
     if game_ini_line_exist(section, 'hide_bones_override') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override'), false);
 
-    if IsGrenadeMode(wpn) then begin
+    if IsGrenadeMode(wpn) and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then begin
       if game_ini_line_exist(section, 'hide_bones_override_grenade') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_grenade'), false);    
     end;
   end;
@@ -514,8 +592,12 @@ var
   lens_recoil:FVector3;
   val, len:single;
   rl:pCRocketLauncher;
+
+  gl_ammocnt, gl_ammotype:byte;
+  so:pointer;
 begin
-    if get_server_object_by_id(GetID(wpn))=nil then exit;
+    so:=get_server_object_by_id(GetID(wpn));
+    if so=nil then exit;
     sect:=GetSection(wpn);
 
 
@@ -525,6 +607,15 @@ begin
       if GetRocketsCount(rl)>0 then begin
         CWeaponMagazinedWGrenade__LaunchGrenade(wpn);
       end;
+
+      //[bug] баг - отсутствует выставление a_elapsed_grenades в апдейт-пакете, из-за чего грены прогружаютс€ некорректно. ѕо-хорошему, надо править не так топорно, а модифицированием методов экспорта и импорта нетпакетов
+      gl_ammocnt:=GetAmmoInGLCount(wpn);
+      if gl_ammocnt>0 then begin
+        gl_ammotype:=GetGrenadeCartridgeFromGLVector(wpn, gl_ammocnt-1).m_local_ammotype;
+      end else begin
+        gl_ammotype:=GetAmmoTypeIndex(wpn, not IsGrenadeMode(wpn))
+      end;
+      pbyte(cardinal(so)+$1A8)^:=(gl_ammotype shl 6) + (gl_ammocnt and $3F);
     end else begin
       rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher, false);
       if (rl<>nil) then begin
@@ -619,6 +710,7 @@ begin
     ProcessScope(wpn);
     //–азберемс€ с визуализацией патронов
     ProcessAmmo(wpn);
+    ProcessAmmoGL(wpn);
     //анимы от 3-го лица
     ReassignWorldAnims(wpn);
 

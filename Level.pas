@@ -94,7 +94,7 @@ begin
     material:='objects\knife';
   end;
 
-  c.m_ammo_sect:=nil;
+  c.m_ammo_sect.p_:=nil;
 
   InitCartridge(@c);
   c.SCartridgeParam__kAP:=0.001;

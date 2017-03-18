@@ -128,6 +128,8 @@ type
     ammos:array of byte;
     is_firstlast_ammo_swapped:boolean;
     ammo_cnt_to_reload:integer;
+    loaded_gl_state:boolean;
+    last_frame_rocket_loaded:cardinal; //äëÿ ÐÏÃ
 
 
     constructor Create(wpn:pointer);
@@ -359,6 +361,8 @@ begin
     _lens_shoot_recoil_current.x:=0;
     _lens_shoot_recoil_current.y:=0;
     _lens_shoot_recoil_current.z:=-1;
+    loaded_gl_state:=false;
+    last_frame_rocket_loaded:=0;
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;

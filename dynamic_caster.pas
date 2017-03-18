@@ -24,6 +24,7 @@ const
   RTTI_CWeaponShotgun:cardinal = $637720;  
   RTTI_CCustomDetector:cardinal = $62C4B8;      
   RTTI_CObject:cardinal = $616020;
+  RTTI_CGameObject:cardinal = $619C60;  
   RTTI_CActor:cardinal = $635AB8;
   RTTI_CTorch:cardinal = $61844C;
   RTTI_CAttachableItem:cardinal = $6274B4;

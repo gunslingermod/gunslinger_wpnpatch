@@ -1,7 +1,6 @@
 unit WeaponAmmoCounter;
 
 {$define DISABLE_AUTOAMMOCHANGE}  //отключает автоматическую смену типа патронов по нажатию клавиши релоада при отсутсвии патронов текущего типа; при андефе поломаются двустволы, когда в инвентаре последний патрон!
-{$define NEW_BRIEF_MODE}//в случае неактивности иконка типа патронов на худе будет показывать тип заряженного патрона, если же активно - будет показывать тип патронов, заряжаемых в оружие
 
 interface
   procedure CWeaponMagazined__OnAnimationEnd_DoReload(wpn:pointer); stdcall;
@@ -10,7 +9,7 @@ interface
 function Init:boolean;
 
 implementation
-uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils, ActorDOF, gunsl_config, sysutils, dynamic_caster;
+uses BaseGameData, WeaponAdditionalBuffer, HudItemUtils, xr_Cartridge, ActorUtils, strutils, ActorDOF, gunsl_config, sysutils, dynamic_caster, xr_strings;
 
 
 procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
@@ -380,6 +379,200 @@ asm
   popad;
 end;
 
+function GetTotalGrenadesCountInInventory(wpn:pointer):cardinal;stdcall;
+var
+  g_m:boolean;
+  cnt, i:cardinal;
+begin
+  if (GetGLStatus(wpn)=0) or ((GetGLStatus(wpn)=2) and not IsGLAttached(wpn)) then begin
+    result:=0;
+    exit;
+  end;
+
+  g_m:=IsGLEnabled(wpn);
+  cnt:=GetGLAmmoTypesCount(wpn);
+  result:=0;
+
+  for i:=0 to cnt-1 do begin
+    if g_m then
+      result:=result+cardinal(CWeapon__GetAmmoCount(wpn, byte(i)))
+    else
+      result:=result+cardinal(CWeaponMagazinedWGrenade__GetAmmoCount2(wpn, byte(i)));
+  end;
+end;
+
+procedure CWeaponMagazinedWGrenade__GetBriefInfo_GrenadesCount_Patch(); stdcall;
+asm
+  push ecx
+  lea ecx, [esp]
+  pushad
+    push ecx
+
+    push ebp
+    call GetTotalGrenadesCountInInventory
+
+    pop ecx
+    mov [ecx], eax
+  popad
+  pop eax
+end;
+
+function CWeaponMagazined_FillBriefInfo(wpn:pointer; bi:pII_BriefInfo):boolean; stdcall;
+//no GL
+var
+  ammo_sect:PChar;
+  s:string;
+  cnt, ammos, i, current:cardinal;
+  queue:integer;
+begin
+  ammo_sect:= GetMainCartridgeSectionByType(wpn, GetAmmoTypeIndex(wpn, false));
+  assign_string(@bi.name, game_ini_read_string(ammo_sect, 'inv_name_short'));
+  assign_string(@bi.icon, ammo_sect);
+  s:=inttostr(GetAmmoInMagCount(wpn));
+  assign_string(@bi.cur_ammo, PChar(s));
+
+
+  cnt:=GetMainAmmoTypesCount(wpn);
+  if cnt>0 then begin
+    current:=GetAmmoTypeIndex(wpn, false);
+    s:=inttostr(CWeapon__GetAmmoCount(wpn, current));
+    assign_string(@bi.fmj_ammo, PChar(s));
+    if cnt>1 then begin
+      ammos:=0;
+      for i:=0 to cnt-1 do begin
+        if i<>current then begin
+          ammos:=ammos+cardinal(CWeapon__GetAmmoCount(wpn, i));
+        end;
+      end;
+      s:=inttostr(ammos);
+      assign_string(@bi.ap_ammo, PChar(s));
+    end else begin
+      assign_string(@bi.ap_ammo, ' ');
+    end;
+  end else begin
+    assign_string(@bi.fmj_ammo, ' ');
+    assign_string(@bi.ap_ammo, ' ');    
+  end;
+
+  if HasDifferentFireModes(wpn) then begin
+    queue:=CurrentQueueSize(wpn);
+    if queue<0 then begin
+      s:='A';
+    end else begin
+      s:=inttostr(queue)
+    end;
+    assign_string(@bi.fire_mode, PChar(s));
+  end else begin
+    assign_string(@bi.fire_mode, ' ');
+  end;
+  assign_string(@bi.grenade, ' '); 
+
+  result:=true;
+end;
+
+
+function CWeaponMagazinedWGrenade_FillBriefInfo(wpn:pointer; bi:pII_BriefInfo):boolean; stdcall;
+var
+  ammotypes, i:cardinal;
+  ammo_cnt, queue:integer;
+  g_m:boolean;
+  ammo_sect:PChar;
+  current:byte;
+  s:string;  
+begin
+  g_m:=IsGrenadeMode(wpn);
+
+  if not g_m then begin
+    result:=CWeaponMagazined_FillBriefInfo(wpn, bi);
+  end else begin
+    current:=GetAmmoTypeIndex(wpn, false);
+    ammo_sect:= GetGLCartridgeSectionByType(wpn, current);
+    assign_string(@bi.name, game_ini_read_string(ammo_sect, 'inv_name_short'));
+    assign_string(@bi.icon, ammo_sect);
+    s:=inttostr(GetAmmoInGLCount(wpn));
+    assign_string(@bi.cur_ammo, PChar(s));
+
+    ammotypes:=GetGLAmmoTypesCount(wpn);
+    if ammotypes>0 then begin
+      s:=inttostr(CWeapon__GetAmmoCount(wpn, current));
+      assign_string(@bi.fmj_ammo, PChar(s));
+      if ammotypes>1 then begin
+        ammo_cnt:=0;
+        for i:=0 to ammotypes-1 do begin
+          if i<>current then begin
+            ammo_cnt:=ammo_cnt+cardinal(CWeapon__GetAmmoCount(wpn, i));
+          end;
+        end;
+        s:=inttostr(ammo_cnt);
+        assign_string(@bi.ap_ammo, PChar(s));
+      end else begin
+        assign_string(@bi.ap_ammo, ' ');
+      end;
+    end else begin
+      assign_string(@bi.fmj_ammo, ' ');
+      assign_string(@bi.ap_ammo, ' ');
+    end;
+
+    if HasDifferentFireModes(wpn) then begin
+      queue:=CurrentQueueSize(wpn);
+      if queue<0 then begin
+        s:='A';
+      end else begin
+        s:=inttostr(queue)
+      end;
+      assign_string(@bi.fire_mode, PChar(s));
+    end else begin
+      assign_string(@bi.fire_mode, ' ');
+    end;
+    result:=true;
+  end;
+
+  //переопределяем строку числа грен
+  if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
+    ammotypes:=GetGLAmmoTypesCount(wpn);
+    ammo_cnt:=0;
+    for i:=0 to ammotypes-1 do begin
+      if not g_m then
+        ammo_cnt:=ammo_cnt+CWeaponMagazinedWGrenade__GetAmmoCount2(wpn, i)
+      else
+        ammo_cnt:=ammo_cnt+CWeapon__GetAmmoCount(wpn, i);
+    end;
+    if ammo_cnt = 0 then begin
+      assign_string(@bi.grenade, 'X');
+    end else begin
+      assign_string(@bi.grenade, PChar(inttostr(ammo_cnt)));
+    end;
+  end else begin
+    assign_string(@bi.grenade, ' ');
+  end;
+end;
+
+procedure CWeaponMagazined__GetBriefInfo_Replace_Patch(); stdcall;
+asm
+  mov eax, [esp+4]
+  pushad
+    push eax
+    push ecx
+    call CWeaponMagazined_FillBriefInfo;
+  popad
+
+  mov eax, 1
+  ret 4
+end;
+
+procedure CWeaponMagazinedWGrenade__GetBriefInfo_Replace_Patch(); stdcall;
+asm
+  mov eax, [esp+4]
+  pushad
+    push eax
+    push ecx
+    call CWeaponMagazinedWGrenade_FillBriefInfo;
+  popad
+
+  mov eax, 1
+  ret 4
+end;
+
 
 function Init:boolean;
 var
@@ -413,15 +606,6 @@ begin
   //свопим первый и последний патрон, если у нас была смена типа 
   addr:=xrGame_addr+$2D125F;
   if not WriteJump(addr, cardinal(@CWeaponMagazined__ReloadMagazine_OnFinish_Patch), 6, false) then exit;
-
-{$ifdef NEW_BRIEF_MODE}
-  //изменяем CWeaponMagazined::GetBriefInfo так, чтобы на экране показывался не текущий тип заряженного патрона, а тип, которым будем заряжать
-  debug_bytes[0]:=$e9; debug_bytes[1]:=$BD; debug_bytes[2]:=$00; debug_bytes[3]:=$00; debug_bytes[4]:=$00; debug_bytes[5]:=$90;
-  if not WriteBufAtAdr(xrGame_addr+$2CE5B2, @debug_bytes[0],6) then exit;
-  //аналогично для CWeaponMagazinedWGrenade
-  debug_bytes[0]:=$e9; debug_bytes[1]:=$CC; debug_bytes[2]:=$00; debug_bytes[3]:=$00; debug_bytes[4]:=$00; debug_bytes[5]:=$90;
-  if not WriteBufAtAdr(xrGame_addr+$2d2361, @debug_bytes[0],6) then exit;
-{$endif}
 
   //отключаем добавление "лишнего" патрона при прерывании релоада дробовика +заставляем играться anm_close (в CWeaponShotgun::Action)
   addr:=xrGame_addr+$2DE374;
@@ -460,7 +644,16 @@ begin
   addr:=xrGame_addr+$2BE9B7;
   if not WriteJump(addr, cardinal(@CWeapon__Weight_CalcAmmoWeight_Patch), 7, true) then exit;
 
+  //[bug] баг с определением числа гранат для подствола - определяется только число для 1го типа, остальные игнорятся
+  addr:=xrGame_addr+$2D2562;
+  if not WriteJump(addr, cardinal(@CWeaponMagazinedWGrenade__GetBriefInfo_GrenadesCount_Patch), 17, true) then exit;
 
+
+  //переделка схемы BriefInfo
+  addr:=xrGame_addr+$2CE360;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__GetBriefInfo_Replace_Patch), 5, false) then exit;
+  addr:=xrGame_addr+$2D2110;
+  if not WriteJump(addr, cardinal(@CWeaponMagazinedWGrenade__GetBriefInfo_Replace_Patch), 5, false) then exit;
 
   setlength(debug_bytes, 0);  
   result:=true;

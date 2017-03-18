@@ -13,10 +13,13 @@ procedure CWeapon__load(wpn:pointer; packet:pointer); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
+  tmp_byte,tmp_byte2:byte;
+  tmp_cardinal:cardinal;  
   tmp_single:single;
   tmp_int:integer;
   ammos_in_mag, i, cnt, cnt_total:word;
   ammotype:byte;
+  so:pointer;
 begin
 
   if not WpnCanShoot(wpn) then exit;
@@ -69,6 +72,8 @@ procedure CWeapon__save(wpn:pointer; packet:pointer); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
+  tmp_byte:byte;
+  tmp_cardinal:cardinal;
   tmp_single:single;
   tmp_stepped:stepped_params;
 
@@ -94,6 +99,7 @@ begin
   WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
   tmp_stepped:=buf.GetCurBrightness();
   WriteToPacket(packet, @tmp_stepped.cur_step, sizeof(tmp_stepped.cur_step));
+
 
   //сохран€ем типы патронов в магазине, про подствол забываем
   max_in_mag:=GetAmmoInMagCount(wpn);
@@ -199,6 +205,8 @@ begin
       PerformSwitchGL(wpn_gl);
     end;
 
+
+    //[bug] баг - отсутствует выставление a_elapsed_grenades в серверном объекте после удалени€, из-за чего грены прогружаютс€ некорректно. ѕо-хорошему, надо править не так топорно, а модифицированием методов экспорта и импорта нетпакетов
     gl_ammocnt:=GetAmmoInGLCount(wpn_gl);
     if gl_ammocnt>0 then begin
       gl_ammotype:=GetGrenadeCartridgeFromGLVector(wpn_gl, gl_ammocnt-1).m_local_ammotype;
@@ -297,6 +305,74 @@ asm
 end;
 
 
+procedure CWeaponMagazinedWGrenade__save_GLAmmo(wpn:pointer; dest:pCardinal); stdcall;
+begin
+  dest^:=GetAmmoInGLCount(wpn);
+end;
+
+procedure CWeaponMagazinedWGrenade__save_GLAmmo_Patch(); stdcall;
+asm
+  lea edx, [esp+$14]
+
+  pushad
+    push edx
+    push esi
+    call CWeaponMagazinedWGrenade__save_GLAmmo
+  popad
+end;
+
+procedure CWeaponMagazinedWGrenade__load_saveglstatus(wpn:pointer; status:boolean); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then begin
+    buf.loaded_gl_state:=status;
+  end;
+end;
+
+procedure CWeaponMagazinedWGrenade__load_saveglstatus_Patch(); stdcall;
+asm
+  pushad
+    push ecx
+    push esi
+    call CWeaponMagazinedWGrenade__load_saveglstatus
+  popad
+  cmp cl, [esi+$7F8] //original
+end;
+
+procedure CWeaponMagazinedWGrenade__net_Spawn_applyglstatus(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf.loaded_gl_state<>IsGLEnabled(wpn) then begin
+    if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
+      PerformSwitchGL(wpn);
+    end;
+  end;
+end;
+
+procedure CWeaponMagazinedWGrenade__net_Spawn_applyglstatus_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CWeaponMagazinedWGrenade__net_Spawn_applyglstatus
+  popad
+
+  pop eax //ret  addr
+  pop edi
+  pop esi
+  pop ebp
+  push eax //ret addr
+  mov eax, ebx
+end;
+
+procedure CWeaponMagazinedWGrenade__net_Spawn_restorewpnptr_Patch(); stdcall;
+asm
+  sub esi, $E8
+end;
+
 //-----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var jmp_addr:cardinal;
@@ -321,7 +397,23 @@ begin
   //аналогично с типом
   jmp_addr:=xrGame_addr+$2BC05F;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__net_Export_ammotype_Patch), 7, true) then exit;
-    
+
+  //правим сохранение числа подствольных грен
+  jmp_addr:=xrGame_addr+$2D2850;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__save_GLAmmo_Patch), 8, true) then exit;
+  if not nop_code(xrgame_addr+$2D3C3D, 1, CHR($EB)) then exit;
+  if not nop_code(xrgame_addr+$2D3CB2, 1, CHR($EB)) then exit;
+
+  //запомним загруженное из сейва состо€ние подствола
+  jmp_addr:=xrGame_addr+$2D3C37;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__load_saveglstatus_Patch), 6, true) then exit;
+
+  //и загрузим его в самом конце net_Spawn'ов
+  jmp_addr:=xrGame_addr+$2D35E1;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__net_Spawn_applyglstatus_Patch), 5, true) then exit;
+
+  jmp_addr:=xrGame_addr+$2D35B9;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__net_Spawn_restorewpnptr_Patch), 13, true) then exit;
   result:=true;
 end;
 

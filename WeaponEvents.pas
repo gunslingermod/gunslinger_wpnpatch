@@ -353,6 +353,8 @@ begin
 end;
 //------------------------------------------------------------------------------
 procedure OnCWeaponNetSpawn_middle(wpn:pointer);stdcall;
+var
+  buf:WpnBuf;
 begin
   if WpnCanShoot(wpn) then begin
     //буфер может уже быть создан в load'e - проверим это
@@ -360,6 +362,7 @@ begin
       WpnBuf.Create(wpn);
     end;
   end;
+
 end;
 
 procedure OnCWeaponNetSpawn_end(wpn:pointer);stdcall;
@@ -369,7 +372,9 @@ var
   c:pointer;
   sect:PChar;
   slot:integer;
+
 begin
+
 
   //выставим сохраненные типы патронов
   if WpnCanShoot(wpn) then begin
@@ -1587,6 +1592,10 @@ begin
     //стрелять можно, спавним фейковую грену
     g_name:=game_ini_read_string(GetGLCartridgeSectionByType(wpn, GetGrenadeCartridgeFromGLVector(wpn, GetAmmoInGLCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
     CRocketLauncher__SpawnRocket(rl, g_name);
+    //уменьшаем счетчик патронов в магазине
+    SetAmmoInGLCount(wpn, GetCurrentAmmoCount(wpn)-1);
+    SetCurrentAmmoCount(wpn, GetCurrentAmmoCount(wpn)-1);
+
   end;
 end;
 
@@ -1638,12 +1647,15 @@ end;
 function CWeaponRPG7__FireStart_SpawnRocket_Replace(wpn:pointer):boolean; stdcall;
 var
   rl:pCRocketLauncher;
+  buf:WpnBuf;
 begin
   result:=true; //вызывать ли CWeaponMagazined::FireStart после окончания этой процедуры
   rl:=dynamic_cast(wpn, 0, RTTI_CWeaponMagazined, RTTI_CRocketLauncher, false);
-  if (rl<>nil) and (GetRocketsCount(rl)=0) then begin
+  buf:=GetBuffer(wpn);
+  if (rl<>nil) and (GetRocketsCount(rl)=0) and (GetAmmoInMagCount(wpn)>0) and (buf<>nil) and (buf.last_frame_rocket_loaded<>GetCurrentFrame()) then begin
     RL_SpawnRocket(rl);
     result:=false;
+    buf.last_frame_rocket_loaded:=GetCurrentFrame();
   end;
 end;
 
@@ -1818,11 +1830,12 @@ begin
   jmp_addr:=xrGame_addr+$2D3ABE;
   if not WriteJump(jmp_addr, cardinal(@TryShootGLFix_Patch), 47, true) then exit;
   nop_code(xrgame_addr+$2D206F, 13);
-  nop_code(xrgame_addr+$2D35B9, 13);
+//  nop_code(xrgame_addr+$2D35B9, 13); //переехало в WeaponDataSaveLoad как часть восстановления указателя на оружие
   //jmp_addr:=xrGame_addr+$2D35ED;
   //в CWeaponMagazinedWGrenade::net_Spawn обеспечиваем зарядку CCartridge
   //if not WriteJump(jmp_addr, xrGame_addr+$2D35E1, 5, false) then exit;
   nop_code(xrgame_addr+$2D3519, 6);
+  nop_code(xrgame_addr+$2D31C0, 12);  
 
   //аналогично делаем для CWeaponRG6
   //заменяем CWeaponRG6::AddCartridge на предка
@@ -1835,6 +1848,9 @@ begin
   jmp_addr:=xrGame_addr+$2D9440;
   if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__ReloadMagazine_Replace_Patch), 9, false) then exit;
   nop_code(xrgame_addr+$2D973E, 1, CHR($EB));
+  jmp_addr:=xrGame_addr+$2D94C0;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch), 5, false) then exit;
+  //убираем ракету после выстрела - то, что забыли разрабы
   jmp_addr:=xrGame_addr+$2D94C0;
   if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch), 5, false) then exit;
 

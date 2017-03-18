@@ -13,6 +13,7 @@ function Init:boolean;
 function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
 function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
 function GetGameTickCount:cardinal;
+function GetCurrentFrame:cardinal;
 function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
 function GetTimeDeltaSafe(starttime:cardinal; endtime:cardinal):cardinal; overload;
 function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
@@ -21,7 +22,6 @@ function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)
 procedure Log(text:string; IsError:boolean = false);stdcall;
 function Is16x9():boolean;stdcall;
 procedure GetScreenParams(width:pCardinal; height:pCardinal);stdcall;
-function str_container_dock(str:PChar):pointer; stdcall;
 
 function get_device_timedelta():single; stdcall;
 procedure fs_update_path(buf:PChar{512}; root:PChar; append:PChar); stdcall;
@@ -99,6 +99,13 @@ function GetGameTickCount:cardinal;
 asm
   mov eax, $492ed8 //xrEngine.Device
   mov eax, [eax+$28];
+  mov @result, eax
+end;
+
+function GetCurrentFrame:cardinal;
+asm
+  mov eax, $492ed8 //xrEngine.Device
+  mov eax, [eax+$18];
   mov @result, eax
 end;
 
@@ -213,33 +220,6 @@ asm
     popad
 end;
 
-
-function GetStrContainer():pointer;stdcall;
-asm
-  mov eax, xrgame_addr
-  mov eax, [eax+$512814]
-  mov eax, [eax]
-  mov @result, eax
-end;
-
-function str_container_dock(str:PChar):pointer; stdcall
-asm
-    pushad
-    pushfd
-
-    push str
-
-    call GetStrContainer
-    mov eax, ecx
-
-    mov eax, xrcore_addr
-    add eax, $20690
-    call eax
-    mov @Result, eax
-
-    popfd
-    popad
-end;
 
 function get_device_timedelta():single; stdcall;
 asm

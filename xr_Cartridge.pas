@@ -1,9 +1,10 @@
 unit xr_Cartridge;
 
 interface
+uses xr_strings;
 type CCartridge = packed record
   vtable:pointer;
-  m_ammo_sect: {shared_str} pointer;
+  m_ammo_sect:shared_str;
   SCartridgeParam__kDist:single;
   SCartridgeParam__kDisp:single;
   SCartridgeParam__kHit:single;
@@ -23,7 +24,18 @@ type CCartridge = packed record
   m_InvShortName: {shared_str} pointer;
 end;
 
-type pCCartridge = ^CCartridge;
+pCCartridge = ^CCartridge;
+
+II_BriefInfo = packed record
+  name:shared_str;
+  icon:shared_str;
+  cur_ammo:shared_str;
+  fmj_ammo:shared_str;
+  ap_ammo:shared_str;
+  fire_mode:shared_str;
+  grenade:shared_str;
+end;
+pII_BriefInfo = ^II_BriefInfo;
 
 procedure CCartridge__Load(this:pointer; name:PChar; local_ammotype:byte); stdcall;
 procedure CopyCartridge(var src:CCartridge; var dst:CCartridge); stdcall;
@@ -37,9 +49,11 @@ procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
 function GetAmmoTypeIndex(wpn:pointer; second:boolean=false):byte; stdcall;
 function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
+function CWeaponMagazinedWGrenade__GetAmmoCount2(wpn:pointer; ammo_type:byte):integer; stdcall;
 function GetCartridgeSection(c:pCCartridge):PChar; stdcall;
 function GetGLAmmoTypesCount(wpn:pointer):cardinal; stdcall;
 function GetGLCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
+procedure SetAmmoTypeIndex(wpn:pointer; index:byte; second:boolean); stdcall;
 
 procedure InitCartridge(c:pCCartridge); stdcall;
 
@@ -229,6 +243,7 @@ end;
 
 function GetAmmoTypeIndex(wpn:pointer; second:boolean):byte; stdcall;
 asm
+
   mov eax, wpn
   cmp second, 0
 
@@ -241,6 +256,28 @@ asm
   movzx eax, byte ptr [eax+$7E4]
 
   @finish:
+
+end;
+
+
+procedure SetAmmoTypeIndex(wpn:pointer; index:byte; second:boolean); stdcall;
+asm
+  push eax
+  mov eax, wpn
+  cmp second, 0
+
+  jne @second
+  mov al, index
+  mov byte ptr [eax+$6C4], al
+
+  jmp @finish
+
+  @second:
+  mov al, index
+  mov byte ptr [eax+$7E4], al
+
+  @finish:
+  pop eax
 end;
 
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
@@ -258,10 +295,25 @@ asm
   popad
 end;
 
+function CWeaponMagazinedWGrenade__GetAmmoCount2(wpn:pointer; ammo_type:byte):integer; stdcall;
+asm
+  pushad
+    movzx eax, ammo_type
+    push eax
+    mov ecx, wpn
+
+    mov eax, xrgame_addr
+    add eax, $2d20a0
+    call eax
+
+    mov @result, eax
+  popad
+end;
+
 function GetCartridgeSection(c:pCCartridge):PChar;
 begin
   result:=nil;
-  if c.m_ammo_sect<>nil then begin
+  if c.m_ammo_sect.p_<>nil then begin
     result:=PChar(cardinal(c.m_ammo_sect)+$10);
   end;
 end;
@@ -269,7 +321,7 @@ end;
 procedure InitCartridge(c:pCCartridge); stdcall;
 begin
   c.vtable:=pointer(xrgame_addr+$5559c4);
-  c.m_ammo_sect:=nil;
+  c.m_ammo_sect.p_:=nil;
   c.SCartridgeParam__kDist:=1.0;
   c.SCartridgeParam__kDisp:=1.0;
   c.SCartridgeParam__kHit:=1.0;

@@ -990,13 +990,14 @@ begin
   anim_name:='anm_reload';
   actor:=GetActor();
   buf:=GetBuffer(wpn);
+  snd := 'sndLoadGrenade';
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     if (GetCurrentAmmoCount(wpn)>0) and  (GetAmmoTypeChangingStatus(wpn)<>$FF) then begin
       anim_name:=anim_name+'_ammochange';
       snd:='sndChangeGrenade';
-    end else snd := 'sndLoadGrenade';
+    end;
 
     if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
       //log ('det+rel');

@@ -39,7 +39,9 @@ procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
 function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
+procedure SetAmmoInGLCount(wpn:pointer; cnt:cardinal); stdcall;
 function GetCurrentAmmoCount(wpn:pointer):integer; stdcall;
+procedure SetCurrentAmmoCount(wpn:pointer; cnt:integer); stdcall;
 function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetAimFactor(wpn:pointer):single; stdcall;
@@ -146,6 +148,8 @@ function PlaySoundByAnimName(wpn:pointer; anm:string):boolean;
 function IsGrenadeMode(wpn:pointer):boolean; stdcall;
 procedure PerformSwitchGL(wpn:pointer); stdcall;
 
+function HasDifferentFireModes(wpn:pointer):boolean; stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -197,7 +201,7 @@ const
 
 
 implementation
-uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster, xr_Cartridge;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster, xr_Cartridge, xr_strings;
 var
   PlayHudAnim_Func:cardinal;
 
@@ -366,6 +370,25 @@ begin
   result:=(pend-pstart) div sizeof(CCartridge);
 end;
 
+
+procedure SetAmmoInGLCount(wpn:pointer; cnt:cardinal); stdcall;
+//работает только на уменьшение!!!
+var
+  pstart, pend:cardinal;
+  ptr:pointer;
+begin
+  if (wpn=nil) or (GetGLStatus(wpn)=0) or not IsGLAttached(wpn) then exit;
+  if IsGrenadeMode(wpn) then
+    ptr:= PChar(wpn)+$6C8
+  else
+    ptr:= PChar(wpn)+$7EC;
+
+  pstart:=(pcardinal(ptr))^;
+  pend:= pstart+cnt*sizeof(CCartridge);
+
+  (pcardinal(PChar(ptr)+4))^:=pend;
+end;
+
 function IsAimNow(wpn:pointer):boolean; stdcall;
 asm
   mov @result, 0
@@ -512,6 +535,13 @@ asm
     mov eax, wpn
     mov eax, [eax+$770]
     mov @result, eax
+end;
+
+function HasDifferentFireModes(wpn:pointer):boolean; stdcall;
+asm
+    mov eax, wpn
+    mov al, byte ptr [eax+$79E]
+    mov @result, al
 end;
 
 function QueueFiredCount(wpn:pointer):integer; stdcall;
@@ -1114,6 +1144,16 @@ asm
   mov eax, [eax+$690]
   mov @result, eax
 end;
+
+procedure SetCurrentAmmoCount(wpn:pointer; cnt:integer); stdcall;
+asm
+  pushad
+  mov eax, wpn
+  mov ebx, cnt
+  mov [eax+$690], ebx
+  popad
+end;
+
 procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
 asm
   push eax
@@ -1842,7 +1882,7 @@ end;
 
 function IsGrenadeMode(wpn:pointer):boolean; stdcall;
 begin
-  result:=((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn);
+  result:=((GetGLStatus(wpn)=1) or ( (GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn);
 end;
 
 procedure PerformSwitchGL(wpn:pointer); stdcall;
