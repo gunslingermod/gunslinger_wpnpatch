@@ -480,11 +480,7 @@ begin
   if wpn=nil then exit;
 
   buf:=GetBuffer(wpn);
-  if (buf=nil) or not buf.IsLaserInstalled() or not buf.IsLaserEnabled() then begin
-    MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
-  end else begin
-    MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
-  end;
+  MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
 
 
   if (buf<>nil) then MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));

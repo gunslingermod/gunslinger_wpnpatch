@@ -9,7 +9,7 @@ procedure AddBullet(position:pFVector3; direction:pFVector3; starting_speed:sing
 procedure MakeWeaponKick(pos:pFVector3; dir:pFVector3; wpn:pointer); stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, Misc, HitUtils;
+uses BaseGameData, gunsl_config, HudItemUtils, Misc, HitUtils, math, sysutils;
 
 function GetLevel():pointer; stdcall;
 asm
@@ -94,21 +94,26 @@ begin
     material:='objects\knife';
   end;
 
+  material:=FindStrValueInUpgradesDef(wpn, 'kick_material', material);
+
   c.m_ammo_sect.p_:=nil;
 
   InitCartridge(@c);
   c.SCartridgeParam__kAP:=0.001;
-  c.SCartridgeParam__fWallmarkSize:=game_ini_r_single_def(sect, 'kick_wallmark_size', 0.05);
+  c.SCartridgeParam__fWallmarkSize:=ModifyFloatUpgradedValue(wpn, 'kick_wallmark_size', game_ini_r_single_def(sect, 'kick_wallmark_size', 0.05));
   c.bullet_material_idx:=GetMaterialIdx(material);
 
-  cnt:=game_ini_r_int_def(sect, 'kick_hit_count', 1);
-  hp:=game_ini_r_single_def(sect, 'kick_hit_power', 1.0);
-  imp:=game_ini_r_single_def(sect, 'kick_hit_impulse', 1.0);
-  htype:=game_ini_r_int_def(sect, 'kick_hit_type', EHitType__eHitTypeWound);
-  hdist:=game_ini_r_single_def(sect, 'kick_distance', 2.0);
+  cnt:=FindIntValueInUpgradesDef(wpn, 'kick_hit_count', game_ini_r_int_def(sect, 'kick_hit_count', 1));
+  hp:=ModifyFloatUpgradedValue(wpn, 'kick_hit_power', game_ini_r_single_def(sect, 'kick_hit_power', 0.0));
+  imp:=ModifyFloatUpgradedValue(wpn, 'kick_hit_impulse', game_ini_r_single_def(sect, 'kick_hit_impulse', 0.0));
+  htype:= FindIntValueInUpgradesDef(wpn, 'kick_hit_type', game_ini_r_int_def(sect, 'kick_hit_type', EHitType__eHitTypeWound));
+  hdist:=ModifyFloatUpgradedValue(wpn, 'kick_distance', game_ini_r_single_def(sect, 'kick_distance', 0.0));
 
-  disp_hor:=game_ini_r_single_def(sect, 'kick_disp_hor', 0.5);
-  disp_ver:=game_ini_r_single_def(sect, 'kick_disp_ver', 0.5);
+  disp_hor:=ModifyFloatUpgradedValue(wpn, 'kick_disp_hor', game_ini_r_single_def(sect, 'kick_disp_hor', 0.0));
+  disp_ver:=ModifyFloatUpgradedValue(wpn, 'kick_disp_ver', game_ini_r_single_def(sect, 'kick_disp_ver', 0.0));
+
+  //log(PChar(floattostr(hp)));
+  //log(PChar(inttostr(htype)));
 
   //для одного волмарка
   AddBullet(pos, dir, 10000,

@@ -25,6 +25,9 @@ function CurrentQueueSize(wpn:pointer):integer; stdcall;
 function GetInstalledUpgradesCount(wpn:pointer):cardinal; stdcall;
 function GetInstalledUpgradeSection(wpn:pointer; index:cardinal):PChar; stdcall;
 function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean):boolean; stdcall;
+function FindStrValueInUpgradesDef(wpn:pointer; key:PChar; def:PChar):PChar; stdcall;
+function FindIntValueInUpgradesDef(wpn:pointer; key:PChar; def:integer):integer; stdcall;
+function ModifyFloatUpgradedValue(wpn:pointer; key:PChar; def:single):single; stdcall;
 function GetSection(wpn:pointer):PChar; stdcall;
 function GetID(wpn:pointer):word; stdcall;
 function GetHUDSection(wpn:pointer):PChar; stdcall;
@@ -311,6 +314,54 @@ begin
     end;
   end;
   result:=def;
+end;
+
+function FindStrValueInUpgradesDef(wpn:pointer; key:PChar; def:PChar):PChar; stdcall;
+var
+  i:integer;
+  str:PChar;
+begin
+  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+    str:=GetInstalledUpgradeSection(wpn, i);
+    str:=game_ini_read_string(str, 'section');
+    if game_ini_line_exist(str, key) then begin
+      result:=game_ini_read_string(str, key);
+      if result<>def then exit;
+    end;
+  end;
+  result:=def;
+end;
+
+
+function FindIntValueInUpgradesDef(wpn:pointer; key:PChar; def:integer):integer; stdcall;
+var
+  i:integer;
+  str:PChar;
+begin
+  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+    str:=GetInstalledUpgradeSection(wpn, i);
+    str:=game_ini_read_string(str, 'section');
+    if game_ini_line_exist(str, key) then begin
+      result:=game_ini_r_int_def(str, key, def);
+      if result<>def then exit;
+    end;
+  end;
+  result:=def;
+end;
+
+function ModifyFloatUpgradedValue(wpn:pointer; key:PChar; def:single):single; stdcall;
+var
+  i:integer;
+  str:PChar;
+begin
+  result:=def;
+  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+    str:=GetInstalledUpgradeSection(wpn, i);
+    str:=game_ini_read_string(str, 'section');
+    if game_ini_line_exist(str, key) then begin
+      result:=result+game_ini_r_single_def(str, key, 0);
+    end;
+  end;
 end;
 
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;

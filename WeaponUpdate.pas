@@ -528,9 +528,7 @@ begin
     anm:='wanm_holster';
   end else if state=EWeaponStates__eFire then begin
     anm:='wanm_shoot';
-    if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
-      anm:=anm+'_gl';
-    end else if GetAmmoInMagCount(wpn)<=0 then begin
+    if GetAmmoInMagCount(wpn)<=0 then begin
       rest_anm:=anm;
       anm:=anm+'_last';
       if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
@@ -565,6 +563,14 @@ begin
     anm:=anm+'_'+inttostr(firemode);
   end;
 
+  if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
+    anm:=rest_anm;
+  end;
+
+  rest_anm:=anm;
+  if IsGrenadeMode(wpn) then begin
+    anm:=anm+'_g';
+  end;
   if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
     anm:=rest_anm;
   end;  
