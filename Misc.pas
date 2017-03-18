@@ -7,9 +7,11 @@ uses MatVectors;
 type CSE_Abstract = packed record
   vftable:pointer;
   _flags_ISE:cardinal;
+
   vec_memend:pointer;
   vec_end:pointer;
   vec_start:pointer;
+
   unk1:cardinal;
   unk2:cardinal;
   unk3:cardinal;
@@ -428,9 +430,14 @@ begin
   jmp_addr:=xrGame_addr+$4CCD0E;
   if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
 
-  //[bug] в CLevel::ClientSend исправляем if (GameID() == eGameIDSingle || OnClient()) на if (GameID() != eGameIDSingle || OnClient()) - thanks to Shoker
+  //[bug] баг -в CLevel::ClientSend исправляем if (GameID() == eGameIDSingle || OnClient()) на if (GameID() != eGameIDSingle || OnClient()) - thanks to Shoker
   if not nop_code(xrGame_addr+$238D55, 1, CHR($75)) then exit;
 
+  //[bug] баг - забытый дефайн на DX11 в void dxFontRender::OnRender(CGameFont &owner), строка 120, приводит к мылу
+  if xrRender_R4_addr<>0 then begin
+    if not nop_code(xrRender_R4_addr+$C7345, 4) then exit;
+    if not nop_code(xrRender_R4_addr+$C735F, 4) then exit;    
+  end;
 
   jmp_addr:=xrGame_addr+$1ECFF6;
   cscriptgameobject_restoreweaponimmediatly_addr := @CScriptgameobject__restoreweaponimmediatly;

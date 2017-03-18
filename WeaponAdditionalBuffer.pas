@@ -210,7 +210,7 @@ type
 
     procedure LoadNightBrightnessParamsFromSection(sect:PChar);
     procedure ChangeNightBrightness(steps:integer);
-    procedure SetNightBrightness(steps:integer);    
+    procedure SetNightBrightness(steps:integer);
     function GetCurBrightness():stepped_params;
     function GetCurLensRecoil():FVector3;
     procedure ApplyLensRecoil(recoil:FVector4);
@@ -1351,6 +1351,7 @@ begin
     exit;
   end;
 
+
 //  _lens_night_brightness.cur_step:=_lens_night_brightness.cur_step+steps;
   SetNightBrightness(_lens_night_brightness.cur_step+steps);
 end;
@@ -1358,7 +1359,10 @@ end;
 procedure WpnBuf.SetNightBrightness(steps: integer);
 var
   delta:single;
+  last_steps:integer;
 begin
+  last_steps:=_lens_night_brightness.cur_step;
+  
   _lens_night_brightness.cur_step:=steps;
   if (_lens_night_brightness.cur_step<0) then begin
     _lens_night_brightness.cur_step:=0;
@@ -1367,6 +1371,12 @@ begin
   end;
   delta:= (_lens_night_brightness.max_value-_lens_night_brightness.min_value)/(_lens_night_brightness.steps);
   _lens_night_brightness.cur_value:=_lens_night_brightness.min_value+delta*(_lens_night_brightness.cur_step);
+
+  if last_steps>_lens_night_brightness.cur_step then begin
+    CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessMinus');  
+  end else if last_steps<_lens_night_brightness.cur_step then begin
+    CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessPlus');
+  end;
 end;
 
 function WpnBuf.GetCurBrightness: stepped_params;
