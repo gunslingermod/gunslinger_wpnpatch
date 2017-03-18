@@ -3,41 +3,11 @@ unit WeaponDataSaveLoad;
 interface
 function Init:boolean;
 
+
 implementation
 uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge, Misc, WeaponEvents, ActorUtils;
 
-//-----------------------------------------------------------------------------------------------------------
-procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
-asm
-  pushad
-    mov eax, xrgame_addr
-    mov eax, [eax+$5127cc] //NET_Packet::w
 
-    push bytes_count
-    push data
-
-    mov ecx, packet
-    call eax;
-  popad
-end;
-
-
-procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
-asm
-  pushad
-    mov eax, xrgame_addr
-    mov eax, [eax+$5127D4]
-
-    push bytes_count
-    push buf
-
-    mov ecx, IReader
-    call eax;
-  popad
-end;
-
-
-//-----------------------------------------------------------------------------------------------------------
 //загрузка/сохранение игры
 procedure CWeapon__load(wpn:pointer; packet:pointer); stdcall;
 var

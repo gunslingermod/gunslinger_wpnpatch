@@ -46,7 +46,8 @@ uses
   AutoUpdater in 'AutoUpdater.pas',
   ScriptFunctors in 'ScriptFunctors.pas',
   CRT in 'CRT.pas',
-  r_constants in 'r_constants.pas';
+  r_constants in 'r_constants.pas',
+  Crows in 'Crows.pas';
 
 {$R *.res}
 //var
@@ -77,6 +78,7 @@ begin
   Throwable.Init();
   ActorDOF.Init();
   Misc.Init();
+  Crows.Init;
 
   hud_transp_r1.Init();
   hud_transp_r2.Init();
@@ -92,6 +94,7 @@ begin
   WeaponInertion.Init();
   ControllerMonster.Init();
   UIUtils.Init();
+
 
 //  AutoUpdater.Init();
 //

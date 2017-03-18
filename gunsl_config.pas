@@ -481,7 +481,7 @@ const
 begin
   result:=false;
   _console_bool_flags:=0;
-  _lens_render_factor:=2;
+  _lens_render_factor:=1;
 //--------------------------------Uncut console commands-----------------------------------------------------------
   if IsDebug() then begin
     psDeviceFlags:=pointer(xrEngine_addr+$91304);
@@ -533,7 +533,7 @@ begin
   CConsole__AddCommand(@(CCC_npclasers.base));
   CCC_Mask__CCC_Mask(@CCC_realballistics, 'g_real_shooting', @_console_bool_flags, _mask_realballistics);
   CConsole__AddCommand(@(CCC_realballistics.base));
-  CCC_Integer__CCC_Integer(@CCC_lens_render_factor, 'lens_render_factor', pinteger(@_lens_render_factor), 2, 10);
+  CCC_Integer__CCC_Integer(@CCC_lens_render_factor, 'lens_render_factor', pinteger(@_lens_render_factor), 1, 4);
   CConsole__AddCommand(@(CCC_lens_render_factor.base));
   CCC_Mask__CCC_Mask(@CCC_force_lense, 'lens_render_forced', @_console_bool_flags, _mask_forcelense);
   CConsole__AddCommand(@(CCC_force_lense.base));

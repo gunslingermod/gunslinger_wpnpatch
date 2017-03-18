@@ -545,12 +545,12 @@ begin
   result:=true;
   if IsActorSuicideNow() or IsActorPlanningSuicide() then begin
     result:=false;
-  end else if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then
+  end else if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then begin
     //на случай, если мы недовышли из прицеливания
     result:=true
-  else if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'disable_aim_with_detector', false) {or IsHolderHasActiveDetector(wpn)} then
+  end else if IsActionProcessing(wpn) or IsHolderInSprintState(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'disable_aim_with_detector', false) {or IsHolderHasActiveDetector(wpn)} then begin
     result:=false
-  else begin
+  end else begin
     if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
       tmp:=GetActiveDetector(GetActor());
       if (tmp<>nil) and (cardinal(GetCurrentState(tmp))<>EHudStates__eIdle) then

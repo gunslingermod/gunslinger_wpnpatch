@@ -1221,11 +1221,22 @@ end;
 
 
 procedure OnActorNewSlotActivated(act:pointer; slot:integer); stdcall;
+var
+  itm:pointer;
 begin
   ResetWpnOffset();
   ResetActorFlags(act);
   ResetActivationHoldState();
   if slot<>4 then SetForcedQuickthrow(false);
+
+  itm:=GetActorActiveItem();
+  if (itm<>nil) then begin
+    itm:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
+    if itm<>nil then begin
+      SetZoomStatus(itm, false);
+      SetAimFactor(itm, 0);
+    end;
+  end;
 
   //TODO: перенести еду
 

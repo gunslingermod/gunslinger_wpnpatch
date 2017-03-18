@@ -1333,7 +1333,7 @@ end;
 procedure CWeapon__OnZoomOut(wpn:pointer); stdcall;
 begin
   if IsDynamicDOF() then begin
-    ResetDof(game_ini_r_single_def(GetHUDSection(wpn),'zoom_out_dof_speed', GetDefaultDOFSpeed_Out()));
+    ResetDOF(game_ini_r_single_def(GetHUDSection(wpn),'zoom_out_dof_speed', GetDefaultDOFSpeed_Out()));
   end;
 end;
 

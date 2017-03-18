@@ -48,6 +48,9 @@ function GetDeviceFullTransform():pFMatrix4x4; stdcall;
 
 function IsMainMenuActive():boolean; stdcall;
 
+procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
+procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
+
 
 implementation
 uses BaseGameData, ActorUtils;
@@ -375,6 +378,38 @@ asm
   lea eax, [eax+$92ED8+$E0]
   mov @result, eax
 end;
+
+//-----------------------------------------------------------------------------------------------------------
+procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    mov eax, [eax+$5127cc] //NET_Packet::w
+
+    push bytes_count
+    push data
+
+    mov ecx, packet
+    call eax;
+  popad
+end;
+
+
+procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
+asm
+  pushad
+    mov eax, xrgame_addr
+    mov eax, [eax+$5127D4]
+
+    push bytes_count
+    push buf
+
+    mov ecx, IReader
+    call eax;
+  popad
+end;
+
+//-----------------------------------------------------------------------------------------------------------
 
 function Init():boolean;stdcall;
 var

@@ -3,6 +3,25 @@ unit ActorDOF;
 interface
 uses MatVectors;
 
+type
+
+DofValues = packed record
+  dest:FVector3;
+  current:FVector3;
+  from:FVector3;
+  original:FVector3;
+end;
+pDofValues = ^DofValues;
+
+DofContext = record
+  values:DofValues;
+  change_speed_koef:single;
+  change_speed_recalc:single;
+  changed:boolean;
+  valid:boolean;
+end;
+pDofContext = ^DofContext;
+
 function Init():boolean; stdcall;
 function GetGamePersistent():pointer; stdcall;
 procedure SetDOF(dof_near:single; dof_focus:single; dof_far:single; speed:single); stdcall; overload;
@@ -10,6 +29,7 @@ procedure SetDOF(v:FVector3; speed:single); stdcall; overload;
 procedure ResetDOF(speed:single); stdcall;
 function ReadActionDOFVector(wpn:pointer; var v:FVector3; param:string; def:boolean=true):boolean; stdcall;
 function ReadZoomDOFVector(wpn:pointer):FVector3; stdcall;
+function ReadLensDOFVector(wpn:pointer):FVector3; stdcall;
 function ReadActionDOFSpeed_In(wpn:pointer; param:string):single;
 function ReadActionDOFSpeed_Out(wpn:pointer; param:string):single;
 function ReadActionDOFTimeOffset(wpn:pointer; param:string):integer;
@@ -19,8 +39,17 @@ procedure SetDofSpeedfactor(speed:single); stdcall;
 procedure GetCurrentDOF(v:pFVector3); stdcall;
 function DOFChanged():boolean; stdcall;
 
+
+procedure GetContext(context:pDofContext); stdcall;
+procedure SetContext(context:pDofContext); stdcall;
+
+function GetDOFState():pDofValues; stdcall;
+procedure SetDOFState(values:pDofValues); stdcall;
+
+
+
 implementation
-uses BaseGameData, collimator, gunsl_config, HudItemUtils, ActorUtils, math, sysutils;
+uses BaseGameData, collimator, gunsl_config, HudItemUtils, ActorUtils, math, sysutils, LensDoubleRender;
 
 var
   _dof_change_speed_koef:single;
@@ -39,6 +68,10 @@ function CWeapon__OnZoomIn_needDOF(wpn:pointer):boolean; stdcall;
 begin
   if not IsDofEnabled() then begin
     result:=false;
+  end else if LensConditions() then begin
+    //в режиме линзы
+    result:=false;
+    SetDOF(ReadLensDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
   end else if IsConstZoomDOF() then begin
     result:=false;  //в родном дофе не нуждаемся
     if (not IsScopeAttached(wpn)) and (GetScopeStatus(wpn)<>1) and CHudItem__GetHUDMode(wpn) then begin
@@ -124,7 +157,7 @@ asm
     mov ebx, [eax+$500]
     mov [eax+$50c], ebx
 
-    //запишем дефаултовое в целевое
+    //запишем новое в целевое
     mov ebx, dof_near
     mov [eax+$4EC], ebx
 
@@ -134,7 +167,7 @@ asm
     mov ebx, dof_far
     mov [eax+$4F4], ebx
 
-    mov _dof_changed, 1    
+    mov _dof_changed, 1
   popad
 end;
 
@@ -165,7 +198,7 @@ asm
   mov [eax+$50c], ebx
 
 
-  //запишем новое в целевое
+  //запишем дефаултовое в целевое
   mov ebx, [eax+$510]
   mov [eax+$4ec], ebx
 
@@ -246,6 +279,16 @@ begin
   result.z:=game_ini_r_single_def(sect, PChar('zoom_dof_far'), result.z);
 end;
 
+function ReadLensDOFVector(wpn:pointer):FVector3; stdcall;
+var
+  sect:PChar;
+begin
+  sect:=GetHUDSection(wpn);
+  result:=GetDefaultZoomDOF();
+  result.x:=game_ini_r_single_def(sect, PChar('lens_dof_near'), result.x);
+  result.y:=game_ini_r_single_def(sect, PChar('lens_dof_focus'), result.y);
+  result.z:=game_ini_r_single_def(sect, PChar('lens_dof_far'), result.z);
+end;
 
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
@@ -262,6 +305,59 @@ begin
   if not WriteJump(jmp_addr, cardinal(@DOFLoadSpeed_Patch), 8, true) then exit;
 
   result:=true;
+end;
+
+
+procedure GetContext(context:pDofContext); stdcall;
+var
+  m_dof:pDofValues;
+begin
+  m_dof:=GetDOFState();
+  if m_dof<>nil then begin
+    context^.values:=m_dof^;
+    context^.change_speed_koef:=_dof_change_speed_koef;
+    context^.change_speed_recalc:=_dof_change_speed_recalc;
+    context^.changed:=_dof_changed;
+    context^.valid:=true;
+  end else begin
+    context^.valid:=false;
+  end;
+end;
+
+procedure SetContext(context:pDofContext); stdcall;
+var
+  m_dof:pDofValues;
+begin
+  m_dof:=GetDOFState();
+  if context^.valid and (m_dof<>nil) then begin
+    m_dof^:=context^.values;
+    _dof_change_speed_koef:=context^.change_speed_koef;
+    _dof_change_speed_recalc:=context^.change_speed_recalc;
+    _dof_changed:=context^.changed;
+  end;
+end;
+
+
+function GetDOFState():pDofValues; stdcall;
+var
+  game_persistent:cardinal;
+begin
+  game_persistent:= cardinal(GetGamePersistent());
+  if game_persistent<>0 then begin
+    result:= pDofValues((cardinal(game_persistent)+$4EC))
+  end else begin
+    result:=nil;
+  end;
+end;
+
+procedure SetDOFState(values:pDofValues); stdcall;
+var
+  m_dof:pDofValues;
+begin
+  m_dof:=GetDOFState();
+  if m_dof<>nil then begin
+    m_dof^:=values^;
+  end;
 end;
 
 end.
