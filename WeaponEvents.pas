@@ -1599,10 +1599,78 @@ asm
 end;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-procedure CWeaponRG6__AddCartridge_Replace(); stdcall;
+procedure CWeaponRG6__AddCartridge_Replace_Patch(); stdcall;
 asm
   mov eax, xrgame_addr
   add eax, $2DEA80
+  jmp eax
+end;
+
+
+procedure RL_SpawnRocket(rl:pCRocketLauncher); stdcall;
+var
+  wpn:pointer;
+  g_name:PChar;
+begin
+  if GetRocketsCount(rl)=0 then begin
+    wpn:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CWeaponMagazined, false);
+    if (wpn<>nil) and (GetAmmoInMagCount(wpn)>0) then begin
+      g_name:=game_ini_read_string(GetMainCartridgeSectionByType(wpn, GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
+      CRocketLauncher__SpawnRocket(rl, g_name);
+    end;
+  end;
+end;
+
+procedure CWeaponRG6__FireStart_SpawnRocket_Patch(); stdcall;
+asm
+  pushad
+  push ecx
+  call RL_SpawnRocket
+  popad
+
+  //original
+  mov eax, xrgame_addr
+  add eax, $2CC650   //CRocketLauncher::getRocketCount
+  call eax
+end;
+
+
+function CWeaponRPG7__FireStart_SpawnRocket_Replace(wpn:pointer):boolean; stdcall;
+var
+  rl:pCRocketLauncher;
+begin
+  result:=true; //вызывать ли CWeaponMagazined::FireStart после окончания этой процедуры
+  rl:=dynamic_cast(wpn, 0, RTTI_CWeaponMagazined, RTTI_CRocketLauncher, false);
+  if (rl<>nil) and (GetRocketsCount(rl)=0) then begin
+    RL_SpawnRocket(rl);
+    result:=false;
+  end;
+end;
+
+procedure CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch(); stdcall;
+asm
+  pushad
+  lea ecx, [ecx-$338]
+  push ecx
+  call CWeaponRPG7__FireStart_SpawnRocket_Replace
+  cmp al, 0
+  popad
+
+  je @ret_noact
+
+  //original
+  mov eax, xrgame_addr
+  add eax, $2CFE50  //CWeaponMagazined::FireStart
+  jmp eax
+
+  @ret_noact:
+  ret
+end;
+
+procedure CWeaponRPG7__ReloadMagazine_Replace_Patch(); stdcall;
+asm
+  mov eax, xrgame_addr
+  add eax, $2D0F10
   jmp eax
 end;
 
@@ -1759,9 +1827,16 @@ begin
   //аналогично делаем для CWeaponRG6
   //заменяем CWeaponRG6::AddCartridge на предка
   jmp_addr:=xrGame_addr+$2DF5B0;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__AddCartridge_Replace), 6, false) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__AddCartridge_Replace_Patch), 6, false) then exit;
   nop_code(xrgame_addr+$2DF4A9, 2);
-
+  jmp_addr:=xrGame_addr+$2DF6ED;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__FireStart_SpawnRocket_Patch), 5, true) then exit;
+  //аналогично для CWeaponRPG7
+  jmp_addr:=xrGame_addr+$2D9440;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__ReloadMagazine_Replace_Patch), 9, false) then exit;
+  nop_code(xrgame_addr+$2D973E, 1, CHR($EB));
+  jmp_addr:=xrGame_addr+$2D94C0;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch), 5, false) then exit;
 
   result:=true;
 end;

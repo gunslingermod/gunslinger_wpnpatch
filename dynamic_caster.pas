@@ -20,6 +20,7 @@ const
   RTTI_CWeaponMagazinedWGrenade:cardinal = $636A7C;  
   RTTI_CWeaponBinoculars:cardinal = $6376D8;
   RTTI_CWeaponBM16:cardinal = $6377C8;
+  RTTI_CWeaponRG6:cardinal = $63779C;  
   RTTI_CWeaponShotgun:cardinal = $637720;  
   RTTI_CCustomDetector:cardinal = $62C4B8;      
   RTTI_CObject:cardinal = $616020;
@@ -32,6 +33,8 @@ const
   RTTI_CUIPdaWnd:cardinal = $63EF80;
   RTTI_CUIDialogWnd:cardinal = $6342C4;
   RTTI_CRocketLauncher:cardinal = $6373E8;
+  RTTI_CShootingObject:cardinal = $62C4E8;
+
 
 implementation
 uses BaseGameData;
