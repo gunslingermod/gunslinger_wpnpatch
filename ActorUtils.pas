@@ -528,22 +528,36 @@ end;
 
 //-----------------------------------------------------------------------------------------------------------
 procedure OnActorSwithesNV(itm:pointer); stdcall;
+var
+  modifier:string;
+  wpn:pointer;
 begin
   if IsActorControlled() or not (CanUseNV(itm)) then exit;
+
+  wpn:=GetActorActiveItem();
+  if (wpn<>nil) and IsAimNow(wpn) then modifier:='_aim' else modifier:='';
+
   if IsNVSwitchedOn(itm) then begin
-    OnActorSwithesSmth('disable_nv_anim', GetNVDisableAnimator(), 'anm_nv_off', 'sndNVOff', kfNIGHTVISION, NVCallback, 0);
+    OnActorSwithesSmth('disable_nv_anim', GetNVDisableAnimator(), PChar('anm_nv_off'+modifier), 'sndNVOff', kfNIGHTVISION, NVCallback, 0);
   end else begin
-    OnActorSwithesSmth('disable_nv_anim', GetNVEnableAnimator(), 'anm_nv_on', 'sndNVOn', kfNIGHTVISION, NVCallback, 1);  
+    OnActorSwithesSmth('disable_nv_anim', GetNVEnableAnimator(), PChar('anm_nv_on'+modifier), 'sndNVOn', kfNIGHTVISION, NVCallback, 1);
   end;
 end;
 
 procedure OnActorSwithesTorch(itm:pointer); stdcall;
+var
+  modifier:string;
+  wpn:pointer;
 begin
   if IsActorControlled() or not CanUseTorch(itm) then exit;
+
+  wpn:=GetActorActiveItem();
+  if (wpn<>nil) and IsAimNow(wpn) then modifier:='_aim' else modifier:='';
+
   if IsTorchSwitchedOn(itm) then begin
-    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampDisableAnimator(), 'anm_headlamp_off', 'sndHeadlampOff', kfHEADLAMP, HeadlampCallback, 0);
+    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampDisableAnimator(), PChar('anm_headlamp_off'+modifier), 'sndHeadlampOff', kfHEADLAMP, HeadlampCallback, 0);
   end else begin
-    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampEnableAnimator(), 'anm_headlamp_on', 'sndHeadlampOn', kfHEADLAMP, HeadlampCallback, 1);
+    OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampEnableAnimator(), PChar('anm_headlamp_on'+modifier), 'sndHeadlampOn', kfHEADLAMP, HeadlampCallback, 1);
   end;
 end;
 
@@ -1339,7 +1353,7 @@ var
   angle:single;
 
 const
-  PDA_CURSOR_MOVE_TREASURE:cardinal=1;
+  PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
   ct:=GetGameTickCount();
   dt:=GetTimeDeltaSafe(_last_update_time, ct);
