@@ -7,6 +7,7 @@ unit ActorUtils;
 
 interface
 uses LightUtils, WeaponAdditionalBuffer;
+
 const
   actMovingForward:cardinal = $1;
   actMovingBack:cardinal = $2;
@@ -125,9 +126,12 @@ procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
 procedure set_pp_effector_factor(id:integer; f:single; f_sp:single); stdcall;
 procedure remove_pp_effector(id:integer); stdcall;
 
+function GetActorHealthPtr(act:pointer):pSingle;
+function GetActorBleedingPtr(act:pointer):pSingle;
+
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, MatVectors, Level;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, MatVectors, Level, ScriptFunctors, Crows;
 
 var
   _keyflags:cardinal;
@@ -687,6 +691,17 @@ begin
 end;
 
 function GetActorHealthPtr(act:pointer):pSingle;
+asm
+  mov @result, 0
+  pushad
+    mov eax, act
+    mov eax, [eax+$26C]
+    lea eax, [eax+$4]
+    mov @result, eax
+  popad
+end;
+
+function GetActorBleedingPtr(act:pointer):pSingle;
 asm
   mov @result, 0
   pushad
@@ -1470,6 +1485,7 @@ var
   wpn, det, itm:pointer;
   iswpnthrowable, canshoot, is_bino:boolean;
   state:cardinal;
+  tmp_pchar:PChar;
 begin
 
   //возвратить false, чтобы забыть про данное нажатие
@@ -1494,6 +1510,11 @@ begin
 
   if (dik=kJUMP) then begin
     result:=not IsActorControlled();
+  end else if (dik >= kQUICK_USE_1) and (dik<=kQUICK_USE_4) then begin
+    tmp_pchar:=GetQuickUseScriptFunctorName();
+    if tmp_pchar<>nil then begin
+      script_call(tmp_pchar, '', 1);
+    end;
   end else if dik = kDETECTOR then begin
       if (wpn<>nil) then begin
         if
@@ -1588,6 +1609,7 @@ begin
   ResetActorFlags(CActor);
   ResetActivationHoldState();
   SetForcedQuickthrow(false);
+  ResetBirdsAttackingState();
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}  
@@ -2188,6 +2210,34 @@ asm
   lea ebp, [esi+$3a8]
 end;
 
+
+procedure CUIMotionIcon__Update_Patch(); stdcall;
+asm
+  pushad
+    mov byte ptr [esi+$248], 1 //m_bchanged = true - [bug] баг с "зависанием" индикатора видимости; немного "садит" производительность
+    call IsActorPlanningSuicide
+    test al, al
+    jne @set_max
+    call IsActorSuicideNow
+    test al, al
+    jne @set_max
+    call IsActorAttackedByBirds
+    test al, al
+    jne @set_max
+    call GetActorActiveItem
+    cmp eax, 0
+    je @finish
+    push eax
+    call IsSuicideAnimPlaying
+    test al, al
+    je @finish
+    @set_max:
+    mov [esi+$250], $42c80000  //m_luminosity = 100
+    @finish:
+  popad
+  movss xmm0, [esi+$250] //original;
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -2303,6 +2353,9 @@ begin
 
   jmp_addr:= xrgame_addr+$2627D2;
   if not WriteJump(jmp_addr, cardinal(@CheckHeavyBreathAdditionalCondition_Patch), 5, true) then exit;
+
+  jmp_addr:= xrgame_addr+$45CA70;
+  if not WriteJump(jmp_addr, cardinal(@CUIMotionIcon__Update_Patch), 8, true) then exit;
 
   result:=true;
 end;

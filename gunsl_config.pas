@@ -109,6 +109,7 @@ function GetLensRenderFactor():cardinal;  stdcall;
 function IsForcedLens:boolean;  stdcall;
 
 function GetModVer():PChar; stdcall;
+function GetQuickUseScriptFunctorName():PChar; stdcall;
 
 
 implementation
@@ -153,6 +154,8 @@ var
   _kick_animator:PChar;
   _pda_show_animator:PChar;
   _pda_hide_animator:PChar;
+
+  _quickuse_functor:PChar;
 
   _mod_ver:PChar;
 
@@ -616,6 +619,11 @@ begin
   _pda_hide_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_hide_animator');
 
   _mod_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'version');
+  if game_ini_line_exist(GUNSL_BASE_SECTION, 'quickuse_functor') then begin
+    _quickuse_functor:=game_ini_read_string(GUNSL_BASE_SECTION, 'quickuse_functor');
+  end else begin
+    _quickuse_functor:=nil;
+  end;
 
   result:=true;
 end;
@@ -758,6 +766,11 @@ end;
 function IsForcedLens:boolean; stdcall;
 begin
   result:=((_console_bool_flags and _mask_forcelense)>0);
+end;
+
+function GetQuickUseScriptFunctorName():PChar; stdcall;
+begin
+  result:=_quickuse_functor;
 end;
 
 

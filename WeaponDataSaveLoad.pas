@@ -40,6 +40,9 @@ begin
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetLensFactorPos(tmp_single);
 
+  ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
+  buf.SetOffsetDir(tmp_single);
+
 
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
   SetLength(buf.ammos, ammos_in_mag);
@@ -82,6 +85,8 @@ begin
   tmp_bool:=buf.IsExplosed();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_single:=buf.GetLensFactorPos();
+  WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
+  tmp_single:=buf.GetLensOffsetDir();
   WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
 
 

@@ -30,6 +30,14 @@ type laserdot_params = packed record
     hud_treshold:single;
 end;
 
+type lens_offset_params = record
+  dir:single;
+  max_value:single;
+  start_condition:single;
+  end_condition:single;
+end;
+plens_offset_params = ^lens_offset_params;
+
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
   WpnBuf = class
@@ -91,6 +99,8 @@ type
     _lens_scope_factor_max:single;
     _lens_zoom_position:single;
     _lens_zoom_delta:single;
+    //параметры смещени€ при поломке оружи€ - пол€рна€ с.к!
+    _lens_offset:lens_offset_params;
 
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
@@ -177,6 +187,10 @@ type
     procedure SetLensParams(min:single; max:single; delta:single);
     function GetLensFactorPos():single;
     procedure SetLensFactorPos(pos:single);
+    procedure GetLensOffsetParams(p:plens_offset_params);
+    procedure SetLensOffsetParams(p:plens_offset_params);
+    function GetLensOffsetDir():single;
+    procedure SetOffsetDir(val:single);
 
   end;
 
@@ -205,10 +219,13 @@ type
 
 
 
+
+
 implementation
 uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster;
 
 { WpnBuf }
+
 
 procedure WpnBuf.AddLockTime(time: cardinal);
 begin
@@ -288,6 +305,11 @@ begin
   _lens_scope_factor_max:=game_ini_r_single_def(GetSection(wpn), 'max_lens_factor', 1);
   _lens_zoom_position:=1;
   _lens_zoom_delta:=1/game_ini_r_single_def(GetSection(wpn), 'lens_factor_levels_count', 5);
+
+  _lens_offset.dir:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_max_val', 0.05);
+  _lens_offset.start_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_start_condition', 0.5);
+  _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
+  _lens_offset.dir:=random;
 end;
 
 destructor WpnBuf.Destroy;
@@ -1199,6 +1221,36 @@ begin
   if pos<0 then pos:=0;
   if pos>1 then pos:=1;
   _lens_zoom_position:=pos;
+end;
+
+procedure WpnBuf.GetLensOffsetParams(p: plens_offset_params);
+begin
+  if p<>nil then begin
+  
+    _lens_offset:=p^;
+    if _lens_offset.dir<0 then
+      _lens_offset.dir:=0
+    else if _lens_offset.dir>1 then
+      _lens_offset.dir:=1;
+
+  end;
+end;
+
+procedure WpnBuf.SetLensOffsetParams(p: plens_offset_params);
+begin
+  if p<>nil then begin
+    p^:=_lens_offset;
+  end;
+end;
+
+function WpnBuf.GetLensOffsetDir: single;
+begin
+  result:=_lens_offset.dir;
+end;
+
+procedure WpnBuf.SetOffsetDir(val: single);
+begin
+  _lens_offset.dir:=val;
 end;
 
 end.

@@ -7,7 +7,7 @@ interface
 function Init():boolean;
 
 implementation
-uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster;
+uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config;
 //////////////////////////////////////////////////////////////////
 type R_constant = record
 //todo:дописать
@@ -36,6 +36,9 @@ var
   RCache__set: procedure(C:pR_constant; x,y,z,w:single); stdcall;
   r_constant_vftable:R_constant_setup_vftable;
   binder_cur_zoom_factor:R_constant_setup;
+  binder_actor_states:R_constant_setup;
+  binder_zoom_deviation:R_constant_setup;  
+
 
 
 //Вызов движком блендера////////////////////////////////////////
@@ -89,6 +92,68 @@ begin
 
 end;
 
+procedure binder_actor_states_setup(C:pR_constant); stdcall;
+var
+  act, outfit, wpn:pointer;
+  actor_health, actor_weapon_cond, actor_outfit_cond:single;
+begin
+  act:=GetActor();
+  if act=nil then begin
+    RCache__set(C, -1,-1,-1,-1);
+  end;
+  outfit:=ItemInSlot(act, 7);
+  if (outfit<>nil) then outfit:=dynamic_cast(outfit, 0, RTTI_CInventoryItem, RTTI_CCustomOutfit, false);
+  if (outfit<>nil) then begin
+    actor_outfit_cond:=GetCurrentCondition(outfit);
+  end else begin
+    actor_outfit_cond:=-1;
+  end;
+
+  wpn:=GetActorActiveItem();
+  if wpn<>nil then begin
+    actor_weapon_cond:=GetCurrentCondition(wpn);
+  end else begin
+    actor_weapon_cond:=-1;
+  end;
+
+  actor_health:=GetActorHealthPtr(act)^;
+  RCache__set(C, actor_health, actor_outfit_cond, actor_weapon_cond,-1);
+end;
+
+procedure binder_zoom_deviation_setup(C:pR_constant); stdcall;
+var
+  wpn:pointer;
+  buf:WpnBuf;
+  offset_params:lens_offset_params;
+  ang, len, x,y, cond:single;
+  scope_sect:PChar;
+begin
+  wpn:=GetActorActiveItem();
+  if wpn<>nil then buf:=GetBuffer(wpn) else buf:=nil;
+
+  if buf<>nil then begin
+    buf.GetLensOffsetParams(@offset_params);
+    ang:=offset_params.dir*2*pi;
+    cond:=GetCurrentCondition(wpn);
+    if cond>offset_params.start_condition then
+      len:=0
+    else if cond<offset_params.end_condition then
+      len:=offset_params.max_value
+    else
+      len:=offset_params.max_value*(offset_params.start_condition-cond)/(offset_params.start_condition-offset_params.end_condition);
+
+    if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+      scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+      len:=len*game_ini_r_single_def(scope_sect, 'lens_offset_factor', 1.0);
+    end;
+    
+    x:=len*cos(ang);
+    y:=len*sin(ang);
+
+    RCache__set(C, x,y,ang,len);  
+  end;
+end;
+
 ////////////////////////////////////////////////////////////////////////
 procedure CBlender_Compile__SetMapping(this:pointer); stdcall;
 begin
@@ -98,6 +163,14 @@ begin
   binder_cur_zoom_factor.vftable:=@r_constant_vftable;
   binder_cur_zoom_factor.setup_proc_addr:=@binder_cur_zoom_factor_setup;
   CBlender_Compile__r_Constant(this, 'm_hud_params', @binder_cur_zoom_factor);
+
+  binder_actor_states.vftable:=@r_constant_vftable;
+  binder_actor_states.setup_proc_addr:=@binder_actor_states_setup;
+  CBlender_Compile__r_Constant(this, 'm_actor_params', @binder_actor_states);
+
+  binder_zoom_deviation.vftable:=@r_constant_vftable;
+  binder_zoom_deviation.setup_proc_addr:=@binder_zoom_deviation_setup;
+  CBlender_Compile__r_Constant(this, 'm_zoom_deviation', @binder_zoom_deviation);
 end;
 
 //Патч для добавления констант

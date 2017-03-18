@@ -2,15 +2,35 @@ unit Crows;
 
 interface
 uses MatVectors;
-function Init():boolean;
+function Init():boolean; stdcall;
+function IsActorAttackedByBirds():boolean; stdcall;
+procedure ResetBirdsAttackingState(); stdcall;
 
 type
 CAI_Crow = packed record
   _unknown:array[0..$31B] of Byte;
-  st_current:cardinal; //31С
-  st_target:cardinal;
-  vGoalDir:FVector3;
-  vCurrentDir:FVector3;
+  st_current:cardinal; //0x31С
+  st_target:cardinal;  //0x320
+  vGoalDir:FVector3;   //0x324
+  vCurrentDir:FVector3; //0x330
+  vHPB:FVector3;        //0x33C
+  fDHeading:single;     //0x348
+
+  fGoalChangeDelta:single; //0x34C
+  fSpeed:single;           //0x350
+  fASpeed:single;          //0x354
+  fMinHeight:single;       //0x358
+  vVarGoal:FVector3;       //0x364
+  fIdleSoundDelta:single;  //0x368
+
+  fGoalChangeTime:single;  //0x36C
+  fIdleSoundTime:single;   //0x370
+
+  bPlayDeathIdle:byte;// bool, 0x374
+  _unused_1:byte;
+  _unused_2:word;  
+  o_workload_frame:cardinal; //0x378
+  o_workload_rframe:cardinal; //0x37C
   //продолжение следует...
 end;
 
@@ -22,8 +42,11 @@ const
   ECrowStates__eFlyIdle:integer = 2;
   ECrowStates__eFlyUp:integer = 3;
 
+var
+  bird_attack_last_time:cardinal;
+
 implementation
-uses BaseGameData, Misc, sysutils, gunsl_config, ScriptFunctors, ActorUtils, math, RayPick, ConsoleUtils;
+uses BaseGameData, Misc, sysutils, gunsl_config, ScriptFunctors, ActorUtils, math, RayPick, ConsoleUtils, LensDoubleRender;
 
 procedure SaveFlags(crow:pCAI_Crow; flags:pbyte); stdcall;
 begin
@@ -147,6 +170,7 @@ begin
     tmp.y:=tmp.y-0.2;
 
     if (dist_now<game_ini_r_single_def(crow_sect, 'visibility_attack_max_dist', 0)) and (TraceAsView(crow_pos, @dir, nil)>=dist_now-0.4) and game_ini_line_exist(crow_sect, 'visibility_attack_callback') then begin
+      bird_attack_last_time:=GetGameTickCount();
       script_call(game_ini_read_string(crow_sect, 'visibility_attack_callback'), crow_sect, 0);
     end;
   end;
@@ -188,11 +212,52 @@ asm
   @finish:
 end;
 
-function Init():boolean;
+procedure CorrectRenderTimeDelta(crow:pCAI_Crow; delta:pSingle); stdcall;
+var
+  frames_was:cardinal;
+begin
+  frames_was := GetDevicedwFrame() - crow.o_workload_frame;
+  if frames_was>3 then
+    frames_was:=3 //счетчик кадров может сильно убежать за время пауз и т.п. => ворона улетит далеко
+  else if
+    frames_was<1 then frames_was:=1;
+    
+  delta^:=(delta^)*(frames_was);
+end;
+
+procedure CAI_Crow__renderable_Render_timedelta_Patch(); stdcall;
+asm
+  lea ecx, [esp+08]
+  movss [ecx], xmm0; //original
+
+  pushad
+    push ecx //@delta
+    lea eax, [esi-$4C]
+    push eax //crow
+    call CorrectRenderTimeDelta
+  popad
+
+  lea ecx, [esi-$4C] //original
+  cmp [esi+$32c], eax //original
+end;
+
+
+function IsActorAttackedByBirds():boolean; stdcall;
+begin
+  result:=(GetTimeDeltaSafe(bird_attack_last_time)<2000);
+end;
+
+procedure ResetBirdsAttackingState(); stdcall;
+begin
+  bird_attack_last_time:=0;
+end;
+
+function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
 begin
     result:=false;
+    bird_attack_last_time:=0;
 
 
     //[bug] правим баг - добавим в CAICrow::net_Export и в CAICrow::net_Import/net_Spawn сохранение и загрузку состояние st_current и st_target
@@ -210,6 +275,21 @@ begin
     nop_code(xrGame_addr+$279650, 7);
     jmp_addr:=xrGame_addr+$27965F;
     if not WriteJump(jmp_addr, cardinal(@CEntity__Die_Patch), 7, true) then exit;
+
+    //рендер в линзе некорректно работает для ворон. Исправим это.
+    // В CAI_Crow::shedule_Update подкорректируем вызов UpdateWorkload, это позволит избавиться от телепортов ворон при активности рендера в линзу
+    //полностью комментить его нельзя, иначе апдейт ворон вне экрана актора происходить не будет.
+    // if (o_workload_rframe	== (Device.dwFrame-1)) надо исправить на if (o_workload_rframe	>= (Device.dwFrame-2))
+    nop_code(xrGame_addr+$1015D5, 1, CHR($FE));
+    nop_code(xrGame_addr+$1015DC, 1, CHR($73));
+
+    //CAI_Crow::renderable_Render вызывается только для ВИДИМЫХ В ЭТОМ КАДРЕ объектов
+    //из-за этого вороны, видимые в мире, но не видимые в зуме, замедляются - fDeltaTime для каждров линзы не учитывается
+    //лечить будем, смотря значение предыдущего кадра, на котором был сделан вызов UpdateWorkload (o_workload_frame) и умножением Device.fTimeDelta на число прошедших с этого момента кадров:
+    //В сырцах бы правка выглядела так: UpdateWorkload (Device.fTimeDelta*(Device.dwFrame-o_workload_frame))
+    jmp_addr:=xrGame_addr+$100DD1;
+    if not WriteJump(jmp_addr, cardinal(@CAI_Crow__renderable_Render_timedelta_Patch), 15, true) then exit;
+
 
     //обеспечим возможность загрузки разных звуков для разных птиц
     jmp_addr:=xrGame_addr+$101A40;

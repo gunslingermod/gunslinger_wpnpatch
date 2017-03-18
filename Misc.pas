@@ -45,6 +45,7 @@ procedure DecDevicedwFrame(); stdcall;
 function GetDeviceView():pFMatrix4x4; stdcall;
 function GetDeviceProjection():pFMatrix4x4; stdcall;
 function GetDeviceFullTransform():pFMatrix4x4; stdcall;
+function GetDeviceTimeDelta():single; stdcall;
 
 function IsMainMenuActive():boolean; stdcall;
 
@@ -409,6 +410,13 @@ asm
   popad
 end;
 
+
+function GetDeviceTimeDelta():single; stdcall;
+asm
+  mov eax, xrEngine_addr
+  mov eax, [eax+$92ED8+$1C]
+  mov @result, eax
+end;
 //-----------------------------------------------------------------------------------------------------------
 
 function Init():boolean;stdcall;
