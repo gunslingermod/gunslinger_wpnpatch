@@ -133,6 +133,7 @@ function GetNVDisableAnimator():PChar;
 function GetKickAnimator():PChar;
 function GetPDAShowAnimator():PChar;
 function GetPDAScreen_kx():single; stdcall;
+function GetPDAUpdatePeriod():cardinal; stdcall;
 
 function GetLensRenderFactor():cardinal;  stdcall;
 function IsForcedLens:boolean;  stdcall;
@@ -198,7 +199,8 @@ var
 
   psDeviceFlags:pointer;
 
-  _pda_screen_kx:single;  
+  _pda_screen_kx:single;
+  _pda_update_period:cardinal; 
 
 
   
@@ -692,6 +694,7 @@ begin
 
 
   _pda_screen_kx:=game_ini_r_single_def(GetPDAShowAnimator, 'screen_kx', 1.0);
+  _pda_update_period:=game_ini_r_int_def(GetPDAShowAnimator, 'animation_update_period', 100);
 
   result:=true;
 end;
@@ -853,10 +856,13 @@ begin
 end;
 
 function GetPDAScreen_kx():single; stdcall;
-var
-  anm:PChar;
 begin
   result:=_pda_screen_kx;
+end;
+
+function GetPDAUpdatePeriod():cardinal; stdcall;
+begin
+  result:=_pda_update_period;
 end;
 
 end.

@@ -123,6 +123,7 @@ procedure NVCallback(wpn:pointer; param:integer); stdcall;
 procedure KickCallback(wpn:pointer; param:integer); stdcall;
 procedure SetActorActionCallback(cb:TAnimationEffector);
 function GetActorActionCallback():TAnimationEffector;
+function IsActorActionAnimatorAutoshow():boolean;
 
 
 procedure add_pp_effector(fn:pchar; id:integer; cyclic:boolean); stdcall;
@@ -138,6 +139,7 @@ function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
 procedure CCameraManager__RemoveCamEffector(index:cardinal); stdcall;
 
 function GetPDAJoystickAnimationModifier():string;
+procedure CActor__OnKeyboardPress_initiate(dik:cardinal); stdcall;
 
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
@@ -177,6 +179,7 @@ var
   _action_animator_callback:TAnimationEffector;
   _action_animator_param:integer;
   _action_ppe:integer;
+  _action_animator_autoshow:boolean;
 
   _sprint_tiredness:single; //как долго мы бежали
 
@@ -427,6 +430,7 @@ begin
 
     _action_animator_callback:=callback;
     _action_animator_param:=callback_param;
+    _action_animator_autoshow:=true;
     result:=true;
 
   end else begin
@@ -440,6 +444,7 @@ begin
         MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_start_'+curanm), false, callback, callback_param);
         _action_animator_callback:=nil;
         _action_animator_param:=0;
+        _action_animator_autoshow:=false;
         result:=true;
       end;
     end else begin
@@ -457,6 +462,7 @@ begin
         StartCompanionAnimIfNeeded(rightstr(anm_name, length(anm_name)-4), wpn, false);
         _action_animator_callback:=callback;
         _action_animator_param:=callback_param;
+        _action_animator_autoshow:=false;
         result:=true;
       end;
     end;
@@ -1333,8 +1339,7 @@ var
   angle:single;
 
 const
-  PDA_CURSOR_UPDATE_TIME:cardinal=200;
-  PDA_CURSOR_MOVE_TREASURE:cardinal=5;
+  PDA_CURSOR_MOVE_TREASURE:cardinal=1;
 begin
   ct:=GetGameTickCount();
   dt:=GetTimeDeltaSafe(_last_update_time, ct);
@@ -1467,9 +1472,9 @@ begin
         HidePDAMenu();
         _was_pda_animator_spawned:=false;
       end else begin
-        if GetTimeDeltaSafe(_pda_cursor_state.last_moving_time)>PDA_CURSOR_UPDATE_TIME then begin
+        if GetTimeDeltaSafe(_pda_cursor_state.last_moving_time)>GetPDAUpdatePeriod() then begin
           //Пришло время обновить аниму курсора
-          if _pda_cursor_state.last_click_time<>GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime then begin
+          if (_pda_cursor_state.last_click_time<>GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime) and (game_ini_r_bool_def(GetPDAShowAnimator(), 'use_clicks', true)) then begin
             dir:=Click;
             _pda_cursor_state.last_click_time:=GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime
           end else if (abs(_pda_cursor_state.dir_accumulator.x)<PDA_CURSOR_MOVE_TREASURE) and (abs(_pda_cursor_state.dir_accumulator.y)<PDA_CURSOR_MOVE_TREASURE) then begin
@@ -1480,7 +1485,7 @@ begin
             dir:=GetPDADirByAngle(angle);
           end;
 
-          if (dir<>_pda_cursor_state.current_dir) then begin
+          if (dir<>_pda_cursor_state.current_dir) and not (IsPending(GetActorActiveItem())) then begin
             //анима изменилась
             _pda_cursor_state.current_dir:=dir;
             SetActorActionState(act, actModNeedMoveReassign, true);
@@ -1586,6 +1591,24 @@ begin
   _keyflags:=0;
 end;
 
+procedure CActor__OnKeyboardPress_initiate(dik:cardinal); stdcall;
+asm
+  pushad
+    call GetActor
+    cmp eax, 0
+    je @finish
+
+    mov ecx, eax
+    mov eax, xrgame_addr
+    add eax, $2783C0
+
+    push dik
+    call eax
+
+    @finish:
+  popad
+end;
+
 function CActor__OnKeyboardPress(dik:cardinal):boolean; stdcall;
 var
   act:pointer;
@@ -1601,7 +1624,7 @@ begin
   act:=GetActor();
   if act = nil then exit;
 
-  if CDialogHolder__TopInputReceiver()<> nil then begin
+  if (CDialogHolder__TopInputReceiver()<> nil) and not IsPDAWindowVisible() then begin
     result:=false;
     exit;
   end;
@@ -1701,14 +1724,15 @@ asm
 end;
 
 
+
 function CUIGameSP__IR_OnKeyboardPress_process_key(dik:cardinal):boolean; stdcall;
 var
-  itm:pointer;
+  itm, act:pointer;
 begin
   if ((dik=get_action_dik(kWPN_ZOOM,0)) or (dik=get_action_dik(kWPN_ZOOM,1))) and IsPDAWindowVisible() then begin
     //если в руках аниматор и мы нажали клавишу зума - передаем команду аниматору
     itm:=GetActorActiveItem;
-    if (itm<>nil) and (GetSection(itm)=GetPDAShowAnimator()) then begin
+    if (itm<>nil) and not IsPending(itm) and (GetSection(itm)=GetPDAShowAnimator()) then begin
       if IsAimNow(itm) then begin
         if IsAimToggle() then virtual_Action(itm, kWPN_ZOOM, kActPress) else virtual_Action(itm, kWPN_ZOOM, kActRelease);
       end else begin
@@ -1717,6 +1741,10 @@ begin
     end;
   end else if ((dik=get_action_dik(kWPN_ZOOM_ALTER,0)) or (dik=get_action_dik(kWPN_ZOOM_ALTER,1))) and IsPDAWindowVisible() then begin
     _is_pda_lookout_mode:=not _is_pda_lookout_mode;
+//  end else if ((dik=get_action_dik(kCROUCH,0)) or (dik=get_action_dik(kCROUCH,1))) and IsPDAWindowVisible() then begin
+//    CActor__OnKeyboardPress_initiate(kCROUCH);
+//    act:=GetActor();
+//    if act<>nil then SetActorActionState(act, actCrouch, GetActorActionState(act, actCrouch, mState_Real), mState_WISHFUL);
   end;
   result:=false;
 end;
@@ -1724,6 +1752,7 @@ end;
 procedure CUIGameSP__IR_OnKeyboardPress_Patch(); stdcall;
 asm
   mov eax, [esp+8]
+
   pushad
     push eax
     call CUIGameSP__IR_OnKeyboardPress_process_key
@@ -2402,6 +2431,10 @@ begin
   result:=_action_animator_callback;
 end;
 
+function IsActorActionAnimatorAutoshow():boolean;
+begin
+  result:=_action_animator_autoshow;
+end;
 
 function CheckHeavyBreathAdditionalCondition(bs:single; health:single):single; stdcall;
 begin

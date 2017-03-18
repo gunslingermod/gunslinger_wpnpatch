@@ -658,7 +658,7 @@ begin
             end;
           end else begin
 //            log(inttostr(GetCurrentState(wpn)));
-            if (GetActorTargetSlot()=GetActorActiveSlot()) and ((@GetActorActionCallback()<>nil) or not game_ini_r_bool_def(GetSection(wpn), 'disable_autochange_slot', false)) then begin
+            if (GetActorTargetSlot()=GetActorActiveSlot()) and IsActorActionAnimatorAutoshow() and ((@GetActorActionCallback()<>nil) or not game_ini_r_bool_def(GetSection(wpn), 'disable_autochange_slot', false)) then begin
               virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
             end;
           end;
