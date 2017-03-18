@@ -1142,15 +1142,15 @@ begin
       buf.GetLensParams(min, max, pos, dt);
       if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
         scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-        dt:=1/game_ini_r_int_def(scope_sect, 'min_lens_factor', 5);
+        dt:=1/game_ini_r_int_def(scope_sect, 'lens_factor_levels_count', 5);
       end;
       if id=kWPN_ZOOM_INC then begin
         pos:=pos+dt;
       end else begin
         pos:=pos-dt;
       end;
-      buf.SetLensParams(min, max, pos, dt);
-    end;  
+      buf.SetLensFactorPos(pos);
+    end;
   end;
 end;
 

@@ -174,7 +174,7 @@ type
     function NeedPermanentLensRendering():boolean;
     procedure SetPermanentLensRenderingStatus(status:boolean);
     procedure GetLensParams(var min:single; var max:single; var position:single; var delta:single);
-    procedure SetLensParams(min:single; max:single; position:single; delta:single);
+    procedure SetLensParams(min:single; max:single; delta:single);
     function GetLensFactorPos():single;
     procedure SetLensFactorPos(pos:single);
 
@@ -1174,7 +1174,7 @@ begin
   delta:=_lens_zoom_delta;
 end;
 
-procedure WpnBuf.SetLensParams(min, max, position, delta: single);
+procedure WpnBuf.SetLensParams(min, max, delta: single);
 var
   t:single;
 begin
@@ -1186,7 +1186,6 @@ begin
 
   _lens_scope_factor_min:=min;
   _lens_scope_factor_max:=max;
-  SetLensFactorPos(position);
   _lens_zoom_delta:=delta;
 end;
 

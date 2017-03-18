@@ -320,14 +320,13 @@ begin
       buf.GetLensParams(min, max, pos, delta);
       t_dt:=game_ini_r_single_def(section, 'lens_factor_levels_count', 0);
 
-      if t_dt = 0 then begin
+      if t_dt <> 0 then begin
         delta:=1/t_dt;
       end;
 
       buf.SetLensParams(
         game_ini_r_single_def(section, 'min_lens_factor', min),
         game_ini_r_single_def(section, 'max_lens_factor', max),
-        pos,
         t_dt
       );
     end;

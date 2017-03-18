@@ -31,13 +31,16 @@ var
 
   _restore_fov_after_lens_frame:single;
   _last_fov_changed_frame:cardinal; //кадр, в котором последний раз меняли фов
-  _copyframe:procedure; stdcall;
+  _copy_lens_frame:procedure(); stdcall;
   _copyresource_vftable_index:cardinal;
+
+  _p_iGPUNum:pInteger;
 
 const
   D3DBACKBUFFER_TYPE_MONO:cardinal = 0;
 
 /////////////////////////////////////////////
+//Копирование текстур, Р1-Р2
 function GetBackBuffer(iSwapChain: LongWord; iBackBuffer: LongWord; _Type: cardinal; ppBackBuffer:pointer):cardinal; stdcall;
 asm
   pushad
@@ -75,17 +78,19 @@ asm
   popad
 end;
 
-procedure CopyFrame_R1_R2(); stdcall;
+procedure CopyLensFrame_R1_R2(); stdcall;
 var
   backbuffer:   {IDirect3DSurface9} pointer;
 begin
     GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, @backbuffer);
     if backbuffer = nil then exit;
-    LoadSurfaceFromSurface(backbuffer, GetScoperenderRT());
+    LoadSurfaceFromSurface(backbuffer, GetScoperender().pRT);
     IUnknown(backbuffer)._Release();
 end;
 
-procedure CopyFrame_R3_R4(); stdcall;
+
+//Копирование текстур, Р3-Р4
+procedure CopyLensFrame_R3_R4(); stdcall;
 asm
   pushad
 
@@ -130,13 +135,16 @@ asm
   popad
 end;
 
+
 /////////////////////////////////////////////
+
+
+
 
 // До рендера
 procedure BeginSecondVP( ); stdcall;
 begin
-  _is_lens_frame:=NeedLensFrameNow();
-
+//  _is_lens_frame:=NeedLensFrameNow();
 end;
 
 // После рендера мира и до UI
@@ -145,7 +153,7 @@ var
   backbuffer:   {IDirect3DSurface9} pointer;
 begin
   if _is_lens_frame then begin
-    _copyframe();
+    _copy_lens_frame();
   end;
 end;
 
@@ -180,12 +188,19 @@ var
   buf:WpnBuf;
   scope_sect:PChar;
 begin
+  //в режиме форсирования кадра линзы один "гпу" (нулевой) постоянно загружен рендером линзовых кадров
+  if IsForcedLens() then begin
+    result:= (GetDevicedwFrame() mod _p_iGPUNum^)=0;
+    exit;
+  end;
+
+  //иначе рендер линзы активен не всегда
   result:=(GetDevicedwFrame() mod GetLensRenderFactor())=0;
   if result then begin
     //если в меню - не рендерим
     if IsMainMenuActive() or IsDemoRecord() then begin
       result:=false;
-      exit;    
+      exit;
     end;
 
     wpn:=GetActorActiveItem();
@@ -238,8 +253,8 @@ begin
   buf.GetLensParams(min, max, pos, dt);
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
     scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-    min:=game_ini_r_int_def(scope_sect, 'min_lens_factor', 1);
-    max:=game_ini_r_int_def(scope_sect, 'max_lens_factor', 1);
+    min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
+    max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);
   end;
   factor:=min+(max-min)*pos;
 
@@ -261,12 +276,14 @@ begin
       _restore_fov_after_lens_frame:=value^;
       _last_fov_changed_frame:=GetDevicedwFrame();
       value^:=GetLensFOV(value^);
+      _is_lens_frame:=true;
     end;
   end else begin
     //Мы ранее уже изменили фов. Если до сих пор нужно делать кадр линзы - просто выставим его фов, иначе - восстановим то, что изменили
     if NeedLensFrameNow() then begin
       value^:=GetLensFOV(value^);
       _last_fov_changed_frame:=GetDevicedwFrame();
+      _is_lens_frame:=true;
     end else begin
       value^:= _restore_fov_after_lens_frame;
       _restore_fov_after_lens_frame:=0;
@@ -342,7 +359,116 @@ asm
 end;
 ////////////////////////////////////////////////////////////////////////
 
+//Работа с новыми $user$luminance для правки мерцания
+//суть в том, что при рендере кадра линзы мы указываем другую карту
 
+procedure SetSrcLum_Patch_Combine_R4(); stdcall;
+//правим t_LUM_src->surface_set		(rt_LUM_pool[gpu_id*2+0]->pSurface);
+asm
+  pushad
+    call IsForcedLens
+    cmp al, 1
+  popad
+  je @original
+
+  cmp _is_lens_frame, 0
+  je @original
+
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+  //-----------
+  push 0
+  call GetLum_i
+  //-----------  
+  pop ebp
+  mov [ebp], eax
+  popad
+
+  pop eax
+  mov edx, [eax]
+  ret
+
+  @original:
+  mov edx, [ebx+edi*8+$1D0]
+  lea eax, [ebx+edi*8+$1D0]
+end;
+
+procedure SetDestLum_Patch_Combine_R4(); stdcall;
+// правим t_LUM_dest->surface_set		(rt_LUM_pool[gpu_id*2+1]->pSurface);
+asm
+  pushad
+    call IsForcedLens
+    cmp al, 1
+  popad
+  je @original
+
+  cmp _is_lens_frame, 0
+  je @original
+
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+  //-----------
+  push 1
+  call GetLum_i
+  //-----------
+  pop ebp
+  mov [ebp], eax
+  popad
+
+  pop edi
+  mov eax, [edi]
+  jmp @finish
+
+  @original:
+  mov eax, [ebx+edi*8+$1D4]
+  lea edi, [ebx+edi*8+$1D4]
+
+
+  @finish:
+  mov eax, [eax+$0c]
+  mov esi, [ebx+$214]
+  mov [esp+$CC+4], edi
+end;
+
+procedure SetDestLum_Patch_Luminance_R4(); stdcall;
+asm
+  pushad
+    call IsForcedLens
+    cmp al, 1
+  popad
+  je @original
+
+  cmp _is_lens_frame, 0
+  je @original
+
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+  //-----------
+  push 1
+  call GetLum_i
+  //-----------
+  pop ebp
+  mov [ebp], eax
+  popad
+  pop eax
+
+  ret
+
+  @original:
+  lea eax, [ebp+edx*8+$1D4]
+end;
+
+
+//////////////////////////////////////////////////////////////////////
 function Init():boolean; stdcall;
 var
  jmp_addr:cardinal;
@@ -367,7 +493,8 @@ begin
     log('pD3DXLoadSurfaceFromSurface = '+inttohex(cardinal(pD3DXLoadSurfaceFromSurface),8));
 
     pHW_Device:=xrRender_R1_addr+$A4900;
-    _copyframe:=@CopyFrame_R1_R2;
+    _p_iGPUNum:=pointer(xrRender_R1_addr+$A491C);
+    _copy_lens_frame:=@CopyLensFrame_R1_R2;
     jmp_addr:=xrRender_R1_addr+$4774F;
     if not WriteJump(jmp_addr, cardinal(@dxRenderDeviceRender__End__R1_R2), 11, false) then exit;
 
@@ -378,26 +505,36 @@ begin
     log('pD3DXLoadSurfaceFromSurface = '+inttohex(cardinal(pD3DXLoadSurfaceFromSurface),8));
     
     pHW_Device:=xrRender_R2_addr+$CBB88;
-    _copyframe:=@CopyFrame_R1_R2;
+    _p_iGPUNum:=pointer(xrRender_R2_addr+$CBBA4);
+    _copy_lens_frame:=@CopyLensFrame_R1_R2;
     jmp_addr:=xrRender_R2_addr+$AF06C;
     if not WriteJump(jmp_addr, cardinal(@dxRenderDeviceRender__End__R1_R2), 11, false) then exit;
 
   end else if xrRender_R3_addr<>0 then begin
-    pHW_Device:=xrrender_r3_addr+$E7E38;
+    pHW_Device:=xrRender_R3_addr+$E7E38;
     pSwapchain:=xrRender_R3_addr+$E7E44;
-    pIID_ID3DTexture2D:=xrRender_r3_addr+$D7104;
+    _p_iGPUNum:=pointer(xrRender_R3_addr+$E7E60);
+    pIID_ID3DTexture2D:=xrRender_R3_addr+$D7104;
     _copyresource_vftable_index:=$84;
-    _copyframe:=@CopyFrame_R3_R4;
+    _copy_lens_frame:=@CopyLensFrame_R3_R4;
     jmp_addr:=xrRender_R3_addr+$BB920;
     if not WriteJump(jmp_addr, cardinal(@dxRenderDeviceRender__End__R3_R4), 7, false) then exit;
   end else if xrRender_R4_addr<>0 then begin
     pHW_Device:=xrrender_R4_addr+$106C10;
     pSwapchain:=xrRender_R4_addr+$106C14;
+    _p_iGPUNum:=pointer(xrRender_R4_addr+$106C30);
     pIID_ID3DTexture2D:=xrRender_R4_addr+$E3950;
     _copyresource_vftable_index:=$BC;
-    _copyframe:=@CopyFrame_R3_R4;
+    _copy_lens_frame:=@CopyLensFrame_R3_R4;
     jmp_addr:=xrRender_R4_addr+$C63B0;
     if not WriteJump(jmp_addr, cardinal(@dxRenderDeviceRender__End__R3_R4), 7, false) then exit;
+
+    //jmp_addr:=xrRender_R4_addr+$7AF5D;
+    //if not WriteJump(jmp_addr, cardinal(@SetDestLum_Patch_Combine_R4), 30, true) then exit;
+    //jmp_addr:=xrRender_R4_addr+$7AF40;
+    //if not WriteJump(jmp_addr, cardinal(@SetSrcLum_Patch_Combine_R4), 14, true) then exit;
+    //jmp_addr:=xrRender_R4_addr+$7ED69;
+    //if not WriteJump(jmp_addr, cardinal(@SetDestLum_Patch_Luminance_R4), 7, true) then exit;
   end else begin
     dHandle:=0;
     pD3DXLoadSurfaceFromSurface:=nil;

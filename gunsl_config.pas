@@ -105,9 +105,10 @@ function GetKickAnimator():PChar;
 function GetPDAShowAnimator():PChar;
 function GetPDAHideAnimator():PChar;
 
-function GetLensRenderFactor():cardinal;
+function GetLensRenderFactor():cardinal;  stdcall;
+function IsForcedLens:boolean;  stdcall;
 
-function GetModVer():PChar;
+function GetModVer():PChar; stdcall;
 
 
 implementation
@@ -173,6 +174,7 @@ var
   CCC_realballistics:CCC_Mask;
 
   CCC_lens_render_factor:CCC_Integer;
+  CCC_force_lense:CCC_Mask;
 
 //âûğåçàííûå äâèæêîâûå êîíñîëüíûå êîìàíäû
   CCC_mt_sound:CCC_Mask;
@@ -200,6 +202,7 @@ const
   _mask_laserdotcorrection:cardinal=$4;
   _mask_npclasers:cardinal=$8;
   _mask_realballistics:cardinal=$10;
+  _mask_forcelense:cardinal=$20;
 
 //--------------------------------------------------Îáùèå âåùè---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -532,6 +535,9 @@ begin
   CConsole__AddCommand(@(CCC_realballistics.base));
   CCC_Integer__CCC_Integer(@CCC_lens_render_factor, 'lens_render_factor', pinteger(@_lens_render_factor), 2, 10);
   CConsole__AddCommand(@(CCC_lens_render_factor.base));
+  CCC_Mask__CCC_Mask(@CCC_force_lense, 'lens_render_forced', @_console_bool_flags, _mask_forcelense);
+  CConsole__AddCommand(@(CCC_force_lense.base));
+
 
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
@@ -729,12 +735,12 @@ begin
   result:=_pda_hide_animator;
 end;
 
-function GetLensRenderFactor():cardinal;
+function GetLensRenderFactor():cardinal; stdcall;
 begin
   result:=_lens_render_factor;
 end;
 
-function GetModVer():PChar;
+function GetModVer():PChar; stdcall;
 begin
   result:=_mod_ver;
 end;
@@ -747,6 +753,11 @@ end;
 function GetActorBreathHealthSndDelta():single; stdcall;
 begin
   result:=_actor_breath_health_snddelta;
+end;
+
+function IsForcedLens:boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_forcelense)>0);
 end;
 
 

@@ -4,27 +4,55 @@ unit CRT;
 //править процедуры CreateNewRTs и RemoveNewRTs
 
 interface
+  type CRT_rec = packed record
+    unknown1:cardinal;
+    unknown2:cardinal;
+    unknown3:cardinal;
+    pSurface:pointer;
+    pRT:pointer;
+  end;
+  type pCRT_rec = ^CRT_rec;
+
   function Init():boolean;
+  function GetScoperender():pCRT_rec; stdcall;
+//  function GetLumBackup(i:cardinal):pCRT_rec; stdcall;
+
+
   function GetScoperenderRT():pointer; stdcall;
   function GetScoperenderT2D():pointer; stdcall;
+
+  function GetLum_i(i:cardinal):pointer; stdcall;
 
 implementation
 uses BaseGameData, Misc;
 
 var
-  scoperender_viewport:pointer;
+//  scoperender_lum_backup:array [0..1] of pCRT_rec;
+  scoperender_viewport:pCRT_rec;
+
+  scoperender_lum:array [0..1] of pointer; //delme
   resptrcode_crt___create:cardinal;
   resptrcode_crt___destroy:cardinal;
 
 const
   RT_SCOPERENDER_VIEWPORT:PChar='$user$scope';
+  RT_SCOPERENDER_LUM_0:PChar='$user$luminance_s0';
+  RT_SCOPERENDER_LUM_1:PChar='$user$luminance_s1';
+
+  D3DFMT_R32F:cardinal=114;
 
 //Common///////////////////////////////////////////////////////////////
+
+function GetScoperender():pCRT_rec; stdcall;
+begin
+  result:=scoperender_viewport;
+end;
 
 function GetScoperenderRT():pointer; stdcall;
 asm
   pushad
     mov eax, scoperender_viewport
+
     test eax, eax
     je @notarget
     mov eax, [eax+$10]
@@ -37,12 +65,19 @@ function GetScoperenderT2D():pointer; stdcall;
 asm
   pushad
     mov eax, scoperender_viewport
+
     test eax, eax
     je @notarget
     mov eax, [eax+$C]
     @notarget:
     mov @result, eax;
   popad
+end;
+
+
+function GetLum_i(i:cardinal):pointer; stdcall;
+begin
+  result:=@(scoperender_lum[i]);
 end;
 
 procedure NewRT(dest:pointer; name:PChar; w:cardinal; h:cardinal; format:cardinal ); stdcall;
@@ -96,12 +131,23 @@ end;
 
 procedure CreateNewRTs (w:cardinal; h:cardinal; format:cardinal); stdcall;
 begin
+//*****************рендертаргеты добавлять здесь!!!***********************
   NewRT(@scoperender_viewport, RT_SCOPERENDER_VIEWPORT, w, h, format);
+
+  if xrRender_R1_addr=0 then begin
+    NewRT(@scoperender_lum[0], RT_SCOPERENDER_LUM_0, w, h, D3DFMT_R32F);
+    NewRT(@scoperender_lum[1], RT_SCOPERENDER_LUM_1, w, h, D3DFMT_R32F);
+  end;
+
 end;
 
 procedure RemoveNewRTs(); stdcall;
 begin
   DelRT(@scoperender_viewport);
+  if xrRender_R1_addr=0 then begin
+    DelRT(@scoperender_lum[0]);
+    DelRT(@scoperender_lum[1]);
+  end;
 end;
 
 //R1 specific///////////////////////////////////////////////////////////////
