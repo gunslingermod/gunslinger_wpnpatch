@@ -6,7 +6,7 @@ unit ActorUtils;
 {$define USE_SCRIPT_USABLE_HUDITEMS}  //на всякий - потом все равно в двиг надо перекинуть, но влом - и так отлично работает
 
 interface
-uses LightUtils, WeaponAdditionalBuffer;
+uses LightUtils, WeaponAdditionalBuffer, MatVectors;
 
 const
   actMovingForward:cardinal = $1;
@@ -96,6 +96,9 @@ procedure SetHudFOV(fov:single); stdcall;
 
 function CRenderDevice__GetCamPos():pointer;stdcall;
 function CRenderDevice__GetCamDir():pointer;stdcall;
+function CRenderDevice__GetCamTop():pointer;stdcall;
+function CRenderDevice__GetCamRight():pointer;stdcall;
+procedure CorrectDirFromWorldToHud(dir:pFVector3; pos:pFVector3; k:single); stdcall;
 function GetTargetDist():single;stdcall;
 function GetActorThirst():single;stdcall;
 
@@ -131,7 +134,7 @@ function GetActorBleedingPtr(act:pointer):pSingle;
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, MatVectors, Level, ScriptFunctors, Crows;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows;
 
 var
   _keyflags:cardinal;
@@ -1777,6 +1780,10 @@ begin
   fov:=GetBaseHudFOV();
   if (wpn<>nil) then begin
     hud_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_factor', 1.0);
+    if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
+      hud_fov:=hud_fov*game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_factor', 1.0);
+    end;
+    
     if (IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim')) then begin
       buf:=GetBuffer(wpn);
       if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
@@ -1881,6 +1888,72 @@ asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$3C]
   mov @result, eax
+end;
+
+function CRenderDevice__GetCamTop():pointer; stdcall;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ed8+$48]
+  mov @result, eax
+end;
+
+function CRenderDevice__GetCamRight():pointer; stdcall;
+asm
+  mov eax, xrEngine_addr
+  lea eax, [eax+$92ed8+$54]
+  mov @result, eax
+end;
+
+
+{procedure CorrectPointFromWorldToHud(point:pFVector3); stdcall;
+var
+  cam_dir, cam_pos:FVector3;
+  scale, p_len:single;
+  v_to_p, project:FVector3;
+begin
+  cam_dir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+  cam_pos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+
+  v_to_p:=point^;
+  v_sub(@v_to_p, @cam_pos);
+  p_len:=v_projection_to_v(@v_to_p, @cam_dir);
+  v_mul(@cam_dir, p_len);
+  v_sub(@v_to_p, @cam_dir);
+  v_mul(@v_to_p, cos(GetBaseFOV()*pi/180)/cos(GetBaseHudFOV()*pi/180));
+
+  point^:=cam_pos;
+  v_add(point, @cam_dir);
+  v_add(point, @v_to_p);
+end;
+
+procedure CorrectDirFromWorldToHud(dir:pFVector3; pos:pFVector3); stdcall;
+var
+  point1, point2:FVEctor3;
+begin
+  point1:=pos^;
+  point2:=point1;
+  v_add(@point2, dir); 
+
+  CorrectPointFromWorldToHud(@point1);
+  CorrectPointFromWorldToHud(@point2);
+
+  v_sub(@point2, @point1);
+  v_normalize(@point2);
+  dir^:=point2;
+end;}
+
+
+procedure CorrectDirFromWorldToHud(dir:pFVector3; pos:pFVector3; k:single); stdcall;
+var
+  tmp:FVector3;
+  m:single;
+begin
+  tmp:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+  m:=k*GetBaseFOV()/GetBaseHudFOV();
+  v_sub(dir, @tmp);
+  v_mul(dir, m);
+  v_add(dir, @tmp);
+  v_normalize(dir)
 end;
 
 function GetTargetDist():single; stdcall;

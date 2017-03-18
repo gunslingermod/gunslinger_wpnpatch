@@ -39,6 +39,16 @@ type lens_offset_params = record
 end;
 plens_offset_params = ^lens_offset_params;
 
+type stepped_params = record
+  max_value:single;
+  min_value:single;
+  cur_value:single;
+  cur_step:integer;
+  steps:integer;
+  jitter:single;
+end;
+pstepped_params = ^stepped_params;
+
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
   WpnBuf = class
@@ -95,16 +105,22 @@ type
 
     _need_permanent_lensrender:boolean;
 
+    //TODO: оформить следующие 4 параметра в отдельную структуру, так удобнее?
     _lens_scope_factor_min:single;
     _lens_scope_factor_max:single;
     _lens_zoom_position:single;
     _lens_zoom_delta:single;
     //параметры смещения при поломке оружия - полярная с.к!
     _lens_offset:lens_offset_params;
+    _lens_night_brightness:stepped_params;
+
+    //смещение сетки при выстреле
+    _lens_shoot_recoil_current:FVector3; //x,y,speed
+    _lens_shoot_recoil_max:FVector4;//x,y,speed,deviation
+    _lens_misfire_recoil_max:FVector4;//x,y,speed,deviation
 
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
-
 
 
     public
@@ -192,6 +208,16 @@ type
     function GetLensOffsetDir():single;
     procedure SetOffsetDir(val:single);
 
+    procedure LoadNightBrightnessParamsFromSection(sect:PChar);
+    procedure ChangeNightBrightness(steps:integer);
+    procedure SetNightBrightness(steps:integer);    
+    function GetCurBrightness():stepped_params;
+    function GetCurLensRecoil():FVector3;
+    procedure ApplyLensRecoil(recoil:FVector4);
+    function GetShootRecoil:FVector4;
+    function GetMisfireRecoil:FVector4;
+
+
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -222,7 +248,7 @@ type
 
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils;
 
 { WpnBuf }
 
@@ -235,6 +261,7 @@ end;
 constructor WpnBuf.Create(wpn: pointer);
 var
   tmpvec:FVector3;
+  scope_sect:PChar;
 begin
   inherited Create;
 
@@ -310,6 +337,27 @@ begin
   _lens_offset.start_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_start_condition', 0.5);
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
   _lens_offset.dir:=random;
+
+    scope_sect:=GetSection(wpn);
+    if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+      scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+    end;
+    LoadNightBrightnessParamsFromSection(scope_sect);
+
+    _lens_shoot_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_x', 0.0);
+    _lens_shoot_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_y', 0.0);
+    _lens_shoot_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_speed', 0.0);
+    _lens_shoot_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_deviation', 0.0);
+
+
+    _lens_misfire_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_x', 0.0);
+    _lens_misfire_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_y', 0.0);
+    _lens_misfire_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_speed', 0.0);
+    _lens_misfire_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_deviation', 0.0);
+
+    _lens_shoot_recoil_current.x:=0;
+    _lens_shoot_recoil_current.y:=0;
+    _lens_shoot_recoil_current.z:=-1;
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
@@ -496,7 +544,9 @@ begin
 end;
 
 function WpnBuf.Update():boolean;
-var delta:cardinal;
+var
+  delta:cardinal;
+  val,len:single;
 begin
 
   delta:=GetTimeDeltaSafe(_last_update_time);
@@ -517,6 +567,19 @@ begin
       _do_action_after_anim_played(self._my_wpn, self._action_param);
       _do_action_after_anim_played:=nil;
       _action_param:=0;
+    end;
+  end;
+
+  if (_lens_shoot_recoil_current.z>0) then begin
+    val:=_lens_shoot_recoil_current.z*delta/1000;
+    len:=sqrt(_lens_shoot_recoil_current.x*_lens_shoot_recoil_current.x + _lens_shoot_recoil_current.y*_lens_shoot_recoil_current.y);
+    if (len<=val) then begin
+      _lens_shoot_recoil_current.x:=0;
+      _lens_shoot_recoil_current.y:=0;
+      _lens_shoot_recoil_current.z:=-1;
+    end else begin
+      _lens_shoot_recoil_current.x:=_lens_shoot_recoil_current.x*(1-val/len);
+      _lens_shoot_recoil_current.y:=_lens_shoot_recoil_current.y*(1-val/len);
     end;
   end;
 
@@ -1084,6 +1147,8 @@ begin
       attachable_hud_item__GetBoneOffsetPosDir(HID, _torch_params.lightdir_bone_name, @dir, @tmp, @zerovec);
       v_sub(@dir, @pos);
       v_normalize(@dir);
+    end else if not IsDemoRecord() then begin
+      CorrectDirFromWorldToHud(@dir, @pos, game_ini_r_single_def(GetHUDSection(_my_wpn), 'hud_recalc_koef', 1.0));      
     end;
     attachable_hud_item__GetBoneOffsetPosDir(HID, _torch_params.light_bone, @omnipos, @omnidir, @_torch_params.omni_offset);
   end else begin
@@ -1253,6 +1318,83 @@ end;
 procedure WpnBuf.SetOffsetDir(val: single);
 begin
   _lens_offset.dir:=val;
+end;
+
+procedure WpnBuf.LoadNightBrightnessParamsFromSection(sect: PChar);
+var
+  last:stepped_params;
+const
+  EPS:single = 0.00001;
+begin
+  last:=_lens_night_brightness;
+
+  _lens_night_brightness.max_value:=game_ini_r_single_def(sect, 'max_night_brightness', 1)/3;
+  _lens_night_brightness.min_value:=game_ini_r_single_def(sect, 'min_night_brightness', 1)/3;
+  _lens_night_brightness.steps:=game_ini_r_int_def(sect, 'steps_brightness', 0);
+  _lens_night_brightness.jitter:=game_ini_r_single_def(sect, 'jitter_brightness', 1);
+
+  if (xrRender_R1_addr<>0) and (_lens_night_brightness.max_value>1) then begin
+    _lens_night_brightness.max_value:=1;
+  end;
+
+  if (abs(_lens_night_brightness.max_value-last.max_value)>EPS) or (abs(_lens_night_brightness.min_value-last.min_value)>EPS) or (_lens_night_brightness.steps<>last.steps) then begin
+    _lens_night_brightness.cur_value:=_lens_night_brightness.max_value;
+    _lens_night_brightness.cur_step:=_lens_night_brightness.steps;
+  end;
+
+end;
+
+procedure WpnBuf.ChangeNightBrightness(steps: integer);
+begin
+  if _lens_night_brightness.steps=0 then begin
+    _lens_night_brightness.cur_value:=_lens_night_brightness.min_value;
+    exit;
+  end;
+
+//  _lens_night_brightness.cur_step:=_lens_night_brightness.cur_step+steps;
+  SetNightBrightness(_lens_night_brightness.cur_step+steps);
+end;
+
+procedure WpnBuf.SetNightBrightness(steps: integer);
+var
+  delta:single;
+begin
+  _lens_night_brightness.cur_step:=steps;
+  if (_lens_night_brightness.cur_step<0) then begin
+    _lens_night_brightness.cur_step:=0;
+  end else if (_lens_night_brightness.cur_step>_lens_night_brightness.steps) then begin
+    _lens_night_brightness.cur_step:=_lens_night_brightness.steps;
+  end;
+  delta:= (_lens_night_brightness.max_value-_lens_night_brightness.min_value)/(_lens_night_brightness.steps);
+  _lens_night_brightness.cur_value:=_lens_night_brightness.min_value+delta*(_lens_night_brightness.cur_step);
+end;
+
+function WpnBuf.GetCurBrightness: stepped_params;
+begin
+  result:=_lens_night_brightness;
+end;
+
+
+procedure WpnBuf.ApplyLensRecoil(recoil: FVector4);
+begin
+  _lens_shoot_recoil_current.x:=recoil.x + recoil.w*(Random-0.5)*recoil.x;
+  _lens_shoot_recoil_current.y:=recoil.y + recoil.w*(Random-0.5)*recoil.x;
+  _lens_shoot_recoil_current.z:=recoil.z;
+end;
+
+function WpnBuf.GetShootRecoil: FVector4;
+begin
+  result:=_lens_shoot_recoil_max;
+end;
+
+function WpnBuf.GetCurLensRecoil: FVector3;
+begin
+  result:=_lens_shoot_recoil_current;
+end;
+
+function WpnBuf.GetMisfireRecoil:FVector4;
+begin
+  result:=_lens_misfire_recoil_max;
 end;
 
 end.

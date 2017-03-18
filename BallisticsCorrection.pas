@@ -56,6 +56,8 @@ begin
   if (GetOwner(wpn)=GetActor()) and (not (IsAimNow(wpn) or IsHolderInAimState(wpn)) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetCurrentDifficulty>=gd_veteran) or IsRealBallistics() or IsActorControlled()) then begin
     pos^:=oldpos;
     dir^:=olddir;
+    //вид от 1-го лица, лазер/контроль... короче, стреляем туда, куда показывает оружие
+    CorrectDirFromWorldToHud(dir, pos, game_ini_r_single_def(GetHUDSection(wpn), 'hud_recalc_koef', 1.0));
   end else begin
     //ищем предполагаемую точку попадания при стрельбе из новой точки
     dist:=TraceAsView(pos, dir, GetOwner(wpn));

@@ -7,7 +7,7 @@ interface
 function Init():boolean;
 
 implementation
-uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config;
+uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors;
 //////////////////////////////////////////////////////////////////
 type R_constant = record
 //todo:дописать
@@ -152,9 +152,12 @@ begin
     x:=len*cos(ang);
     y:=len*sin(ang);
 
-//    log('deviation len='+floattostr(len)+', x='+floattostr(x)+', y='+floattostr(y)); 
-    RCache__set(C, x,y,ang,len);
 
+    x:=x+buf.GetCurLensRecoil.x;
+    y:=y+buf.GetCurLensRecoil.y;
+
+//    log('deviation len='+floattostr(len)+', x='+floattostr(x)+', y='+floattostr(y));
+    RCache__set(C, x,y,buf.GetCurBrightness.cur_value,buf.GetCurBrightness.jitter);
   end;
 end;
 

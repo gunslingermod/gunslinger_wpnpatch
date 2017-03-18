@@ -166,6 +166,8 @@ begin
 
   _add_action('wpn_zoom_alter', kWPN_ZOOM_ALTER, _keygroup_both);
   _add_action('quick_kick', kQUICK_KICK, _keygroup_both);
+  _add_action('scope_brightness_plus', kBRIGHTNESS_PLUS, _keygroup_both);
+  _add_action('scope_brightness_minus', kBRIGHTNESS_MINUS, _keygroup_both);
 
 //  _add_action('alife_command', kALIFE_CMD, _keygroup_sp); //восстанавливаем ЧНовское
 

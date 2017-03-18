@@ -85,6 +85,8 @@ const
   kQUICK_GRENADE:cardinal = $48;
   kWPN_ZOOM_ALTER:cardinal = $49;
   kQUICK_KICK:cardinal = $4A;
+  kBRIGHTNESS_PLUS:cardinal = $4B;
+  kBRIGHTNESS_MINUS:cardinal = $4C;
 
 function IsActionKeyPressed(EGameAction:cardinal):boolean; stdcall;
 function get_action_dik(EGameAction:cardinal; idx:integer):cardinal; stdcall; //idx принимает значения: 0 - основная клавиша, 1 - вспомогательная, -1 - дефаултовая назначенная

@@ -767,6 +767,7 @@ var
   fun:TAnimationEffector;
   modifier:string;
   v:FVector3;
+  buf:WpnBuf;
 begin
   fun:=nil;
 
@@ -793,7 +794,11 @@ begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       modifier:=modifier+'_aim';
-      if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(hud_sect, 'aim_scope_anims', true) and game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'use_scope_anims', false) then modifier:=modifier+'_scope'
+      if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(hud_sect, 'aim_scope_anims', true) and game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'use_scope_anims', false) then modifier:=modifier+'_scope';
+      buf:=GetBuffer(wpn);
+      if buf<>nil then begin
+        buf.ApplyLensRecoil(buf.GetShootRecoil);
+      end;
     end;
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
     modifier:=modifier + GetFireModeStateMark(wpn);
@@ -813,6 +818,7 @@ begin
     if (GetSilencerStatus(wpn)=1) or ((GetSilencerStatus(wpn)=2) and IsSilencerAttached(wpn)) then modifier:=modifier+'_sil';
     ModifierMoving(wpn, actor, modifier, 'enable_directions_anm_shoot_directions', 'enable_moving_anm_shoot');
     ModifierGL(wpn, modifier);
+
   end;
 
   ModifierBM16(wpn, modifier);

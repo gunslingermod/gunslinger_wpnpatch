@@ -14,6 +14,7 @@ var
   buf:WpnBuf;
   tmp_bool:boolean;
   tmp_single:single;
+  tmp_int:integer;
   ammos_in_mag, i, cnt, cnt_total:word;
   ammotype:byte;
 begin
@@ -43,6 +44,8 @@ begin
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetOffsetDir(tmp_single);
 
+  ReadFromReader(packet, @tmp_int, sizeof(tmp_int));
+  buf.SetNightBrightness(tmp_int);
 
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
   SetLength(buf.ammos, ammos_in_mag);
@@ -67,6 +70,7 @@ var
   buf:WpnBuf;
   tmp_bool:boolean;
   tmp_single:single;
+  tmp_stepped:stepped_params;
 
   i, cnt, max_in_mag:word;
   ammotype:byte;
@@ -88,7 +92,8 @@ begin
   WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
   tmp_single:=buf.GetLensOffsetDir();
   WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
-
+  tmp_stepped:=buf.GetCurBrightness();
+  WriteToPacket(packet, @tmp_stepped.cur_step, sizeof(tmp_stepped.cur_step));
 
   //сохраняем типы патронов в магазине, про подствол забываем
   max_in_mag:=GetAmmoInMagCount(wpn);

@@ -10,10 +10,10 @@ procedure OnWeaponShow(wpn:pointer);stdcall;
 function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
-procedure CHudItem__OnMotionMark(wpn:pointer); stdcall;
+function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -576,6 +576,7 @@ var sect:PChar;
     owner:pointer;
     startcond, endcond, curcond, startprob, endprob, curprob:single;
     anm:string;
+    buf:WpnBuf;
 begin
   result:=true;
   SetWeaponMisfireStatus(wpn, true);
@@ -626,7 +627,13 @@ begin
       anm:='anm_shoot_lightmisfire';
       if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
         anm:=anm+'_aim';
-        if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(GetHUDSection(wpn), 'aim_scope_anims', true) then anm:=anm+'_scope'
+        if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(GetHUDSection(wpn), 'aim_scope_anims', true) then anm:=anm+'_scope';
+        buf:=GetBuffer(wpn);
+        if buf<>nil then begin
+          if GetActorActiveItem()=wpn then begin
+            buf.ApplyLensRecoil(buf.GetMisfireRecoil);
+          end;
+        end;        
       end;
       anm:= ModifierStd(wpn, anm);
       PlayHUDAnim(wpn, PChar(anm), true);
@@ -690,6 +697,7 @@ var
   txt:PChar;
   act:pointer;
   det_anm:PChar;
+  buf:WpnBuf;
 begin
   anm_started:=false;
 
@@ -715,6 +723,11 @@ begin
     det_anm:=GetActualCurrentAnim(wpn);
     StartCompanionAnimIfNeeded(rightstr(det_anm, length(det_anm)-4), wpn, true);
     Messenger.SendMessage(txt, gd_novice);
+
+    buf:=GetBuffer(wpn);
+    if buf<>nil then begin
+      buf.ApplyLensRecoil(buf.GetMisfireRecoil);
+    end;
   end;
 end;
 
@@ -1144,25 +1157,39 @@ begin
     OnTorchButton(wpn);
   end else if (id=kWPN_ZOOM_ALTER) then begin
     OnZoomAlterButton(wpn, flags);
+
   end else if (id=kWPN_ZOOM) then begin
     if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
       result:=true;
     end;
-  end else if (id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) then begin
+  end else if ((id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) or (id=kBRIGHTNESS_PLUS) or (id=kBRIGHTNESS_MINUS)) and (flags=kActPress) then begin
     if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
       result:=true;
     end else if (buf<>nil) and IsAimNow(wpn) then begin
-      buf.GetLensParams(min, max, pos, dt);
-      if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
-        scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-        dt:=1/game_ini_r_int_def(scope_sect, 'lens_factor_levels_count', 5);
-      end;
-      if id=kWPN_ZOOM_INC then begin
-        pos:=pos+dt;
+      if (id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) then begin
+        buf.GetLensParams(min, max, pos, dt);
+        if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+          scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+          dt:=1/game_ini_r_int_def(scope_sect, 'lens_factor_levels_count', 5);
+        end;
+        if id=kWPN_ZOOM_INC then begin
+          pos:=pos+dt;
+        end else begin
+          pos:=pos-dt;
+        end;
+        buf.SetLensFactorPos(pos);
       end else begin
-        pos:=pos-dt;
+        scope_sect:=GetSection(wpn);
+        if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+          scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+        end;
+        buf.LoadNightBrightnessParamsFromSection(scope_sect);
+        if id=kBRIGHTNESS_MINUS then begin
+          buf.ChangeNightBrightness(-1);
+        end else begin
+          buf.ChangeNightBrightness(1);
+        end;
       end;
-      buf.SetLensFactorPos(pos);
     end;
   end;
 end;
@@ -1364,6 +1391,7 @@ end;
 procedure CWeapon__OnZoomIn(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
+  scope_sect:PChar;
 begin
   buf:=GetBuffer(wpn);
   if (buf<>nil) then begin
@@ -1372,6 +1400,12 @@ begin
     if buf.IsAlterZoomMode() then begin
       SetZoomFactor(wpn, GetAlterScopeZoomFactor(wpn));
     end;
+
+    scope_sect:=GetSection(wpn);
+    if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+      scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+    end;
+    buf.LoadNightBrightnessParamsFromSection(scope_sect);
   end;
 end;
 
@@ -1402,11 +1436,18 @@ asm
   cmp [esp+8], 4
 end;
 
-procedure CHudItem__OnMotionMark(wpn:pointer); stdcall;
+function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 var
   anm:pchar;
 begin
   //работает для ножа и бросабельных
+  result:=false;
+  if dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponKnife, false)<>nil then begin
+    if GetCurrentState(wpn)=EWeaponStates__eFire then begin
+      MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
+      result:=true;
+    end;
+  end;
 {  if IsPending(wpn) and (GetCurrentState(wpn)=EHudStates__eIdle) then begin
     anm:=GetActualCurrentAnim(wpn);
     if anm='anm_headlamp_on' then begin
@@ -1423,7 +1464,14 @@ asm
     sub ecx, $2e0
     push ecx
     call CHudItem__OnMotionMark
+    cmp al, 00
   popad
+  je @std
+  //удар был сделан нами; уходим из вызывающей процедуры
+  add esp, $1c
+  ret 8
+
+  @std:
   push eax
   push eax
 

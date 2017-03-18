@@ -20,7 +20,7 @@ procedure ProcessLaserdot(wpn:pointer);
 var
   buf:WpnBuf;
   laserdot_data:laserdot_params;
-  dotpos, dotdir, zerovec, viewdir, viewpos:FVector3;
+  dotpos, dotdir, zerovec, viewdir, viewpos, tmp, bonedir:FVector3;
   dist:single;
   HID:pointer;
   b:boolean;
@@ -85,6 +85,11 @@ begin
 
     end else begin
       attachable_hud_item__GetBoneOffsetPosDir(HID, laserdot_data.bone_name, @dotpos, @dotdir, @laserdot_data.offset);
+      bonedir:=dotdir;
+
+      //пытаемся скорректировать разность ФОВ худа и мира
+      tmp:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+      CorrectDirFromWorldToHud(@dotdir, @dotpos, game_ini_r_single_def(GetHUDSection(wpn), 'hud_recalc_koef', 1.0));
     end;
 
     dist:=TraceAsView(@dotpos, @dotdir, dynamic_cast(GetActor(), 0, RTTI_CActor, RTTI_CObject, false))*0.99;
@@ -471,6 +476,9 @@ var
   slot, prevslot:integer;
   
   bp:conditional_breaking_params;
+  last_rec_time:cardinal;
+  lens_recoil:FVector3;
+  val, len:single;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
     sect:=GetSection(wpn);
@@ -553,7 +561,6 @@ begin
       if leftstr(GetCurAnim(wpn), length('anm_attach_gl'))='anm_attach_gl' then DetachAddon(wpn, 2);
       if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
     end;
-
 
     //Обработаем установленные апгрейды
     ProcessUpgrade(wpn);

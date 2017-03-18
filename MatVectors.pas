@@ -27,10 +27,17 @@ interface
     c:FVector4;
   end;
 
+  type FMatrix3x3 = packed record
+    i:FVector3;
+    j:FVector3;
+    k:FVector3;
+  end;
+
   type PFVector2 = ^FVector2;
   type PFVector3 = ^FVector3;
   type PFVector4 = ^FVector4;
   type PFMatrix4x4 = ^FMatrix4x4;
+  type PFMatrix3x3 = ^FMatrix3x3;  
 
   function FVector3_copyfromengine(v:pointer):FVector3;stdcall;
   function FVector4_copyfromengine(v:pointer):FVector4;stdcall;
@@ -38,6 +45,7 @@ interface
 
   function FVector4_make_from_FVector3(v:PFVector3):FVector4;stdcall;
   function FVector4_mul_FMatrix4x4(v:PFvector4; m:PFMatrix4x4):FVector4;stdcall;
+  function FVector3_mul_FMatrix3x3(v:PFvector3; m:PFMatrix3x3):FVector3;stdcall;
 
   function GetAngleCos(v1:pFVector3; v2:pFVector3):single; stdcall;
   procedure v_sub(from:pFVector3; what:pFVector3); stdcall;
@@ -51,6 +59,9 @@ interface
   function v_equal(v1, v2:pFVector3):boolean;
   procedure generate_orthonormal_basis_normalized(dir, up, right:pfVector3);
   procedure v_zero(v:pFVector3);
+  function v_projection_to_v(from_v, to_v:pfVector3):single; stdcall;
+
+
 
   procedure build_projection(m:pFMatrix4x4; hat:single; aspect:single; near_plane:single; far_plane:single);
 
@@ -247,6 +258,10 @@ begin
   end;
 end;
 
+
+
+
+
 procedure build_projection(m:pFMatrix4x4; hat:single; aspect:single; near_plane:single; far_plane:single);
 var
   cot, w, h, q:single;
@@ -260,9 +275,18 @@ begin
   m.j.x :=0; m.j.y :=h; m.j.z :=0; m.j.w :=0;
   m.k.x :=0; m.k.y :=0; m.k.z :=q; m.k.w :=1;
   m.i.x :=0; m.i.y :=0; m.i.z :=-q*near_plane; m.i.w :=0;
+end;
 
+function v_projection_to_v(from_v, to_v:pfVector3):single; stdcall;
+begin
+  result:= (from_v^.x*to_v^.x + from_v^.y*to_v^.y + from_v^.z*to_v^.z)/v_length(to_v);
+end;
 
-
+function FVector3_mul_FMatrix3x3(v:PFvector3; m:PFMatrix3x3):FVector3;stdcall;
+begin
+  result.x := (v.x*m.i.x) + (v.y*m.j.x) + (v.z * m.k.x);
+  result.y := (v.x*m.i.y) + (v.y*m.j.y) + (v.z * m.k.y);
+  result.z := (v.x*m.i.z) + (v.y*m.j.z) + (v.z * m.k.z);
 end;
 
 

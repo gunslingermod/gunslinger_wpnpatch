@@ -108,6 +108,15 @@ begin
       def_inert.pitch_offset_d:= def_inert.pitch_offset_d - (def_inert.pitch_offset_d-aim_inert.pitch_offset_d)*koef;
       def_inert.origin_offset:= def_inert.origin_offset - (def_inert.origin_offset-aim_inert.origin_offset)*koef;
       def_inert.speed:= def_inert.speed - (def_inert.speed-aim_inert.speed)*koef;
+
+    end else if (GetScopeStatus(wpn)=2) then begin
+      //прицел установлен, режим от бедра
+      scp:=GetCurrentScopeSection(wpn);
+      def_inert.pitch_offset_r:=def_inert.pitch_offset_r*game_ini_r_single_def(scp, 'inertion_pitch_r_factor', 1.0);
+      def_inert.pitch_offset_n:=def_inert.pitch_offset_n*game_ini_r_single_def(scp, 'inertion_pitch_offset_n_factor', 1.0);
+      def_inert.pitch_offset_d:=def_inert.pitch_offset_d*game_ini_r_single_def(scp, 'inertion_pitch_offset_d_factor', 1.0);
+      def_inert.origin_offset:=def_inert.origin_offset*game_ini_r_single_def(scp, 'inertion_origin_offset_factor', 1.0);
+      def_inert.speed:=def_inert.speed*game_ini_r_single_def(scp, 'inertion_speed_factor', 1.0);
     end;
   end;
 
