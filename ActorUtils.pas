@@ -1292,6 +1292,29 @@ begin
   _last_act_slot:=GetActorActiveSlot();
 end;
 
+
+procedure DisableNVIfNeeded(act:pointer); stdcall;
+var
+  CTorch:pointer;
+begin
+  CTorch:=ItemInSlot(act, 10);
+  if CTorch=nil then exit;
+  if IsNVSwitchedOn(CTorch) and not CanUseNV(CTorch) then begin
+    CTorch__SwitchNightVision(CTorch, false, true);
+  end;
+end;
+
+procedure DisableTorchIfNeeded(act:pointer); stdcall;
+var
+  CTorch:pointer;
+begin
+  CTorch:=ItemInSlot(act, 10);
+  if CTorch=nil then exit;
+  if IsTorchSwitchedOn(CTorch) and not CanUseTorch(CTorch) then begin
+    CTorch__Switch(CTorch, false);
+  end;
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -1399,6 +1422,10 @@ begin
       end;
     end;
   end;
+
+  //[bug]Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
+  DisableNVIfNeeded(act);
+  DisableTorchIfNeeded(act);
 end;
 
 procedure ActorUpdate_Patch(); stdcall
@@ -2214,7 +2241,6 @@ end;
 procedure CUIMotionIcon__Update_Patch(); stdcall;
 asm
   pushad
-    mov byte ptr [esi+$248], 1 //m_bchanged = true - [bug] баг с "зависанием" индикатора видимости; немного "садит" производительность
     call IsActorPlanningSuicide
     test al, al
     jne @set_max
@@ -2233,9 +2259,82 @@ asm
     je @finish
     @set_max:
     mov [esi+$250], $42c80000  //m_luminosity = 100
+    mov byte ptr [esi+$248], 1 //m_bchanged = true    
     @finish:
   popad
   movss xmm0, [esi+$250] //original;
+end;
+
+function NeedZoneBeep():boolean; stdcall;
+var
+  act, det:pointer;
+
+begin
+  result:=false;
+  
+  act:=GetActor();
+  if act=nil then exit;
+
+  det:=ItemInSlot(act, 9);
+  if det=nil then exit;
+
+  det:=dynamic_cast(det, 0, RTTI_CInventoryItem, RTTI_CCustomDetector, false);
+  if det=nil then exit;
+
+  result:=game_ini_r_bool_def(GetSection(det), 'detects_zones', true);
+
+end;
+
+procedure CUIHudStatesWnd__UpdateZones_Patch(); stdcall;
+asm
+  //original
+  comiss xmm1, xmm0
+  movss [esi+$1c], xmm0
+  jna @finish //will not play sound already
+
+  //check if actor has a detector
+  pushad
+    call NeedZoneBeep
+    cmp al, 0
+  popad
+
+  xorps xmm5, xmm5 //для гарантии
+  @finish:
+end;
+
+procedure CActor__IR_OnMouseMove_CorrectMouseSense(sense:pSingle); stdcall;
+var
+  wpn:pointer;
+  sect:PChar;
+begin
+  wpn:=GetActorActiveItem();
+  if (wpn<>nil) and (IsAimNow(wpn)) then begin
+    if (IsScopeAttached(wpn)) and (GetScopeStatus(wpn)=2) then begin
+      sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+    end else begin
+      sect:=GetSection(wpn);
+    end;
+    sense^:=sense^*game_ini_r_single_def(sect, 'zoom_mouse_sense_koef', 1.0);
+  end;
+end;
+
+procedure CActor__IR_OnMouseMove_CorrectMouseSense_Patch(); stdcall;
+asm
+  //original
+  push ebp
+  mov ebp, xrgame_addr
+  add ebp, $521F20
+  fmul [ebp]
+  fstp [esp+$10]
+
+  lea ebp, [esp+$10]
+  pushad
+  push ebp
+  call CActor__IR_OnMouseMove_CorrectMouseSense
+  popad
+  pop ebp
+
+  test eax, eax //original
 end;
 
 function Init():boolean; stdcall;
@@ -2356,6 +2455,14 @@ begin
 
   jmp_addr:= xrgame_addr+$45CA70;
   if not WriteJump(jmp_addr, cardinal(@CUIMotionIcon__Update_Patch), 8, true) then exit;
+
+  jmp_addr:= xrgame_addr+$277CC7;
+  if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnMouseMove_CorrectMouseSense_Patch), 12, true) then exit;
+
+  //[bug] не совсем баг, но нелогично - что-то пищит даже когда детектора нет ни в слоте, ни в инвентаре. Исправлено.
+  jmp_addr:= xrgame_addr+$458393;
+  if not WriteJump(jmp_addr, cardinal(@CUIHudStatesWnd__UpdateZones_Patch), 8, true) then exit;
+
 
   result:=true;
 end;

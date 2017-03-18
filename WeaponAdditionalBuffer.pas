@@ -28,6 +28,7 @@ type laserdot_params = packed record
     always_hud:boolean;
     always_world:boolean;
     hud_treshold:single;
+    color:FVector3;
 end;
 
 type lens_offset_params = record
@@ -66,7 +67,6 @@ type
     _laserdot_particle_object:pointer;
     _laserdot_particles_distwitch:array of dist_switch;
     _laserdot_dist_multipliers_switch:array of dist_koefs;
-
 
     _torch_installed:boolean;
     _torch_params:torchlight_params;    
@@ -306,10 +306,12 @@ begin
   _lens_zoom_position:=1;
   _lens_zoom_delta:=1/game_ini_r_single_def(GetSection(wpn), 'lens_factor_levels_count', 5);
 
-  _lens_offset.dir:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_max_val', 0.05);
+  _lens_offset.max_value:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_max_val', 0.05);
   _lens_offset.start_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_start_condition', 0.5);
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
   _lens_offset.dir:=random;
+
+//  log('dir = '+floattostr(_lens_offset.dir));
 end;
 
 destructor WpnBuf.Destroy;
@@ -1227,7 +1229,7 @@ procedure WpnBuf.GetLensOffsetParams(p: plens_offset_params);
 begin
   if p<>nil then begin
   
-    _lens_offset:=p^;
+    p^:=_lens_offset;
     if _lens_offset.dir<0 then
       _lens_offset.dir:=0
     else if _lens_offset.dir>1 then
@@ -1239,7 +1241,7 @@ end;
 procedure WpnBuf.SetLensOffsetParams(p: plens_offset_params);
 begin
   if p<>nil then begin
-    p^:=_lens_offset;
+    _lens_offset:=p^;
   end;
 end;
 

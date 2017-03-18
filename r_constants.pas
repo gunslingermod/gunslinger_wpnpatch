@@ -81,6 +81,7 @@ procedure binder_cur_zoom_factor_setup(C:pR_constant); stdcall;
 var
   wpn:pointer;
   val:single;
+  x,y:cardinal;
 begin
   val:=0;
   wpn:=GetActorActiveItem();
@@ -88,7 +89,8 @@ begin
     val:=GetAimFactor(wpn);
   end;
 
-  RCache__set(C, 0,val,0,0.5);
+  GetScreenParams(@x, @y);
+  RCache__set(C, y/x,val,0,0.5);
 
 end;
 
@@ -129,7 +131,7 @@ var
   scope_sect:PChar;
 begin
   wpn:=GetActorActiveItem();
-  if wpn<>nil then buf:=GetBuffer(wpn) else buf:=nil;
+  if (wpn<>nil) and WpnCanShoot(wpn) then buf:=GetBuffer(wpn) else buf:=nil;
 
   if buf<>nil then begin
     buf.GetLensOffsetParams(@offset_params);
@@ -150,7 +152,9 @@ begin
     x:=len*cos(ang);
     y:=len*sin(ang);
 
-    RCache__set(C, x,y,ang,len);  
+//    log('deviation len='+floattostr(len)+', x='+floattostr(x)+', y='+floattostr(y)); 
+    RCache__set(C, x,y,ang,len);
+
   end;
 end;
 

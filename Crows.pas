@@ -8,7 +8,8 @@ procedure ResetBirdsAttackingState(); stdcall;
 
 type
 CAI_Crow = packed record
-  _unknown:array[0..$31B] of Byte;
+  _unknown:array[0..$30F] of Byte;
+  vOldPosition:FVector3; //0x310
   st_current:cardinal; //0x31С
   st_target:cardinal;  //0x320
   vGoalDir:FVector3;   //0x324
@@ -28,7 +29,7 @@ CAI_Crow = packed record
 
   bPlayDeathIdle:byte;// bool, 0x374
   _unused_1:byte;
-  _unused_2:word;  
+  _unused_2:word;
   o_workload_frame:cardinal; //0x378
   o_workload_rframe:cardinal; //0x37C
   //продолжение следует...
@@ -48,58 +49,55 @@ var
 implementation
 uses BaseGameData, Misc, sysutils, gunsl_config, ScriptFunctors, ActorUtils, math, RayPick, ConsoleUtils, LensDoubleRender;
 
-procedure SaveFlags(crow:pCAI_Crow; flags:pbyte); stdcall;
-begin
-  flags^ := ((crow.st_current and $0000000F) shl 4)+(crow.st_target and $0000000F);
-end;
-
-procedure ApplyFlags(crow:pCAI_Crow; flags:byte); stdcall;
-begin
-  crow.st_target:=flags and $0F;
-  crow.st_current:=(flags and $F0) shr 4;
-
-end;
-
-procedure CAICrow__net_Export_Flags_Patch(); stdcall;
+function GetCrowHealthPtr(crow:pCAI_Crow):pSingle;
 asm
-  push 0
-  mov ecx, esp
+  mov @result, 0
   pushad
-    push ecx
-    push edi //crow
-    call SaveFlags
+    mov eax, crow
+    mov eax, [eax+$200]
+    lea eax, [eax+$4]
+    mov @result, eax
   popad
-
-  mov ecx, esi
-  mov edx, xrgame_addr
-  call [edx+$512804]
 end;
 
-procedure CAICrow__net_Import_Flags_Patch(); stdcall;
+
+procedure SetCrowStateInNetSpawn(crow:pCAI_Crow); stdcall;
+begin
+  if GetCrowHealthPtr(crow)^>0 then begin
+    crow.st_current:=ECrowStates__eFlyIdle;
+    crow.st_target:=ECrowStates__eFlyIdle;    
+  end else begin
+    crow.st_current:=ECrowStates__eDeathFall;
+    crow.st_target:=ECrowStates__eDeathDead;
+  end;
+
+  //[bug] баг - кто-то забыл проинициализировать, из-за чего при неудачном стечении обстоятельств вороны вне сектора обзора не летают... Исправим.
+  crow.o_workload_frame:=0;
+  crow.o_workload_rframe:=0;
+end;
+
+
+procedure EnableCrowPhysics(crow:pCAI_Crow); stdcall;
 asm
   pushad
-    push eax
+    mov ecx, crow
+    mov edi, xrgame_addr
+    call [edi+$512D7C]   //processing_activate
+
+    mov ecx, crow
+    mov edi, xrgame_addr
+    add edi, $1010C0
+    call edi            //CAI_Crow::CreateSkeleton
+  popad
+end;
+
+
+procedure CAICrow__net_Spawn_Patch(); stdcall;
+asm
+  pushad
     push esi
-    call ApplyFlags
+    call SetCrowStateInNetSpawn
   popad
-  //original
-  lea eax, [esi+$80]
-end;
-
-procedure CAICrow__net_Spawn_Flags_Patch(); stdcall;
-asm
-  //возьмем из серверного объекта флаги (они по смещению $FC) и скормим их ApplyFlags
-  mov edi, [esp+$14]              //сам серверный объект
-  cmp edi, 0
-  je @no_server_object
-
-  movzx edi,  byte ptr [edi+$FC]  //флаги
-  pushad
-    push edi  //флаги
-    push esi  //CAI_Crow
-    call ApplyFlags
-  popad
-  @no_server_object:
 
   //теперь, если у нас "живой" стейт (то есть вызов Die последует, или Health>0) - деактивируем физическую оболочку
   mov edi, [esi+CAI_Crow.st_target]
@@ -112,23 +110,17 @@ asm
     call [edi+$512C44]   //processing_deactivate
     jmp @finish
   @not_deactivate:
-    mov ecx, esi
-    mov edi, xrgame_addr
-    call [edi+$512D7C]   //processing_activate
-
-    mov ecx, esi
-    mov edi, xrgame_addr
-    add edi, $1010C0
-    call edi            //CAI_Crow::CreateSkeleton
+    push esi
+    call EnableCrowPhysics
   @finish:
 end;
 
-function GetCrowIdleSound(crow_section:PChar):PChar; stdcall;
+function CAI_Crow_Load(crow:pCAI_Crow; crow_section:PChar):PChar; stdcall; //вернуть строку с идловым звуком
 begin
   result:=game_ini_read_string(crow_section, 'snd_idle');
 end;
 
-procedure CAI_Crow__Load_Sound_Patch(); stdcall;
+procedure CAI_Crow__Load_Patch(); stdcall;
 asm
   push [esp]        //сохраним адрес возврата
   lea ecx, [esp+4]  //адрес буфера для строки
@@ -136,7 +128,8 @@ asm
     push ecx
 
     push edi //section
-    call GetCrowIdleSound
+    push esi //crow
+    call CAI_Crow_Load
 
     pop ecx
     mov [ecx], eax
@@ -145,11 +138,13 @@ asm
   ret
 end;
 
-procedure CAI_Crow__CheckAttack(crow_sect:PChar; crow_pos:pFVector3; actor_pos:pFVector3); stdcall;
+procedure CAI_Crow__CheckAttack(crow:pCAI_Crow; crow_sect:PChar; crow_pos:pFVector3; actor_pos:pFVector3); stdcall;
 var
   dir, tmp:FVector3;
   dist_now:single;
 begin
+//  log('crow 0x'+inttohex(cardinal(crow), 8)+' alive! pos = '+floattostr(crow_pos.x)+', '+floattostr(crow_pos.y)+', '+floattostr(crow_pos.z));
+//  log('goal = '+floattostr(crow_pos.x)+', '+floattostr(crow_pos.y)+', '+floattostr(crow_pos.z));
   if game_ini_r_bool_def(crow_sect, 'bomb_attack', false) then begin
     dir:=actor_pos^;
     v_sub(@dir, crow_pos);
@@ -192,6 +187,10 @@ asm
     mov eax, esi
     mov eax, [eax+$68]
     add eax, $10
+    push eax
+
+    mov eax, esi
+    sub eax, $44
     push eax
 
     call CAI_Crow__CheckAttack
@@ -252,6 +251,8 @@ begin
   bird_attack_last_time:=0;
 end;
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -262,12 +263,9 @@ begin
 
     //[bug] правим баг - добавим в CAICrow::net_Export и в CAICrow::net_Import/net_Spawn сохранение и загрузку состояние st_current и st_target
     //без этого уже сбитые вороны "воскресают" при перезагрузке игры и начинают вести себя некорректно (начинают летать, при попадании не падают на землю)
-    jmp_addr:=xrGame_addr+$100687;
-    if not WriteJump(jmp_addr, cardinal(@CAICrow__net_Export_Flags_Patch), 10, true) then exit;
-    jmp_addr:=xrGame_addr+$100EAC;
-    if not WriteJump(jmp_addr, cardinal(@CAICrow__net_Import_Flags_Patch), 6, true) then exit;
+    //UPDATE: было решено править только net_Spawn, проверять в конце здоровье, и если оно >0 - выставлять живой стейт, иначе - мертвый.
     jmp_addr:=xrGame_addr+$100835;
-    if not WriteJump(jmp_addr, cardinal(@CAICrow__net_Spawn_Flags_Patch), 8, true) then exit;
+    if not WriteJump(jmp_addr, cardinal(@CAICrow__net_Spawn_Patch), 8, true) then exit;
 
     //[bug] правим баг, общий сам по себе, но найденный в ходе экспериментов над воронами
     //Ошибка в void CEntity::Die(CObject* who): если объект не был зарегистрирован (m_registered_member	== false)
@@ -283,6 +281,7 @@ begin
     nop_code(xrGame_addr+$1015D5, 1, CHR($FE));
     nop_code(xrGame_addr+$1015DC, 1, CHR($73));
 
+
     //CAI_Crow::renderable_Render вызывается только для ВИДИМЫХ В ЭТОМ КАДРЕ объектов
     //из-за этого вороны, видимые в мире, но не видимые в зуме, замедляются - fDeltaTime для каждров линзы не учитывается
     //лечить будем, смотря значение предыдущего кадра, на котором был сделан вызов UpdateWorkload (o_workload_frame) и умножением Device.fTimeDelta на число прошедших с этого момента кадров:
@@ -291,13 +290,14 @@ begin
     if not WriteJump(jmp_addr, cardinal(@CAI_Crow__renderable_Render_timedelta_Patch), 15, true) then exit;
 
 
-    //обеспечим возможность загрузки разных звуков для разных птиц
-    jmp_addr:=xrGame_addr+$101A40;
-    if not WriteJump(jmp_addr, cardinal(@CAI_Crow__Load_Sound_Patch), 5, true) then exit;
-
     //Атаки птиц
     jmp_addr:=xrGame_addr+$1013C8;
     if not WriteJump(jmp_addr, cardinal(@CAI_Crow__shedule_Update_Attack_Patch), 10, true) then exit;
+
+    //обеспечим возможность загрузки разных звуков для разных птиц
+    jmp_addr:=xrGame_addr+$101A40;
+    if not WriteJump(jmp_addr, cardinal(@CAI_Crow__Load_Patch), 5, true) then exit;
+
 
     result:=true;
 end;

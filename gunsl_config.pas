@@ -111,6 +111,9 @@ function IsForcedLens:boolean;  stdcall;
 function GetModVer():PChar; stdcall;
 function GetQuickUseScriptFunctorName():PChar; stdcall;
 
+function IsAnimatedAddons():boolean; stdcall;
+function IsMandatoryAnimatedUnloadMag():boolean; stdcall;
+
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
@@ -156,6 +159,8 @@ var
   _pda_hide_animator:PChar;
 
   _quickuse_functor:PChar;
+  _is_animated_addons:boolean;
+  _is_mandatory_animated_unload_mag:boolean;
 
   _mod_ver:PChar;
 
@@ -618,6 +623,9 @@ begin
   _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
   _pda_hide_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_hide_animator');
 
+  _is_animated_addons:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'animated_addons', false);
+  _is_mandatory_animated_unload_mag:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'mandatory_animated_unload_mag', false);
+
   _mod_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'version');
   if game_ini_line_exist(GUNSL_BASE_SECTION, 'quickuse_functor') then begin
     _quickuse_functor:=game_ini_read_string(GUNSL_BASE_SECTION, 'quickuse_functor');
@@ -773,5 +781,14 @@ begin
   result:=_quickuse_functor;
 end;
 
+function IsAnimatedAddons():boolean; stdcall;
+begin
+  result:=_is_animated_addons;
+end;
+
+function IsMandatoryAnimatedUnloadMag():boolean; stdcall;
+begin
+  result:=_is_mandatory_animated_unload_mag;
+end;
 
 end.

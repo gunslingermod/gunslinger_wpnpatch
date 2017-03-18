@@ -20,6 +20,7 @@ function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
 function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
 procedure Log(text:string; IsError:boolean = false);stdcall;
 function Is16x9():boolean;stdcall;
+procedure GetScreenParams(width:pCardinal; height:pCardinal);stdcall;
 function str_container_dock(str:PChar):pointer; stdcall;
 
 function get_device_timedelta():single; stdcall;
@@ -185,6 +186,28 @@ asm
     call eax
     
     mov @result, al
+
+    popfd
+    popad
+end;
+
+
+procedure GetScreenParams(width:pCardinal; height:pCardinal);stdcall;
+asm
+    pushad
+    pushfd
+
+    mov eax, xrengine_addr
+    add eax, $92EDC
+
+    mov ecx, [eax]
+    mov ebx, width
+    mov [ebx], ecx
+
+    add eax, 4;
+    mov ecx, [eax]
+    mov ebx, height
+    mov [ebx], ecx
 
     popfd
     popad

@@ -347,8 +347,10 @@ asm
 end;
 
 procedure DecideHowToPlaySnd(snd:pHUD_SOUND_ITEM; O:pointer; pos:pFVector3; flags:cardinal); stdcall;
+const
+  sm_Looped:cardinal = $1;
 begin
-  if snd.m_b_exclusive<>0 then begin
+  if (snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0)  then begin
     ref_sound__play_at_pos(@snd.m_activeSnd.snd, O, pos, flags, snd.m_activeSnd.delay);
   end else begin
     ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos,nil,nil,nil);

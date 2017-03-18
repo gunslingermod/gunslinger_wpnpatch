@@ -53,7 +53,7 @@ begin
     exit;
   end;
 
-  if not CheckActorWeaponAvailabilityWithInform(wpn) then exit;
+  if IsMandatoryAnimatedUnloadMag() and (not CheckActorWeaponAvailabilityWithInform(wpn)) then exit;
 
   if (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
     result:=true;
@@ -75,6 +75,9 @@ begin
       result := true;
       SetAnimForceReassignStatus(wpn, true);
     end;
+  end else begin
+    //анима не стартовала - оружие занято
+    result := true;
   end;
 end;
 
@@ -109,7 +112,7 @@ var
 
 begin
   act:=GetActor();
-  if ((act=nil) or (GetOwner(wpn)<>act)) or not CheckActorWeaponAvailabilityWithInform(wpn) then exit;
+  if ((act=nil) or (GetOwner(wpn)<>act)) or (IsAnimatedAddons() and not CheckActorWeaponAvailabilityWithInform(wpn)) then exit;
 
   param_name:=nil;
   snd_name:=nil;
@@ -138,7 +141,8 @@ begin
     end;
   end;
   hud_sect:=GetHUDSection(wpn);
-  if (param_name=nil) or (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
+
+  if (not IsAnimatedAddons()) or (param_name=nil) or (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
     DetachAddon(wpn, addontype);
     exit;
   end;
@@ -232,7 +236,16 @@ begin
 
   hud_sect:=GetHUDSection(wpn);
   actor:=GetActor();
-  if (actor<>nil) and (actor=GetOwner(wpn)) and not CheckActorWeaponAvailabilityWithInform(wpn) then begin
+  if not IsAnimatedAddons() then begin
+    if err_msg<>nil then begin
+      if (actor<>nil) and (actor=GetOwner(wpn)) then begin
+        Messenger.SendMessage(err_msg);
+      end;
+      result:=false
+    end else begin
+      result:=true;
+    end;
+  end else if (actor<>nil) and (actor=GetOwner(wpn)) and (not CheckActorWeaponAvailabilityWithInform(wpn)) then begin
     //log('not_available');
     result:=false;
   end else if err_msg<>nil then begin
