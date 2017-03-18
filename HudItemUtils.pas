@@ -3,6 +3,20 @@ unit HudItemUtils;
 interface
 uses MatVectors, WeaponSoundLoader;
 
+type CMotionDef = packed record
+  bone_or_part:word;
+  motion:word;
+  speed:word;
+  power:word;
+  accrue:word;
+  falloff:word;
+  flags:cardinal;
+  marks_vec_start:pointer;
+  marks_vec_end:pointer;
+  marks_vec_end2:pointer;
+end;
+pCMotionDef = ^CMotionDef;
+
 function Init():boolean;
 
 function GetPlayerHud():pointer; stdcall;
@@ -76,7 +90,7 @@ procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
-function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
+function GetCurrentMotionDef(wpn:pointer):pCMotionDef; stdcall;
 
 
 
@@ -1258,7 +1272,7 @@ asm
 end;
 
 
-function GetCurrentMotionDef(wpn:pointer):pointer; stdcall;
+function GetCurrentMotionDef(wpn:pointer):pCMotionDef; stdcall;
 asm
   pushad
     mov eax, wpn
@@ -1542,7 +1556,6 @@ asm
     mov @result, al
   popad
 end;
-
 
 function GetAnimTimeState(wpn:pointer; what:cardinal=$2FC):cardinal; stdcall;
 asm

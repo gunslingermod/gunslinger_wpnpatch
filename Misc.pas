@@ -58,7 +58,7 @@ function GetCObjectID(CObject:pointer):word; stdcall;
 
 
 implementation
-uses BaseGameData, ActorUtils;
+uses BaseGameData, ActorUtils, gunsl_config;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
 
@@ -431,6 +431,36 @@ end;
 
 //-----------------------------------------------------------------------------------------------------------
 
+procedure CHW__CreateDevice_VSync_R1_R2; stdcall;
+asm
+  pushad
+    call IsVSyncEnabled
+    cmp al, 0
+    je @no_vsync
+      mov [edi+$34], 0 //D3DPRESENT_INTERVAL_DEFAULT
+      jmp @finish
+    @no_vsync:
+      mov [edi+$34], $80000000 //D3DPRESENT_INTERVAL_IMMEDIATE
+    @finish:
+  popad
+end;
+
+
+procedure CHW__Reset_VSync_R1_R2; stdcall;
+asm
+  pushad
+    call IsVSyncEnabled
+    cmp al, 0
+    je @no_vsync
+      mov [ebx+$A8], 0 //D3DPRESENT_INTERVAL_DEFAULT
+      jmp @finish
+    @no_vsync:
+      mov [ebx+$A8], $80000000 //D3DPRESENT_INTERVAL_IMMEDIATE
+    @finish:
+  popad
+end;
+
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -452,6 +482,25 @@ begin
   jmp_addr:=xrGame_addr+$1ECFF6;
   cscriptgameobject_restoreweaponimmediatly_addr := @CScriptgameobject__restoreweaponimmediatly;
   if not WriteJump(jmp_addr, cardinal(@register_cscriptgameobject_restoreweaponimmediatly), 8, true) then exit;
+
+
+  //[bug] баг с лампочками - thanks to SkyLoader; убираем условие в CHangingLamp::TurnOff, чтобы processing_deactivate срабатывал всегда
+  if not nop_code(xrGame_addr+$2957e7, 2) then exit;
+
+  //[bug] баг с VSync - thanks to SkyLoader; здесь правим для DirectX 8/9, исправления для DirectX 10/11 смотреть в LensDoubleRender
+  if xrRender_R2_addr<>0 then begin
+    jmp_addr:=xrRender_R2_addr+$73e86;
+    if not WriteJump(jmp_addr, cardinal(@CHW__CreateDevice_VSync_R1_R2), 7, true) then exit;
+    jmp_addr:=xrRender_R2_addr+$73718;
+    if not WriteJump(jmp_addr, cardinal(@CHW__Reset_VSync_R1_R2), 10, true) then exit;
+
+  end else if xrRender_R1_addr<>0 then begin
+    jmp_addr:=xrRender_R1_addr+$4B6F6;
+    if not WriteJump(jmp_addr, cardinal(@CHW__CreateDevice_VSync_R1_R2), 7, true) then exit;
+    jmp_addr:=xrRender_R1_addr+$4AF88;
+    if not WriteJump(jmp_addr, cardinal(@CHW__Reset_VSync_R1_R2), 10, true) then exit;
+  end;
+
   result:=true;
 end;
 

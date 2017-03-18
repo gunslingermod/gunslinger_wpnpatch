@@ -453,6 +453,18 @@ asm
     push 00
     push 00
     push eax
+
+    //[bug] баг с VSync
+    //для DX9 - смотреть Misc
+
+    pushad
+      call IsVSyncEnabled
+      cmp al, 0
+    popad
+    je @calling
+      mov [esp+4], 1
+
+    @calling:
     call edx
 end;
 

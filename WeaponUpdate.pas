@@ -9,12 +9,8 @@ procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 implementation
 uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster, UIUtils, xr_RocketLauncher, KeyUtils;
 
-
-
 var patch_addr:cardinal;
   tst_light:pointer;
-
-
 
 procedure ProcessLaserdot(wpn:pointer);
 var
@@ -65,6 +61,8 @@ begin
       end else if IsGrenadeMode(wpn) then begin
         if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserray_when_gl_enabled', false) then begin
           SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+        end else begin
+          SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
         end;
         buf.StopLaserdotParticle();
         exit;
@@ -469,6 +467,19 @@ begin
     //для сокрытия костей, отвечающих за предыдущие апы ветки
     if game_ini_line_exist(section, 'hide_bones_override') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override'), false);
 
+
+    if (IsSilencerAttached(wpn)) then begin
+      if game_ini_line_exist(section, 'hide_bones_override_when_silencer_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_silencer_attached'), false);
+    end;
+
+    if (IsScopeAttached(wpn)) then begin
+      if game_ini_line_exist(section, 'hide_bones_override_when_scope_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_scope_attached'), false);
+    end;
+
+    if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) then begin
+      if game_ini_line_exist(section, 'hide_bones_override_when_gl_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_gl_attached'), false);
+    end;
+
     if IsGrenadeMode(wpn) and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then begin
       if game_ini_line_exist(section, 'hide_bones_override_grenade') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_grenade'), false);    
     end;
@@ -570,7 +581,10 @@ begin
   rest_anm:=anm;
   if IsGrenadeMode(wpn) then begin
     anm:=anm+'_g';
+  end else if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
+      anm:=anm+'_w_gl';
   end;
+
   if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
     anm:=rest_anm;
   end;  

@@ -132,6 +132,10 @@ procedure remove_pp_effector(id:integer); stdcall;
 function GetActorHealthPtr(act:pointer):pSingle;
 function GetActorBleedingPtr(act:pointer):pSingle;
 
+function GetCameraManager():pointer; stdcall;
+function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
+procedure CCameraManager__RemoveCamEffector(index:cardinal); stdcall;
+
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows;
@@ -160,6 +164,8 @@ var
   _action_animator_callback:TAnimationEffector;
   _action_animator_param:integer;
   _action_ppe:integer;
+
+  _sprint_tiredness:single; //как долго мы бежали
 
 
 //-------------------------------------------------------------------------------------------------------------
@@ -240,8 +246,10 @@ asm
   mov eax, [eax]      //m_pActor
   cmp eax, 0
   je @finish
+
   mov eax, [eax+$544]
   push $37
+
   mov ecx, eax
 
   mov eax, xrgame_addr
@@ -575,6 +583,21 @@ begin
       //проверяем, можем ли вообще бить сейчас
       //if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
       if ((wpn=nil) or FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) and (ItemInSlot(act, 1)=nil) then exit;
+
+      if (wpn<>nil) and (IsScopeAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_scope_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_scope_attached', false)) then begin
+        OnActorSwithesSmth('disable_kick_anim_when_scope_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+        exit;      
+      end;
+
+      if (wpn<>nil) and (IsSilencerAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_sil_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_sil_attached', false)) then begin
+        OnActorSwithesSmth('disable_kick_anim_when_sil_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+        exit;      
+      end;
+
+      if (wpn<>nil) and ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_attached', false)) then begin
+        OnActorSwithesSmth('disable_kick_anim_when_gl_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+        exit;      
+      end;
 
       if (wpn<>nil) and IsGrenadeMode(wpn) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_enabled', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_enabled', false)) then begin
         OnActorSwithesSmth('disable_kick_anim_when_gl_enabled', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
@@ -1386,6 +1409,13 @@ begin
 
   itm:=GetActorActiveItem();
 
+  if itm=nil then begin
+    //[bug] баг - останавливаем эффектор анимации камеры оружия при его наличии, но остутствии оружия в руках
+    if CCameraManager__GetCamEffector($12)<>nil then begin
+      CCameraManager__RemoveCamEffector($12);
+    end;
+  end;
+
   //если в руках аниматор действия или премет без буфера с играющейся анимой действия - запускаем калбэк вручную
   if (@_action_animator_callback<>nil) then begin
     if (itm<>nil) and (game_ini_r_bool_def(GetSection(itm), 'action_animator', false) or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=CHUDState__eIdle))) then begin
@@ -1662,6 +1692,7 @@ begin
   _action_ppe:=-1;
 
   _last_before_pda_slot :=0;
+  _sprint_tiredness:=0;
 
   ForgetDetectorAutoHide();
 end;
@@ -2437,6 +2468,51 @@ asm
     movzx eax, word ptr [ebp+$a4]
     push eax
     call OnStep
+  popad
+end;
+
+function GetCameraManager():pointer; stdcall;
+asm
+  pushad
+    call GetLevel
+    mov edi, [eax+$486BC]
+    mov ecx, [edi+$544]
+    mov @result, ecx
+  popad
+end;
+
+function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
+asm
+  pushad
+    call GetCameraManager
+    test eax, eax
+    je @finish
+
+    mov ecx, eax
+    push index
+    mov eax, xrengine_addr
+    add eax, $2C200
+    call eax
+
+    @finish:
+    mov @result, eax
+  popad
+end;
+
+procedure CCameraManager__RemoveCamEffector(index:cardinal); stdcall;
+asm
+  pushad
+    call GetCameraManager
+    test eax, eax
+    je @finish
+
+    mov ecx, eax
+    push index
+    mov eax, xrengine_addr
+    add eax, $2C390
+    call eax
+
+    @finish:
   popad
 end;
 

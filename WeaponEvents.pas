@@ -13,7 +13,7 @@ function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolea
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -1695,6 +1695,60 @@ asm
   jmp eax
 end;
 
+procedure GetNewMotionSpeed(name:pshared_str; value:psingle); stdcall;
+var
+  act:pointer;
+  wpn:pointer;
+  str:string;
+const
+  ANIMATOR_SLOT:cardinal =11;
+begin
+  //TODO:учет МП, как в оригинале?
+  value^:=1;
+  act:=GetActor();
+  if act=nil then exit;
+  wpn:=GetActorActiveItem();
+  if wpn=nil then exit;
+
+  //str:=getsection(wpn)+'; '+PChar(@name.p_.value)+'; '+inttostr(GetActorTargetSlot())+'; '+inttostr(GetActorPreviousSlot());
+  //log(PChar(str));
+
+  if (leftstr(PChar(@name.p_.value), length('anm_hide'))='anm_hide') and (GetForcedQuickthrow() or (GetActorTargetSlot()=ANIMATOR_SLOT)) then begin
+    value^:=game_ini_r_single_def(GetHUDSection(wpn), 'hide_factor_common', 1.8);
+    value^:=game_ini_r_single_def(GetHUDSection(wpn), PChar('hide_factor_'+PChar(@name.p_.value)), value^);
+  end;
+
+
+end;
+
+procedure CalcMotionSpeed_QuickItems_Patch(); stdcall;
+asm
+  push ecx
+  lea ecx, [esp]
+  pushad
+    push ecx    //buffer
+    mov ecx, [esp+4]
+    push ecx    //anim
+    call GetNewMotionSpeed
+  popad
+  fld [esp]
+  add esp, 4
+  
+  //original
+  pop ecx
+  ret
+end;
+
+procedure attachable_hud_item__anim_play_cameff_patch; stdcall;
+asm
+  //если эффектор анимации оружия уже назначен - принудительно завершаем
+  test eax, eax
+  je @finish
+    push $12
+    call CCameraManager__RemoveCamEffector
+  @finish:
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -1861,9 +1915,17 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch), 5, false) then exit;
 
   //[bug] баг - из-за dropCurrentRocket() в CWeaponRG6::FireStart после выстрела НПСом грена зависает в воздухе
-  //но если этого не делать, в оригинале заспавнится 2 CCustomRocket! Из-за вызова FireStart 2 раза. Мы решаем аналогично РПГ-7 
+  //но если этого не делать, в оригинале заспавнится 2 CCustomRocket! Из-за вызова FireStart 2 раза. Мы решаем аналогично РПГ-7
   nop_code(xrgame_addr+$2DFBDD, 5);
   result:=true;
+
+  //реализация изменения скорости доставания/убирания оружия при переключении на/со слота аниматоров и прочей юзабельной хрени
+  jmp_addr:=xrGame_addr+$2FB5EA;
+  if not WriteJump(jmp_addr, cardinal(@CalcMotionSpeed_QuickItems_Patch), 5, false) then exit;
+
+  //[bug] баг с неназначением нового эффектора камеры при неоконченном старом - thanks to SkyLoader
+  jmp_addr:=xrGame_addr+$2FEC28;
+  if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;  
 end;
 
 

@@ -32,6 +32,35 @@ type phantoms_params = record
   max_radius:single;  
 end;
 
+type actor_tiredness_params = record
+  min_tiredness:single;
+  base_speed_idle:single;
+  base_speed_idle_aim:single;
+  base_speed_idle_moving:single;
+  base_speed_idle_slow:single;
+  base_speed_idle_crouch:single;
+  base_speed_idle_crouch_slow:single;
+  base_speed_idle_aim_moving:single;
+  base_speed_idle_slow_moving:single;
+  base_speed_idle_crouch_moving:single;
+  base_speed_idle_crouch_slow_moving:single;
+
+  max_speed_idle:single;
+  max_speed_idle_aim:single;
+  max_speed_idle_moving:single;
+  max_speed_idle_slow:single;
+  max_speed_idle_crouch:single;
+  max_speed_idle_crouch_slow:single;
+  max_speed_idle_aim_moving:single;
+  max_speed_idle_slow_moving:single;
+  max_speed_idle_crouch_moving:single;
+  max_speed_idle_crouch_slow_moving:single;
+
+
+  increment_per_second:single;
+  decrement_per_second:single;
+end;
+
 function Init:boolean;
 
 const
@@ -39,6 +68,7 @@ const
   gd_stalker:cardinal=1;
   gd_veteran:cardinal=2;
   gd_master:cardinal=3;
+  GUNSL_BASE_SECTION:PChar='gunslinger_base';
 
 
 //------------------------------Îáùèå ôóíêöèè ğàáîòû ñ èãğîâûìè êîíôèãàìè---------------------------------
@@ -114,6 +144,8 @@ function GetQuickUseScriptFunctorName():PChar; stdcall;
 function IsAnimatedAddons():boolean; stdcall;
 function IsMandatoryAnimatedUnloadMag():boolean; stdcall;
 
+function IsVSyncEnabled():boolean; stdcall;
+
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math;
@@ -162,7 +194,11 @@ var
   _is_animated_addons:boolean;
   _is_mandatory_animated_unload_mag:boolean;
 
+  _std_tiredness_params:actor_tiredness_params;
+
   _mod_ver:PChar;
+
+  psDeviceFlags:pointer;
 
 
   
@@ -480,12 +516,7 @@ begin
   result:=hud_move_cam_anms_enabled;
 end;
 
-
 function Init:boolean;
-var
-  psDeviceFlags:pointer;
-const
-  GUNSL_BASE_SECTION:PChar='gunslinger_base';
 begin
   result:=false;
   _console_bool_flags:=0;
@@ -625,6 +656,33 @@ begin
 
   _is_animated_addons:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'animated_addons', false);
   _is_mandatory_animated_unload_mag:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'mandatory_animated_unload_mag', false);
+
+  _std_tiredness_params.min_tiredness:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_min_condition', 0.0);
+  _std_tiredness_params.base_speed_idle:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_aim:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_aim_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_moving_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_slow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_slow_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_crouch:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_crouch_slow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_slow_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_aim_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_aim_moving_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_slow_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_slow_moving_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_crouch_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_moving_base_speed', 1.0);
+  _std_tiredness_params.base_speed_idle_crouch_slow_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_slow_moving_base_speed', 1.0);
+
+  _std_tiredness_params.max_speed_idle:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_aim:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_aim_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_moving_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_slow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_slow_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_crouch:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_crouch_slow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_slow_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_aim_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_aim_moving_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_slow_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_slow_moving_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_crouch_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_moving_max_speed', 1.0);
+  _std_tiredness_params.max_speed_idle_crouch_slow_moving:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_idle_crouch_slow_moving_max_speed', 1.0);
+
+
+  _std_tiredness_params.increment_per_second:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_increment_per_second', 0.1);
+  _std_tiredness_params.decrement_per_second:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_decrement_per_second', 0.1);  
 
   _mod_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'version');
   if game_ini_line_exist(GUNSL_BASE_SECTION, 'quickuse_functor') then begin
@@ -789,6 +847,11 @@ end;
 function IsMandatoryAnimatedUnloadMag():boolean; stdcall;
 begin
   result:=_is_mandatory_animated_unload_mag;
+end;
+
+function IsVSyncEnabled():boolean; stdcall;
+begin
+  result:= (pCardinal(psDeviceFlags)^ and (1 shl 2))>0;
 end;
 
 end.
