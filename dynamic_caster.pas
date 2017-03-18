@@ -17,8 +17,10 @@ const
   RTTI_CWeapon:cardinal = $637268;
   RTTI_CWeaponKnife:cardinal = $635EF0;  
   RTTI_CWeaponMagazined:cardinal = $635F0C;
+  RTTI_CWeaponMagazinedWGrenade:cardinal = $636A7C;  
   RTTI_CWeaponBinoculars:cardinal = $6376D8;
   RTTI_CWeaponBM16:cardinal = $6377C8;
+  RTTI_CWeaponShotgun:cardinal = $637720;  
   RTTI_CCustomDetector:cardinal = $62C4B8;      
   RTTI_CObject:cardinal = $616020;
   RTTI_CActor:cardinal = $635AB8;

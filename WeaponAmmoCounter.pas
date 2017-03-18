@@ -230,7 +230,9 @@ end;
 //-----------------------------------------anm_close в случае ручного прерывания релоада----------------------------
 procedure CWeaponShotgun__Action_OnStopReload(wpn:pointer); stdcall;
 begin
-  if (GetSubState(wpn)=EWeaponSubStates__eSubStateReloadEnd) or (IsWeaponJammed(wpn)) then exit;
+  if (GetSubState(wpn)=EWeaponSubStates__eSubStateReloadEnd) or (IsWeaponJammed(wpn)) then begin //???первое никогда не выполнится - см исходник двига???
+    exit;
+  end;
   if not IsActionProcessing(wpn) then begin
     SetSubState(wpn, EWeaponSubStates__eSubStateReloadEnd);
     virtual_CHudItem_SwitchState(wpn,EWeaponStates__eReload);

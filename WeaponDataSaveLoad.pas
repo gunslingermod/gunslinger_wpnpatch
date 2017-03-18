@@ -5,7 +5,7 @@ function Init:boolean;
 
 
 implementation
-uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge, Misc, WeaponEvents, ActorUtils;
+uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge, Misc, WeaponEvents, ActorUtils, dynamic_caster;
 
 
 //загрузка/сохранение игры
@@ -184,6 +184,37 @@ asm
     ret
 end;
 
+procedure CWeapon_NetDestroy_SaveData(wpn:pointer; so:pointer); stdcall;
+var
+  wpn_gl:pointer;
+  gl_status:byte;
+  gl_ammocnt:byte;
+  gl_ammotype:byte;
+begin
+  wpn_gl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponMagazinedWGrenade, false);
+  if wpn_gl<>nil then begin
+    //[bug] баг - при активном подствольнике число грен в нем отправляется в основной магазин патронов
+    if IsGrenadeMode(wpn_gl) then begin
+      //log('Switching GL on '+inttohex(cardinal(so), 8));
+      PerformSwitchGL(wpn_gl);
+    end;
+
+    gl_ammocnt:=GetAmmoInGLCount(wpn_gl);
+    if gl_ammocnt>0 then begin
+      gl_ammotype:=GetGrenadeCartridgeFromGLVector(wpn_gl, gl_ammocnt-1).m_local_ammotype;
+    end else begin
+      gl_ammotype:=GetAmmoTypeIndex(wpn_gl, not IsGrenadeMode(wpn_gl))
+    end;
+    gl_status:= (gl_ammotype shl 6) + (gl_ammocnt and $3F);
+    //log('gl_status ='+inttohex(gl_status, 2));
+
+    pbyte(cardinal(so)+$1A8)^:=gl_status;
+
+  end;
+
+
+end;
+
 
 procedure CWeapon_NetDestroy_SaveData_Patch(); stdcall;
 asm
@@ -200,7 +231,14 @@ asm
     test eax, eax
     je @finish
 
-    //Запихнем в старшие 5 бит байта с флагами аддонов у серверного объекта номер текущего типа прицелов
+    pushad
+      push eax
+      push ecx
+      call CWeapon_NetDestroy_SaveData
+    popad
+
+    //[bug] баг с прицелами - Запихнем в старшие 5 бит байта с флагами аддонов у серверного объекта номер текущего типа прицелов
+    //TODO: переделать сохранение напрямую в серверный объект на запись в пакет
     mov dl, [ecx+$6bc]
     shl dl,3
     mov bl, [ecx+$460]
@@ -218,6 +256,47 @@ asm
 
     ret
 end;
+
+procedure CWeapon__net_Export_ammocnt_Patch(); stdcall;
+asm
+  push ecx
+  lea ecx, [esp]
+  
+  pushad
+  push ecx
+
+  push esi
+  call GetAmmoInMagCount
+
+  pop ecx
+  mov [ecx], eax
+
+  popad
+
+  pop ecx
+end;
+
+procedure CWeapon__net_Export_ammotype_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call IsGrenadeMode
+  cmp al, 0
+  popad
+
+
+  je @not_gl
+  movzx eax, byte ptr [esi+$7E4]
+  jmp @finish
+
+  @not_gl:
+  movzx eax, byte ptr [esi+$6C4]
+  
+  @finish:
+
+end;
+
+
 //-----------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var jmp_addr:cardinal;
@@ -234,8 +313,14 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeapon__load_Patch), 7, false) then exit;
 
   jmp_addr:=xrGame_addr+$2BF104;
-  if not WriteJump(jmp_addr, cardinal(@CWeapon__save_Patch), 5, false) then exit;  
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__save_Patch), 5, false) then exit;
 
+  //[bug] баг - в CWeapon::net_Export сохраняется не число патронов в основном магазине, а число в активном
+  jmp_addr:=xrGame_addr+$2BC03F;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__net_Export_ammocnt_Patch), 7, true) then exit;
+  //аналогично с типом
+  jmp_addr:=xrGame_addr+$2BC05F;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__net_Export_ammotype_Patch), 7, true) then exit;
     
   result:=true;
 end;

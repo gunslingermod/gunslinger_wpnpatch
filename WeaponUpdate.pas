@@ -7,7 +7,7 @@ procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 
 implementation
-uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster, UIUtils;
+uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster, UIUtils, xr_RocketLauncher;
 
 
 
@@ -513,9 +513,20 @@ var
   last_rec_time:cardinal;
   lens_recoil:FVector3;
   val, len:single;
+  rl:pCRocketLauncher;
 begin
     if get_server_object_by_id(GetID(wpn))=nil then exit;
     sect:=GetSection(wpn);
+
+
+    rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponMagazinedWGrenade, false);
+
+    if (rl<>nil) then begin
+      rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher, false);
+      if GetRocketsCount(rl)>0 then begin
+        CWeaponMagazinedWGrenade__LaunchGrenade(wpn);
+      end;
+    end;
 
     if game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
         if (wpn=GetActorActiveItem()) then begin

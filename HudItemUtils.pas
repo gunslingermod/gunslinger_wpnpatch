@@ -45,6 +45,7 @@ function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetAimFactor(wpn:pointer):single; stdcall;
 procedure SetAimFactor(wpn:pointer; f:single); stdcall;
 
+function IsTriStateReload(wpn:pointer):boolean; stdcall;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
@@ -107,6 +108,7 @@ procedure virtual_CShootingObject_FireStart(Weapon:pointer); stdcall;
 
 procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
 procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
+procedure virtual_CWeaponMagazined__OnEmptyClick(wpn:pointer);stdcall;
 procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
 function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
 
@@ -142,6 +144,7 @@ function GetSoundCollection(wpn:pointer):pHUD_SOUND_COLLECTION; stdcall;
 function PlaySoundByAnimName(wpn:pointer; anm:string):boolean;
 
 function IsGrenadeMode(wpn:pointer):boolean; stdcall;
+procedure PerformSwitchGL(wpn:pointer); stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -344,6 +347,7 @@ asm
     popad
 end;
 
+
 function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
 var
   pstart, pend:cardinal;
@@ -377,6 +381,27 @@ asm
 
     mov ecx, wpn
     mov al, [ecx+$496]
+    mov @result, al
+    
+    @finish:
+  popad
+end;
+
+function IsTriStateReload(wpn:pointer):boolean; stdcall;
+asm
+  mov @result, 0
+  pushad
+    push 0
+    push RTTI_CWeapon
+    push RTTI_CWeaponShotgun
+    push 0
+    push wpn
+    call dynamic_cast
+    cmp eax, 0
+    je @finish
+
+    mov ecx, wpn
+    mov al, [ecx+$458]
     mov @result, al
     
     @finish:
@@ -769,19 +794,27 @@ begin
       mov esi, wpn
       and [esi+$460], $FFFFFFFD
       cmp byte ptr [esi+$7f8], 0
-      je @noactive_gl
-      mov eax, [esi]
-      mov edx, [eax+$20c]
-      push 01
-      mov ecx, esi
-      call edx
+      jne @active_gl
 
       mov ecx, esi
       mov eax, xrgame_addr
       add eax, $2d3740
-      call eax
+      call eax                 //PerformSwitchGL [bug] баг в CWeaponMagazinedWGrenade::Detach - если оружие при отсоединении ПГ находится не в состоянии стрельбы гренами, то подствол отсоединится без разряжания грены      
 
-      @noactive_gl:
+
+      @active_gl:
+      mov eax, [esi]
+      mov edx, [eax+$20c]
+      push 01
+      mov ecx, esi
+      call edx                 //UnloadMagazine
+
+      mov ecx, esi
+      mov eax, xrgame_addr
+      add eax, $2d3740
+      call eax                 //PerformSwitchGL
+
+
       mov ebx, xrgame_addr
       add ebx, $2BD930
       mov ecx, esi
@@ -1325,6 +1358,7 @@ end;
 
 procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
 asm
+
     pushad
     pushfd
 
@@ -1360,6 +1394,7 @@ end;
 
 procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
 asm
+
     pushad
     pushfd
 
@@ -1367,6 +1402,21 @@ asm
 
     mov edx, [ecx]
     mov edx, [edx+$1FC]
+    call edx
+
+    popfd
+    popad
+end;
+
+procedure virtual_CWeaponMagazined__OnEmptyClick(wpn:pointer);stdcall;
+asm
+    pushad
+    pushfd
+
+    mov ecx, wpn
+
+    mov edx, [ecx]
+    mov edx, [edx+$1F4]
     call edx
 
     popfd
@@ -1782,7 +1832,7 @@ begin
       is_exclusive:=1
     else
       is_exclusive:=0;
-    HUD_SOUND_COLLECTION__LoadSound(GetSoundCollection(wpn), hud_sect, PChar(snd_name), PChar(snd_name), is_exclusive, game_ini_r_int_def(hud_sect, PChar('snd_type_'+anm), $FFFFFFFF));
+    HUD_SOUND_COLLECTION__LoadSound(GetSoundCollection(wpn), hud_sect, PChar(snd_name), PChar(snd_name), is_exclusive, game_ini_r_int_def(hud_sect, PChar('snd_type_'+anm), -1));
     CHudItem_Play_Snd(wpn, PChar(snd_name));
     result:=true;
   end else begin
@@ -1793,6 +1843,16 @@ end;
 function IsGrenadeMode(wpn:pointer):boolean; stdcall;
 begin
   result:=((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn);
+end;
+
+procedure PerformSwitchGL(wpn:pointer); stdcall;
+asm
+  pushad
+      mov ecx, wpn
+      mov eax, xrgame_addr
+      add eax, $2d3740
+      call eax                 //PerformSwitchGL
+  popad
 end;
 
 end.

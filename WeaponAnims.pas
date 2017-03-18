@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -1414,7 +1414,7 @@ asm
     ret;
 end;
 //------------------------------------------Отключаем стрельбу с подствола при локе-----------------------------------
-procedure ShootGLAnimLockFix; stdcall;
+procedure ShootGLAnimLockFix; stdcall;  //OLD - now rewritten the whole block (see WeaponEvents)
 begin
   asm
     pushad
@@ -1435,6 +1435,7 @@ begin
     ret
   end;
 end;
+
 //---------------------------------------Не даем прицелиться при локе-------------------------------------------------
 procedure AimAnimLockFix; stdcall;
 asm
@@ -1678,7 +1679,7 @@ begin
   buf:=GetBuffer(wpn);
   if buf=nil then exit;
 
-  if not IsReloaded(wpn) then begin
+  if not IsReloaded(wpn) and not IsTriStateReload(wpn) then begin
     CWeaponMagazined__OnAnimationEnd_DoReload(wpn);
     SetReloaded(wpn, true);
   end;
@@ -1717,6 +1718,14 @@ asm
   mov eax, [esi-$54]
   cmp eax, 07
   jne @finish
+
+  pushad
+    sub esi, $338
+    push esi
+    call OnActWhileReload_CanActNow
+    cmp al, 0      
+  popad
+  je @finish
 
   pushad
     sub esi, $338
@@ -1804,7 +1813,7 @@ begin
   jump_addr:=xrGame_addr+$2CFFBE;
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__FireEnd_Patch), 7, true) then exit;
 
-  if not nop_code(xrGame_addr+$2D3ACE, 10) then exit;
+//  if not nop_code(xrGame_addr+$2D3ACE, 10) then exit; //Этот блок кода в CWeaponMagazinedWGrenade полностью переписан при работе над подстволом
 
   //CWeaponMagazinedWGrenade::OnAnimationEnd - отключаем релоад после стрельбы
   if not nop_code(xrGame_addr+$2D15D2, 2) then exit;
@@ -1836,9 +1845,10 @@ begin
   if not WriteJump(jump_addr, cardinal(@IdleStoppingSuicideLockFix_Knife), 8, true) then exit;
 
 
-  //для выстрела с подствола
-  jump_addr:=xrGame_addr+$2D3ABE;
-  if not WriteJump(jump_addr, cardinal(@ShootGLAnimLockFix), 7, true) then exit;
+  //для выстрела с подствола - код переехал в WeaponEvents
+  //jump_addr:=xrGame_addr+$2D3ABE;
+  //if not WriteJump(jump_addr, cardinal(@ShootGLAnimLockFix), 7, true) then exit;
+
 
   //для прицеливания
   jump_addr:=xrGame_addr+$2BECE4;

@@ -34,10 +34,12 @@ function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcal
 procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
 function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
 procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
-function GetAmmoTypeIndex(wpn:pointer):byte; stdcall;
+function GetAmmoTypeIndex(wpn:pointer; second:boolean=false):byte; stdcall;
 function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
 function GetCartridgeSection(c:pCCartridge):PChar; stdcall;
+function GetGLAmmoTypesCount(wpn:pointer):cardinal; stdcall;
+function GetGLCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 
 procedure InitCartridge(c:pCCartridge); stdcall;
 
@@ -106,6 +108,7 @@ begin
   result:=pointer(tmp+sizeof(CCartridge)*index);
 end;
 
+
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 var
   tmp:cardinal;
@@ -123,6 +126,44 @@ begin
 
   result:=pointer(pcardinal(tmp+4*ammotype)^+$10);
 
+end;
+
+function GetGLCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
+var
+  tmp:cardinal;
+  ptr:pointer;
+begin
+  result:=nil;
+  if (wpn=nil) or (GetGLStatus(wpn)=0) or (not IsGLAttached(wpn)) or (ammotype>=GetGLAmmoTypesCount(wpn)) then exit;
+
+  if not IsGLEnabled(wpn) then
+    ptr:= PChar(wpn)+$7D8
+  else
+    ptr:= PChar(wpn)+$6A4;
+    
+  tmp:=(pcardinal(ptr))^;
+
+  result:=pointer(pcardinal(tmp+4*ammotype)^+$10);
+
+end;
+
+
+function GetGLAmmoTypesCount(wpn:pointer):cardinal; stdcall;
+var
+  pstart, pend:cardinal;
+  ptr:pointer;
+begin
+  result:=0;
+  if (wpn=nil) or (GetGLStatus(wpn)=0) or not IsGLAttached(wpn) then exit;
+  if IsGrenadeMode(wpn) then
+    ptr:= PChar(wpn)+$6A4
+  else
+    ptr:= PChar(wpn)+$7D8;
+
+  pstart:=(pcardinal(ptr))^;
+  pend:=(pcardinal(PChar(ptr)+4))^;
+
+  result:=(pend-pstart) div sizeof(pointer);
 end;
 
 function GetMainAmmoTypesCount(wpn:pointer):integer; stdcall;
@@ -186,11 +227,20 @@ asm
     pop eax
 end;
 
-function GetAmmoTypeIndex(wpn:pointer):byte; stdcall;
+function GetAmmoTypeIndex(wpn:pointer; second:boolean):byte; stdcall;
 asm
-    mov eax, wpn
-    mov al, byte ptr [eax+$6C4]
-    mov @result, al
+  mov eax, wpn
+  cmp second, 0
+
+  jne @second
+  movzx eax, byte ptr [eax+$6C4]
+
+  jmp @finish
+
+  @second:
+  movzx eax, byte ptr [eax+$7E4]
+
+  @finish:
 end;
 
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;

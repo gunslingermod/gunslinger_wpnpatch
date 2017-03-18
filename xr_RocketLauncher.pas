@@ -24,8 +24,11 @@ function GetRocket(rl:pCRocketLauncher; index:cardinal):pCCustomRocket; stdcall;
 procedure UnloadRockets(rl:pCRocketLauncher); stdcall;
 procedure UnloadOneRocket(rl:pCRocketLauncher); stdcall;
 
+procedure CWeaponMagazinedWGrenade__LaunchGrenade(wpn:pointer); stdcall;
+procedure CRocketLauncher__SpawnRocket(rl:pointer; g_section:PChar);
+
 implementation
-uses Misc, BaseGameData, sysutils;
+uses Misc, BaseGameData, sysutils, dynamic_caster;
 
 function GetRocketsCount(rl:pCRocketLauncher):cardinal; stdcall;
 begin
@@ -63,5 +66,48 @@ begin
   alife_release(get_server_object_by_id(GetCObjectID(r)));
   rl.m_rockets__last:=pointer(cardinal(rl.m_rockets__last)-4);
 end;
+
+procedure CWeaponMagazinedWGrenade__LaunchGrenade(wpn:pointer); stdcall;
+asm
+  pushad
+    mov ecx, wpn
+    mov eax, xrgame_addr
+    add eax, $2D2C70
+    call eax
+  popad
+end;
+
+procedure CRocketLauncher__SpawnRocket(rl:pointer; g_section:PChar);
+var
+  g_string:string;
+  s, pps:PChar;
+  l:cardinal;
+  cgo:pointer;
+begin
+  l:=length(g_section);
+  g_string:=chr(0)+chr(0)+chr(0)+chr(0);
+  g_string:=g_string+(PChar(@l))[0]+(PChar(@l))[1]+(PChar(@l))[2]+(PChar(@l))[3];
+  g_string:=g_string+chr(0)+chr(0)+chr(0)+chr(0);
+  g_string:=g_string+chr(0)+chr(0)+chr(0)+chr(0);
+  g_string:=g_string+g_section+chr(0);
+  cgo:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CObject, false); 
+
+  s:=PChar(g_string);
+  pps:=@s;
+
+  asm
+    pushad
+      push cgo
+      push pps
+
+      mov eax, xrgame_addr
+      add eax, $2CC6D0
+      call eax
+
+    popad
+  end;
+
+end;
+
 
 end.

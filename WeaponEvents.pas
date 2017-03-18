@@ -136,6 +136,8 @@ begin
         param_name:='use_sildetach_anim';
         anim_name:='anm_detach_sil';
         snd_name:='sndSilDet';
+
+
       end;
     2:begin
         param_name:='use_gldetach_anim';
@@ -298,7 +300,7 @@ asm
   push ecx
   mov ecx, [esp+8]
 
-  
+
   push esi
   push ebx
 
@@ -430,7 +432,8 @@ asm
 end;
 //------------------------------------------------------------------------------
 procedure OnCWeaponNetDestroy(wpn:pointer);stdcall;
-var buf:WpnBuf;
+var
+  buf:WpnBuf;
 begin
   buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
   if buf<>nil then buf.Free;
@@ -1530,26 +1533,78 @@ asm
   @finish:
 end;
 
-procedure CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge(wpn:pointer); stdcall;
+////////////////////////////////Фикс угла вылета грены в режиме прицеливания//////////////////////////////////////
+
+procedure LaunchGrenade_Correct(v:pFVector3); stdcall;
+var
+  camdir:FVector3;
+begin
+  //цель слишком далеко... Стреляем грену под углом 45 градусов по направлению взгляда
+  camdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+  camdir.y:=0;
+  v_normalize(@camdir);
+
+  camdir.y:=1;
+  v_normalize(@camdir);
+
+  v^:=camdir;
+end;
+
+procedure CWeaponMagazinedWGrenade__LaunchGrenade_dir_Patch(); stdcall;
+asm
+  pop ecx // ret addr
+  add esp, $10 //original
+  push ecx //ret addr
+
+  test al, al
+  jne @finish //all OK
+
+  lea ecx, [esp+$14]
+  pushad
+    push ecx
+    call LaunchGrenade_Correct
+  popad
+
+  @finish:
+  test al, al //original  
+end;
+
+////////////////////////////////Переделка кода в CWeaponMagazinedWGrenade__Action//////////////////////////////////////
+
+procedure TryShootGLFix(wpn:pointer); stdcall;
 var
   rl:pCRocketLauncher;
+  g_name:PChar;
 begin
-  //[bug] баг со сменой типа грен в граниках - CCustomRocket не разряжается!
-  rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher,false);
-  if rl<>nil then begin
-    UnloadOneRocket(rl);
+  rl:=dynamic_cast(wpn,0, RTTI_CWeaponMagazinedWGrenade, RTTI_CRocketLauncher, false);
+  if not (OnShoot_CanShootNow(wpn)) or (rl=nil) or (GetRocketsCount(rl)>0)  then begin
+    //стрелять нельзя, оружие занято
+    exit;
+  end else if GetCurrentAmmoCount(wpn)<=0 then begin
+    //стрелять нельзя, нет боеприпасов
+    virtual_CWeaponMagazined__OnEmptyClick(wpn);
+  end else begin
+    //стрелять можно, спавним фейковую грену
+    g_name:=game_ini_read_string(GetGLCartridgeSectionByType(wpn, GetGrenadeCartridgeFromGLVector(wpn, GetAmmoInGLCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
+    CRocketLauncher__SpawnRocket(rl, g_name);
   end;
 end;
 
-procedure CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge_Patch(); stdcall;
+procedure TryShootGLFix_Patch(); stdcall;
 asm
   pushad
-    push ebp
-    call CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge
+    push esi
+    call TryShootGLFix
   popad
-  cmp eax, [ebp+$6CC]
 end;
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+procedure CWeaponRG6__AddCartridge_Replace(); stdcall;
+asm
+  mov eax, xrgame_addr
+  add eax, $2DEA80
+  jmp eax
+end;
 
 function Init:boolean;
 var
@@ -1679,9 +1734,34 @@ begin
   jmp_addr:=xrGame_addr+$2D6B97;
   if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnMotionMark_Patch), 6, true) then exit;
 
+
+  //[bug] баг стрельбы с подствола в режиме прицеливания - если цель слишком далеко, грена летит не на максимальную дальность, а как повезет
+  jmp_addr:=xrGame_addr+$2D30A2;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__LaunchGrenade_dir_Patch), 5, true) then exit;
+  if not nop_code(xrgame_addr+$2D3038, 6) then exit;
+  //аналогично для РГ-6
+  jmp_addr:=xrGame_addr+$2DFA7A;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__LaunchGrenade_dir_Patch), 5, true) then exit;
+  if not nop_code(xrgame_addr+$2DFA10, 6) then exit;  
+
   //[bug]баг оружия с подстволом - при разрядке не разряжаются CCustomRocket'ы
-  jmp_addr:=xrGame_addr+$2CF7E7;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__UnloadMagazine_OnUnloadOneCartridge_Patch), 6, true) then exit;
+  //Для фикса ПОЛНОСТЬЮ переписываем код внутри CWeaponMagazinedWGrenade::Action, выполняющийся при попытке стрельбы с подствола
+  //меняем логику работы: спавним ракету не при перезарядке, а при выстреле
+  jmp_addr:=xrGame_addr+$2D3ABE;
+  if not WriteJump(jmp_addr, cardinal(@TryShootGLFix_Patch), 47, true) then exit;
+  nop_code(xrgame_addr+$2D206F, 13);
+  nop_code(xrgame_addr+$2D35B9, 13);
+  //jmp_addr:=xrGame_addr+$2D35ED;
+  //в CWeaponMagazinedWGrenade::net_Spawn обеспечиваем зарядку CCartridge
+  //if not WriteJump(jmp_addr, xrGame_addr+$2D35E1, 5, false) then exit;
+  nop_code(xrgame_addr+$2D3519, 6);
+
+  //аналогично делаем для CWeaponRG6
+  //заменяем CWeaponRG6::AddCartridge на предка
+  jmp_addr:=xrGame_addr+$2DF5B0;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__AddCartridge_Replace), 6, false) then exit;
+  nop_code(xrgame_addr+$2DF4A9, 2);
+
 
   result:=true;
 end;
