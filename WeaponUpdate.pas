@@ -40,7 +40,22 @@ begin
     buf.SetLaserEnabledStatus(false);
   end;
 
-  if (buf.IsLaserEnabled()) then begin
+  if (IsGrenadeMode(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch')) and (buf.IsLaserEnabled() or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') ) then begin
+     //подствол при прицеливании может перекрывать ЛЦУ - тогда выключаем последний
+    if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserdot_when_gl_enabled', false)
+    and ( not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch')
+      or (    IsGLEnabled(wpn) and (GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR))>game_ini_r_int_def(GetHUDSection(wpn), PChar('laser_disable_time_'+GetActualCurrentAnim(wpn)), 0)))
+      or (not IsGLEnabled(wpn) and (GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR))<game_ini_r_int_def(GetHUDSection(wpn), PChar('laser_enable_time_'+GetActualCurrentAnim(wpn)), 0)))      
+    ) then begin
+      if game_ini_r_bool_def(GetHUDSection(wpn), 'disable_laserray_when_gl_enabled', false) then begin
+        SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
+      end;
+      buf.StopLaserdotParticle();
+      exit;
+    end else begin
+      SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);    
+    end;
+  end else if (buf.IsLaserEnabled()) then begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, true);
   end else begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);

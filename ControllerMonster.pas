@@ -104,7 +104,7 @@ end;
 
 function CanUseItemForSuicide(wpn:pointer):boolean;
 begin
-  result:= (wpn<>nil) and (IsKnife(wpn) or (WpnCanShoot(wpn) and not (IsWeaponJammed(wpn)) and not (GetAmmoInMagCount(wpn)=0))) and not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false);
+  result:= (wpn<>nil) and (IsKnife(wpn) or (WpnCanShoot(wpn) and not (IsWeaponJammed(wpn)) and not (GetAmmoInMagCount(wpn)=0))) and not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false) and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_switch_gl', false));
 end;
 
 procedure Update(dt:cardinal); stdcall;
@@ -274,7 +274,7 @@ begin
 
   //а теперь займемс€ стрел€ющим оружием
 
-  if ((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn) and CanStartAction(wpn) then begin
+  if IsGrenadeMode(wpn) and CanStartAction(wpn) then begin
     virtual_CHudItem_SwitchState(wpn, EWeaponStates__eSwitch);
     _planning_suicide:=true;
     _suicide_now:=false;

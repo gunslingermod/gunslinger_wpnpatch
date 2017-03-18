@@ -13,7 +13,7 @@ function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolea
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -780,6 +780,11 @@ begin
 
   if (act<>nil) and (owner=act) then begin
     if result then begin
+      if (GetBuffer(wpn)<>nil) and (not IsReloaded(wpn)) and OnActWhileReload_CanActNow(wpn) then begin
+        CWeaponMagazined__OnAnimationEnd_DoReload(wpn);
+        SetReloaded(wpn, false); //чтобы аверы не ругались, надо так :(
+        SetReloaded(wpn, true);
+      end;
       ResetActorFlags(act);
     end else begin
       if ActorUtils.IsHolderInSprintState(wpn) then begin
@@ -1493,6 +1498,19 @@ asm
   or word ptr [esi-$2e0+$2f4], 01 //SetPending(true)
 end;
 //----------------------------------------------------------------------------------------------------------
+
+procedure CWeapon__Action_zoomincdec_Patch(); stdcall;
+asm
+  test bl, 1 // if !flags&&CMD_START then return;
+  je @finish
+
+  cmp byte ptr [esi+$494], 00
+  je @finish
+
+  @finish:
+end;
+
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -1576,6 +1594,10 @@ begin
   //обработка дополнительных клавиатурных действий
   jmp_addr:=xrGame_addr+$2BEC7B;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__Action_Patch), 11, true) then exit;
+
+  //[bug] баг - забыли проверить в CWeapon::Action на cmd_start приближение/отдаление прицела и смену типа патронов (она правится у нас отдельно)
+  jmp_addr:=xrGame_addr+$2BEDAF;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__Action_zoomincdec_Patch), 7, true) then exit;
 
 
   //исправляем рассинхрон с детектором

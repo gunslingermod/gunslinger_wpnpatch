@@ -232,6 +232,7 @@ type
   function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
   function CanAimNow(wpn:pointer):boolean;stdcall;
   function CanBoreNow(wpn:pointer):boolean;stdcall;
+  function OnActWhileReload_CanActNow(wpn:pointer):boolean;stdcall;
   function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
   function CanLeaveAimNow(wpn:pointer):boolean;stdcall;
   procedure MakeLockByConfigParam(wpn:pointer; section:PChar; key:PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
@@ -248,7 +249,7 @@ type
 
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents;
 
 { WpnBuf }
 
@@ -607,7 +608,7 @@ end;
 
 function CanHideWeaponNow(wpn:pointer):boolean;stdcall;
 begin
-  if IsActionProcessing(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))= 'anm_switch') or IsHolderInSprintState(wpn) or IsHolderInAimState(wpn) or IsAimNow(wpn) then
+  if (IsActionProcessing(wpn) and not OnActWhileReload_CanActNow(wpn)) or (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))= 'anm_switch') or IsHolderInSprintState(wpn) or IsHolderInAimState(wpn) or IsAimNow(wpn) then
     result:=false
   else
     result:=true;
@@ -706,6 +707,18 @@ begin
   end;
 end;
 
+function OnActWhileReload_CanActNow(wpn:pointer):boolean;stdcall;
+var
+  delay:cardinal;
+begin
+  result:=false;
+  //if (GetCurrentState(wpn)<>EWeaponStates__eReload) then exit;        //если делать так - не будет нормально работать досрочное убирание ствола
+
+  if leftstr(GetActualCurrentAnim(wpn), length('anm_reload'))<>'anm_reload' then exit;
+  delay:=floor(game_ini_r_single_def(GetHUDSection(wpn), PChar('early_reload_end_delta_'+GetActualCurrentAnim(wpn)),0)*1000);
+  result:= GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_CUR), GetAnimTimeState(wpn, ANM_TIME_END))<delay;
+end;
+
 function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
 var
   anm_name:string;
@@ -723,11 +736,18 @@ begin
   end;
 
   if IsActionProcessing(wpn) then begin
+    if OnActWhileReload_CanActNow(wpn) then begin
+      result:=true;
+      exit;
+    end;
+
     cur_param:='autoshoot_'+GetActualCurrentAnim(wpn);
     buf:=GetBuffer(wpn);
     if (buf<>nil) and (buf._lock_remain_time>0) and game_ini_line_exist(hud_sect, PChar(cur_param)) and game_ini_r_bool(hud_sect, PChar(cur_param)) then begin
-      SetShootLockTime(wpn, buf._lock_remain_time/1000);
-      result:=true;
+//      SetShootLockTime(wpn, buf._lock_remain_time/1000);
+//      result:=true;
+        SetActorKeyRepeatFlag(kfFIRE, true);
+        result:=false;
     end else begin
       result:=false;
     end;
@@ -743,8 +763,13 @@ begin
       end;
       SetActorActionState(act, actModSprintStarted, false);
       SetActorActionState(act, actSprint, false, mState_WISHFUL);
+
+      SetActorKeyRepeatFlag(kfFIRE, true);
+      result:=false;
     end;
   end;
+
+
 end;
 
 function CanStartAction(wpn:pointer; allow_aim_state:boolean=false):boolean;stdcall;

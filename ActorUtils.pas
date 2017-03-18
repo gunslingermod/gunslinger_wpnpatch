@@ -2410,6 +2410,25 @@ asm
   test eax, eax //original
 end;
 
+procedure OnStep(id:cardinal); stdcall;
+const
+  f:PChar = 'gunsl_exo.on_step_sound';
+begin
+  script_call(f, nil, id);
+end;
+
+procedure CStepManager__material_sound__play_next_OnStepSnd(); stdcall;
+asm
+  sbb eax, eax
+  and eax, 02
+
+  pushad
+    movzx eax, word ptr [ebp+$a4]
+    push eax
+    call OnStep
+  popad
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -2532,9 +2551,13 @@ begin
   jmp_addr:= xrgame_addr+$277CC7;
   if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnMouseMove_CorrectMouseSense_Patch), 12, true) then exit;
 
-  //[bug] не совсем баг, но нелогично - что-то пищит даже когда детектора нет ни в слоте, ни в инвентаре. Исправлено.
+  //[bug] не совсем баг, но нелогично - что-то пищит при подходе к аномалиям, даже когда детектора нет ни в слоте, ни в инвентаре. Исправлено.
   jmp_addr:= xrgame_addr+$458393;
   if not WriteJump(jmp_addr, cardinal(@CUIHudStatesWnd__UpdateZones_Patch), 8, true) then exit;
+
+  //звук шагов экзы
+  jmp_addr:= xrgame_addr+$78F9C;
+  if not WriteJump(jmp_addr, cardinal(@CStepManager__material_sound__play_next_OnStepSnd), 5, true) then exit;
 
 
   result:=true;

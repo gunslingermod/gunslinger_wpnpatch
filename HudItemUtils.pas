@@ -140,6 +140,8 @@ procedure EndPending(wpn:pointer); stdcall;
 function GetSoundCollection(wpn:pointer):pHUD_SOUND_COLLECTION; stdcall;
 function PlaySoundByAnimName(wpn:pointer; anm:string):boolean;
 
+function IsGrenadeMode(wpn:pointer):boolean; stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -1766,6 +1768,11 @@ begin
   end else begin
     result:=false;
   end;
+end;
+
+function IsGrenadeMode(wpn:pointer):boolean; stdcall;
+begin
+  result:=((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn);
 end;
 
 end.

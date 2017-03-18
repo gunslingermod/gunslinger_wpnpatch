@@ -300,6 +300,20 @@ asm
   popad
 end;
 
+
+procedure CWeaponMagazined__TryReload_hasammo_Patch(); stdcall;
+asm
+  cmp [esi+$690], 00 //original
+  jne @finish
+  //cmp byte ptr [esi+$7f8], 1 //активен ли подствол сейчас
+  pushad
+    push esi
+    call IsGrenadeMode
+    cmp al, 1
+  popad
+
+  @finish:
+end;
 //------------------------------------------------------------------------------------------------------------------
 function Init:boolean;
 var
@@ -335,7 +349,7 @@ begin
   if not WriteJump(addr, cardinal(@CWeaponMagazined__ReloadMagazine_OnFinish_Patch), 6, false) then exit;
 
 {$ifdef NEW_BRIEF_MODE}
-  //изменяем CWeaponMagazined::GetBriefInfo так, чтобы на экране показывался не текущий тип заряженного патрона, и тип, которым будем заряжать
+  //изменяем CWeaponMagazined::GetBriefInfo так, чтобы на экране показывался не текущий тип заряженного патрона, а тип, которым будем заряжать
   debug_bytes[0]:=$e9; debug_bytes[1]:=$BD; debug_bytes[2]:=$00; debug_bytes[3]:=$00; debug_bytes[4]:=$00; debug_bytes[5]:=$90;
   if not WriteBufAtAdr(xrGame_addr+$2CE5B2, @debug_bytes[0],6) then exit;
   //аналогично для CWeaponMagazinedWGrenade
@@ -351,8 +365,11 @@ begin
   addr:=xrGame_addr+$2DE3ED;
   if not WriteJump(addr, cardinal(@CWeaponShotgun__OnAnimationEnd_OnAddCartridge_Patch), 22, true) then exit;
 
-  //удалим условие, которое не дает расклинивать CWeaponMagazined, если патронов к нему нет ни в инвентаре, ни в магазине
-  nop_code(xrGame_addr+$2D00B4,2);
+  //изменим условие, которое не дает расклинивать CWeaponMagazined, если патронов к нему нет ни в инвентаре, ни в магазине
+  //оно существенно только при перезарядке в режиме подствола
+  addr:=xrGame_addr+$2D00AD;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__TryReload_hasammo_Patch), 7, true) then exit;
+
 
   //дадим возможность расклинивать дробовик, когда в инвентаре нет патронов
   addr:=xrGame_addr+$2DE94A;

@@ -308,13 +308,20 @@ begin
 end;
 
 function anm_show_selector(wpn:pointer):pchar;stdcall;
-const
-  anm_show:PChar = 'anm_show';
+var
+  anm_show:PChar;
 begin
+  anm_show := 'anm_show';
   if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) then begin
     ResetItmHudOffset(wpn);
     if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') and not game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
       ForgetDetectorAutoHide();
+    end;
+  end;
+
+  if IsActorPlanningSuicide() or IsActorSuicideNow() then begin
+    if game_ini_r_bool_def(GetHUDSection(wpn), 'enable_anm_show_suicide', false) then begin
+      anm_show:='anm_show_suicide';
     end;
   end;
   result:=anm_std_selector(wpn, anm_show);
@@ -1093,7 +1100,12 @@ end;
 //---------------------------------‘икс дл€ недопущени€ расклинивани€ при перезар€дке подствола-----------------------
 procedure JammedBugFix(); stdcall;
 asm
-    cmp byte ptr [esi+$7f8], 1
+    //cmp byte ptr [esi+$7f8], 1
+    pushad
+      push esi
+      call IsGrenadeMode
+      cmp al, 1
+    popad
     je @finish
     mov [esi+$45a], 0
     @finish:
@@ -1133,6 +1145,14 @@ end;
 
 procedure AmmoChangePlayingPatch; stdcall;
 asm
+    test bl, 01
+    jne @cmd_start
+    mov eax, 0
+    ret 4
+
+
+    @cmd_start:
+
     pushad
 //      push 0
       push esi
@@ -1528,11 +1548,10 @@ begin
   if (act=nil) or (GetOwner(wpn)<>act) then exit;
   hud_sect:=GetHUDSection(wpn);
 
-  if not (game_ini_line_exist(hud_sect, 'mix_shoot_after_idle') and game_ini_r_bool(hud_sect, 'mix_shoot_after_idle')) then exit;
-
   cur_anim:=GetActualCurrentAnim(wpn);
 
-  if leftstr(cur_anim, length('anm_idle')) = 'anm_idle' then result:=true;
+  if game_ini_r_bool_def(hud_sect, 'mix_shoot_after_idle', false) and (leftstr(cur_anim, length('anm_idle')) = 'anm_idle') then result:=true;
+  if game_ini_r_bool_def(hud_sect, 'mix_shoot_after_reload', false) and (leftstr(cur_anim, length('anm_reload')) = 'anm_reload') then result:=true;  
 
 end;
 
@@ -1643,7 +1662,67 @@ asm
   ret 4
 end;
 
+//---------------------¬озможность открыти€ стрельбы до окончани€ анимации перезар€дки------------------------------------------
+function CWeapon__Action_PrepareEarlyShotInReload(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+begin
+  result:=false;
+  buf:=GetBuffer(wpn);
+  if buf=nil then exit;
 
+  if not IsReloaded(wpn) then begin
+    CWeaponMagazined__OnAnimationEnd_DoReload(wpn);
+    SetReloaded(wpn, true);
+  end;
+
+  if GetCurrentAmmoCount(wpn)<=0 then exit;
+  buf.SetLockTime(0);
+  EndPending(wpn);
+
+  result:=true;
+end;
+
+
+procedure CWeapon__Action_kWPNFire_Patch(); stdcall;
+asm
+  pushad
+    push esi
+    push esi
+    call OnActWhileReload_CanActNow
+    pop esi
+
+    cmp al, 0
+    je @no_act
+      push esi
+      call CWeapon__Action_PrepareEarlyShotInReload
+    @no_act:
+    cmp al, 1
+  popad
+
+  je @finish
+  test byte ptr [esi+$2F4], 01
+  @finish:
+end;
+
+procedure CWeaponMagazined__FireStart_EarlyReloadShot(); stdcall;
+asm
+  mov eax, [esi-$54]
+  cmp eax, 07
+  jne @finish
+
+  pushad
+    sub esi, $338
+    push esi
+    call CWeapon__Action_PrepareEarlyShotInReload
+    cmp al, 0
+  popad
+
+
+  @finish:
+end;
+
+/////////////////////////////////////
 function Init:boolean;
 var
   buf:byte;
@@ -1666,6 +1745,14 @@ begin
   //теперь очередь бага с расклиниванием
   jump_addr:=xrGame_addr+$2D0F2C;
   if not WriteJump(jump_addr, cardinal(@JammedBugFix), 7, true) then exit;
+
+  //‘икс миксовки релоада грены
+  if not nop_code(xrGame_addr+$2D1E63, 1, CHR(1)) then exit;
+  //переключение на грену
+  if not nop_code(xrGame_addr+$2D19F1, 1, CHR(1)) then exit;
+  if not nop_code(xrGame_addr+$2D1A2A, 1, CHR(1)) then exit;
+  //микс выстрела с подствола
+  if not nop_code(xrGame_addr+$2D1943, 1, CHR(1)) then exit;
 
   //Ѕаг с повторением анимации сокрыти€
   jump_addr:=xrGame_addr+$2D1860; //CWeaponMagazinedWGrenade
@@ -1963,6 +2050,12 @@ begin
   jump_addr:=xrGame_addr+$2E01CC;
   if not WriteJump(jump_addr, cardinal(@ShootAnimMixPatch), 10, true) then exit;
 
+
+  //ранний выстрел (до окончани€ анимы релоада)
+  jump_addr:=xrGame_addr+$2BEC9E;
+  if not WriteJump(jump_addr, cardinal(@CWeapon__Action_kWPNFire_Patch), 7, true) then exit;
+  jump_addr:=xrGame_addr+$2CFE8A;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__FireStart_EarlyReloadShot), 6, true) then exit;
   result:=true;
 end;
 
