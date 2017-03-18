@@ -1580,8 +1580,11 @@ procedure TryShootGLFix(wpn:pointer); stdcall;
 var
   rl:pCRocketLauncher;
   g_name:PChar;
+  buf:WpnBuf;
 begin
   rl:=dynamic_cast(wpn,0, RTTI_CWeaponMagazinedWGrenade, RTTI_CRocketLauncher, false);
+  buf:=GetBuffer(wpn);
+  if buf = nil then exit;
   if not (OnShoot_CanShootNow(wpn)) or (rl=nil) or (GetRocketsCount(rl)>0)  then begin
     //стрелять нельзя, оружие занято
     exit;
@@ -1589,13 +1592,16 @@ begin
     //стрелять нельзя, нет боеприпасов
     virtual_CWeaponMagazined__OnEmptyClick(wpn);
   end else begin
-    //стрелять можно, спавним фейковую грену
-    g_name:=game_ini_read_string(GetGLCartridgeSectionByType(wpn, GetGrenadeCartridgeFromGLVector(wpn, GetAmmoInGLCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
-    CRocketLauncher__SpawnRocket(rl, g_name);
-    //уменьшаем счетчик патронов в магазине
-    SetAmmoInGLCount(wpn, GetCurrentAmmoCount(wpn)-1);
-    SetCurrentAmmoCount(wpn, GetCurrentAmmoCount(wpn)-1);
+    if buf.last_frame_rocket_loaded<>GetCurrentFrame() then begin
+      //стрелять можно, спавним фейковую грену
+      g_name:=game_ini_read_string(GetGLCartridgeSectionByType(wpn, GetGrenadeCartridgeFromGLVector(wpn, GetAmmoInGLCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
+      CRocketLauncher__SpawnRocket(rl, g_name);
+      //уменьшаем счетчик патронов в магазине
+      SetAmmoInGLCount(wpn, GetCurrentAmmoCount(wpn)-1);
+      SetCurrentAmmoCount(wpn, GetCurrentAmmoCount(wpn)-1);
 
+      buf.last_frame_rocket_loaded:=GetCurrentFrame();
+    end;
   end;
 end;
 
@@ -1616,17 +1622,27 @@ asm
 end;
 
 
-procedure RL_SpawnRocket(rl:pCRocketLauncher); stdcall;
+function RL_SpawnRocket(rl:pCRocketLauncher):boolean; stdcall;
 var
   wpn:pointer;
   g_name:PChar;
+  buf:WpnBuf;
 begin
+  result:=true;
   if GetRocketsCount(rl)=0 then begin
     wpn:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CWeaponMagazined, false);
-    if (wpn<>nil) and (GetAmmoInMagCount(wpn)>0) then begin
+    if wpn=nil then exit;
+    buf:=GetBuffer(wpn);
+    if (GetAmmoInMagCount(wpn)>0) and (buf<>nil) and (buf.last_frame_rocket_loaded<>GetCurrentFrame()) then begin
       g_name:=game_ini_read_string(GetMainCartridgeSectionByType(wpn, GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
       CRocketLauncher__SpawnRocket(rl, g_name);
+      buf.last_frame_rocket_loaded:=GetCurrentFrame();
+      buf.rocket_launched:=false;
+      result:=false;
     end;
+  end else begin
+    result:=not buf.rocket_launched;
+    if result then buf.rocket_launched:=true;
   end;
 end;
 
@@ -1635,8 +1651,16 @@ asm
   pushad
   push ecx
   call RL_SpawnRocket
+  cmp al, 0
   popad
+  jne @continue
+  //дальше не выполняем код! выходим из процедуры уровнем выше
+  add esp, 4    //ret addr
+  pop ebp
+  add esp, $40a0
+  ret
 
+  @continue:
   //original
   mov eax, xrgame_addr
   add eax, $2CC650   //CRocketLauncher::getRocketCount
@@ -1644,27 +1668,12 @@ asm
 end;
 
 
-function CWeaponRPG7__FireStart_SpawnRocket_Replace(wpn:pointer):boolean; stdcall;
-var
-  rl:pCRocketLauncher;
-  buf:WpnBuf;
-begin
-  result:=true; //вызывать ли CWeaponMagazined::FireStart после окончания этой процедуры
-  rl:=dynamic_cast(wpn, 0, RTTI_CWeaponMagazined, RTTI_CRocketLauncher, false);
-  buf:=GetBuffer(wpn);
-  if (rl<>nil) and (GetRocketsCount(rl)=0) and (GetAmmoInMagCount(wpn)>0) and (buf<>nil) and (buf.last_frame_rocket_loaded<>GetCurrentFrame()) then begin
-    RL_SpawnRocket(rl);
-    result:=false;
-    buf.last_frame_rocket_loaded:=GetCurrentFrame();
-  end;
-end;
-
 procedure CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch(); stdcall;
 asm
   pushad
-  lea ecx, [ecx-$338]
+  lea ecx, [ecx+$480]
   push ecx
-  call CWeaponRPG7__FireStart_SpawnRocket_Replace
+  call RL_SpawnRocket
   cmp al, 0
   popad
 
@@ -1850,10 +1859,10 @@ begin
   nop_code(xrgame_addr+$2D973E, 1, CHR($EB));
   jmp_addr:=xrGame_addr+$2D94C0;
   if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch), 5, false) then exit;
-  //убираем ракету после выстрела - то, что забыли разрабы
-  jmp_addr:=xrGame_addr+$2D94C0;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch), 5, false) then exit;
 
+  //[bug] баг - из-за dropCurrentRocket() в CWeaponRG6::FireStart после выстрела НПСом грена зависает в воздухе
+  //но если этого не делать, в оригинале заспавнится 2 CCustomRocket! Из-за вызова FireStart 2 раза. Мы решаем аналогично РПГ-7 
+  nop_code(xrgame_addr+$2DFBDD, 5);
   result:=true;
 end;
 

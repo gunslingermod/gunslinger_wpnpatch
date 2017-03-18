@@ -130,6 +130,7 @@ type
     ammo_cnt_to_reload:integer;
     loaded_gl_state:boolean;
     last_frame_rocket_loaded:cardinal; //для РПГ
+    rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами 
 
 
     constructor Create(wpn:pointer);
@@ -363,6 +364,7 @@ begin
     _lens_shoot_recoil_current.z:=-1;
     loaded_gl_state:=false;
     last_frame_rocket_loaded:=0;
+    rocket_launched:=false;
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
