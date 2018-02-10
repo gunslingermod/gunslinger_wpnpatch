@@ -1596,6 +1596,8 @@ begin
       blowout_level:=ModifyFloatUpgradedValue(itm, 'blowout_anim_level', game_ini_r_single_def(GetSection(itm), 'blowout_anim_level', 1000));
       if ( blowout_level<=CurrentElectronicsProblemsCnt()) and ( blowout_level>PreviousElectronicsProblemsCnt()) then begin
         SetActorActionState(act, actModNeedBlowoutAnim, true)
+      end else if (blowout_level>CurrentElectronicsProblemsCnt) and (leftstr(GetActualCurrentAnim(itm), length('anm_blowout')) = 'anm_blowout') then begin
+        virtual_CHudItem_SwitchState(itm, EHudStates__eIdle);
       end;
     end;
   end;

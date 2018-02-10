@@ -338,12 +338,21 @@ begin
 end;
 
 function anm_bore_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
+var
+  snd:PChar;
 begin
+  snd:=nil;
   if (GetActor<>nil) and (GetActor()=GetOwner(wpn)) and (GetActorActionState(GetActor(), actModNeedBlowoutAnim)) then begin
     result:=anm_std_selector(wpn, 'anm_blowout');
+    snd:='sndBlowout';
     SetActorActionState(GetActor(), actModNeedBlowoutAnim, false);
   end else begin
     result:=anm_std_selector(wpn, base_anim);
+    snd:='sndBore';
+  end;
+
+  if GetActorActiveItem()=wpn then begin
+    CHudItem_Play_Snd(wpn, snd);
   end;
 end;
 
@@ -1843,6 +1852,10 @@ begin
 
   //отключим звук движкового удара ножом, т.к. теперь полностью контролируем его в WeaponEvents.OnKnifeKick
   nop_code(xrGame_addr+$2d7503, 8);
+
+  //аналогично, отключим звук движкового bore в CHudItem::OnStateSwitch
+  nop_code(xrGame_addr+$2f9efb, 1);
+  nop_code(xrGame_addr+$2f9efc, 1, CHR($E9));
 
   //фиксим баг (мгновенная смена) с анимой подствола
   jump_addr:=xrGame_addr+$2D33B9;

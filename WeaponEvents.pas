@@ -1295,7 +1295,7 @@ begin
   end;
 
   anm:=GetActualCurrentAnim(wpn);
-  if (GetActorActiveItem()=wpn) and (leftstr(anm, length('anm_idle'))<>'anm_idle') then ResetDOF(ReadActionDOFSpeed_Out(wpn, anm));
+  if (GetActorActiveItem()=wpn) and (not IsAimNow(wpn)) and (leftstr(anm, length('anm_idle'))<>'anm_idle') then ResetDOF(ReadActionDOFSpeed_Out(wpn, anm));
 
   //если у нас аниматор удара и мы продолжаем жать кнопку удара, то возвращаемся обратно в состояние доставания :)
   if (GetActorActiveItem()=wpn) and (GetActorKeyRepeatFlag(kfQUICKKICK) {or IsActionKeyPressed(kQUICK_KICK)}) and (GetSection(wpn)=GetKickAnimator()) and not IsActorControlled() then begin
