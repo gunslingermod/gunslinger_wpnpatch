@@ -29,6 +29,14 @@ end;
 
 type pCSE_Abstract = ^CSE_Abstract;
 
+type xr_list_entry_base = packed record
+  _Next:pointer; //really xr_list_entry_base or child
+  _Prev:pointer; //really xr_list_entry_base or child
+  //Next should be item of template type T. Use derived records for it emulation.
+end;
+
+pxr_list_entry_base = ^xr_list_entry_base;
+
 function Init():boolean;stdcall;
 function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
 function PHRetrieveGeomUserData(dxGeom:pointer):pointer; stdcall;
@@ -792,10 +800,64 @@ begin
   result := dynamic_cast(cobject, 0, RTTI_CObject, RTTI_CEntityAlive, false)<>nil;
 end;
 
+procedure xrMemory__mem_free(mem_ptr:pointer); stdcall;
+asm
+   pushad
+   mov eax, xrEngine_addr
+   mov ecx, [eax+$6f538]
+   mov edx, [eax+$6f53c]
+   push mem_ptr
+   call edx
+   popad
+end;
+
+procedure list_entry_delete(entry:pxr_list_entry_base); stdcall;
+var
+  next, prev:pxr_list_entry_base;
+begin
+  next := entry._Next;
+  prev := entry._Prev;
+
+  next._Prev := prev;
+  prev._Next := next;
+
+  xrMemory__mem_free(entry);
+end;
+
+procedure CCameraManager__UpdateCamEffectors_removefinishedeff_Patch(); stdcall;
+asm
+  cmp al, 0
+  jne @next_eff
+
+  pushad
+  mov ecx, [edi+04]
+  mov edx, [ecx+08] //(CEffectorCam*) (*rit).value
+  push edx
+
+  mov eax, xrEngine_addr
+  add eax, $2c650
+  mov ecx, esi //mov ecx, CCameraManager* this
+  call eax//CCameraManager::OnEffectorReleased
+  popad
+
+  pushad
+  push [edi+04]
+  call list_entry_delete
+  popad
+
+  jmp @finish
+
+@next_eff:
+  mov edi, [edi+4] //rit++
+
+@finish:
+  cmp edi, [ebx]
+  ret
+end;
 
 function Init():boolean;stdcall;
 var
-  jmp_addr:cardinal;
+  jmp_addr, jmp_addr_to:cardinal;
 begin
   //затычка от вылета mp_ranks
   result:=false;
@@ -838,6 +900,18 @@ begin
     jmp_addr:=xrRender_R1_addr+$4AF88;
     if not WriteJump(jmp_addr, cardinal(@CHW__Reset_VSync_R1_R2), 10, true) then exit;
   end;
+
+  //[bug] Баг с некорректным поведением камеры - когда эффектор заканчивает работу, он удаляется в CCameraManager::ProcessCameraEffector
+  //Но цикл в CCameraManager::UpdateCamEffectors ничего об этом не знает, и смещает reverse iterator, пропуская обработку одного эффектора
+  //для фикса: 1) заставим CCameraManager::ProcessCameraEffector возвращать true, когда удалять эффектор не надо, и false в противном случае
+  nop_code(xrEngine_addr+$2cb4d, 2);
+  // 2) Вырежем удаление эффектора из CCameraManager::ProcessCameraEffector
+  jmp_addr := xrEngine_addr+$2cb52;
+  jmp_addr_to := xrEngine_addr+$2cbc8;
+  if not WriteJump(jmp_addr, jmp_addr_to, 5, false) then exit;
+  // 3) Добавим удаление эффектора в CCameraManager::UpdateCamEffectors когда ProcessCameraEffector возвращает false
+  jmp_addr:=xrEngine_addr+$2cc10;
+  if not WriteJump(jmp_addr, cardinal(@CCameraManager__UpdateCamEffectors_removefinishedeff_Patch), 5, true) then exit;
 
   result:=true;
 end;

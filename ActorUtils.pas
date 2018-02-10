@@ -22,7 +22,7 @@ const
   actLanding2:cardinal = $400;
   actSprint:cardinal = $1000;
   actLLookout:cardinal = $2000;
-  actRLookout:cardinal = $4000;  
+  actRLookout:cardinal = $4000;
 
   actModNeedBlowoutAnim:cardinal = $02000000;
   actAimStarted:cardinal = $04000000;
@@ -2408,16 +2408,155 @@ asm
   @finish:
 end;
 
-procedure CActor__g_cl_CheckControls_disable_cam_anms_Patch; stdcall;
+function GetActorCameraMovingAnim(act:pointer; factor:psingle; anm_id:pcardinal):PChar; stdcall;
+var
+  wpn:pointer;
+const
+  HUD_PREFIX='cam_';
+  eCEActorMoving:cardinal = 19;
+  eCEActorMovingFwd:cardinal = 20;
+  eCEActorMovingBack:cardinal = 21;
+  eCEActorMovingLeft:cardinal = 22;
+  eCEActorMovingRight:cardinal = 23;
+  eCEActorMovingSprint:cardinal = 24;
+  eCEActorMovingCrouchDown:cardinal = 25;
+  eCEActorMovingCrouchUp:cardinal = 26;
+  eCEActorMovingJump:cardinal = 27;
+  eCEActorMovingFall:cardinal = 28;
+  eCEActorMovingLanding:cardinal = 29;
+begin
+  result:=nil;
+  anm_id^:=eCEActorMoving;
+  factor^:=70;    //default value for 1
+  wpn:=GetActorActiveItem();
+  if GetActorActionState(act, actMovingLeft, mState_REAL) and not GetActorActionState(act, actMovingLeft, mState_OLD) then begin
+    result:='strafe_left';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='strafe_left_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingLeft;
+  end else if GetActorActionState(act, actMovingRight, mState_REAL) and not GetActorActionState(act, actMovingRight, mState_OLD) then begin
+    result:='strafe_right';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='strafe_right_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingRight;
+  end else if GetActorActionState(act, actMovingForward, mState_REAL) and not GetActorActionState(act, actMovingForward, mState_OLD) then begin
+    result:='move_fwd';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='move_fwd_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingFwd;
+  end else if GetActorActionState(act, actMovingBack, mState_REAL) and not GetActorActionState(act, actMovingBack, mState_OLD) then begin
+    result:='move_back';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='move_back_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingBack;    
+  end else if GetActorActionState(act, actCrouch, mState_REAL) and not GetActorActionState(act, actCrouch, mState_OLD) then begin
+    result:='crouch_down';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='crouch_down_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingCrouchDown;
+  end else if GetActorActionState(act, actCrouch, mState_REAL) and not GetActorActionState(act, actCrouch, mState_WISHFUL) then begin
+    result:='crouch_up';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='crouch_up_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingCrouchUp;
+  end else if GetActorActionState(act, actJump, mState_REAL) and not GetActorActionState(act, actJump, mState_OLD) then begin
+    result:='jump';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='jump_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingJump;
+  end else if GetActorActionState(act, actFall, mState_REAL) and not GetActorActionState(act, actFall, mState_OLD) then begin
+    result:='fall';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='fall_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingFall;
+  end else if GetActorActionState(act, actLanding2, mState_REAL) then begin
+    result:='landing2';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='landing2_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingLanding;
+  end else if GetActorActionState(act, actLanding, mState_REAL) then begin
+    result:='landing';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='landing_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingLanding;
+  end else if GetActorActionState(act, actSprint, mState_REAL) then begin
+    result:='sprint';
+    if (wpn<>nil) then begin
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorMovingSprint;        
+  end;
+
+  if (result<>nil) then Log('CamAnim: '+result+', id='+inttostr(anm_id^));
+end;
+
+procedure CActor__g_cl_CheckControls_select_cam_anm_Patch; stdcall;
 asm
-  mov eax, xrgame_addr
-  comiss xmm0, [eax+$54d270]
-  jbe @finish
+  lea edi, [esp+4+$22c+$204] //последние байты eff_name все равно не будут использоваться в случае названия анимаци камеры, используем их для сохранения ИДшника 
   pushad
-    call IsMoveCamAnmsEnabled
-    cmp al, 0
+  lea eax, [esp+$34]
+  push edi
+  push eax
+  push esi
+  call GetActorCameraMovingAnim
+  mov [esp+$1c], eax
   popad
-  @finish:
+  mov edi, eax
+  test eax, eax
+end;
+
+procedure CActor__g_cl_CheckControls_change_anmid_for_checking_Patch(); stdcall;
+asm
+  mov ecx,[ebp+$544]
+  pop eax
+  push [esp+$22c+$204]
+  jmp eax
+end;
+
+procedure CActor__g_cl_CheckControls_change_anmid_for_assigning_Patch(); stdcall;
+asm
+  mov edx, [esp+4+4+$22c+$204]
+  mov [edi+$0c], edx
 end;
 
 procedure CActor__ActorUse_Patch_deadbodies(); stdcall;
@@ -2930,10 +3069,14 @@ begin
   jmp_addr:= xrgame_addr+$2605d0;
   if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 13, true) then exit;
 
-  //отключение анимаций (camera effectors) камеры в движении
+  //переделка анимаций (camera effectors) камеры в движении
   jmp_addr:= xrgame_addr+$269b97;
-  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
-
+  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_select_cam_anm_Patch), 24, true) then exit;
+  if not nop_code(xrgame_addr+$269bb1, 17) then exit;
+  jmp_addr:= xrgame_addr+$269c5e;
+  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_change_anmid_for_checking_Patch), 8, true) then exit;
+  jmp_addr:= xrgame_addr+$269d0b;
+  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_change_anmid_for_assigning_Patch), 7, true) then exit;
 
   //[bug] баг - чтобы при попытке тащить труп не открывался инвентарь
   //внимание - подозрение на то, что приводит к другому багу: в скрипты подается сигнал об открытии инвентаря трупа, когда сам инвентарь не открывался!

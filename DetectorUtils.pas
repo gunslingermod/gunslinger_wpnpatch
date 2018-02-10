@@ -448,6 +448,7 @@ begin
   if (GetOwner(det)<>act) then begin
     //[bug] BUG: Если актор выбросил активный детектор и поднял его - то этот детектор в оригинале формально находится в активном состоянии, а по факту не рисуется
     //Так что при обнаружении выбрасывания обманываем игру, выставляя неактивность детектора
+    // (лучше править в OnH_A_Independent)
     MakeUnActive(det);
   end else if (GetActiveDetector(act)=det) and game_ini_r_bool_def(GetSection(det), 'torch_installed', false) then begin
     //в руках у актора фонарь

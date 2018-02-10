@@ -85,6 +85,7 @@ const
 //------------------------------Общие функции работы с игровыми конфигами---------------------------------
   function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
   function game_ini_read_string(section:PChar; key:PChar):PChar;stdcall;
+  function game_ini_read_string_def(section:PChar; key:PChar; def:PChar):PChar;stdcall;  
   function game_ini_read_vector3_def(section:PChar; key:PChar; def:pfvector3):FVector3;stdcall;
   function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
   function game_ini_r_single_def(section:PChar; key:PChar; def:single):single;stdcall;
@@ -114,7 +115,6 @@ function IsNPCLasers():boolean; stdcall;
 function IsRealBallistics():boolean; stdcall;
 function IsWeaponmoveEnabled():boolean; stdcall;
 
-function IsMoveCamAnmsEnabled():boolean; stdcall;
 function IsCollimAimEnabled():boolean; stdcall;
 
 function GetStdInertion(aim:boolean):weapon_inertion_params;
@@ -174,8 +174,6 @@ var
   aim_inertion:weapon_inertion_params;
   fov:single;
   hud_fov:single;
-
-  hud_move_cam_anms_enabled:boolean;
 
   def_zoom_dof:FVector3;
   def_act_dof:FVector3;
@@ -345,6 +343,13 @@ asm
     popad
 end;
 
+function game_ini_read_string_def(section:PChar; key:PChar; def:PChar):PChar;stdcall;
+begin
+  result:=def;
+  if game_ini_line_exist(section, key) then begin
+    result:=game_ini_read_string(section, key);
+  end;
+end;
 
 function game_ini_read_string_by_object_string(section:pointer; key:PChar):PChar;stdcall;
 asm
@@ -544,11 +549,6 @@ begin
   result:=((val and r2_dof_enable)>0);
 end;
 
-function IsMoveCamAnmsEnabled():boolean; stdcall;
-begin
-  result:=hud_move_cam_anms_enabled;
-end;
-
 function Init:boolean;
 begin
   result:=false;
@@ -649,7 +649,6 @@ begin
   _weaponmove_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_hud_moving', true);
   _collimaim_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_collimaim', true);  
 
-  hud_move_cam_anms_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_move_cam_anms', false);
   _max_actor_cam_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_actor_camera_speed', 10);
   _actor_cam_pow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_speed_pow', 1.0);
 
