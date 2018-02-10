@@ -81,7 +81,9 @@ procedure binder_cur_zoom_factor_setup(C:pR_constant); stdcall;
 var
   wpn:pointer;
   val:single;
+  abberation:single;
   x,y:cardinal;
+  sect:PChar;
 begin
   val:=0;
   wpn:=GetActorActiveItem();
@@ -89,8 +91,14 @@ begin
     val:=GetAimFactor(wpn);
   end;
 
+  abberation:=game_ini_r_single_def(GetSection(wpn), 'scope_abberation', 0);
+  if IsScopeAttached(wpn) then begin
+    sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+    abberation:=game_ini_r_single_def(sect, 'scope_abberation', abberation);
+  end;
+
   GetScreenParams(@x, @y);
-  RCache__set(C, y/x,val,0,0.5);
+  RCache__set(C, y/x,val,abberation,0.5);
 
 end;
 

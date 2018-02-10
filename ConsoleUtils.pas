@@ -43,9 +43,18 @@ type CCC_Integer = packed record
 end;
 type pCCC_Integer= ^CCC_Integer;
 
+type CCC_Float = packed record
+  base:IConsole_Command;
+  value:psingle;
+  min:single;
+  max:single;
+end;
+type pCCC_Float= ^CCC_Float;
+
 
 procedure CCC_Mask__CCC_Mask(this:pCCC_Mask; name:PChar; value:pCardinal; mask:cardinal);stdcall;
 procedure CCC_Integer__CCC_Integer(this:pCCC_Integer; name:PChar; value:pInteger; min:integer; max:integer);stdcall;
+procedure CCC_Float__CCC_Float(this:pCCC_Float; name:PChar; value:pSingle; min:single; max:single);stdcall;
 procedure CConsole__AddCommand(C:pIConsole_Command); stdcall;
 
 
@@ -118,6 +127,21 @@ asm
     call eax //CCC_Integer::CCC_Integer(LPCSTR N, int* V, int _min, int _max);
   popad
 end;
+
+procedure CCC_Float__CCC_Float(this:pCCC_Float; name:PChar; value:pSingle; min:single; max:single);stdcall;
+asm
+  pushad
+    mov ecx, this
+    push max
+    push min    
+    push value
+    push name
+    mov eax, xrengine_addr
+    add eax, $7FA0
+    call eax //CCC_Float::CCC_Float
+  popad
+end;
+
 
 procedure CConsole__AddCommand(C:pIConsole_Command); stdcall;
 asm

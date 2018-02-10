@@ -244,6 +244,7 @@ var
   CCC_rs_occ_stats:CCC_Mask;
 
   CCC_rs_disable_objects_as_crows:CCC_Mask;
+  CCC_fov:CCC_Float;
 
 //маски для флагов
 const
@@ -592,7 +593,8 @@ begin
   CCC_Mask__CCC_Mask(@CCC_unlock_snd, 'snd_unlock', @_console_bool_flags, _mask_unlocksnd);
   CConsole__AddCommand(@(CCC_unlock_snd.base));
 
-
+  CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
+  CConsole__AddCommand(@(CCC_fov.base));
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
   hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);

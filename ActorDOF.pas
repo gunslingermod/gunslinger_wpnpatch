@@ -304,6 +304,13 @@ begin
   result.x:=game_ini_r_single_def(sect, PChar('lens_dof_near'), result.x);
   result.y:=game_ini_r_single_def(sect, PChar('lens_dof_focus'), result.y);
   result.z:=game_ini_r_single_def(sect, PChar('lens_dof_far'), result.z);
+
+  if IsScopeAttached(wpn) then begin
+    sect:=GetCurrentScopeSection(wpn);
+    result.x:=game_ini_r_single_def(sect, PChar('lens_dof_near'), result.x);
+    result.y:=game_ini_r_single_def(sect, PChar('lens_dof_focus'), result.y);
+    result.z:=game_ini_r_single_def(sect, PChar('lens_dof_far'), result.z);
+  end;
 end;
 
 function Init():boolean; stdcall;
