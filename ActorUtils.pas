@@ -251,6 +251,22 @@ asm
   pop eax
 end;
 
+procedure CTorch__StopNvEffector(CTorch:pointer; speed:single; use_sounds:boolean);stdcall;
+asm
+  pushad
+    movzx eax, use_sounds
+    push eax
+    mov ebx, speed
+    push ebx
+
+    mov ecx,CTorch
+    mov ecx, [ecx+$31c]
+    mov eax, xrgame_addr
+    add eax, $2f1080
+    call eax
+  popad
+end;
+
 procedure CTorch__SwitchNightVision(CTorch:pointer; status:boolean; use_sounds:boolean);stdcall;
 asm
   pushad
@@ -291,6 +307,12 @@ begin
 end;
 //--------------------------------------------------------------------------------------------------
 function IsNVSwitchedOn(CTorch:pointer):boolean; stdcall;
+asm
+  mov eax, CTorch
+  movzx eax, byte ptr [eax+$319] 
+end;
+
+function IsNVPostprocessOn(CTorch:pointer):boolean; stdcall;
 asm
   mov @result, 0
   pushad
@@ -1335,7 +1357,7 @@ var
 begin
   CTorch:=ItemInSlot(act, 10);
   if CTorch=nil then exit;
-  if IsNVSwitchedOn(CTorch) and not CanUseNV(CTorch) then begin
+  if (IsNVSwitchedOn(CTorch) or IsNVPostprocessOn(CTorch)) and not CanUseNV(CTorch) then begin
     CTorch__SwitchNightVision(CTorch, false, true);
   end;
 end;
@@ -1626,7 +1648,13 @@ begin
     is_nv_enabled:=IsNVSwitchedOn(itm);
     if game_ini_r_single_def(GetSection(itm), 'blowout_disabling_level', 10)<=CurrentElectronicsProblemsCnt() then begin
       if is_nv_enabled and (game_ini_r_single_def(GetSection(itm), 'blowout_disabling_probability', 1.0)>random) then begin
-        CTorch__SwitchNightVision(itm, false, true);
+        if game_ini_r_bool_def(GetSection(itm), 'blowout_disable_only_nv_effector', true) then begin
+          if IsNVPostprocessOn(itm) then begin
+            CTorch__StopNvEffector(itm, game_ini_r_single_def(GetSection(itm), 'blowout_disabling_speed', 100000.0), game_ini_r_bool_def(GetSection(itm), 'blowout_disabling_sound', false));
+          end;
+        end else begin
+          CTorch__SwitchNightVision(itm, false, true);
+        end;
       end;
     end;
   end;
@@ -1639,8 +1667,6 @@ begin
   //[bug] Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
   DisableNVIfNeeded(act);
   DisableTorchIfNeeded(act);
-
-
 
 end;
 
