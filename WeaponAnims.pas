@@ -1016,9 +1016,14 @@ begin
 
   ModifierBM16(wpn, anim_name);
 
-
   StartCompanionAnimIfNeeded(rightstr(anim_name, length(anim_name)-4), wpn, false);
 
+  if game_ini_line_exist(hud_sect, PChar(anim_name+'_noscope')) then begin
+    //кастомная анимация перезарядки при отсутсвующем прицеле
+    if (GetScopeStatus(wpn)<>2) or not IsScopeAttached(wpn) then
+      anim_name:=anim_name+'_noscope';
+  end;
+  
   if not game_ini_line_exist(hud_sect, PChar(anim_name)) then begin
     log('Section ['+hud_sect+'] has no motion alias defined ['+anim_name+']');
     if IsDebug then Messenger.SendMessage('Animation not found, see log!');

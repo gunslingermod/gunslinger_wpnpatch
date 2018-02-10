@@ -857,6 +857,22 @@ asm
   ret
 end;
 
+
+{ Use for DX8\DX9. Sample code:
+  m.i.x := 0;
+  m.i.y := 0;
+  m.i.z := 0;
+  m.i.w := 0;
+
+  m.j := m.i;
+  m.k := m.i;
+  m.c := m.i;
+
+  m.i.x := 1;
+  m.j.y := 1;
+  m.k.z := 1;
+  m.c.w := 1;
+  DrawSphere(@m, pos, 1, $FFFFFFFF, $FFFFFFFF, true, false); }
 procedure DrawSphere(parent: pFMatrix4x4; center:pFVector3; radius:single; clr_s:cardinal; clr_w:cardinal; bSolid:boolean; bWire:boolean); stdcall;
 asm
   pushad

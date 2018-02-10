@@ -1153,21 +1153,6 @@ begin
   zero_vel.y:=0;
   zero_vel.z:=0;
   CShootingObject__StartParticles(self._my_wpn, @self._laserdot_particle_object, _laserdot.particles_cur, pos, @zero_vel, false);
-
-  {m.i.x := 0;
-  m.i.y := 0;
-  m.i.z := 0;
-  m.i.w := 0;
-
-  m.j := m.i;
-  m.k := m.i;
-  m.c := m.i;
-
-  m.i.x := 1;
-  m.j.y := 1;
-  m.k.z := 1;
-  m.c.w := 1;
-  DrawSphere(@m, pos, 1, $FFFFFFFF, $FFFFFFFF, true, false); }
 end;
 
 procedure WpnBuf.StopLaserdotParticle;
