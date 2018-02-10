@@ -250,7 +250,7 @@ type
 
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster;
 
 { WpnBuf }
 

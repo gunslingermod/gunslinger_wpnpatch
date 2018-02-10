@@ -747,12 +747,12 @@ begin
   //[bug] баг - при смене соотношения сторон экрана метки на карте (CMapSpot) не изменяют пропорции
   //По аналогичным причинам имеются проблемы с оваласи на ПДА
   //отключаем движковое применение коэффициента сжатия в CMapSpot::Load (вызовы SetWidth)
-  nop_code(xrgame_addr+$443F0A, 8);
-  nop_code(xrgame_addr+$44406E, 12);
+  nop_code(xrgame_addr+$443EF0, 34);
+  nop_code(xrgame_addr+$44404E, 44);
   //переносим учет этих факторов в CUILevelMap::Draw и CUIMiniMap::Draw (vftable:0x60), домножая перед отображением на свои коэффициенты
   jmp_addr:=xrGame_addr+$44711B;
   if not WriteJump(jmp_addr, cardinal(@CUILevelMap__Draw_Patch), 6, true) then exit;
-  jmp_addr:=xrGame_addr+$446C25;  
+  jmp_addr:=xrGame_addr+$446C25;
   if not WriteJump(jmp_addr, cardinal(@CUIMiniMap__Draw_Patch), 6, true) then exit;
 
   //фиксим коэффициенты самой глобальной карты для пда

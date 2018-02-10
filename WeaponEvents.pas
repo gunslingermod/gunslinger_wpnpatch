@@ -775,12 +775,12 @@ end;
 
 function OnWeaponHide(wpn:pointer):boolean;stdcall;
 var
-  act, owner:pointer;
+  act, owner, itm:pointer;
   state:cardinal;
 begin
 
   //вернуть, можно скрывать или нет
-  //работает для всех CHudItem!
+  //работает для всех CHudItem! кроме детекторов (?)
   act:=GetActor();
   owner:=GetOwner(wpn);
 

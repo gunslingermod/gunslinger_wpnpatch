@@ -55,6 +55,59 @@ uses
 {$R *.res}
 //var
 //  n:array[0..255] of char;
+{
+begin
+  randomize;
+
+  decimalseparator:='.';
+  BaseGameData.Init;
+  ConsoleUtils.Init;
+  gunsl_config.Init;
+//  xr_keybinding.Init;
+
+  HudItemUtils.Init;
+  WeaponDataSaveLoad.Init;
+  WeaponSoundLoader.Init;
+//  WeaponSoundSelector.Init;
+//  WeaponEvents.Init;
+//  WeaponAmmoCounter.Init;
+//  collimator.Init;
+//  AN94Patch.Init;
+//  WeaponUpdate.Init;
+  LightUtils.Init;
+  WeaponAnims.Init;
+//  DetectorUtils.Init;
+//  ActorUtils.Init;
+//  Throwable.Init();
+//  ActorDOF.Init();
+  Misc.Init();
+//  Crows.Init;
+
+//  hud_transp_r1.Init();
+//  hud_transp_r2.Init();
+//  hud_transp_r3.Init();
+//  hud_transp_r4.Init();
+
+//  CRT.Init();
+//  r_constants.Init();
+//  LensDoubleRender.Init();
+
+  RayPick.Init();
+//  BallisticsCorrection.Init();
+//  WeaponInertion.Init();
+//  ControllerMonster.Init();
+//  UIUtils.Init();
+  xr_strings.Init();
+  DynamicWallmarks.Init();
+
+//  AutoUpdater.Init();
+//
+//  Messenger.Init;
+
+  Log('Dll Injected!')
+end.
+}
+
 
 begin
   randomize;
@@ -105,4 +158,4 @@ begin
 //  Messenger.Init;
 
   Log('Dll Injected!')
-end.
+end.                                                                                                           

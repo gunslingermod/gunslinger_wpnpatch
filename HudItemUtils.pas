@@ -102,6 +102,7 @@ function IsKnife(wpn:pointer):boolean;stdcall;
 function IsThrowable(wpn:pointer):boolean;stdcall;
 function IsBino(wpn:pointer):boolean;stdcall;
 function IsBM16(wpn:pointer):boolean;stdcall;
+function IsDetector(wpn:pointer):boolean;stdcall;
 
 
 function GetAnimTimeState(wpn:pointer; what:cardinal=$2FC):cardinal; stdcall;
@@ -134,6 +135,8 @@ function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):bo
 
 function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
 function CHudItem__GetHUDMode(CHudItem:pointer):boolean; stdcall;
+
+procedure CHudItem__PlayHUDMotion(wpn: pointer; anim_name:PChar; bMixIn:boolean; state:cardinal); stdcall;
 
 procedure SetHandsPosOffset(attachable_hud_item:pointer; v:pFVector3);
 procedure SetHandsRotOffset(attachable_hud_item:pointer; v:pFVector3);
@@ -752,6 +755,37 @@ asm
     popad
 end;
 
+procedure CHudItem__PlayHUDMotion(wpn: pointer; anim_name:PChar; bMixIn:boolean; state:cardinal); stdcall;
+asm
+    pushad
+    pushfd
+
+    push anim_name
+    call str_container_dock
+    test eax, eax
+    je @finish
+//    add [eax], 1
+    push eax
+    mov eax, esp
+
+
+    mov ebx, wpn
+    lea ecx, [ebx+$2E0]
+
+    push state
+    push 0
+    movzx edx, bMixIn
+    push edx              //резкий ли будет переход к ней
+    push eax              //указатель на имя анимы
+    call PlayHudAnim_Func
+
+    pop eax
+
+    @finish:
+    popfd
+    popad
+end;
+
 function GetClassName(wpn:pointer):string; stdcall;
 var i:cardinal;
     c:char;
@@ -782,6 +816,11 @@ function IsThrowable(wpn:pointer):boolean;stdcall;
 begin
 //  result:=(cls='G_F1_S') or (cls='G_RGD5_S') or (cls='II_BOLT');
   result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CMissile, false)<>nil);
+end;
+
+function IsDetector(wpn:pointer):boolean;stdcall;
+begin
+  result:=(dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CCustomDetector, false)<>nil);
 end;
 
 function IsBino(wpn:pointer):boolean;stdcall;

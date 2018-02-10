@@ -130,7 +130,11 @@ begin
       if companion<>nil then assign_detector_anim:=true;
     end else if (canshoot or is_bino) and GetActorActionState(actor, actAimStarted) then begin
       anim_name:=anim_name+'_aim_end';
-      if (GetSection(wpn)=GetPDAShowAnimator()) and not IsPDAWindowVisible() then anim_name:=anim_name+'_hide';
+      if (GetSection(wpn)=GetPDAShowAnimator()) and (not IsPDAWindowVisible() or (GetActorTargetSlot()<>GetActorActiveSlot())) then begin
+        SetCurrentState(wpn,EHudStates__eHiding);
+        SetNextState(wpn, EHudStates__eHiding);
+        anim_name:=anim_name+'_hide';
+      end;
       if canshoot then snd_label:='sndAimEnd';
       SetActorActionState(actor, actAimStarted, false);
       if companion<>nil then assign_detector_anim:=true;

@@ -1194,6 +1194,13 @@ begin
     end;
   end;
 
+  if ((_keyflags and kfPDASHOW)<>0) then begin
+    if (wpn=nil) or CanStartAction(wpn) then begin
+      ShowPDAMenu();
+      SetActorKeyRepeatFlag(kfPDASHOW, false);
+    end;
+  end;
+
 
 
 {  //принудительный сброс бега во время действия
@@ -1478,7 +1485,7 @@ begin
     //ПДА активирован.
     if not _was_pda_animator_spawned then begin
       //только что включился. Заспавним аниматор, если можно.
-      if not OnActorSwithesSmth(nil, GetPDAShowAnimator(), nil, nil, 0, @FakeCallback, 0) then begin
+      if not OnActorSwithesSmth(nil, GetPDAShowAnimator(), nil, nil, kfPDASHOW, @FakeCallback, 0) then begin
         //почему-то не заспавнился... Вырубаем ПДА, пусть игрок подумает получше над тем, что ему надо :)
         HidePDAMenu();
       end else begin

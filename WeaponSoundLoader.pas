@@ -385,7 +385,6 @@ begin
   sound_load_knife_addr:=xrGame_addr+$2D4DC2;
   if not WriteJump(sound_load_knife_addr, cardinal(@SoundLoader_Knife_Patch), 5) then exit;
 
-
   if IsSoundPatchNeeded() then begin
     //перезагрузка звука в HUD_SOUND_COLLECTION вместо вылета.
     addr:=xrGame_addr+$2FB46C;

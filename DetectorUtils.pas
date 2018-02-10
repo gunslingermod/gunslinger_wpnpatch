@@ -5,6 +5,7 @@ interface
 function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 function GetDetectorForceUnhideStatus(det:pointer):boolean; stdcall
+function GetDetectorFastMode(det:pointer):boolean; stdcall
 function GetActiveDetector(act:pointer):pointer; stdcall;
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
@@ -215,7 +216,8 @@ begin
       param := GetCurAnim(itm);
       if param = '' then param:=GetActualCurrentAnim(itm);
       param:='disable_detector_'+param;
-{      if IsHolderInAimState(itm) or ( WpnCanShoot(PChar(GetClassName(itm))) and IsAimNow(itm)) then begin
+
+{      if IsHolderInAimState(itm) or IsAimNow(itm) then begin
         result:=false;
       end else }if game_ini_line_exist(GetHUDSection(itm), PChar(param)) then begin
         result:=not game_ini_r_bool(GetHUDSection(itm), PChar(param));
@@ -318,7 +320,20 @@ asm
   je @finish
   pushad
     mov eax, det
-    mov ebx, [eax+$33D]
+    mov ebx, [eax+$33D] //m_bNeedActivation
+    mov @result, bl
+  popad
+  @finish:
+end;
+
+function GetDetectorFastMode(det:pointer):boolean; stdcall
+asm
+  mov @result, 0
+  cmp det, 0
+  je @finish
+  pushad
+    mov eax, det
+    mov ebx, [eax+$33C] //m_bFastAnimMode
     mov @result, bl
   popad
   @finish:
@@ -423,11 +438,15 @@ var
   params:torchlight_params;
   light_time_treshold_f:single;
   light_cur_time:cardinal;
+  flag:boolean;
+  anm:string;
+  itm:pointer;
+  state:cardinal;
 begin
   act:=GetActor();
   if act=nil then exit;
   if (GetOwner(det)<>act) then begin
-    //BUG: Если актор выбросил активный детектор и поднял его - то этот детектор в оригинале формально находится в активном состоянии, а по факту не рисуется
+    //[bug] BUG: Если актор выбросил активный детектор и поднял его - то этот детектор в оригинале формально находится в активном состоянии, а по факту не рисуется
     //Так что при обнаружении выбрасывания обманываем игру, выставляя неактивность детектора
     MakeUnActive(det);
   end else if (GetActiveDetector(act)=det) and game_ini_r_bool_def(GetSection(det), 'torch_installed', false) then begin
@@ -500,6 +519,31 @@ begin
   end else if GetLefthandedTorchParams().render<>nil then begin
     SwitchLefthandedTorch(false);
   end;
+
+{  if (GetCurrentState(det)=EHudStates__eHiding) and (leftstr(GetActualCurrentAnim(det), length('anm_hide'))<>'anm_hide') then begin
+    flag:=true;
+    if GetOwner(det)=GetActor() then begin
+      itm:=GetActorActiveItem();
+      if itm<>nil then begin
+        state:=GetCurrentState(itm);
+        if (GetActorActiveSlot()<>GetActorTargetSlot()) and ((state<>EHudStates__eHidden) and (state<>EHudStates__eHiding)) and (leftstr(GetActualCurrentAnim(det), length('anm_idle'))<>'anm_idle') then begin
+          flag:=false;
+        end;
+      end;    
+    end;
+
+    if (flag) then begin
+      if GetDetectorFastMode(det) then begin
+        anm:='anm_hide_fast';
+      end else begin
+        anm:='anm_hide';
+      end;
+      CHudItem_Play_Snd(det, 'sndHide');
+      CHudItem__PlayHUDMotion(det, PChar(anm), true, GetCurrentState(det));
+      StartPending(det);
+    end;
+
+  end;}
 end;
 
 procedure DetectorUpdatePatch();stdcall;
@@ -714,6 +758,13 @@ begin
   if not nop_code(xrGame_addr+$2ECF12, 8) then exit;
   jmp_addr:=$EB;
   if not WriteBufAtAdr(xrGame_addr+$2ECF1A, @jmp_addr, 1) then exit;
+
+  //[bug] миксовка для сокрытия детектора - включаем ее
+  if not nop_code(xrGame_addr+$2EC966, 1, chr(1)) then exit;
+
+  //отключаем назначение анимы сокрытия детектора в CCustomDetector::OnStateSwitch - оно у нас теперь идет в UpdateCL
+  //jmp_addr:=xrGame_addr+$2EC8E8;
+  //if not WriteJump(jmp_addr, cardinal(xrgame_addr+$2ECA3C), 6, false) then exit;
 
   //функции, обеспечивающие работу определения принудительного сокрытия детектора
   jmp_addr:=xrGame_addr+$2EC9CB;
