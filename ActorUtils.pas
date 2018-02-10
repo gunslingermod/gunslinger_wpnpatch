@@ -15,15 +15,17 @@ const
   actMovingRight:cardinal = $8;
   actCrouch:cardinal = $10;
   actSlow:cardinal = $20;
-  actSprint:cardinal = $1000;
+
   actJump:cardinal = $80;
   actFall:cardinal = $100;
   actLanding:cardinal = $200;
   actLanding2:cardinal = $400;
+  actSprint:cardinal = $1000;
+  actLLookout:cardinal = $2000;
+  actRLookout:cardinal = $4000;  
 
-
-  actAimStarted:cardinal = $4000000;
-  actShowDetectorNow:cardinal = $8000000; //преддоставание проигралoсь, можно показывать детектор
+  actAimStarted:cardinal = $04000000;
+  actShowDetectorNow:cardinal = $08000000; //преддоставание проигралoсь, можно показывать детектор
   actModSprintStarted:cardinal = $10000000;
   actModNeedMoveReassign:cardinal = $20000000;
   actModDetectorSprintStarted:cardinal = $40000000;
@@ -2706,6 +2708,28 @@ asm
   @finish:
 end;
 
+procedure MakeImpossibleRLLookout(act:pointer); stdcall;
+begin
+  if GetActorActionState(act, actRLookout, mState_WISHFUL) and GetActorActionState(act, actLLookout, mState_WISHFUL) then begin
+    SetActorActionState(act, actRLookout, false, mState_WISHFUL);
+    SetActorActionState(act, actLLookout, false, mState_WISHFUL);
+  end;
+end;
+
+procedure CActor__IR_OnKeyboardHold_Patch(); stdcall;
+asm
+  pushad
+  sub esi, $298
+  push esi
+  call MakeImpossibleRLLookout
+  popad
+  fstp st(0)
+  pop edi
+  pop ebx
+  pop esi
+  ret 4
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -2758,8 +2782,8 @@ begin
   if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 13, true) then exit;
 
   //отключение анимаций (camera effectors) камеры в движении
-  //jmp_addr:= xrgame_addr+$269b97;
-  //if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
+  jmp_addr:= xrgame_addr+$269b97;
+  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
 
 
   //[bug] баг - чтобы при попытке тащить труп не открывался инвентарь
@@ -2832,6 +2856,15 @@ begin
   //обработка разных режимов мыши (обзор/курсор) в ПДА;
   jmp_addr:=xrGame_addr+$43e2b3;
   if not WriteJump(jmp_addr, cardinal(@CDialogHolder__IR_UIOnMouseMove_Patch), 5, true) then exit;
+
+  //[bug] нажать наклон влево, затем наклон вправо, затем отпустить один из наклонов и наслаждаться залипшим mstate_real.
+  // Причина - проблемы в битовой арифметике в CActor::g_cl_ValidateMState (mcLookout - составной, про это забыли)
+  // Для исправления - сделаем невозможным наклон в обе стороны сразу в CActor__IR_OnKeyboardHold
+  jmp_addr:=xrGame_addr+$277b2a;
+  if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnKeyboardHold_Patch), 8, false) then exit;
+
+  jmp_addr:=xrGame_addr+$277b3c;
+  if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnKeyboardHold_Patch), 8, false) then exit;
 
   result:=true;
 end;

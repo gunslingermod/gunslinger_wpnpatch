@@ -144,7 +144,7 @@ begin
       anim_name:=anim_name+'_sprint';
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
-        if canshoot or isgrenorbolt or is_knife then snd_label:='sndSprintStart';
+        if (canshoot or isgrenorbolt or is_knife) then snd_label:='sndSprintStart';
         if isdetector then
           SetActorActionState(actor, actModDetectorSprintStarted, true)
         else
@@ -153,7 +153,7 @@ begin
 
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
       anim_name:=anim_name+'_sprint_end';
-      if canshoot or isgrenorbolt or is_knife then
+      if (canshoot or isgrenorbolt or is_knife) then
         snd_label:='sndSprintEnd';
 
       if isdetector then
@@ -789,6 +789,7 @@ var
   modifier:string;
   v:FVector3;
   buf:WpnBuf;
+
 begin
   fun:=nil;
 
@@ -807,6 +808,10 @@ begin
   modifier:='';
 
   SpawnShells(wpn);
+  buf:=GetBuffer(wpn);
+  if buf<>nil then begin
+    buf.last_shot_time:=GetGameTickCount();
+  end;
 
   ProcessAmmo(wpn, true);
   actor:=GetActor();
@@ -816,7 +821,6 @@ begin
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       modifier:=modifier+'_aim';
       if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and game_ini_r_bool_def(hud_sect, 'aim_scope_anims', true) and game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'use_scope_anims', false) then modifier:=modifier+'_scope';
-      buf:=GetBuffer(wpn);
       if buf<>nil then begin
         buf.ApplyLensRecoil(buf.GetShootRecoil);
       end;
@@ -1783,6 +1787,28 @@ asm
   @finish:
 end;
 
+
+procedure StopQueueIfNeeded(wpn:pointer); stdcall;
+var
+  maxq:integer;
+begin
+  maxq:=game_ini_r_int_def(GetSection(wpn), 'max_queue_size', 0);
+  maxq:=FindIntValueInUpgradesDef(wpn, 'max_queue_size', maxq);
+  if (maxq<>0) and (QueueFiredCount(wpn)>=maxq) then begin
+    SetWorkingState(wpn, false);
+  end;
+end;
+
+procedure CWeaponMagazined__state_Fire_queue_Patch; stdcall;
+asm
+  pushad
+  push esi
+  call StopQueueIfNeeded
+  popad
+  mov edx, [eax+$1f8] //original
+end;
+
+
 /////////////////////////////////////
 function Init:boolean;
 var
@@ -1904,8 +1930,8 @@ begin
   if not WriteJump(jump_addr, cardinal(@AimOutLockFix), 12, true) then exit;
 
   //для выстрелов
-  jump_addr:=xrGame_addr+$2CFE69;
-  if not WriteJump(jump_addr, cardinal(@ShootAnimLockFix), 6, true) then exit;
+  jump_addr:=xrGame_addr+$2CFE9A;
+  if not WriteJump(jump_addr, cardinal(@ShootAnimLockFix), 5, true) then exit;
 
   //для спринта
   jump_addr:=xrGame_addr+$26AF60;
@@ -2130,7 +2156,9 @@ begin
   jump_addr:=xrGame_addr+$2FBA38;
   if not WriteJump(jump_addr, cardinal(@player_hud__OnMovementChanged_stopmove_patch), 7, true) then exit;
 
-
+  //принудительный сброс очереди у оружия
+  jump_addr:=xrGame_addr+$2d06c5;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__state_Fire_queue_Patch), 6, true) then exit;
 
   result:=true;
 end;

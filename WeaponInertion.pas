@@ -23,6 +23,9 @@ var
   tocrouch_time_remains, fromcrouch_time_remains:cardinal;
   toslowcrouch_time_remains, fromslowcrouch_time_remains:cardinal;
 
+  torlookout_time_remains, fromrlookout_time_remains:cardinal;
+  tollookout_time_remains, fromllookout_time_remains:cardinal;
+
 procedure ResetWpnOffset();
 begin
   time_accumulator:=0;
@@ -31,6 +34,12 @@ begin
 
   toslowcrouch_time_remains:=0;
   fromslowcrouch_time_remains:=0;
+
+  torlookout_time_remains:=0;
+  fromrlookout_time_remains:=0;
+  tollookout_time_remains:=0;
+  fromllookout_time_remains:=0;
+
 end;
 
 procedure ResetCamHeight();
@@ -227,7 +236,7 @@ begin
   end else if GetActorActionState(act, actCrouch) then begin
     koef:=game_ini_r_single_def(section, 'hud_move_crouch_factor', 1.0);
   end else if GetActorActionState(act, actSlow) then begin
-    koef:=game_ini_r_single_def(section, 'hud_move_slow_factor', 1.0);  
+    koef:=game_ini_r_single_def(section, 'hud_move_slow_factor', 1.0);
   end else begin
     koef:=1;
   end;
@@ -249,6 +258,36 @@ begin
 
   if fromslowcrouch_time_remains>0 then begin
     AddOffsets('hud_move_from_slow_crouch_offset', section, pos, rot, koef);
+    factor^:=1;
+  end;
+
+  if torlookout_time_remains>0 then begin
+    AddOffsets('hud_move_to_rlookout_offset', section, pos, rot, koef);
+    factor^:=1;
+  end;
+
+  if fromrlookout_time_remains>0 then begin
+    AddOffsets('hud_move_from_rlookout_offset', section, pos, rot, koef);
+    factor^:=1;
+  end;
+
+  if tollookout_time_remains>0 then begin
+    AddOffsets('hud_move_to_llookout_offset', section, pos, rot, koef);
+    factor^:=1;
+  end;
+
+  if fromllookout_time_remains>0 then begin
+    AddOffsets('hud_move_from_llookout_offset', section, pos, rot, koef);
+    factor^:=1;
+  end;
+
+  if GetActorActionState(act, actRLookout) and not GetActorActionState(act, actLLookout) then begin
+    AddOffsets('hud_move_rlookout_offset', section, pos, rot, koef);
+    factor^:=1;
+  end;
+
+  if GetActorActionState(act, actLLookout) and not GetActorActionState(act, actRLookout) then begin
+    AddOffsets('hud_move_llookout_offset', section, pos, rot, koef);
     factor^:=1;
   end;
 
@@ -363,6 +402,38 @@ begin
     toslowcrouch_time_remains:=0;
   end;
 
+
+  if not (GetActorActionState(act, actRLookout, mState_REAL) and GetActorActionState(act, actLLookout, mState_REAL)) then begin
+  //если одновременно выглядываем влево и вправо - что-то тут не так...
+  if GetActorActionState(act, actRLookout, mState_WISHFUL) and not  GetActorActionState(act, actRLookout, mState_REAL) then begin
+    //начали выглядывать вправо
+    log('right start!');
+    torlookout_time_remains:=floor(game_ini_r_single_def(section, 'to_rlookout_time', 0)*1000);
+    fromrlookout_time_remains:=0;
+
+  end else if not GetActorActionState(act, actRLookout, mState_WISHFUL) and GetActorActionState(act, actRLookout, mState_REAL) then begin
+      log('right end!');
+    //закончили выглядывать вправо
+    fromrlookout_time_remains:=floor(game_ini_r_single_def(section, 'from_rlookout_time', 0)*1000);
+    torlookout_time_remains:=0;
+
+  end;
+
+  if GetActorActionState(act, actLLookout, mState_WISHFUL) and not  GetActorActionState(act, actLLookout, mState_REAL) then begin
+      log('left start!');
+    //начали выглядывать влево
+    tollookout_time_remains:=floor(game_ini_r_single_def(section, 'to_llookout_time', 0)*1000);
+    fromllookout_time_remains:=0;
+
+  end else if not GetActorActionState(act, actLLookout, mState_WISHFUL) and GetActorActionState(act, actLLookout, mState_REAL) then begin
+      log('left end!');  
+    //закончили выглядывать влево
+    fromllookout_time_remains:=floor(game_ini_r_single_def(section, 'from_llookout_time', 0)*1000);
+    tollookout_time_remains:=0;
+
+  end;
+  end;
+
   //прочитаем конфиговые умолчания
   if Is16x9() then begin
     pos:=game_ini_read_vector3_def(section, 'hands_position_16x9', @zerovec);
@@ -467,6 +538,12 @@ begin
   if tocrouch_time_remains>delta then tocrouch_time_remains:=tocrouch_time_remains-delta else tocrouch_time_remains:=0;
   if fromslowcrouch_time_remains>delta then fromslowcrouch_time_remains:=fromslowcrouch_time_remains-delta else fromslowcrouch_time_remains:=0;
   if toslowcrouch_time_remains>delta then toslowcrouch_time_remains:=toslowcrouch_time_remains-delta else toslowcrouch_time_remains:=0;
+
+  if fromrlookout_time_remains>delta then fromrlookout_time_remains:=fromrlookout_time_remains-delta else fromrlookout_time_remains:=0;
+  if torlookout_time_remains>delta then torlookout_time_remains:=torlookout_time_remains-delta else torlookout_time_remains:=0;
+
+  if fromllookout_time_remains>delta then fromllookout_time_remains:=fromllookout_time_remains-delta else fromllookout_time_remains:=0;
+  if tollookout_time_remains>delta then tollookout_time_remains:=tollookout_time_remains-delta else tollookout_time_remains:=0;
 end;
 
 procedure CorrectActorCameraHeight(h:psingle); stdcall;

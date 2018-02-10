@@ -133,7 +133,9 @@ type
     ammo_cnt_to_reload:integer;
     loaded_gl_state:boolean;
     last_frame_rocket_loaded:cardinal; //для РПГ
-    rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами 
+    rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
+
+    last_shot_time:cardinal;
 
 
     constructor Create(wpn:pointer);
@@ -345,34 +347,34 @@ begin
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
   self.SetOffsetDir(random); //смещение линзы
 
-    scope_sect:=GetSection(wpn);
-    if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
-      scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-    end;
-    LoadNightBrightnessParamsFromSection(scope_sect);
+  scope_sect:=GetSection(wpn);
+  if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+    scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+  end;
+  LoadNightBrightnessParamsFromSection(scope_sect);
 
-    _lens_shoot_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_x', 0.0);
-    _lens_shoot_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_y', 0.0);
-    _lens_shoot_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_speed', 0.0);
-    _lens_shoot_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_deviation', 0.0);
+  _lens_shoot_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_x', 0.0);
+  _lens_shoot_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_y', 0.0);
+  _lens_shoot_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_speed', 0.0);
+  _lens_shoot_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_deviation', 0.0);
 
+  _lens_misfire_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_x', 0.0);
+  _lens_misfire_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_y', 0.0);
+  _lens_misfire_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_speed', 0.0);
+  _lens_misfire_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_deviation', 0.0);
 
-    _lens_misfire_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_x', 0.0);
-    _lens_misfire_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_y', 0.0);
-    _lens_misfire_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_speed', 0.0);
-    _lens_misfire_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_deviation', 0.0);
+  _autoaim_delay:=floor(game_ini_r_single_def(GetSection(wpn), 'autoaim_time', 0.0)*1000);
 
+  _lens_shoot_recoil_current.x:=0;
+  _lens_shoot_recoil_current.y:=0;
+  _lens_shoot_recoil_current.z:=-1;
+  loaded_gl_state:=false;
+  last_frame_rocket_loaded:=0;
+  rocket_launched:=false;
 
-    _autoaim_delay:=floor(game_ini_r_single_def(GetSection(wpn), 'autoaim_time', 0.0)*1000);
+  _autoaim_valid_time:=0;
 
-    _lens_shoot_recoil_current.x:=0;
-    _lens_shoot_recoil_current.y:=0;
-    _lens_shoot_recoil_current.z:=-1;
-    loaded_gl_state:=false;
-    last_frame_rocket_loaded:=0;
-    rocket_launched:=false;
-
-    _autoaim_valid_time:=0;
+  last_shot_time:=0;
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
@@ -562,6 +564,9 @@ function WpnBuf.Update():boolean;
 var
   delta:cardinal;
   val,len:single;
+
+const
+  EPS:single = 0.00001;  
 begin
 
   delta:=GetTimeDeltaSafe(_last_update_time);
@@ -597,6 +602,11 @@ begin
       _lens_shoot_recoil_current.y:=_lens_shoot_recoil_current.y*(1-val/len);
     end;
   end;
+
+  if abs(1-GetCurrentCondition(self._my_wpn))<EPS then begin
+    //при идеальном состоянии оружия - задаем новое направление поломки прицела
+    self.SetOffsetDir(random);
+  end;  
 
   _last_update_time:=GetGameTickCount();
   result:=true;
@@ -668,6 +678,7 @@ var
   buf: WpnBuf;
   act:pointer;
   hud_sect, scope:PChar;
+  leave_time:cardinal;
 begin
   //Выходить из зума запрещено при действиях с оружием из-за опасности некорректной работы анимации выхода из прицеливания
   //Но если нам нужен эффект "выхода наполовину" - то разрешать его надо
@@ -740,6 +751,7 @@ var
   act:pointer;
   cur_param:string;
   buf:WpnBuf;
+  recharge_time:single;
 begin
   hud_sect:=GetHUDSection(wpn);
   act:=GetActor();
@@ -767,6 +779,17 @@ begin
     end;
   end else begin
     result:=true;
+    //если у нас оружие "заряжается", то ждем
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) then begin
+      recharge_time:=(game_ini_r_single_def(GetSection(wpn), 'recharge_time',0));
+      recharge_time:=ModifyFloatUpgradedValue(wpn, 'recharge_time',recharge_time);
+      if (recharge_time>0) and (GetTimeDeltaSafe(buf.last_shot_time)<floor(recharge_time*1000)) then begin
+        result:=false;
+        exit;
+      end;
+    end;
+
     //Если мы в спринте сейчас - то предварительно надо проиграть аниму выхода из него
     if (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
       anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');

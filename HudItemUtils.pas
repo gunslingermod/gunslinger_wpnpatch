@@ -171,6 +171,8 @@ procedure PerformSwitchGL(wpn:pointer); stdcall;
 
 function HasDifferentFireModes(wpn:pointer):boolean; stdcall;
 
+function SetQueueFired(wpn:pointer; status:boolean):cardinal; stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -1224,11 +1226,25 @@ asm
 
 end;
 
-function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+function GetMagCapacityInCurrentWeaponMode_LL(wpn:pointer):integer; stdcall;
 asm
   mov eax, wpn
   mov eax, [eax+$694]
   mov @result, eax
+end;
+
+function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+var
+  ammotype:integer;
+  param:string;
+  sect:PChar;
+begin
+  result:=GetMagCapacityInCurrentWeaponMode_LL(wpn);
+  ammotype:=GetAmmoTypeToReload(wpn);
+  param:='ammo_mag_size_for_type_'+inttostr(ammotype);
+  sect:=GetSection(wpn);
+  result:=game_ini_r_int_def(GetSection(wpn), PAnsiChar(param), result);
+  result:=FindIntValueInUpgradesDef(wpn, PAnsiChar(param), result);
 end;
 
 procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;
@@ -1997,6 +2013,15 @@ asm
       mov eax, xrgame_addr
       add eax, $2d3740
       call eax                 //PerformSwitchGL
+  popad
+end;
+
+function SetQueueFired(wpn:pointer; status:boolean):cardinal; stdcall;
+asm
+  pushad
+      movzx eax, status;
+      mov ecx, wpn
+      mov byte ptr [ecx+$79c], al
   popad
 end;
 
