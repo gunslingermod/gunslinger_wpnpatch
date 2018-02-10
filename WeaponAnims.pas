@@ -1195,9 +1195,7 @@ var
   buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
-  if (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and (GetCurrentAmmoCount(wpn)>0) then begin
-    result:=false;
-  end else if (buf<>nil) and (GetTimeDeltaSafe(buf.last_shot_time)<floor(buf.GetLastRechargeTime()*1000)) then begin
+  if (buf<>nil) and (GetTimeDeltaSafe(buf.last_shot_time)<floor(buf.GetLastRechargeTime()*1000)) then begin
     result:=false;
   end else begin
     result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfRELOAD);
