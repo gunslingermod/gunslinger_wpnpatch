@@ -340,6 +340,12 @@ var
   act:pointer;
   i:integer;
 begin
+  if GetCurrentDifficulty >= gd_master then begin
+    // на мастере контролер всегда завершает свое...
+    result:=true;
+    exit;
+  end;
+
   result:=false;
   act:=GetActor();
   if act=nil then exit;

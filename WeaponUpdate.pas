@@ -521,11 +521,26 @@ begin
     if game_ini_line_exist(PChar(tmp), 'hide_bones') then begin
       SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'hide_bones'), not status);
     end;
-    if status and game_ini_line_exist(PChar(tmp), 'overriding_hide_bones') then begin
+  end;
+
+  if (cur_index>=0) then begin
+    tmp:=GetScopeSection(wpn, cur_index);
+    if game_ini_line_exist(PChar(tmp), 'overriding_hide_bones') then begin
       SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'overriding_hide_bones'), false);
     end;
+    if game_ini_line_exist(PChar(tmp), 'overriding_show_bones') then begin
+      SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(PChar(tmp), 'overriding_show_bones'), true);
+    end;
+  end else begin
+    tmp:=GetSection(wpn);
+    if game_ini_line_exist(PChar(tmp), 'no_scope_overriding_hide_bones') then begin
+      SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(PChar(tmp), 'no_scope_overriding_hide_bones'), false);
+    end;
+    if game_ini_line_exist(PChar(tmp), 'no_scope_overriding_show_bones') then begin
+      SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(PChar(tmp), 'no_scope_overriding_show_bones'), true);
+    end;
   end;
-end;
+end;   
 
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 var
