@@ -768,7 +768,9 @@ begin
     result:=false
   else begin
     hud_sect:=GetHUDSection(wpn);
-    if game_ini_r_bool_def(PChar(hud_sect), 'disable_bore', true) then
+    if (GetActor<>nil) and (GetActor()=GetOwner(wpn)) and (GetActorActionState(GetActor(), actModNeedBlowoutAnim)) then begin
+      result:=true;
+    end else if game_ini_r_bool_def(PChar(hud_sect), 'disable_bore', true) then
       result:=false
     else
       result:=true;

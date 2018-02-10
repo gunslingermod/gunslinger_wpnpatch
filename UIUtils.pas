@@ -788,7 +788,7 @@ begin
     if dynamic_cast(spot, 0, RTTI_CUIWindow, RTTI_CMapSpot, false)=nil then continue;
     scale:=spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y/spot.m_originSize.y;
     spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_originSize.x*scale*k;
-    if spot.m_border_static<>nil then begin
+    if (spot.m_border_static<>nil) then begin
       //only square borders suported now! If you need not square - use unused bytes to store origin sizes
       spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y*k;
     end;
@@ -870,7 +870,6 @@ begin
   jmp_addr:=xrGame_addr+$49f074;
   if not WriteJump(jmp_addr, cardinal(@CUICellItem__UpdateConditionProgressBar_needshow_Patch), 10, true) then exit;
 
-
   //запрет на сокрытие индикаторов худа при включении окна пда/инвентаря
   nop_code(xrgame_addr+$4b0bc5, 1, char(00)); //pda
   nop_code(xrgame_addr+$4b1be5, 1, char(00)); //inventory
@@ -910,9 +909,9 @@ begin
   jmp_addr:=xrGame_addr+$446E4F;
   if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
 
-  //CUIRankingWnd::get_favorite_weapon - избавиться от вызова get_current_kx в отрисовке иконуки оружия
+  //CUIRankingWnd::get_favorite_weapon - избавиться от вызова get_current_kx в отрисовке иконки оружия
   jmp_addr:=xrGame_addr+$44C254;
-  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;   
 
   //правим CUIPdaWnd::Show, чтобы всегда при доставании пда отрисовывалась карта
   if not nop_code(xrgame_addr+$442b23, 2) then exit;

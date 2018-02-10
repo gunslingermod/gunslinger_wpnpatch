@@ -686,7 +686,6 @@ begin
     if so=nil then exit;
     sect:=GetSection(wpn);
 
-
     rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponMagazinedWGrenade, false);
     if (rl<>nil) then begin
       rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher, false);

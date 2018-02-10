@@ -68,10 +68,12 @@ function is_object_has_health(obj:pointer):boolean;
 function is_visible_by_thermovisor(cobject:pointer):boolean; stdcall;
 
 procedure ResetElectronicsProblems(); stdcall;
+procedure ResetElectronicsProblems_Full(); stdcall;
 function ElectronicsProblemsDec():boolean; stdcall;
 function ElectronicsProblemsInc():boolean; stdcall;
 function TargetElectronicsProblemsCnt():single; stdcall;
 function CurrentElectronicsProblemsCnt():single; stdcall;
+function PreviousElectronicsProblemsCnt():single; stdcall;
 function ElectronicsProblemsImmediateApply():boolean; stdcall;
 procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 
@@ -79,12 +81,25 @@ implementation
 uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
+  previous_electronics_problems_counter:single;
   current_electronics_problems_counter:single;
   target_electronics_problems_counter:single;
 
 procedure ResetElectronicsProblems(); stdcall;
 begin
   target_electronics_problems_counter:=0;
+end;
+
+procedure ResetElectronicsProblems_Full(); stdcall;
+begin
+  ResetElectronicsProblems();
+  current_electronics_problems_counter:=0;
+  previous_electronics_problems_counter:=0;
+end;
+
+function PreviousElectronicsProblemsCnt():single; stdcall;
+begin
+  result:=previous_electronics_problems_counter;
 end;
 
 function ElectronicsProblemsImmediateApply():boolean; stdcall;
@@ -123,6 +138,7 @@ procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 var
   delta, max_delta:single;
 begin
+  previous_electronics_problems_counter := current_electronics_problems_counter;
   if target_electronics_problems_counter = current_electronics_problems_counter then begin
     exit;
   end;

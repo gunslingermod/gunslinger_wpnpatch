@@ -337,6 +337,16 @@ begin
   result:=anm_std_selector(wpn, anm_show);
 end;
 
+function anm_bore_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
+begin
+  if (GetActor<>nil) and (GetActor()=GetOwner(wpn)) and (GetActorActionState(GetActor(), actModNeedBlowoutAnim)) then begin
+    result:=anm_std_selector(wpn, 'anm_blowout');
+    SetActorActionState(GetActor(), actModNeedBlowoutAnim, false);
+  end else begin
+    result:=anm_std_selector(wpn, base_anim);
+  end;
+end;
+
 procedure anm_show_std_patch();stdcall;
 begin
   asm
@@ -438,7 +448,7 @@ begin
     push anm_bore
     sub edi, $2E0
     push edi
-    call anm_std_selector  //получаем строку с именем анимы
+    call anm_bore_selector  //получаем строку с именем анимы
     mov ecx, [esp+$28]      //запоминаем адрес возврата
     mov [esp+$28], eax      //кладем на его место результирующую строку
     mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке
@@ -457,7 +467,7 @@ begin
     pushfd
     push anm_bore
     push esi
-    call anm_std_selector  //получаем строку с именем анимы
+    call anm_bore_selector  //получаем строку с именем анимы
     mov ecx, [esp+$28]      //запоминаем адрес возврата
     mov [esp+$28], eax      //кладем на его место результирующую строку
     mov [esp+$24], ecx      //перемещаем адрес возврата на 4 байта выше в стеке

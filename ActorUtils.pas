@@ -24,12 +24,14 @@ const
   actLLookout:cardinal = $2000;
   actRLookout:cardinal = $4000;  
 
+  actModNeedBlowoutAnim:cardinal = $02000000;
   actAimStarted:cardinal = $04000000;
   actShowDetectorNow:cardinal = $08000000; //преддоставание проигралoсь, можно показывать детектор
   actModSprintStarted:cardinal = $10000000;
   actModNeedMoveReassign:cardinal = $20000000;
   actModDetectorSprintStarted:cardinal = $40000000;
   actModDetectorAimStarted:cardinal = $80000000;
+
   actTotalActions:cardinal = $FFFFFFFF;
 
   mState_WISHFUL:cardinal = $58c;
@@ -1056,7 +1058,8 @@ procedure ResetActorFlags(act:pointer);
 begin
   SetActorActionState(act, actAimStarted, false);
   SetActorActionState(act, actModSprintStarted, false);
-  SetActorActionState(act, actModNeedMoveReassign, false);  
+  SetActorActionState(act, actModNeedMoveReassign, false);
+  SetActorActionState(act, actModNeedBlowoutAnim, false);
 end;
 
 procedure ProcessKeys(act:pointer);
@@ -1408,6 +1411,7 @@ var
   dir:TCursorDirection;
   angle:single;
 
+  blowout_level:single;  
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1574,7 +1578,11 @@ begin
     //ПДА выключен
     if (GetActorActiveItem()<>nil) and (GetSection(GetActorActiveItem())=GetPDAShowAnimator()) then begin
       //если в рюкзаке завалялся его аниматор - восстанавливаем предыдущий слот
-      ActivateActorSlot(GetActorPreviousSlot());
+      if GetCurrentState(GetActorActiveItem()) = EHudStates__eBore then begin
+        ActivateActorSlot__CInventory(GetActorPreviousSlot(), false); //ActivateActorSlot не сможет скрыть :(
+      end else begin
+        ActivateActorSlot(GetActorPreviousSlot());
+      end;
     end;
     _was_pda_animator_spawned:=false;
   end;
@@ -1583,8 +1591,26 @@ begin
     CWeapon__ModUpdate(itm);
   end;
 
+  if (itm<>nil) and game_ini_r_bool_def(GetHUDSection(itm), 'play_blowout_anim', false) then begin
+    if (CurrentElectronicsProblemsCnt()<>PreviousElectronicsProblemsCnt()) then begin
+      blowout_level:=ModifyFloatUpgradedValue(itm, 'blowout_anim_level', game_ini_r_single_def(GetSection(itm), 'blowout_anim_level', 1000));
+      if ( blowout_level<=CurrentElectronicsProblemsCnt()) and ( blowout_level>PreviousElectronicsProblemsCnt()) then begin
+        SetActorActionState(act, actModNeedBlowoutAnim, true)
+      end;
+    end;
+  end;
 
-  //[bug]Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
+  if GetActorActionState(act, actModNeedBlowoutAnim) then begin
+    if ((GetBuffer(itm)<>nil) and CanStartAction(itm)) or ((GetBuffer(itm)=nil) and (GetCurrentState(itm)=0) ) then begin
+      if not IsAimNow(itm) and (pos('_aim', GetActualCurrentAnim(itm))=0) then begin
+        virtual_CHudItem_SwitchState(itm, EHudStates__eBore);
+      end else begin
+        if IsAimToggle() then virtual_Action(itm, kWPN_ZOOM, kActPress) else virtual_Action(itm, kWPN_ZOOM, kActRelease);
+      end;
+    end;
+  end;
+
+  //[bug] Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
   DisableNVIfNeeded(act);
   DisableTorchIfNeeded(act);
 end;
@@ -1866,7 +1892,7 @@ begin
   ResetActivationHoldState();
   SetForcedQuickthrow(false);
   ResetBirdsAttackingState();
-  ResetElectronicsProblems();
+  ResetElectronicsProblems_Full();
   ElectronicsProblemsImmediateApply();
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:=false;
