@@ -2757,9 +2757,9 @@ begin
   jmp_addr:= xrgame_addr+$2605d0;
   if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 13, true) then exit;
 
-  //отключение анимаций камеры в движении
-  jmp_addr:= xrgame_addr+$269b97;
-  if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
+  //отключение анимаций (camera effectors) камеры в движении
+  //jmp_addr:= xrgame_addr+$269b97;
+  //if not WriteJump(jmp_addr, cardinal(@CActor__g_cl_CheckControls_disable_cam_anms_Patch), 7, true) then exit;
 
 
   //[bug] баг - чтобы при попытке тащить труп не открывался инвентарь
