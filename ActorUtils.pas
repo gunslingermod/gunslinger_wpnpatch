@@ -2629,14 +2629,14 @@ begin
         ', need freq '+floattostr(freq_tmp)+
         ', time '+floattostr(time)+
         ', old phase '+floattostr(old_phase^)+
-        ', need phase '+floattostr(phase_tmp)); }
+        ', need phase '+floattostr(phase_tmp));}
     old_freq^:=freq_tmp;
     old_phase^:=phase_tmp;
   end;
 
   if (amp_tmp<>old_amp^) then begin
     //Сделаем уменьшение амплитуды плавным
-    {Log('old amp: '+floattostr(old_amp^)+', need amp '+floattostr(amp_tmp));}
+    //Log('old amp: '+floattostr(old_amp^)+', need amp '+floattostr(amp_tmp));
     dt:=game_ini_r_single_def(SECT, 'amplitude_delta', 1)*get_device_timedelta();
     if (amp_tmp>old_amp^) then begin
       if amp_tmp-old_amp^>dt then begin

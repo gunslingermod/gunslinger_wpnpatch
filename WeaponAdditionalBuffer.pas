@@ -280,7 +280,7 @@ type
 
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster, misc;
 
 { WpnBuf }
 
@@ -837,7 +837,10 @@ begin
 
     //Если мы в спринте сейчас - то предварительно надо проиграть аниму выхода из него
     if (act<>nil) and (act = GetOwner(wpn)) and IsHolderInSprintState(wpn) then begin
-      anm_name:=ModifierStd(wpn, 'anm_idle_sprint_end');
+      anm_name:='anm_idle_sprint';
+      anm_name:=ModifierAlterSprint(wpn, anm_name);
+      anm_name:=anm_name+'_end';
+      anm_name:=ModifierStd(wpn, anm_name);
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anm_name), true);
       PlayHudAnim(wpn, PChar(anm_name), true);
       if not PlaySoundByAnimName(wpn, anm_name) then begin
@@ -1075,6 +1078,8 @@ var
   zero_vel, viewpos:FVector3;
   index, i, l:integer;
   newdist, tmpdist, dist_to_cam:single;
+
+  m:FMatrix4x4;
 begin
   if (not self.IsLaserInstalled) or (not self.IsLaserEnabled) then exit;
 
@@ -1149,6 +1154,20 @@ begin
   zero_vel.z:=0;
   CShootingObject__StartParticles(self._my_wpn, @self._laserdot_particle_object, _laserdot.particles_cur, pos, @zero_vel, false);
 
+  {m.i.x := 0;
+  m.i.y := 0;
+  m.i.z := 0;
+  m.i.w := 0;
+
+  m.j := m.i;
+  m.k := m.i;
+  m.c := m.i;
+
+  m.i.x := 1;
+  m.j.y := 1;
+  m.k.z := 1;
+  m.c.w := 1;
+  DrawSphere(@m, pos, 1, $FFFFFFFF, $FFFFFFFF, true, false); }
 end;
 
 procedure WpnBuf.StopLaserdotParticle;

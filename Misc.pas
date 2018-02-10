@@ -57,6 +57,8 @@ function GetDeviceProjection():pFMatrix4x4; stdcall;
 function GetDeviceFullTransform():pFMatrix4x4; stdcall;
 function GetDeviceTimeDelta():single; stdcall;
 
+procedure DrawSphere(parent: pFMatrix4x4; center:pFVector3; radius:single; clr_s:cardinal; clr_w:cardinal; bSolid:boolean; bWire:boolean); stdcall;
+
 function IsMainMenuActive():boolean; stdcall;
 
 procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
@@ -853,6 +855,28 @@ asm
 @finish:
   cmp edi, [ebx]
   ret
+end;
+
+procedure DrawSphere(parent: pFMatrix4x4; center:pFVector3; radius:single; clr_s:cardinal; clr_w:cardinal; bSolid:boolean; bWire:boolean); stdcall;
+asm
+  pushad
+    mov eax, [xrAPI_addr]
+    mov ecx, [eax+$3350] //DU
+    mov eax, [ecx] //vtable
+    mov eax, [eax+$80] //CDrawUtilities::DrawSphere
+
+    movzx edx, bWire
+    push edx
+    movzx edx, bSolid
+    push edx
+    push clr_w
+    push clr_s
+    push radius
+    push center
+    push parent
+    push ecx
+    call eax
+  popad
 end;
 
 function Init():boolean;stdcall;

@@ -5,6 +5,7 @@ unit WeaponAnims;
 interface
 function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
+function ModifierAlterSprint(wpn:pointer; base_anim:string):string;stdcall;
 function CanReloadNow(wpn:pointer):boolean; stdcall;
 
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
@@ -143,6 +144,7 @@ begin
     //посмотрим на передвижение актора:
     end else if GetActorActionState(actor, actSprint) then begin
       anim_name:=anim_name+'_sprint';
+      anim_name:=ModifierAlterSprint(wpn, anim_name);
       if (isdetector and not GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and not GetActorActionState(actor, actModSprintStarted)) then begin
         anim_name:=anim_name+'_start';
         if (canshoot or isgrenorbolt or is_knife) then snd_label:='sndSprintStart';
@@ -153,7 +155,9 @@ begin
       end;
 
     end else if (isdetector and GetActorActionState(actor, actModDetectorSprintStarted)) or (not isdetector and GetActorActionState(actor, actModSprintStarted)) then begin;
-      anim_name:=anim_name+'_sprint_end';
+      anim_name:=anim_name+'_sprint';
+      anim_name:=ModifierAlterSprint(wpn, anim_name);
+      anim_name:=anim_name+'_end';
       if (canshoot or isgrenorbolt or is_knife) then
         snd_label:='sndSprintEnd';
 
@@ -258,6 +262,22 @@ begin
 
   end;
 end;
+
+function ModifierAlterSprint(wpn:pointer; base_anim:string):string;stdcall;
+var
+  hud_sect:PChar;
+  buf:WpnBuf;
+begin
+  result:=base_anim;
+  hud_sect:=GetHUDSection(wpn);
+  if game_ini_r_bool_def(hud_sect, 'use_alter_sprint_anims', false) then begin
+    buf := GetBuffer(wpn);
+    if IsSilencerAttached(wpn) or ((buf<>nil) and (buf.IsLaserInstalled() or buf.IsTorchInstalled() )) then begin
+      result:=result+'_alter';
+    end;
+  end;
+end;
+
 //------------------------------------------------------------------------------anm_show/hide/bore/switch_*-----------------------
 function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
 var

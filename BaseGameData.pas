@@ -36,6 +36,7 @@ var
   xrCore_addr:cardinal;
   xrEngine_addr:cardinal;
   xrCDB_addr:cardinal;
+  xrAPI_addr:cardinal;
   xrRender_R1_addr:cardinal;
   xrRender_R2_addr:cardinal;
   xrRender_R3_addr:cardinal;
@@ -55,7 +56,8 @@ const
   xrGame:PChar='xrGame';
   xrCore:PChar='xrCore';
   xrEngine:PChar='xrEngine.exe';
-  xrCDB:PChar='xrCDB';  
+  xrCDB:PChar='xrCDB';
+  xrAPI:PChar='xrAPI';    
   xrRender_R1:PChar='xrRender_R1';  
   xrRender_R2:PChar='xrRender_R2';
   xrRender_R3:PChar='xrRender_R3';
@@ -286,6 +288,7 @@ begin
   xrCore_addr := GetModuleHandle(xrCore);
   xrEngine_addr:=GetModuleHandle(xrEngine);
   xrCDB_addr:=GetModuleHandle(xrCDB);
+  xrAPI_addr:=GetModuleHandle(xrAPI);
   xrRender_R1_addr:=GetModuleHandle(xrRender_R1);
   xrRender_R2_addr:=GetModuleHandle(xrRender_R2);
   xrRender_R3_addr:=GetModuleHandle(xrRender_R3);
@@ -301,6 +304,7 @@ begin
   xrGame_addr := (xrGame_addr shr 16) shl 16;
   xrCore_addr := (xrCore_addr shr 16) shl 16;
   xrCDB_addr:=(xrCDB_addr shr 16) shl 16;
+  xrAPI_addr:=(xrAPI_addr shr 16) shl 16;
   xrRender_R1_addr := (xrRender_R1_addr shr 16) shl 16;
   xrRender_R2_addr := (xrRender_R2_addr shr 16) shl 16;
   xrRender_R3_addr := (xrRender_R3_addr shr 16) shl 16;
