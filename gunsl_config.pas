@@ -164,6 +164,8 @@ function IsSoundPatchNeeded():boolean; stdcall;
 
 function GetBaseLookoutParams():lookout_params; stdcall;
 
+function GetFakeObjectVisual():PChar; stdcall;
+
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils;
@@ -221,6 +223,7 @@ var
   _pda_update_period:cardinal;
 
   _lookout_params:lookout_params;
+  _fake_object_name:PChar;
 
 
   
@@ -743,6 +746,9 @@ begin
   _lookout_params.ampl_k:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_ampl_k', 1.0);
 
   _lookout_params.dx_pow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_ampl_dx_pow', 1.0);
+
+  _fake_object_name := game_ini_read_string(GUNSL_BASE_SECTION, 'fake_object_visual');
+
   result:=true;
 end;
 
@@ -926,6 +932,11 @@ end;
 function GetBaseLookoutParams():lookout_params; stdcall;
 begin
   result:=_lookout_params;
+end;
+
+function GetFakeObjectVisual():PChar; stdcall;
+begin
+  result:=_fake_object_name;
 end;
 
 end.

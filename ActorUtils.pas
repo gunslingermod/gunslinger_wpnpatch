@@ -2794,6 +2794,34 @@ asm
   test eax,eax
 end;
 
+procedure SetFakeVisualForEatable(itm:pointer); stdcall;
+var
+  obj:pointer;
+  vis:PChar;
+begin
+  obj := dynamic_cast(itm, 0, RTTI_CInventoryItem, RTTI_CGameObject, false);
+  if obj<>nil then begin
+    vis:=GetFakeObjectVisual();
+    SetObjectVisual(obj, vis);
+  end; 
+end;
+
+procedure CInventory__Eat_onDrop_Patch; stdcall;
+asm
+  pushad
+    push ebp
+    call SetFakeVisualForEatable;
+  popad
+
+  //стандартный движковый код выхода из процедуры
+  pop esi
+  pop edi
+  pop ebp
+  xor al, al
+  pop ebx
+  ret 4
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -2933,6 +2961,12 @@ begin
 
   jmp_addr:=xrGame_addr+$2633d8;
   if not WriteJump(jmp_addr, cardinal(@OnActorHit_Patch), 5, true) then exit;
+
+  //[bug] CEatableItem при юзании дропается движком перед удалением, из-за этого визуал мелькает, заметно, когда в руках пест
+  // для лечения принудительно выставим визуал в нулевой (в дополнение к сокрытию в CEatableItemObject__OnH_A_Independent)
+  jmp_addr:=xrGame_addr+$2a9b3e;  //CInventory::Eat
+//  if not WriteJump(jmp_addr, cardinal(@CInventory__Eat_onDrop_Patch), 5, false) then exit;
+
 
   result:=true;
 end;

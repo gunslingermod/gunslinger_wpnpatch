@@ -42,6 +42,7 @@ const
   RTTI_CAI_Crow:cardinal = $620204;
   RTTI_CAI_Bloodsucker:cardinal = $61E9AC;
   RTTI_CWeaponRPG7:cardinal = $637538;
+  RTTI_CEatableItem:cardinal = $627498;  
 
 
 implementation

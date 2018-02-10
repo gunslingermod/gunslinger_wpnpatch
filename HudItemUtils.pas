@@ -52,7 +52,8 @@ function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
 function GetScopesCount(wpn:pointer):cardinal; stdcall;
 function GetCurrentScopeIndex(wpn:pointer):integer; stdcall;
 function GetScopeSection(wpn:pointer; index:cardinal):PChar; stdcall;
-procedure SetWpnVisual(obj:pointer; name:pchar);stdcall;
+procedure SetWpnVisual(wpn:pointer; name:pchar);stdcall;
+procedure SetObjectVisual(obj:pointer; name:pchar);stdcall;
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
 function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
@@ -255,13 +256,32 @@ asm
     popad
 end;
 
-procedure SetWpnVisual (obj:pointer; name:pchar);stdcall;
+procedure SetWpnVisual (wpn:pointer; name:pchar);stdcall;
 //Будем мимикрировать под скрипт
 asm
     pushad
     pushfd
 
-    add obj, $000000E8
+    add wpn, $000000E8
+    push wpn
+    call game_object_GetScriptGameObject
+    mov ecx, eax
+    push name
+
+    mov eax, xrgame_addr
+    add eax, $1BFF60
+    call eax
+
+    popfd
+    popad
+end;
+
+procedure SetObjectVisual (obj:pointer; name:pchar);stdcall;
+//Будем мимикрировать под скрипт
+asm
+    pushad
+    pushfd
+
     push obj
     call game_object_GetScriptGameObject
     mov ecx, eax
