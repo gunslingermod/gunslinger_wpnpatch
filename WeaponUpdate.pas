@@ -600,10 +600,45 @@ begin
 end;
 
 procedure CheckRLHasActiveRocket(wpn:pointer; rl:pointer); stdcall;
+var
+  n, p:FVector3;
+  sect:PChar;
+  cond, start_tr, end_tr,start_prob, end_prob:single;
+  is_expl:boolean;
+  r:pCCustomRocket;
 begin
   if GetRocketsCount(rl)>0 then begin
     if not IsActionProcessing(wpn) and (GetAmmoInMagCount(wpn)>0)  then begin
-      virtual_Action(wpn, kWPN_FIRE, kActPress);
+      sect:=GetSection(wpn);
+
+      start_tr:=game_ini_r_single_def(sect, 'rocket_misfunc_start_condition', 0);
+      end_tr:=game_ini_r_single_def(sect, 'rocket_misfunc_end_condition', 0);
+      start_prob:=game_ini_r_single_def(sect, 'rocket_misfunc_start_probability', 0);
+      end_prob:=game_ini_r_single_def(sect, 'rocket_misfunc_end_probability', 0);
+      cond:=GetCurrentCondition(wpn);
+
+      if (GetOwner(wpn)<>GetActor()) or (cond>start_tr) or (start_tr=end_tr) then begin
+        is_expl:=false;
+      end else if cond<end_tr then begin
+        is_expl:= random < end_prob;
+      end else begin
+        is_expl:= random < start_prob+(end_prob-start_prob)*(start_tr-cond)/(start_tr-end_tr);
+      end;
+
+      if is_expl then begin
+        p:=FVector3_copyfromengine(GetPosition(wpn));
+        n.x:=0;
+        n.y:=1;
+        n.z:=0;
+        r:=GetRocket(rl, 0);
+        DetachRocket(rl, GetCObjectID(r), true);
+        virtual_CCustomRocket__Contact(r, @p, @n);
+
+        UnloadRockets(rl);
+        virtual_CWeaponMagazined__UnloadMagazine(wpn, false);
+      end else begin
+        virtual_Action(wpn, kWPN_FIRE, kActPress);
+      end;
     end else begin
       UnloadRockets(rl);
     end;

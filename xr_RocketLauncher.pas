@@ -1,7 +1,7 @@
 unit xr_RocketLauncher;
 
 interface
-
+uses MatVectors;
 type CRocketLauncher = packed record
   vtable:pointer;
   m_rockets__first:pointer;
@@ -27,6 +27,10 @@ procedure DetachRocket(rl:pCRocketLauncher; rocket_id:word; bLaunch:boolean); st
 
 procedure CWeaponMagazinedWGrenade__LaunchGrenade(wpn:pointer); stdcall;
 procedure CRocketLauncher__SpawnRocket(rl:pointer; g_section:PChar);
+
+procedure LL_SetRocketLaunchedStatus(r:pCCustomRocket; status:boolean); stdcall;
+
+procedure virtual_CCustomRocket__Contact(r:pCCustomRocket; pos:pFVector3; normal:pFVector3);  stdcall;
 
 implementation
 uses Misc, BaseGameData, sysutils, dynamic_caster;
@@ -74,7 +78,7 @@ end;
 
 procedure UnloadOneRocket(rl:pCRocketLauncher); stdcall;
 var
-  cnt, i:cardinal;
+  cnt:cardinal;
   r:pCCustomRocket;
 begin
   cnt:=GetRocketsCount(rl);
@@ -107,7 +111,7 @@ begin
   g_string:=g_string+chr(0)+chr(0)+chr(0)+chr(0);
   g_string:=g_string+chr(0)+chr(0)+chr(0)+chr(0);
   g_string:=g_string+g_section+chr(0);
-  cgo:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CGameObject, false); 
+  cgo:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CGameObject, false);
 
   s:=PChar(g_string);
   pps:=@s;
@@ -125,6 +129,28 @@ begin
   end;
 
 end;
+
+procedure virtual_CCustomRocket__Contact(r:pCCustomRocket; pos:pFVector3; normal:pFVector3); stdcall;
+asm
+  pushad
+    push normal
+    push pos 
+    mov ecx, r
+    mov eax, [ecx]
+    mov eax, [eax+$210]
+    call eax
+  popad
+end;
+
+procedure LL_SetRocketLaunchedStatus(r:pCCustomRocket; status:boolean); stdcall;
+asm
+  pushad
+  mov esi, r
+  mov al, status
+  mov byte ptr [esi+$208], al
+  popad
+end;
+
 
 
 end.
