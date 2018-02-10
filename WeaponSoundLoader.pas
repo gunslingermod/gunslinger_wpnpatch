@@ -162,6 +162,10 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scope_brightness_plus', 'sndScopeBrightnessPlus', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scope_brightness_minus', 'sndScopeBrightnessMinus', 1, $FFFFFFFF);
 
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scope_zoom_plus', 'sndScopeZoomPlus', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scope_zoom_minus', 'sndScopeZoomMinus', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scope_zoom_gyro', 'sndScopeZoomGyro', 0, $FFFFFFFF);
+
 end;
 
 procedure LoadSounds_Knife(hsc:pHUD_SOUND_COLLECTION; section:PChar); stdcall;

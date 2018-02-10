@@ -104,11 +104,15 @@ type
 
     _need_permanent_lensrender:boolean;
 
-    //TODO: оформить следующие 4 параметра в отдельную структуру, так удобнее?
+    //TODO: оформить следующие параметры в отдельную структуру, так удобнее?
     _lens_scope_factor_min:single;
     _lens_scope_factor_max:single;
     _lens_zoom_position:single;
     _lens_zoom_delta:single;
+    _lens_speed:single;
+    _lens_scope_factor_last_change_time:cardinal;
+    _lens_scope_factor_last_value:single;
+
     //параметры смещени€ при поломке оружи€ - пол€рна€ с.к!
     _lens_offset:lens_offset_params;
     _lens_night_brightness:stepped_params;
@@ -138,6 +142,11 @@ type
     rocket_launched:boolean;     //от утечек пам€ти при стрелбе из гранатометов Ќѕ—ами
 
     last_shot_time:cardinal;
+
+    //дл€ плавного хода зума линзы
+    lens_scope_factor_last_change_time:cardinal;
+    lens_scope_factor_last_value:single;
+    lens_last_gyro_snd_time:cardinal;
 
 
     constructor Create(wpn:pointer);
@@ -208,6 +217,7 @@ type
 
     function NeedPermanentLensRendering():boolean;
     procedure SetPermanentLensRenderingStatus(status:boolean);
+    function GetDefaultLensSpeed():single;
     procedure GetLensParams(var min:single; var max:single; var position:single; var delta:single);
     procedure SetLensParams(min:single; max:single; delta:single);
     function GetLensFactorPos():single;
@@ -345,12 +355,18 @@ begin
   _lens_scope_factor_min:=game_ini_r_single_def(GetSection(wpn), 'min_lens_factor', 1);
   _lens_scope_factor_max:=game_ini_r_single_def(GetSection(wpn), 'max_lens_factor', 1);
   _lens_zoom_position:=1;
+  _lens_speed := game_ini_r_single_def(GetSection(wpn), 'lens_speed', 0);
   _lens_zoom_delta:=1/game_ini_r_single_def(GetSection(wpn), 'lens_factor_levels_count', 5);
+
+  lens_last_gyro_snd_time := GetGameTickCount();
 
   _lens_offset.max_value:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_max_val', 0.05);
   _lens_offset.start_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_start_condition', 0.5);
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
   self.SetOffsetDir(random); //смещение линзы
+
+  lens_scope_factor_last_change_time := GetGameTickCount();
+  lens_scope_factor_last_value := 0;
 
   scope_sect:=GetSection(wpn);
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
@@ -1337,6 +1353,11 @@ begin
   delta:=_lens_zoom_delta;
 end;
 
+function WpnBuf.GetDefaultLensSpeed():single;
+begin
+  result:=_lens_speed;
+end;
+
 procedure WpnBuf.SetLensParams(min, max, delta: single);
 var
   t:single;
@@ -1432,11 +1453,12 @@ begin
     exit;
   end;
 
-
 //  _lens_night_brightness.cur_step:=_lens_night_brightness.cur_step+steps;
   SetNightBrightness(_lens_night_brightness.cur_step+steps);
 end;
 
+
+// try to use ChangeNightBrightness instead of SetNightBrightness!
 procedure WpnBuf.SetNightBrightness(steps: integer);
 var
   delta:single;

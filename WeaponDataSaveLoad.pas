@@ -44,11 +44,14 @@ begin
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetLensFactorPos(tmp_single);
 
+  buf.lens_scope_factor_last_value := tmp_single;
+  buf.lens_scope_factor_last_change_time := GetGameTickCount();
+
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetOffsetDir(tmp_single);
 
   ReadFromReader(packet, @tmp_int, sizeof(tmp_int));
-  buf.SetNightBrightness(tmp_int);
+  buf.ChangeNightBrightness(tmp_int);
 
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
   SetLength(buf.ammos, ammos_in_mag);

@@ -121,10 +121,16 @@ end;
 
 function GetLensFOV(default:single):single; stdcall;
 var
-  min, max, pos, dt, factor, fov:single;
+  min, max, pos, dt, factor, fov, timedelta, dt_needed:single;
+  speed:single;
   scope_sect:PChar;
   buf:WpnBuf;
   wpn:pointer;
+  gyro_period:single;
+
+  zoom_remains, snd_remains:single;
+const
+  EPS:single = 0.00001;
 begin
   result:=default;
   wpn:=GetActorActiveItem();
@@ -134,11 +140,54 @@ begin
   if buf=nil then exit;
 
   buf.GetLensParams(min, max, pos, dt);
+  speed := buf.GetDefaultLensSpeed();
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
     scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
     min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
     max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);
+    speed:=game_ini_r_single_def(scope_sect, 'lens_speed', 0);
+    gyro_period := game_ini_r_single_def(scope_sect, 'lens_gyro_sound_period', 0);
+  end else begin
+    speed := ModifyFloatUpgradedValue(wpn, 'lens_speed', speed);
+    gyro_period := ModifyFloatUpgradedValue(wpn, 'lens_gyro_sound_period', game_ini_r_single_def(GetSection(wpn), 'lens_gyro_sound_period', 0));
   end;
+
+  if speed>0 then begin
+    //Оценим, с какой скоростью надо зумить, чтобы зум закончился ровно на звуке
+    dt_needed:= pos - buf.lens_scope_factor_last_value; //сколько надо добрать еще
+
+    if (gyro_period>EPS) then begin
+      //посмотрим, сколько еще продлится зум при константной скорости
+      zoom_remains:=abs(dt_needed)/speed;
+      //Посчитаем, сколько времени еще будет играться звук
+      snd_remains:= gyro_period - GetTimeDeltaSafe(buf.lens_last_gyro_snd_time)/1000;
+      //если звук играется дольше, чем длится зум - непорядок, замедлим зум
+      if (snd_remains>zoom_remains) and (snd_remains>0) then begin
+        speed:= abs(dt_needed)/snd_remains;
+      end;
+    end;
+
+    //плавное изменение увеличения
+    timedelta := GetTimeDeltaSafe(buf.lens_scope_factor_last_change_time)/1000;
+    dt := timedelta*speed; //насколько можем измениь
+
+    if dt<abs(dt_needed) then begin
+      if (gyro_period>EPS) then begin
+        timedelta := GetTimeDeltaSafe(buf.lens_last_gyro_snd_time)/1000;
+        if timedelta>gyro_period then begin
+          //играем звук мотора
+          CHudItem_Play_Snd(wpn, 'sndScopeZoomGyro');
+          buf.lens_last_gyro_snd_time := GetGameTickCount();
+        end;
+      end;
+
+      pos:= buf.lens_scope_factor_last_value+sign(dt_needed)*dt;
+    end;
+  end;
+
+  buf.lens_scope_factor_last_value:=pos;
+  buf.lens_scope_factor_last_change_time := GetGameTickCount();
+
   factor:=min+(max-min)*pos;
 
   fov:=(GetBaseFOV()/2)*pi/180;

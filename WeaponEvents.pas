@@ -1186,7 +1186,7 @@ function CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal):boolean; stdc
 //вернуть true, если дальше обрабатывать нажатие не надо
 var
   buf:WpnBuf;
-  min, max, pos, dt:single;
+  min, max, pos, dt, oldpos:single;
   scope_sect:PChar;
 begin
   result:=false;
@@ -1229,12 +1229,24 @@ begin
           scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
           dt:=1/game_ini_r_int_def(scope_sect, 'lens_factor_levels_count', 5);
         end;
+
+        oldpos := pos;
         if id=kWPN_ZOOM_INC then begin
           pos:=pos+dt;
         end else begin
           pos:=pos-dt;
         end;
         buf.SetLensFactorPos(pos);
+
+        buf.GetLensParams(min, max, pos, dt);
+        if (pos<>oldpos) and (min<>max) and ( abs(oldpos-pos)>abs(dt)*0.1 ) then begin
+          if id=kWPN_ZOOM_INC then begin
+            CHudItem_Play_Snd(wpn, 'sndScopeZoomPlus');
+          end else begin
+            CHudItem_Play_Snd(wpn, 'sndScopeZoomMinus');          
+          end;
+        end;
+
       end else begin
         scope_sect:=GetSection(wpn);
         if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
