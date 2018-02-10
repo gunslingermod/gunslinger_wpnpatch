@@ -37,6 +37,7 @@ const
   RTTI_CShootingObject:cardinal = $62C4E8;
   RTTI_CMapSpot:cardinal = $63EFA0;
   RTTI_CUIWindow:cardinal = $62D6E8;
+  RTTI_CEntityAlive:cardinal = $6196FC;  
 
 
 implementation

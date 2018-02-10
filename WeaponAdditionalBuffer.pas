@@ -118,6 +118,10 @@ type
     _lens_shoot_recoil_max:FVector4;//x,y,speed,deviation
     _lens_misfire_recoil_max:FVector4;//x,y,speed,deviation
 
+    //автоаим
+    _autoaim_delay:integer;
+    _autoaim_valid_time:cardinal;
+
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
@@ -218,7 +222,9 @@ type
     function GetShootRecoil:FVector4;
     function GetMisfireRecoil:FVector4;
 
-
+    function GetAutoAimPeriod():integer;
+    function GetAutoAimStartTime():cardinal;
+    procedure SetAutoAimStartTime(cnt:cardinal);
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -337,7 +343,7 @@ begin
   _lens_offset.max_value:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_max_val', 0.05);
   _lens_offset.start_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_start_condition', 0.5);
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
-  _lens_offset.dir:=random;
+  self.SetOffsetDir(random); //смещение линзы
 
     scope_sect:=GetSection(wpn);
     if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
@@ -356,12 +362,17 @@ begin
     _lens_misfire_recoil_max.z:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_speed', 0.0);
     _lens_misfire_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_deviation', 0.0);
 
+
+    _autoaim_delay:=floor(game_ini_r_single_def(GetSection(wpn), 'autoaim_time', 0.0)*1000);
+
     _lens_shoot_recoil_current.x:=0;
     _lens_shoot_recoil_current.y:=0;
     _lens_shoot_recoil_current.z:=-1;
     loaded_gl_state:=false;
     last_frame_rocket_loaded:=0;
     rocket_launched:=false;
+
+    _autoaim_valid_time:=0;
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
@@ -1428,6 +1439,21 @@ end;
 function WpnBuf.GetMisfireRecoil:FVector4;
 begin
   result:=_lens_misfire_recoil_max;
+end;
+
+function WpnBuf.GetAutoAimPeriod():integer;
+begin
+  result:=FindIntValueInUpgradesDef(self._my_wpn, 'autoaim_time', self._autoaim_delay);
+end;
+
+function WpnBuf.GetAutoAimStartTime():cardinal;
+begin
+  result:=self._autoaim_valid_time;
+end;
+
+procedure WpnBuf.SetAutoAimStartTime(cnt:cardinal);
+begin
+  self._autoaim_valid_time:=cnt;
 end;
 
 end.

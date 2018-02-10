@@ -64,6 +64,8 @@ function IsInputExclusive:boolean; stdcall;
 
 procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
 
+function is_object_alive(obj:pointer):boolean;
+
 
 implementation
 uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils;
@@ -131,6 +133,24 @@ asm
     add eax, $27FD40
     call eax
     mov @result, eax
+  popad
+end;
+
+function is_object_alive(obj:pointer):boolean;
+asm
+  mov @result, false
+  pushad
+    push obj
+    call game_object_GetScriptGameObject
+    cmp eax, 0
+    je @finish
+    mov ecx, eax
+    mov ebx, xrgame_addr
+    add ebx, $1EF870
+    call ebx
+    mov @result, al
+
+    @finish:
   popad
 end;
 

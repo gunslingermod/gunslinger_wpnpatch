@@ -1,10 +1,13 @@
 unit BallisticsCorrection;
 
 interface
+uses MatVectors;
 function Init:boolean;
 
+procedure CorrectShooting(wpn:pointer; CEntity:pointer; pos:pFVector3; dir:pFVector3); stdcall;
+
 implementation
-uses BaseGameData, MatVectors, sysutils, messenger, HudItemUtils, ActorUtils, gunsl_config, WeaponAdditionalBuffer, RayPick, dynamic_caster, ControllerMonster;
+uses BaseGameData,  sysutils, messenger, HudItemUtils, ActorUtils, gunsl_config, WeaponAdditionalBuffer, RayPick, dynamic_caster, ControllerMonster;
 
 procedure virtual_CEntity__g_fireParams(this:pointer; wpn:pointer; pos:pFVector3; dir:pFVector3); stdcall;
 asm
@@ -22,7 +25,19 @@ asm
   popad
 end; 
 
-
+procedure CorrectLensOffset(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+  p:lens_offset_params;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then begin
+    buf.GetLensOffsetParams(@p);
+    if GetCurrentCondition(wpn)>p.start_condition then begin
+      buf.SetOffsetDir(random);
+    end;
+  end;
+end;
 
 procedure CorrectShooting(wpn:pointer; CEntity:pointer; pos:pFVector3; dir:pFVector3); stdcall;
 var
@@ -82,11 +97,15 @@ asm
   lea edx, [esp+$1C]
 
   pushad
+  push esi
+
   push ecx
   push edx
   push edi
   push esi
   call CorrectShooting
+
+  call CorrectLensOffset
   popad
 end;
 
@@ -97,6 +116,7 @@ asm
   lea edx, [esp+$34]
   lea ecx, [esp+$4C]
   pushad
+    push esi//wpn
 
     push ecx//dir
     push edx//pos
@@ -104,6 +124,8 @@ asm
     push esi//wpn
 
     call CorrectShooting
+    call CorrectLensOffset
+
   popad
 
 {  pushad

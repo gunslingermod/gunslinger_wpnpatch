@@ -13,7 +13,7 @@ function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolea
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -1769,14 +1769,97 @@ asm
   @finish:
 end;
 
-procedure CWeaponRPG7__OnEvent_RemoveAmmoAfterRocketShot(); stdcall;
+function IsShotNeededNow(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+  pos, dir:FVector3;
+  owner:pointer;
+  rqr:rq_result;
+  aimperiod:integer;
+  is_aim_exist:boolean;
+  alive:pointer;
+begin
+  result:=true;
+  buf:=GetBuffer(wpn);
+  if (buf=nil) or (GetShootLockTime(wpn)>0) then exit;
+  aimperiod:=(buf.GetAutoAimPeriod());
+  if aimperiod=0 then exit;
+
+  pos:=GetLastFP(wpn);
+  dir:=GetLastFD(wpn);
+  owner:=GetOwner(wpn);
+  if owner<>nil then begin
+    CorrectShooting(wpn, owner, @pos, @dir);
+  end;
+
+  is_aim_exist:=Level_RayPick(@pos, @dir, 1000, rq_target__rqtObject, @rqr, owner);
+
+  alive:=dynamic_cast(rqr.O, 0, RTTI_CObject, RTTI_CEntityAlive, false);
+  if FindBoolValueInUpgradesDef(wpn, 'autoaim_only_alive', game_ini_r_bool_def(GetSection(wpn), 'autoaim_only_alive', false)) and (alive=nil) then begin
+    is_aim_exist:=false;
+  end;
+
+  if is_aim_exist and FindBoolValueInUpgradesDef(wpn, 'autoaim_ignore_dead', game_ini_r_bool_def(GetSection(wpn), 'autoaim_ignore_dead', false)) and not is_object_alive(alive) then begin
+    is_aim_exist:=false;  
+  end;
+
+  if aimperiod>0 then begin
+    //схема с отложенным выстрелом
+    if buf.GetAutoAimStartTime=0 then begin
+      //еще не стартовали.
+      buf.SetAutoAimStartTime(GetGameTickCount());
+    end;
+    result:= is_aim_exist or (GetTimeDeltaSafe(buf.GetAutoAimStartTime())>=buf.GetAutoAimPeriod());
+
+    if result then begin
+      buf.SetAutoAimStartTime(0);
+    end else begin
+      //не даем выйти из состо€ни€ shoot
+      if GetShootLockTime(wpn)<=0 then SetShootLockTime(wpn, 0);
+    end;
+  end else begin
+    //схема с отменой выстрела
+    result:=is_aim_exist;
+    if (not result) then begin
+     if FindBoolValueInUpgradesDef(wpn, 'autoaim_shot_cancellation', game_ini_r_bool_def(GetSection(wpn), 'autoaim_shot_cancellation', false)) then begin
+      //” нас автоматический предохранитель, прекращаем стрельбу
+      SetShootLockTime(wpn, -1);
+     end else if IsActionKeyPressedInGame(kWPN_FIRE) then begin
+      //” нас система непрерывного автоспуска, не даем выйти из состо€ни€ shoot
+      if GetShootLockTime(wpn)<=0 then SetShootLockTime(wpn, 0);
+     end else begin
+      //стрел€ть уже не надо
+      SetShootLockTime(wpn, -1);
+     end;
+    end;
+  end;
+end;
+
+procedure CWeaponMagazined__state_Fire_autoaim_patch; stdcall;
+asm
+  comiss xmm0, [esi+$390]
+  jbe @finish
+
+  pushad
+    push esi
+    call IsShotNeededNow
+    cmp al, 0
+  popad
+
+  @finish:
+end;
+
+
+{procedure CWeaponRPG7__OnEvent_RemoveAmmoAfterRocketShot(); stdcall;
 asm
   //тут разр€жаем магазин принудительно после вылета ракеты - так как оно однозар€дное, там ничего не могло остатьс€
   //!!!к сожалению, тер€етс€ возможность создани€ многозар€дного оружи€!!!
   push 0
   push esi
   call virtual_CWeaponMagazined__UnloadMagazine
-end;
+end; }
+
+
 
 function Init:boolean;
 var
@@ -1952,6 +2035,9 @@ begin
   jmp_addr:=xrGame_addr+$2FB5EA;
   if not WriteJump(jmp_addr, cardinal(@CalcMotionSpeed_QuickItems_Patch), 5, false) then exit;
 
+  //фича, требующа€ задержки выстрелов(автоаим)
+  jmp_addr:=xrGame_addr+$2D05E3;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__state_Fire_autoaim_patch), 7, true) then exit;
 
   //ѕредотвращение повторных выстрелов из –ѕ√
   //!!!Ћомает возможность многозар€дных гранатометов!!!
