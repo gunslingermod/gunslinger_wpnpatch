@@ -670,6 +670,62 @@ begin
   result:=_quick_throw_forced;
 end;
 
+
+function CanChangeGrenadeNow(current_grenade:pointer; next_grenade:pointer):boolean; stdcall;
+var
+  state:cardinal;
+begin
+  state:=GetCurrentState(current_grenade);
+
+  //вызывается, когда игра собирается сменить грену в слоте на аналог
+  if (state=EHudStates__eShowing) or (state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) then begin
+    result:=false;
+    exit;
+  end;
+
+
+  result:=true;
+  if (GetOwner(current_grenade)<>GetActor()) and (GetActor()<>nil) then exit;
+
+  ResetChangedGrenade();
+  if (state = EHudStates__eHidden) then exit;
+
+  if (state <> EHudStates__eHiding) then begin
+    //надо играть аниму убирания...
+    virtual_CHudItem_SwitchState(current_grenade, EHudStates__eHiding);
+  end;
+  SetChangedGrenade(current_grenade);
+  result:=false;
+end;
+
+procedure CGrenade__Action_changetype_Patch; stdcall;
+asm
+  mov ecx,[ebp+$8C] //orig
+
+  pushad
+    push esi
+    push ebp
+    call CanChangeGrenadeNow
+    cmp al, 0
+  popad
+
+  je @not_change
+  ret
+
+
+  //return fron CALLER proc
+  @not_change:
+  pop edi //ret addr
+  
+  pop edi
+  pop esi
+  pop ebp
+  mov al, 01
+  pop ebx
+  add esp, $0c
+  ret 8
+end;
+
 ////////////////////////////////////////////////////////
 function Init():boolean;
 var
@@ -710,6 +766,10 @@ begin
 
   jump_addr:=xrGame_addr+$267BBE;
   if not WriteJump(jump_addr, cardinal(@NeedDrawGrenMark_Patch), 5, true) then exit;
+
+  //[bug] баг - при смене типа грены нет анимы убирания
+  jump_addr:=xrGame_addr+$2c658f;
+  if not WriteJump(jump_addr, cardinal(@CGrenade__Action_changetype_Patch), 6, true) then exit;
 
   result:=true;
 

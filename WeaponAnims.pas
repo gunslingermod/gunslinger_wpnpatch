@@ -1808,53 +1808,6 @@ asm
   mov edx, [eax+$1f8] //original
 end;
 
-
-function CanChangeGrenadeNow(current_grenade:pointer; next_grenade:pointer):boolean; stdcall;
-begin
-  //вызывается, когда игра собирается сменить грену в слоте на аналог
-  result:=true;
-  if (GetOwner(current_grenade)<>GetActor()) and (GetActor()<>nil) then exit;
-
-  ResetChangedGrenade();
-  if (GetCurrentState(current_grenade) = EHudStates__eHidden) then exit;
-
-  if (GetCurrentState(current_grenade) <> EHudStates__eHiding) then begin
-    //надо играть аниму убирания...
-    virtual_CHudItem_SwitchState(current_grenade, EHudStates__eHiding);
-  end;
-  SetChangedGrenade(current_grenade);
-  result:=false;
-end;
-
-procedure CGrenade__Action_changetype_Patch; stdcall;
-asm
-  mov ecx,[ebp+$8C] //orig
-
-  pushad
-    push esi
-    push ebp
-    call CanChangeGrenadeNow
-    cmp al, 0
-  popad
-
-  je @not_change
-  ret
-
-
-  //return fron CALLER proc
-  @not_change:
-  pop edi //ret addr
-  
-  pop edi
-  pop esi
-  pop ebp
-  mov al, 01
-  pop ebx
-  add esp, $0c
-  ret 8
-end;
-
-
 /////////////////////////////////////
 function Init:boolean;
 var
@@ -2205,11 +2158,6 @@ begin
   //принудительный сброс автоматического режима огня у оружия
   jump_addr:=xrGame_addr+$2d06c5;
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__state_Fire_queue_Patch), 6, true) then exit;
-
-  //[bug] баг - при смене типа грены нет анимы убирания
-
-  jump_addr:=xrGame_addr+$2c658f;
-  if not WriteJump(jump_addr, cardinal(@CGrenade__Action_changetype_Patch), 6, true) then exit;
 
   result:=true;
 end;

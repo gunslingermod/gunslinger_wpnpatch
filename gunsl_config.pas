@@ -25,6 +25,12 @@ type jitter_params = record
   rot_amplitude:single;
 end;
 
+type lookout_params = record
+  speed:single;
+  ampl_k:single;
+  dx_pow:single;
+end;
+
 type phantoms_params = record
   min_cnt:cardinal;
   max_cnt:cardinal;
@@ -149,6 +155,8 @@ function IsVSyncEnabled():boolean; stdcall;
 
 function IsSoundPatchNeeded():boolean; stdcall;
 
+function GetBaseLookoutParams():lookout_params; stdcall;
+
 
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils;
@@ -203,7 +211,9 @@ var
   psDeviceFlags:pointer;
 
   _pda_screen_kx:single;
-  _pda_update_period:cardinal; 
+  _pda_update_period:cardinal;
+
+  _lookout_params:lookout_params;
 
 
   
@@ -711,6 +721,10 @@ begin
   _pda_screen_kx:=game_ini_r_single_def(GetPDAShowAnimator, 'screen_kx', 1.0);
   _pda_update_period:=game_ini_r_int_def(GetPDAShowAnimator, 'animation_update_period', 100);
 
+  _lookout_params.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_speed', 1.0);
+  _lookout_params.ampl_k:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_ampl_k', 1.0);
+
+  _lookout_params.dx_pow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_ampl_dx_pow', 1.0);
   result:=true;
 end;
 
@@ -883,6 +897,11 @@ end;
 function GetPDAUpdatePeriod():cardinal; stdcall;
 begin
   result:=_pda_update_period;
+end;
+
+function GetBaseLookoutParams():lookout_params; stdcall;
+begin
+  result:=_lookout_params;
 end;
 
 end.

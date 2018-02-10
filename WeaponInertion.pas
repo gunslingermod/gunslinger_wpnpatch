@@ -15,6 +15,8 @@ var
   i_p:weapon_inertion_params;
   time_accumulator:cardinal;
 
+  lookout_speed:single;
+
   _last_camera_height:single;
   _last_cam_update_time:cardinal;
   _landing_effect_time_remains:cardinal;
@@ -40,6 +42,47 @@ begin
   tollookout_time_remains:=0;
   fromllookout_time_remains:=0;
 
+end;
+
+function ValueSineInterpolation_f(x:single; max_val:single; period:single):single;
+begin
+  result:=0.5*max_val*(1+sin(-pi/2 + x*pi/period));
+end;
+
+function ValueSineInterpolation_f_inverse(cur_val:single; max_val:single; period:single):single;
+begin
+  result:=(arcsin((2*cur_val/max_val) - 1)+pi/2)*(period/pi);
+end;
+
+function ValueSineInterpolation(cur_val:single; max_val:single; period:single; dt:single):single;
+var
+  x:single;
+const
+  EPS:single=0.00001;
+begin
+//1) получим х по f(x)
+//2) вернем f(x+dt)
+  if abs(dt)<EPS then begin
+    result:=cur_val;
+    exit;
+  end else if (dt>0) and (abs(cur_val-max_val)<EPS) then begin
+    result:=max_val;
+    exit;
+  end else if (dt<0) and (abs(cur_val-max_val)<EPS) then begin
+    result:=0;
+    exit;
+  end;
+
+  x:=ValueSineInterpolation_f_inverse(cur_val, max_val, period);
+  if (dt>0) and (x+dt>period) then begin
+    x:=period;
+  end else if  (dt<0) and (x-dt<0) then begin
+    x:=0;
+  end else begin
+    x:=x+dt;
+  end;
+
+  result:=ValueSineInterpolation_f(x, max_val, period);
 end;
 
 procedure ResetCamHeight();
@@ -599,6 +642,8 @@ var
   landing:landing_params;
   act, wpn:pointer;
   buf:WpnBuf;
+
+  period:single;
 begin
   act:=GetActor();
     
@@ -620,7 +665,6 @@ begin
     _landing2_effect_time_remains:=0;
     _landing_effect_time_remains:=landing.time_landing;
   end;
-
 
   if _landing_effect_time_remains>0 then begin
     h^:=h^+landing.offset_landing;
@@ -652,7 +696,7 @@ begin
     end else begin
       h^:=_last_camera_height-max_offset
     end;
-  end;
+  end;    
 
   _last_camera_height:=h^;
   if _landing_effect_time_remains>delta then _landing_effect_time_remains:=_landing_effect_time_remains-delta else _landing_effect_time_remains:=0;
@@ -678,9 +722,60 @@ asm
   popad 
 end;
 
+procedure LookoutFunctionReplace(act:pointer; cur_roll:psingle; tgt_roll:single; dt:single); stdcall;
+var
+  dx, delta:single;
+  speed, koef, ampl_k, dx_pow:single;
+  itm:pointer;
+const
+  EPS=0.0001;
+begin
+  speed:=GetBaseLookoutParams().speed;
+  ampl_k:=GetBaseLookoutParams().ampl_k;
+  dx_pow:=GetBaseLookoutParams().dx_pow;
+
+  if (act<>nil) and (act=GetActor()) then begin
+    itm:=GetActorActiveItem;
+    if itm<>nil then begin
+      koef:=game_ini_r_single_def(GetHUDSection(itm), 'lookout_speed_koef', 1.0);
+      speed:=koef*speed;
+
+      koef:=game_ini_r_single_def(GetHUDSection(itm), 'lookout_ampl_k', 1.0);
+      ampl_k:=ampl_k*koef;
+    end;
+  end;
+
+  tgt_roll:=tgt_roll*ampl_k;
+
+  dx:=tgt_roll-cur_roll^;
+  delta:=abs(power(abs(dx), dx_pow)*dt*speed);
+
+  if dx<0 then begin
+    delta:=delta*(-1);
+  end;
+
+  if abs(delta)>abs(dx) then begin
+    delta:=dx;
+  end;
+  cur_roll^:=cur_roll^+delta;
+
+end;
+
+procedure LookoutFunctionReplace_Patch; stdcall
+asm
+  mov eax, esp
+  pushad
+  push [eax+$10]
+  push [eax+$8]
+  push [eax+$4]
+  push esi
+  call LookoutFunctionReplace;
+  popad
+end;
+
 function Init():boolean;
 var
-  addr, rb:cardinal;
+  addr, rb, i:cardinal;
   ptr:pointer;
   b:byte;
 begin
@@ -697,7 +792,7 @@ begin
 
   //CActor::cam_Update - в инлайне CActor::CameraHeight подменяем результирующее значение высоты камеры (для плавности)
   addr:=xrgame_addr+$274359;
-  if not WriteJump(addr, cardinal(@CActor__CameraHeight_Patch), 8, true) then exit; 
+  if not WriteJump(addr, cardinal(@CActor__CameraHeight_Patch), 8, true) then exit;
 
   //переписываем указатель на предельное значение инерции
   addr:=xrgame_addr+$2fcbc8;
@@ -724,6 +819,15 @@ begin
   b:=$EB;
   addr:=xrgame_addr+$261BD2;
   writeprocessmemory(hndl, PChar(addr), @b, 1, rb);
+
+
+  //Меняем линейный характер наклонов-выглядываний
+  addr:=xrgame_addr+$26a10a;
+  if not WriteJump(addr, cardinal(@LookoutFunctionReplace_Patch), 5, true) then exit;
+  //убираем условие, чтобы наклоны обрабатывались всегда
+  addr:=xrgame_addr+$26a0eb;
+  nop_code(addr, 6);
+
 
   result:=true;
 end;
