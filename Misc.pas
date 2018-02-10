@@ -383,10 +383,11 @@ asm
   popad
 end;
 
-procedure register_cscriptgameobject_restoreweaponimmediatly();stdcall;
+procedure register_cscriptgameobject_methods();stdcall;
 const
-  name:PChar='restore_weapon_immediatly';
+  name_restore:PChar='restore_weapon_immediatly';
 asm
+  //restore_weapon_immediatly
   mov [esp+$58], bl
   mov ecx, [esp+$58]
   push ecx
@@ -401,7 +402,7 @@ asm
   lea edx, [esp+$28]
   push edx
 
-  push name
+  push name_restore
   mov ecx, eax
 
   mov edx, cscriptgameobject_restoreweaponimmediatly_addr
@@ -411,6 +412,7 @@ asm
   add edx, $1D4350
   call edx
 
+  //restore cut
   mov [esp+$58], bl
   mov ecx, [esp+$58]
 
@@ -817,7 +819,7 @@ begin
 
   jmp_addr:=xrGame_addr+$1ECFF6;
   cscriptgameobject_restoreweaponimmediatly_addr := @CScriptgameobject__restoreweaponimmediatly;
-  if not WriteJump(jmp_addr, cardinal(@register_cscriptgameobject_restoreweaponimmediatly), 8, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@register_cscriptgameobject_methods), 8, true) then exit;
 
 
   //[bug] баг с лампочками - thanks to SkyLoader; убираем условие в CHangingLamp::TurnOff, чтобы processing_deactivate срабатывал всегда

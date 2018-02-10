@@ -1417,7 +1417,8 @@ var
   dir:TCursorDirection;
   angle:single;
 
-  blowout_level:single;  
+  blowout_level:single;
+  is_nv_enabled:boolean;
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1619,9 +1620,28 @@ begin
     end;
   end;
 
+  itm:=ItemInSlot(act, 10);
+  is_nv_enabled := false;
+  if itm<>nil then begin
+    is_nv_enabled:=IsNVSwitchedOn(itm);
+    if game_ini_r_single_def(GetSection(itm), 'blowout_disabling_level', 10)<=CurrentElectronicsProblemsCnt() then begin
+      if is_nv_enabled and (game_ini_r_single_def(GetSection(itm), 'blowout_disabling_probability', 1.0)>random) then begin
+        CTorch__SwitchNightVision(itm, false, true);
+      end;
+    end;
+  end;
+  if (is_nv_enabled) then begin
+    script_call(GetNvMaskUpdateFunctorName(), 'true', dt);
+  end else begin
+    script_call(GetNvMaskUpdateFunctorName(), 'false', dt);
+  end;
+
   //[bug] Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
   DisableNVIfNeeded(act);
   DisableTorchIfNeeded(act);
+
+
+
 end;
 
 procedure ActorUpdate_Patch(); stdcall

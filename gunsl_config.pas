@@ -154,6 +154,7 @@ function IsSndUnlock:boolean; stdcall;
 
 function GetModVer():PChar; stdcall;
 function GetQuickUseScriptFunctorName():PChar; stdcall;
+function GetNvMaskUpdateFunctorName():PChar; stdcall;
 
 function IsAnimatedAddons():boolean; stdcall;
 function IsMandatoryAnimatedUnloadMag():boolean; stdcall;
@@ -208,6 +209,7 @@ var
   _pda_show_animator:PChar;
 
   _quickuse_functor:PChar;
+  _nv_mask_update_functor:PChar;
   _is_animated_addons:boolean;
   _is_mandatory_animated_unload_mag:boolean;
 
@@ -732,7 +734,11 @@ begin
   end else begin
     _quickuse_functor:=nil;
   end;
-
+  if game_ini_line_exist(GUNSL_BASE_SECTION, 'nv_mask_update_functor') then begin
+    _nv_mask_update_functor:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_mask_update_functor');
+  end else begin
+    _nv_mask_update_functor:=nil;
+  end;
 
   _pda_screen_kx:=game_ini_r_single_def(GetPDAShowAnimator, 'screen_kx', 1.0);
   _pda_update_period:=game_ini_r_int_def(GetPDAShowAnimator, 'animation_update_period', 100);
@@ -896,6 +902,12 @@ function GetQuickUseScriptFunctorName():PChar; stdcall;
 begin
   result:=_quickuse_functor;
 end;
+
+function GetNvMaskUpdateFunctorName():PChar; stdcall;
+begin
+  result:=_nv_mask_update_functor;
+end;
+
 
 function IsAnimatedAddons():boolean; stdcall;
 begin
