@@ -9,6 +9,8 @@ procedure ResetActivationHoldState(); stdcall;
 procedure SetForcedQuickthrow(status:boolean);
 function GetForcedQuickthrow():boolean;
 
+procedure SetThrowForce(CMissile:pointer; force:single); stdcall;
+
 const
 		EMissileStates__eThrowStart:cardinal = 5;
 		EMissileStates__eReady:cardinal = 6;
@@ -120,7 +122,7 @@ asm
   push ecx
     mov ecx, CMissile
     pushad
-      call IsActorControlled
+      call IsActorPlanningSuicide
       cmp al, 1
     popad
     je @controlled
@@ -132,6 +134,15 @@ asm
     @finish:
   pop ecx
   pop eax
+end;
+
+procedure SetThrowForce(CMissile:pointer; force:single); stdcall;
+asm
+  pushad
+    mov ecx, CMissile
+    movss xmm0, force
+    movss [ecx+$3a0], xmm0
+  popad
 end;
 
 
@@ -587,7 +598,7 @@ asm
 end;
 
 
-function CMissile__OnHit_CanExplode(this:pointer; SHit:pointer):boolean;stdcall;
+function CMissile__OnHit_CanExplode(this:pointer; SHit:pSHit):boolean;stdcall;
 //Вернуть true, если от полученного хита грена должна взорваться
 var
   sect:PChar;
@@ -595,19 +606,19 @@ begin
   sect:=GetSection(this);
   result:=false;
   if game_ini_line_exist(sect, 'help_explosive_info') and game_ini_r_bool(sect, 'help_explosive_info') then begin
-    log('Hit type: '+inttostr(SHit__GetHitType(SHit)));
-    log('Hit power: '+ floattostr(SHit__GetPower(SHit)));
-    log('Hit impulse: '+ floattostr(SHit__GetImpulse(SHit)));
+    log('Hit type: '+inttostr(SHit.hit_type));
+    log('Hit power: '+ floattostr(SHit.power));
+    log('Hit impulse: '+ floattostr(SHit.impulse));
     log('Treshold: '+floattostr(CGrenade__GetDetonationTresholdHit(this)));
   end;
 
   if game_ini_line_exist(sect, 'explosion_on_hit') and game_ini_r_bool(sect, 'explosion_on_hit') then begin
-    if CGrenade__GetDetonationTresholdHit(this)<SHit__GetPower(SHit) then begin
+    if CGrenade__GetDetonationTresholdHit(this)<SHit.power then begin
       if (not CMissile__Useful(this)) or (not game_ini_line_exist(sect, 'explosive_while_not_activated')) or game_ini_r_bool(sect, 'explosive_while_not_activated') then begin
         if game_ini_line_exist(sect, 'explosion_hit_types') then begin
-          if pos(inttostr(SHit__GetHitType(SHit)), game_ini_read_string(sect, 'explosion_hit_types'))<>0 then result:=true;
+          if pos(inttostr(SHit.hit_type), game_ini_read_string(sect, 'explosion_hit_types'))<>0 then result:=true;
         end else begin
-          if SHit__GetHitType(SHit)=EHitType__eHitTypeExplosion then result:=true;
+          if SHit.hit_type=EHitType__eHitTypeExplosion then result:=true;
         end;
       end;
     end;

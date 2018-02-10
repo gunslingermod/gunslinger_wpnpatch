@@ -37,7 +37,11 @@ const
   RTTI_CShootingObject:cardinal = $62C4E8;
   RTTI_CMapSpot:cardinal = $63EFA0;
   RTTI_CUIWindow:cardinal = $62D6E8;
-  RTTI_CEntityAlive:cardinal = $6196FC;  
+  RTTI_CEntity:cardinal = $61D4DC;  
+  RTTI_CEntityAlive:cardinal = $6196FC;
+  RTTI_CAI_Crow:cardinal = $620204;
+  RTTI_CAI_Bloodsucker:cardinal = $61E9AC;
+  RTTI_CWeaponRPG7:cardinal = $637538;
 
 
 implementation

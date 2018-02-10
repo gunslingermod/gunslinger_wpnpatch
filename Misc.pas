@@ -64,11 +64,12 @@ function IsInputExclusive:boolean; stdcall;
 
 procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
 
-function is_object_alive(obj:pointer):boolean;
+function is_object_has_health(obj:pointer):boolean;
+function is_visible_by_thermovisor(cobject:pointer):boolean; stdcall;
 
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
 
@@ -136,7 +137,7 @@ asm
   popad
 end;
 
-function is_object_alive(obj:pointer):boolean;
+function is_object_has_health(obj:pointer):boolean;
 asm
   mov @result, false
   pushad
@@ -683,6 +684,21 @@ asm
 
   mov [esp+$24], 0
   mov edx, [esp+$20]
+end;
+
+function is_visible_by_thermovisor(cobject:pointer):boolean; stdcall;
+begin
+  if dynamic_cast(cobject, 0, RTTI_CObject, RTTI_CAI_Crow, false)<>nil then begin
+    result:=true;
+    exit;
+  end;
+
+  if dynamic_cast(cobject, 0, RTTI_CObject, RTTI_CAI_Bloodsucker, false)<>nil then begin
+    result:=false;
+    exit;
+  end;
+
+  result := dynamic_cast(cobject, 0, RTTI_CObject, RTTI_CEntityAlive, false)<>nil;
 end;
 
 

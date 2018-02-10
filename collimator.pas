@@ -34,7 +34,7 @@ begin
     result:=game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'alter_zoom_allowed', false);
   end else begin
     result:=game_ini_r_bool_def(GetHudSection(wpn), 'alter_zoom_allowed', false);
-    result:=FindBoolValueInUpgradesDef(wpn, 'alter_zoom_allowed', result);
+    result:=FindBoolValueInUpgradesDef(wpn, 'alter_zoom_allowed', result, true);
   end;
 end;
 

@@ -30,6 +30,7 @@ const
   actModNeedMoveReassign:cardinal = $20000000;
   actModDetectorSprintStarted:cardinal = $40000000;
   actModDetectorAimStarted:cardinal = $80000000;
+  actTotalActions:cardinal = $FFFFFFFF;
 
   mState_WISHFUL:cardinal = $58c;
   mState_OLD:cardinal = $590;
@@ -148,12 +149,14 @@ procedure PerformDrop(act:pointer); stdcall;
 procedure ResetChangedGrenade();
 procedure SetChangedGrenade(itm:pointer);
 
+function GetEntityPosition(e:pointer):pFVector3; stdcall;
+
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils;
 
 type
   TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
@@ -269,7 +272,7 @@ begin
   if itm = nil then exit;
 
   result:=game_ini_r_bool_def(GetSection(itm), 'torch_available', false);
-  result:=FindBoolValueInUpgradesDef(itm, 'torch_available', result);
+  result:=FindBoolValueInUpgradesDef(itm, 'torch_available', result, true);
 end;
 
 function CanUseTorch(CTorch:pointer):boolean; stdcall;
@@ -428,7 +431,7 @@ begin
     exit;
   end;
 
-  if (wpn=nil) or (restrictor_config_param=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false)) then begin
+  if (wpn=nil) or (restrictor_config_param=nil) or FindBoolValueInUpgradesDef(wpn, restrictor_config_param, game_ini_r_bool_def(GetSection(wpn), restrictor_config_param, false), true) then begin
     if not game_ini_r_bool_def(animator_item_section, 'action_animator', false) then begin
       log('Section ['+animator_item_section+'] defined as action animator in [gunslinger_base], but key action_animator is false or does not exist!', true);
       if IsDebug then Messenger.SendMessage('Action animator: invalid configuration, see log!');
@@ -619,24 +622,24 @@ begin
     end else begin
       //проверяем, можем ли вообще бить сейчас
       //if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
-      if ((wpn=nil) or FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) and (ItemInSlot(act, 1)=nil) then exit;
+      if ((wpn=nil) or FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false), true)) and (ItemInSlot(act, 1)=nil) then exit;
 
-      if (wpn<>nil) and (IsScopeAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_scope_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_scope_attached', false)) then begin
+      if (wpn<>nil) and (IsScopeAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_scope_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_scope_attached', false), true) then begin
         OnActorSwithesSmth('disable_kick_anim_when_scope_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
         exit;      
       end;
 
-      if (wpn<>nil) and (IsSilencerAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_sil_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_sil_attached', false)) then begin
+      if (wpn<>nil) and (IsSilencerAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_sil_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_sil_attached', false), true) then begin
         OnActorSwithesSmth('disable_kick_anim_when_sil_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
         exit;      
       end;
 
-      if (wpn<>nil) and ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_attached', false)) then begin
+      if (wpn<>nil) and ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_attached', false), true) then begin
         OnActorSwithesSmth('disable_kick_anim_when_gl_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
         exit;      
       end;
 
-      if (wpn<>nil) and IsGrenadeMode(wpn) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_enabled', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_enabled', false)) then begin
+      if (wpn<>nil) and IsGrenadeMode(wpn) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_enabled', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_enabled', false), true) then begin
         OnActorSwithesSmth('disable_kick_anim_when_gl_enabled', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
         exit;      
       end;
@@ -2615,7 +2618,7 @@ begin
     end;
 
     if not IsGrenadeMode(wpn) then
-      sense^:=sense^*game_ini_r_single_def(sect, 'zoom_mouse_sense_koef', 1.0)
+      sense^:=sense^*ModifyFloatUpgradedValue(wpn, 'zoom_mouse_sense_koef', game_ini_r_single_def(sect, 'zoom_mouse_sense_koef', 1.0))
     else
       sense^:=sense^*game_ini_r_single_def(sect, 'zoom_gl_mouse_sense_koef', 1.0);
   end;
@@ -2759,6 +2762,32 @@ asm
   ret 4
 end;
 
+function GetEntityPosition(e:pointer):pFVector3; stdcall;
+asm
+  mov eax, e
+  add eax, $80
+  mov @result, eax
+end;
+
+procedure OnActorHit(act:pointer; hit:pSHit); stdcall;
+begin
+  if IsActorControlled() and (hit.whoId = hit.DestID) and (hit.power>0.3) and ( (hit.hit_type = EHitType__eHitTypeFireWound) or (hit.hit_type = EHitType__eHitTypeExplosion)) then begin
+    hit.power:=hit.power * 100000;
+    CActor__Die(act, act);
+  end;
+end;
+
+procedure OnActorHit_Patch; stdcall;
+asm
+  pushad
+    push edi
+    push ecx
+    call OnActorHit
+  popad
+  //original
+  mov eax,[edi+$34]
+  test eax,eax
+end;
 
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
@@ -2896,6 +2925,9 @@ begin
 
   jmp_addr:=xrGame_addr+$277b3c;
   if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnKeyboardHold_Patch), 8, false) then exit;
+
+  jmp_addr:=xrGame_addr+$2633d8;
+  if not WriteJump(jmp_addr, cardinal(@OnActorHit_Patch), 5, true) then exit;
 
   result:=true;
 end;

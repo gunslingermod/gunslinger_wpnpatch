@@ -12,6 +12,8 @@ function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 
+procedure TryShootGLFix(wpn:pointer); stdcall;
+
 implementation
 uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick;
 
@@ -620,7 +622,7 @@ begin
     result:=true;
   end;
 
-  if FindBoolValueInUpgradesDef(wpn, 'can_explose', game_ini_r_bool_def(sect, 'can_explose', false)) then begin
+  if FindBoolValueInUpgradesDef(wpn, 'can_explose', game_ini_r_bool_def(sect, 'can_explose', false), true) then begin
     if curcond<game_ini_r_single_def(sect, 'explode_start_condition', 1) then begin
       if random < game_ini_r_single_def(sect, 'explode_probability', 1) then begin
         //Сейчас оружие взорвется в руках :)
@@ -983,7 +985,7 @@ begin
     SetActorActionState(act, actModSprintStarted, false);
     SetActorActionState(act, actModSprintStarted, false, mState_WISHFUL);
 
-    if IsActorPlanningSuicide() then begin
+    if IsActorPlanningSuicide() and CheckActorVisibilityForController() then begin
       if not IsActorSuicideNow() then begin
         CHudItem_Play_Snd(knife, 'sndPrepareSuicide');
         result:='anm_prepare_suicide';
@@ -998,6 +1000,7 @@ begin
       SetHandsJitterTime(GetShockTime());
       CHudItem_Play_Snd(knife, 'sndStopSuicide');
       result:='anm_stop_suicide';
+      ResetActorControl();
       exit;
     end;
   end;
@@ -1193,6 +1196,17 @@ begin
     exit;
   end;
 
+  if (id=kWPN_NEXT) then begin
+    if not CanReloadNow(wpn) then begin
+      result:=true;
+      exit;
+    end;
+  end;
+
+  if (id=kWPN_FIRE) and IsActorControlled() then begin
+      result:=true;
+      exit;  
+  end;
 
   if (id=kLASER) and (flags=kActPress) then begin
     OnLaserButton(wpn);
@@ -1595,6 +1609,33 @@ asm
   test al, al //original  
 end;
 
+////////////////////////////////Фикс угла вылета грены при самоубийстве//////////////////////////////////////
+
+procedure LaunchGrenade_controller_Correct(wpn:pointer; v:pFVector3); stdcall;
+var
+  act:pointer;
+begin
+  act:=GetActor();
+  if (act<>nil) and (act = GetOwner(wpn)) and (IsActorSuicideNow() or IsSuicideInreversible()) then begin
+    v.x := 0;
+    v.y := -2;
+    v.z :=0;
+  end;
+end;
+
+procedure CWeaponMagazinedWGrenade__LaunchGrenade_controller_Patch(); stdcall;
+asm
+  //original
+  movss [esp+4+$24], xmm2
+
+  pushad
+    mov eax, [esp + 32 + 8]    //2nd arg
+    push eax
+    push esi
+    call LaunchGrenade_controller_Correct
+  popad
+end;
+
 ////////////////////////////////Переделка кода в CWeaponMagazinedWGrenade__Action//////////////////////////////////////
 
 procedure TryShootGLFix(wpn:pointer); stdcall;
@@ -1778,7 +1819,8 @@ var
   rqr:rq_result;
   aimperiod:integer;
   is_aim_exist:boolean;
-  alive:pointer;
+  entity:pointer;
+  act:pointer;
 begin
   result:=true;
   buf:=GetBuffer(wpn);
@@ -1795,12 +1837,12 @@ begin
 
   is_aim_exist:=Level_RayPick(@pos, @dir, 1000, rq_target__rqtObject, @rqr, owner);
 
-  alive:=dynamic_cast(rqr.O, 0, RTTI_CObject, RTTI_CEntityAlive, false);
-  if FindBoolValueInUpgradesDef(wpn, 'autoaim_only_alive', game_ini_r_bool_def(GetSection(wpn), 'autoaim_only_alive', false)) and (alive=nil) then begin
+  if not is_visible_by_thermovisor(rqr.O) and FindBoolValueInUpgradesDef(wpn, 'autoaim_only_alive', game_ini_r_bool_def(GetSection(wpn), 'autoaim_only_alive', false), true) then begin
     is_aim_exist:=false;
   end;
 
-  if is_aim_exist and FindBoolValueInUpgradesDef(wpn, 'autoaim_ignore_dead', game_ini_r_bool_def(GetSection(wpn), 'autoaim_ignore_dead', false)) and not is_object_alive(alive) then begin
+  entity:=dynamic_cast(rqr.O, 0, RTTI_CObject, RTTI_CEntity, false);
+  if is_aim_exist and FindBoolValueInUpgradesDef(wpn, 'autoaim_ignore_dead', game_ini_r_bool_def(GetSection(wpn), 'autoaim_ignore_dead', false), true) and not is_object_has_health(entity) then begin
     is_aim_exist:=false;  
   end;
 
@@ -1822,7 +1864,7 @@ begin
     //схема с отменой выстрела
     result:=is_aim_exist;
     if (not result) then begin
-     if FindBoolValueInUpgradesDef(wpn, 'autoaim_shot_cancellation', game_ini_r_bool_def(GetSection(wpn), 'autoaim_shot_cancellation', false)) then begin
+     if FindBoolValueInUpgradesDef(wpn, 'autoaim_shot_cancellation', game_ini_r_bool_def(GetSection(wpn), 'autoaim_shot_cancellation', false), true) then begin
       //У нас автоматический предохранитель, прекращаем стрельбу
       SetShootLockTime(wpn, -1);
      end else if IsActionKeyPressedInGame(kWPN_FIRE) then begin
@@ -1834,6 +1876,17 @@ begin
      end;
     end;
   end;
+
+
+  act:=GetActor();
+  if not result and (act<>nil) and (act=GetOwner(wpn)) then begin
+    if GetActorActionStateInt(act, actTotalActions)<>GetActorActionStateInt(act, actTotalActions, mState_OLD) then begin
+      SetCurrentState(wpn, EHudStates__eIdle);
+      PlayAnimIdle(wpn);
+      SetCurrentState(wpn, EWeaponStates__eFire);
+    end;
+  end;
+
 end;
 
 procedure CWeaponMagazined__state_Fire_autoaim_patch; stdcall;
@@ -1918,7 +1971,7 @@ begin
 
   upgrade_weapon_addr:=xrGame_addr+$2D09D6;
   if not WriteJump(upgrade_weapon_addr, cardinal(@Upgrade_Weapon_Patch), 5) then exit;
-  //поправим баг с недопереключением режима стрельбы во время апгрейда
+  //[bug]поправим баг с недопереключением режима стрельбы во время апгрейда
   nop_code(xrGame_addr+$2d0abe, 6);
 
 
@@ -1990,6 +2043,10 @@ begin
   jmp_addr:=xrGame_addr+$2D6B97;
   if not WriteJump(jmp_addr, cardinal(@CWeaponKnife__OnMotionMark_Patch), 6, true) then exit;
 
+
+  //Патчим направление стрельбы грены для самоубийства контролером
+  jmp_addr:=xrGame_addr+$2D314A;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__LaunchGrenade_controller_Patch), 6, true) then exit;
 
   //[bug] баг стрельбы с подствола в режиме прицеливания - если цель слишком далеко, грена летит не на максимальную дальность, а как повезет
   jmp_addr:=xrGame_addr+$2D30A2;

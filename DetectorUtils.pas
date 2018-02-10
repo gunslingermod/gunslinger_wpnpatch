@@ -103,7 +103,7 @@ begin
   if sect=nil then exit;
 
   result:=game_ini_r_bool_def(sect,'supports_detector', false);
-  result:=FindBoolValueInUpgradesDef(wpn, 'supports_detector', result);
+  result:=FindBoolValueInUpgradesDef(wpn, 'supports_detector', result, true);
 end;
 
 function GetItemInSlotByWeapon(wpn:pointer; slot:integer):pointer; stdcall;

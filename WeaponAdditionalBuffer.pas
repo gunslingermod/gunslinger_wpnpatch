@@ -123,6 +123,8 @@ type
     _autoaim_valid_time:cardinal;
 
 
+    _last_recharge_time:single;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -227,6 +229,9 @@ type
     function GetAutoAimPeriod():integer;
     function GetAutoAimStartTime():cardinal;
     procedure SetAutoAimStartTime(cnt:cardinal);
+
+    procedure SetLastRechargeTime(t:single);
+    function GetLastRechargeTime():single;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -375,6 +380,8 @@ begin
   _autoaim_valid_time:=0;
 
   last_shot_time:=0;
+
+  _last_recharge_time:=0;
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
@@ -563,7 +570,7 @@ end;
 function WpnBuf.Update():boolean;
 var
   delta:cardinal;
-  val,len:single;
+  val,len,recharge_time, shot_time:single;
 
 const
   EPS:single = 0.00001;  
@@ -606,7 +613,17 @@ begin
   if abs(1-GetCurrentCondition(self._my_wpn))<EPS then begin
     //при идеальном состоянии оружия - задаем новое направление поломки прицела
     self.SetOffsetDir(random);
-  end;  
+  end;
+
+  shot_time:=GetOneShotTime(_my_wpn);
+  recharge_time:=(game_ini_r_single_def(GetSection(_my_wpn), 'recharge_time',0));
+  recharge_time:=ModifyFloatUpgradedValue(_my_wpn, 'recharge_time',recharge_time);
+
+  if recharge_time>shot_time then begin
+    SetLastRechargeTime(recharge_time);
+  end else begin
+    SetLastRechargeTime(shot_time);
+  end;
 
   _last_update_time:=GetGameTickCount();
   result:=true;
@@ -1385,10 +1402,17 @@ const
 begin
   last:=_lens_night_brightness;
 
-  _lens_night_brightness.max_value:=game_ini_r_single_def(sect, 'max_night_brightness', 1)/3;
-  _lens_night_brightness.min_value:=game_ini_r_single_def(sect, 'min_night_brightness', 1)/3;
-  _lens_night_brightness.steps:=game_ini_r_int_def(sect, 'steps_brightness', 0);
-  _lens_night_brightness.jitter:=game_ini_r_single_def(sect, 'jitter_brightness', 1);
+  if 0 = strcomp(sect, GetSection(_my_wpn)) then begin
+    _lens_night_brightness.max_value:=ModifyFloatUpgradedValue(_my_wpn, 'max_night_brightness', game_ini_r_single_def(sect, 'max_night_brightness', 1)/3);
+    _lens_night_brightness.min_value:=ModifyFloatUpgradedValue(_my_wpn, 'min_night_brightness', game_ini_r_single_def(sect, 'min_night_brightness', 1)/3);
+    _lens_night_brightness.steps:=FindIntValueInUpgradesDef(_my_wpn, 'steps_brightness', game_ini_r_int_def(sect, 'steps_brightness', 0));
+    _lens_night_brightness.jitter:=ModifyFloatUpgradedValue(_my_wpn, 'jitter_brightness', game_ini_r_single_def(sect, 'jitter_brightness', 1));
+  end else begin
+    _lens_night_brightness.max_value:=game_ini_r_single_def(sect, 'max_night_brightness', 1)/3;
+    _lens_night_brightness.min_value:=game_ini_r_single_def(sect, 'min_night_brightness', 1)/3;
+    _lens_night_brightness.steps:=game_ini_r_int_def(sect, 'steps_brightness', 0);
+    _lens_night_brightness.jitter:=game_ini_r_single_def(sect, 'jitter_brightness', 1);
+  end;
 
   if (xrRender_R1_addr<>0) and (_lens_night_brightness.max_value>1) then begin
     _lens_night_brightness.max_value:=1;
@@ -1465,8 +1489,22 @@ begin
 end;
 
 function WpnBuf.GetAutoAimPeriod():integer;
+var
+  modes:string;
+  mode:string;
 begin
-  result:=FindIntValueInUpgradesDef(self._my_wpn, 'autoaim_time', self._autoaim_delay);
+  modes:=FindStrValueInUpgradesDef(self._my_wpn, 'autoaim_modes', '');
+  if CurrentQueueSize(self._my_wpn)>=0 then begin
+      mode:=inttostr(CurrentQueueSize(self._my_wpn));
+  end else begin
+    mode:='a';
+  end;
+
+  if Pos(mode, modes)<>0 then begin
+    result:=FindIntValueInUpgradesDef(self._my_wpn, 'autoaim_time', self._autoaim_delay);
+  end else begin
+    result:=0;
+  end;
 end;
 
 function WpnBuf.GetAutoAimStartTime():cardinal;
@@ -1477,6 +1515,16 @@ end;
 procedure WpnBuf.SetAutoAimStartTime(cnt:cardinal);
 begin
   self._autoaim_valid_time:=cnt;
+end;
+
+procedure WpnBuf.SetLastRechargeTime(t: single);
+begin
+  _last_recharge_time:=t;
+end;
+
+function WpnBuf.GetLastRechargeTime: single;
+begin
+  result:=_last_recharge_time;
 end;
 
 end.

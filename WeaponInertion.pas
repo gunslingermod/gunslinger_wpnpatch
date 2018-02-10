@@ -543,7 +543,7 @@ begin
     factor:=game_ini_r_single_def(section, 'hud_move_unzoom_factor', 1.0);
   end else begin
     GetCurrentTargetOffset(act, section, @targetpos, @targetrot, @factor);
-    if IsActorSuicideNow() then begin
+    if IsActorSuicideNow() and CheckActorVisibilityForController() then begin
       AddSuicideOffset(act, section, @targetpos, @targetrot);
     end else if (hid<>nil) and (not GetActorActionState(act, actMovingForward)) and (not GetActorActionState(act, actMovingBack)) and (not GetActorActionState(act, actMovingLeft)) and (not GetActorActionState(act, actMovingRight)) and (not GetActorActionState(act, actMovingForward)) and (not GetActorActionState(act, actSprint)) and not GetActorActionState(act, actJump) and not GetActorActionState(act, actFall) and not GetActorActionState(act, actLanding) and not GetActorActionState(act, actLanding2) then begin
       //todo:смещение в идле
@@ -613,7 +613,7 @@ begin
     time_accumulator:=time_accumulator-8;
   end;
 
-  if IsActorSuicideNow() and not (game_ini_r_bool_def(section, 'prohibit_suicide', false) or game_ini_r_bool_def(section, 'suicide_by_animation', false)) then begin
+  if IsActorSuicideNow() and CheckActorVisibilityForController() and not (game_ini_r_bool_def(section, 'prohibit_suicide', false) or game_ini_r_bool_def(section, 'suicide_by_animation', false)) then begin
     jitter:=GetCurJitterParams(section);
     pos:=GetHandsPosOffset(hid);
     rot:=GetHandsRotOffset(hid);

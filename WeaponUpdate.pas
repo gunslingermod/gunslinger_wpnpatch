@@ -432,13 +432,13 @@ begin
       t_dt:=game_ini_r_single_def(section, 'lens_factor_levels_count', 0);
 
       if t_dt <> 0 then begin
-        delta:=1/t_dt;
+        delta:=1.0/t_dt;
       end;
 
       buf.SetLensParams(
         game_ini_r_single_def(section, 'min_lens_factor', min),
         game_ini_r_single_def(section, 'max_lens_factor', max),
-        t_dt
+        delta
       );
     end;
 
@@ -606,9 +606,14 @@ var
   cond, start_tr, end_tr,start_prob, end_prob:single;
   is_expl:boolean;
   r:pCCustomRocket;
+  act:pointer;
+  is_act_own:boolean;
 begin
+  act:=GetActor();
+  is_act_own:=(act<>nil) and (act=GetOwner(wpn));
+
   if GetRocketsCount(rl)>0 then begin
-    if not IsActionProcessing(wpn) and (GetAmmoInMagCount(wpn)>0)  then begin
+    if (not IsActionProcessing(wpn) or (is_act_own and IsActorControlled())) and (GetAmmoInMagCount(wpn)>0)  then begin
       sect:=GetSection(wpn);
 
       start_tr:=game_ini_r_single_def(sect, 'rocket_misfunc_start_condition', 0);
@@ -625,7 +630,7 @@ begin
         is_expl:= random < start_prob+(end_prob-start_prob)*(start_tr-cond)/(start_tr-end_tr);
       end;
 
-      if is_expl then begin
+      if (IsActorControlled() and is_act_own) or is_expl then begin
         p:=FVector3_copyfromengine(GetPosition(wpn));
         n.x:=0;
         n.y:=1;

@@ -5,6 +5,7 @@ unit WeaponAnims;
 interface
 function Init:boolean;
 function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
+function CanReloadNow(wpn:pointer):boolean; stdcall;
 
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
@@ -510,6 +511,7 @@ function anm_shoot_g_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
 var
   tmpstr:string;
   actor:pointer;
+  hud_sect:PChar;
 begin
   tmpstr:=base_anim;
   actor:=GetActor();
@@ -517,6 +519,12 @@ begin
   if (actor<>nil) and (actor=GetOwner(wpn)) and (IsAimNow(wpn) or IsHolderInAimState(wpn)) then begin
     tmpstr:=tmpstr+'_aim';
   end;
+
+  hud_sect:=GetHUDSection(wpn);
+  if (actor<>nil) and (actor=GetOwner(wpn)) and (IsActorSuicideNow() or IsSuicideInreversible()) and game_ini_r_bool_def(hud_sect, 'custom_suicide_shot', false) then begin
+    tmpstr:=tmpstr+'_suicide';
+  end;
+
   result:=anm_std_selector(wpn, PChar(tmpstr));
 end;
 
@@ -1139,8 +1147,13 @@ end;
 //------------Фикс для перезарядки - чтобы он даже не пытался перезарядиться когда не надо------
 
 function CanReloadNow(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
 begin
+  buf:=GetBuffer(wpn);
   if (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and (GetCurrentAmmoCount(wpn)>0) then begin
+    result:=false;
+  end else if (buf<>nil) and (GetTimeDeltaSafe(buf.last_shot_time)<floor(buf.GetLastRechargeTime()*1000)) then begin
     result:=false;
   end else begin
     result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfRELOAD);

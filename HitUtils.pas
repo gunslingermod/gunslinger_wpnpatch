@@ -1,9 +1,31 @@
 unit HitUtils;
 
 interface
-function SHit__GetHitType(this:pointer):cardinal; stdcall;
+uses MatVectors;
+{function SHit__GetHitType(this:pointer):cardinal; stdcall;
 function SHit__GetPower(this:pointer):single; stdcall;
-function SHit__GetImpulse(this:pointer):single; stdcall;
+function SHit__GetImpulse(this:pointer):single; stdcall;}
+
+type
+  SHit = packed record
+    Time:cardinal;
+    PACKET_TYPE:word;
+    DestID:word;
+    power:single;
+    dir:FVector3;
+    who:pointer;
+    whoId:word;
+    weaponID:word;
+    boneID:word;
+    p_in_bone_space:FVector3;
+    unused:word;
+    impulse:single;
+    hit_type:cardinal;
+    armor_piercing:single;
+    add_wound:byte;
+    aim_bullet:byte;
+  end;
+  pSHit = ^SHit;
 
 const
     EHitType__eHitTypeBurn:cardinal = 0;

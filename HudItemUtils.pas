@@ -38,7 +38,7 @@ function IsWeaponJammed(wpn:pointer):boolean; stdcall;
 function CurrentQueueSize(wpn:pointer):integer; stdcall;
 function GetInstalledUpgradesCount(wpn:pointer):cardinal; stdcall;
 function GetInstalledUpgradeSection(wpn:pointer; index:cardinal):PChar; stdcall;
-function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean):boolean; stdcall;
+function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean; scan_after_nodefault:boolean=false):boolean; stdcall;
 function FindStrValueInUpgradesDef(wpn:pointer; key:PChar; def:PChar):PChar; stdcall;
 function FindIntValueInUpgradesDef(wpn:pointer; key:PChar; def:integer):integer; stdcall;
 function ModifyFloatUpgradedValue(wpn:pointer; key:PChar; def:single):single; stdcall;
@@ -75,6 +75,7 @@ procedure DetachAddon(wpn:pointer; addon_type:integer);stdcall;
 function GetGLSection(wpn:pointer):PChar; stdcall;
 procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
 function GetShootLockTime(wpn:pointer):single;stdcall;
+function GetOneShotTime(wpn:pointer):single;stdcall;
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
 function GetCurrentCondition(wpn:pointer):single; stdcall;
 function GetPosition(wpn:pointer):pointer; stdcall;
@@ -320,20 +321,20 @@ asm
     @finish:
 end;
 
-function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean):boolean; stdcall;
+function FindBoolValueInUpgradesDef(wpn:pointer; key:PChar; def:boolean; scan_after_nodefault:boolean):boolean; stdcall;
 var
   i:integer;
   str:PChar;
 begin
+  result:=def;
   for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
     str:=GetInstalledUpgradeSection(wpn, i);
     str:=game_ini_read_string(str, 'section');
     if game_ini_line_exist(str, key) then begin
       result:=game_ini_r_bool(str, key);
-      if result<>def then exit;
+      if (not scan_after_nodefault) and (result<>def) then exit;
     end;
   end;
-  result:=def;
 end;
 
 function FindStrValueInUpgradesDef(wpn:pointer; key:PChar; def:PChar):PChar; stdcall;
@@ -358,15 +359,15 @@ var
   i:integer;
   str:PChar;
 begin
+  result:=def;
   for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
     str:=GetInstalledUpgradeSection(wpn, i);
     str:=game_ini_read_string(str, 'section');
     if game_ini_line_exist(str, key) then begin
       result:=game_ini_r_int_def(str, key, def);
-      if result<>def then exit;
     end;
   end;
-  result:=def;
+
 end;
 
 function ModifyFloatUpgradedValue(wpn:pointer; key:PChar; def:single):single; stdcall;
@@ -1105,6 +1106,23 @@ begin
   end;
 end;
 
+
+function GetOneShotTime(wpn:pointer):single;stdcall;
+begin
+  asm
+    push eax
+    push eax
+    movss [esp], xmm0
+
+    mov eax, wpn
+    movss xmm0, [eax+$35c]
+    movss @result, xmm0
+
+    movss xmm0, [esp]
+    add esp, 4
+    pop eax
+  end;
+end;
 
 function GetCurrentCondition(wpn:pointer):single; stdcall;
 asm

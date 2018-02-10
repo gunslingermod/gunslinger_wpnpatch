@@ -7,7 +7,7 @@ interface
 function Init():boolean;
 
 implementation
-uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors;
+uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors, math;
 //////////////////////////////////////////////////////////////////
 type R_constant = record
 //todo:дописать
@@ -87,6 +87,7 @@ var
 begin
   val:=0;
   wpn:=GetActorActiveItem();
+  abberation:=0;
   if (wpn<>nil) and (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)<>nil) then begin
     val:=GetAimFactor(wpn);
     abberation:=game_ini_r_single_def(GetSection(wpn), 'scope_abberation', 0);
@@ -103,7 +104,9 @@ end;
 procedure binder_actor_states_setup(C:pR_constant); stdcall;
 var
   act, outfit, wpn:pointer;
-  actor_health, actor_weapon_cond, actor_outfit_cond:single;
+  actor_health, actor_weapon_cond, actor_outfit_cond, actor_wpn_loading:single;
+  buf:WpnBuf;
+  reload_time, now_time:cardinal;
 begin
   act:=GetActor();
   if act=nil then begin
@@ -120,12 +123,23 @@ begin
   wpn:=GetActorActiveItem();
   if wpn<>nil then begin
     actor_weapon_cond:=GetCurrentCondition(wpn);
+
+    buf:=GetBuffer(wpn);
+    if buf<>nil then begin
+      reload_time:=floor(buf.GetLastRechargeTime() * 1000);
+      now_time:= GetTimeDeltaSafe(buf.last_shot_time);
+      actor_wpn_loading := now_time / reload_time;
+      if actor_wpn_loading>1 then actor_wpn_loading:=1;
+    end else begin
+      actor_wpn_loading :=1;
+    end;
   end else begin
     actor_weapon_cond:=-1;
+    actor_wpn_loading:=1;
   end;
 
   actor_health:=GetActorHealthPtr(act)^;
-  RCache__set(C, actor_health, actor_outfit_cond, actor_weapon_cond,-1);
+  RCache__set(C, actor_health, actor_outfit_cond, actor_weapon_cond, actor_wpn_loading);
 end;
 
 procedure binder_zoom_deviation_setup(C:pR_constant); stdcall;
