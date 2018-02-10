@@ -145,6 +145,9 @@ procedure CActor__OnKeyboardPress_initiate(dik:cardinal); stdcall;
 
 procedure PerformDrop(act:pointer); stdcall;
 
+procedure ResetChangedGrenade();
+procedure SetChangedGrenade(itm:pointer);
+
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
 
@@ -189,8 +192,25 @@ var
 
   _was_pda_animator_spawned:boolean;
   _pda_cursor_state:TCursorState;
+  _changed_grenade:pointer;
 
+//-------------------------------------------------------------------------------------------------------------
+procedure SetChangedGrenade(itm:pointer);
+begin
+  _changed_grenade:=itm;
+end;
 
+procedure ResetChangedGrenade();
+begin
+  _changed_grenade:=nil;
+end;
+
+procedure ProcessChangedGrenade(act:pointer);
+begin
+  if _changed_grenade <> nil then begin
+    virtual_Action(_changed_grenade, kWPN_NEXT, kActPress);
+  end;
+end;
 
 procedure PerformDrop(act:pointer); stdcall;
 asm
@@ -562,11 +582,18 @@ procedure OnActorSwithesTorch(itm:pointer); stdcall;
 var
   modifier:string;
   wpn:pointer;
+  snd:string;
 begin
   if IsActorControlled() or not CanUseTorch(itm) then exit;
 
   wpn:=GetActorActiveItem();
-  if (wpn<>nil) and IsAimNow(wpn) then modifier:='_aim' else modifier:='';
+
+  if (wpn<>nil) and IsAimNow(wpn) then begin
+    if IsBino(wpn) then exit;
+    modifier:='_aim' ;
+  end else begin
+    modifier:='';
+  end;
 
   if IsTorchSwitchedOn(itm) then begin
     OnActorSwithesSmth('disable_headlamp_anim', GetHeadlampDisableAnimator(), PChar('anm_headlamp_off'+modifier), 'sndHeadlampOff', kfHEADLAMP, HeadlampCallback, 0);
@@ -1405,6 +1432,7 @@ begin
 
 
   ProcessKeys(act);
+  ProcessChangedGrenade(act);
   UpdateFOV(act);
   UpdateInertion(GetActorActiveItem());
   UpdateWeaponOffset(act, dt);
@@ -1824,6 +1852,7 @@ begin
   ResetWpnOffset();
   ResetActorControl();
   ClearActorKeyRepeatFlags();
+  ResetChangedGrenade();
   ResetActorFlags(CActor);
   ResetActivationHoldState();
   SetForcedQuickthrow(false);
@@ -2730,10 +2759,12 @@ asm
   ret 4
 end;
 
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
   ClearActorKeyRepeatFlags();
+  ResetChangedGrenade();
 
   _prev_act_slot:=-1;
   _last_act_slot:=-1;

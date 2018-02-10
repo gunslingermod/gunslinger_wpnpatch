@@ -874,6 +874,7 @@ begin
 
     last_pdahide_state:=GetActorKeyRepeatFlag(kfPDAHIDE);
     ClearActorKeyRepeatFlags();
+    ResetChangedGrenade();
     SetActorKeyRepeatFlag(kfPDAHIDE, last_pdahide_state);
     
     SetActorActionState(act, actSprint, false, mState_WISHFUL);

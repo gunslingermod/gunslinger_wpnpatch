@@ -457,36 +457,28 @@ begin
     toslowcrouch_time_remains:=0;
   end;
 
-
   if not (GetActorActionState(act, actRLookout, mState_REAL) and GetActorActionState(act, actLLookout, mState_REAL)) then begin
-  //если одновременно выглядываем влево и вправо - что-то тут не так...
-  if GetActorActionState(act, actRLookout, mState_WISHFUL) and not  GetActorActionState(act, actRLookout, mState_REAL) then begin
-    //начали выглядывать вправо
-    log('right start!');
-    torlookout_time_remains:=floor(game_ini_r_single_def(section, 'to_rlookout_time', 0)*1000);
-    fromrlookout_time_remains:=0;
+    //если одновременно выглядываем влево и вправо - что-то тут не так...
+    if GetActorActionState(act, actRLookout, mState_WISHFUL) and not  GetActorActionState(act, actRLookout, mState_REAL) then begin
+      //начали выглядывать вправо
+      torlookout_time_remains:=floor(game_ini_r_single_def(section, 'to_rlookout_time', 0)*1000);
+      fromrlookout_time_remains:=0;
 
-  end else if not GetActorActionState(act, actRLookout, mState_WISHFUL) and GetActorActionState(act, actRLookout, mState_REAL) then begin
-      log('right end!');
-    //закончили выглядывать вправо
-    fromrlookout_time_remains:=floor(game_ini_r_single_def(section, 'from_rlookout_time', 0)*1000);
-    torlookout_time_remains:=0;
+    end else if not GetActorActionState(act, actRLookout, mState_WISHFUL) and GetActorActionState(act, actRLookout, mState_REAL) then begin
+      //закончили выглядывать вправо
+      fromrlookout_time_remains:=floor(game_ini_r_single_def(section, 'from_rlookout_time', 0)*1000);
+      torlookout_time_remains:=0;
+    end;
 
-  end;
-
-  if GetActorActionState(act, actLLookout, mState_WISHFUL) and not  GetActorActionState(act, actLLookout, mState_REAL) then begin
-      log('left start!');
-    //начали выглядывать влево
-    tollookout_time_remains:=floor(game_ini_r_single_def(section, 'to_llookout_time', 0)*1000);
-    fromllookout_time_remains:=0;
-
-  end else if not GetActorActionState(act, actLLookout, mState_WISHFUL) and GetActorActionState(act, actLLookout, mState_REAL) then begin
-      log('left end!');  
-    //закончили выглядывать влево
-    fromllookout_time_remains:=floor(game_ini_r_single_def(section, 'from_llookout_time', 0)*1000);
-    tollookout_time_remains:=0;
-
-  end;
+    if GetActorActionState(act, actLLookout, mState_WISHFUL) and not  GetActorActionState(act, actLLookout, mState_REAL) then begin
+      //начали выглядывать влево
+      tollookout_time_remains:=floor(game_ini_r_single_def(section, 'to_llookout_time', 0)*1000);
+      fromllookout_time_remains:=0;
+    end else if not GetActorActionState(act, actLLookout, mState_WISHFUL) and GetActorActionState(act, actLLookout, mState_REAL) then begin
+      //закончили выглядывать влево
+      fromllookout_time_remains:=floor(game_ini_r_single_def(section, 'from_llookout_time', 0)*1000);
+      tollookout_time_remains:=0;
+    end;
   end;
 
   //прочитаем конфиговые умолчания
