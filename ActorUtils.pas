@@ -2559,6 +2559,129 @@ asm
   mov [edi+$0c], edx
 end;
 
+procedure SelectBobbingParams(zoom_mode:boolean; is_limping:boolean; old_phase:psingle; old_freq:psingle; old_amp:psingle; mstate:cardinal; time:single; amp:psingle; st:psingle); stdcall;
+var
+  speed_par, amp_par:pchar;
+  crouch_k, amp_tmp, freq_tmp, phase_tmp, dt:single;
+const
+  SECT:PChar='bobbing_effector';  
+begin
+  if (mstate and actSprint) > 0 then begin
+    amp_par:='sprint_amplitude';
+    speed_par:='sprint_speed';
+  end else if is_limping then begin
+    if zoom_mode then begin
+      amp_par:='zoom_limp_amplitude';
+      speed_par:='zoom_limp_speed';    
+    end else begin
+      amp_par:='limp_amplitude';
+      speed_par:='limp_speed';
+    end;
+  end else if ((mstate and actCrouch)>0) and ((mstate and actSlow)>0) then begin
+    if zoom_mode then begin
+      amp_par:='zoom_slow_crouch_amplitude';
+      speed_par:='zoom_slow_crouch_speed';
+    end else begin
+      amp_par:='slow_crouch_amplitude';
+      speed_par:='slow_crouch_speed';
+    end;
+  end else if ((mstate and actCrouch)>0) then begin
+    if zoom_mode then begin
+      amp_par:='zoom_crouch_amplitude';
+      speed_par:='zoom_crouch_speed';
+    end else begin
+      amp_par:='crouch_amplitude';
+      speed_par:='crouch_speed';
+    end;
+  end else if ((mstate and actSlow)>0) then begin
+    if zoom_mode then begin
+      amp_par:='zoom_walk_amplitude';
+      speed_par:='zoom_walk_speed';
+    end else begin
+      amp_par:='walk_amplitude';
+      speed_par:='walk_speed';    
+    end;
+  end else begin
+    if zoom_mode then begin
+      amp_par:='zoom_run_amplitude';
+      speed_par:='zoom_run_speed';
+    end else begin
+      amp_par:='run_amplitude';
+      speed_par:='run_speed';    
+    end;
+  end;
+//  Log('Bobbing: '+amp_par+', '+speed_par);
+
+  amp_tmp:=game_ini_r_single_def(SECT, amp_par, 0);
+  freq_tmp:=game_ini_r_single_def(SECT, speed_par, 0);
+  phase_tmp:=old_phase^;
+
+  if (freq_tmp<>old_freq^) then begin
+    //Подберем новую фазу так, чтобы при изменении частоты положение камеры осталось прежним
+    phase_tmp:=(old_freq^-freq_tmp)*time+old_phase^;
+    if phase_tmp > 2*pi then begin
+      phase_tmp:=phase_tmp - floor(phase_tmp/(2*pi))*2*pi;
+    end else if phase_tmp < 0 then begin
+      phase_tmp:=phase_tmp+ ceil(abs(phase_tmp)/(2*pi))*2*pi;
+    end;
+
+    {Log('old_freq: '+floattostr(old_freq^)+
+        ', need freq '+floattostr(freq_tmp)+
+        ', time '+floattostr(time)+
+        ', old phase '+floattostr(old_phase^)+
+        ', need phase '+floattostr(phase_tmp)); }
+    old_freq^:=freq_tmp;
+    old_phase^:=phase_tmp;
+  end;
+
+  if (amp_tmp<>old_amp^) then begin
+    //Сделаем уменьшение амплитуды плавным
+    {Log('old amp: '+floattostr(old_amp^)+', need amp '+floattostr(amp_tmp));}
+    dt:=game_ini_r_single_def(SECT, 'amplitude_delta', 1)*get_device_timedelta();
+    if (amp_tmp>old_amp^) then begin
+      if amp_tmp-old_amp^>dt then begin
+        amp_tmp:=old_amp^+dt;
+      end;
+    end else begin
+      if old_amp^-amp_tmp>dt then begin
+        amp_tmp:=old_amp^-dt;
+      end;
+    end;
+    old_amp^:=amp_tmp;
+  end;
+
+  amp^ := amp_tmp;
+  st^ := time*freq_tmp+phase_tmp;
+end;
+
+procedure CEffectorBobbing__ProcessCam_Patch(); stdcall;
+asm
+  // original (not needed really)
+  mulss xmm1,xmm0
+  movss [esp+4+8],xmm1
+
+  //ours
+  lea edx, [esp+4+8] //float ST;
+  lea ecx, [esp+4+$C] //float A;
+  pushad
+    push edx       //ST
+    push ecx       //A
+    push [edi+$18] //fTime
+    push [edi+$30] // mstate;
+    lea edx, [edi+$3c] //в реальности m_fAmplitudeRun, но мы там храним предыдущую амплитуду
+    push edx
+    lea edx, [edi+$48] //в реальности m_fSpeedRun, но мы там храним предыдущую частоту
+    push edx
+    lea edx, [edi+$4C] //там храним предыдущую фазу
+    push edx
+    movzx edx, byte ptr [edi+$38] //is_limping
+    push edx
+    movzx edx, byte ptr [edi+$39] //m_bZoomMode
+    push edx
+    call SelectBobbingParams
+  popad
+end;
+
 procedure CActor__ActorUse_Patch_deadbodies(); stdcall;
 //чтобы инвентарь не открывался при попытке тащить труп
 asm
@@ -3160,6 +3283,11 @@ begin
 
   jmp_addr:=xrGame_addr+$2633d8;
   if not WriteJump(jmp_addr, cardinal(@OnActorHit_Patch), 5, true) then exit;
+
+  //[bug] баг - отсутствует плавное изменение частоты и амплитуд эффектора раскачки камеры при ходьбе (bobbing) при
+  // смене темпа ходьбы\приседании
+  jmp_addr:=xrGame_addr+$22d8ac;
+  if not WriteJump(jmp_addr, cardinal(@CEffectorBobbing__ProcessCam_Patch), 10, true) then exit;
 
   result:=true;
 end;
