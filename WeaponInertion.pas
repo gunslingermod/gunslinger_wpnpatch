@@ -15,13 +15,12 @@ var
   i_p:weapon_inertion_params;
   time_accumulator:cardinal;
 
-  lookout_speed:single;
-
   _last_camera_height:single;
   _last_cam_update_time:cardinal;
   _landing_effect_time_remains:cardinal;
   _landing2_effect_time_remains:cardinal;
-
+  _landing_effect_finish_time_remains:cardinal;
+  
   tocrouch_time_remains, fromcrouch_time_remains:cardinal;
   toslowcrouch_time_remains, fromslowcrouch_time_remains:cardinal;
 
@@ -91,6 +90,7 @@ begin
   _last_cam_update_time:=0;
   _landing_effect_time_remains:=0;
   _landing2_effect_time_remains:=0;
+  _landing_effect_finish_time_remains:=0;
 end;
 
 procedure CWeapon__OnZoomOut_inertion(wpn:pointer); stdcall;
@@ -640,12 +640,10 @@ end;
 procedure CorrectActorCameraHeight(h:psingle); stdcall;
 var
   dt, curtime:cardinal;
-  max_offset, offset, speed, target_h, dh, delta, dh_pow:single;
+  max_offset, speed, target_h, dh, delta, dh_pow:single;
   landing:landing_params;
   act, wpn:pointer;
   buf:WpnBuf;
-
-  period:single;
 begin
   act:=GetActor();
     
@@ -663,9 +661,11 @@ begin
   if (act<>nil) and GetActorActionState(act, actLanding2) then begin
     _landing2_effect_time_remains:=landing.time_landing2;
     _landing_effect_time_remains:=0;
+    _landing_effect_finish_time_remains:=0;
   end else if (act<>nil) and GetActorActionState(act, actLanding) then begin
     _landing2_effect_time_remains:=0;
     _landing_effect_time_remains:=landing.time_landing;
+    _landing_effect_finish_time_remains:=0;
   end;
 
   dh_pow:=GetCamSpeedPow();
@@ -675,15 +675,27 @@ begin
     if wpn<>nil then begin
       buf:=GetBuffer(wpn);
       if buf<>nil then begin
-        speed:=buf.GetCameraSpeed();
+        speed:= buf.GetCameraSpeed();
       end;
     end;
   end;
 
+
   if _landing_effect_time_remains>0 then begin
     max_offset:=landing.offset_landing;
+    speed:=speed*landing.cam_speed_factor;
+    dh_pow:=dh_pow*landing.pow_factor;
+
   end else if _landing2_effect_time_remains>0 then begin
     max_offset:=landing.offset_landing2;
+    speed:=speed*landing.cam_speed_factor2;
+    dh_pow:=dh_pow*landing.pow_factor2;
+    
+  end else if _landing_effect_finish_time_remains>0 then begin
+    speed:=speed*landing.cam_speed_finish_landing_factor;
+    dh_pow:=dh_pow*landing.pow_finish_landing_factor;
+    max_offset:=0;
+    //log('Up');
   end else begin
     max_offset:=0;
   end;
@@ -699,12 +711,21 @@ begin
 
   if abs(delta)>abs(dh) then begin
     delta:=dh;
+    _landing_effect_finish_time_remains:=0;
   end;
 
   h^:=_last_camera_height+delta;
   _last_camera_height:=h^;
 
-  if _landing_effect_time_remains>dt then _landing_effect_time_remains:=_landing_effect_time_remains-dt else _landing_effect_time_remains:=0;
+  if _landing_effect_time_remains>dt then begin
+    _landing_effect_time_remains:=_landing_effect_time_remains-dt;
+  end else if _landing_effect_time_remains > 0 then begin
+    _landing_effect_finish_time_remains:=landing.time_finish_landing;
+    _landing_effect_time_remains:=0;
+  end;
+
+  if _landing_effect_finish_time_remains>dt then _landing_effect_finish_time_remains:=_landing_effect_finish_time_remains-dt else _landing_effect_finish_time_remains:=0;
+
   if _landing2_effect_time_remains>dt then _landing2_effect_time_remains:=_landing2_effect_time_remains-dt else _landing2_effect_time_remains:=0;
 
 end;
@@ -780,7 +801,7 @@ end;
 
 function Init():boolean;
 var
-  addr, rb, i:cardinal;
+  addr, rb:cardinal;
   ptr:pointer;
   b:byte;
 begin

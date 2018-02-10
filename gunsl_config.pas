@@ -18,6 +18,12 @@ type landing_params = record
   time_landing2:cardinal;
   cam_speed_factor:single;
   cam_speed_factor2:single;
+  pow_factor:single;
+  pow_factor2:single;
+
+  time_finish_landing:cardinal;
+  pow_finish_landing_factor:single;
+  cam_speed_finish_landing_factor:single;
 end;
 
 type jitter_params = record
@@ -653,6 +659,14 @@ begin
   _cam_landing.cam_speed_factor2:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_speed_factor', 1.0);
   _cam_landing.time_landing:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing_time', 0.5)*1000);
   _cam_landing.time_landing2:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_time', 0.5)*1000);
+  
+  _cam_landing.pow_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing_speed_pow_factor', 1.0);
+  _cam_landing.pow_factor2:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_speed_pow_factor', 1.0);
+
+  _cam_landing.time_finish_landing:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_finish_landing_time', 0.5)*1000);
+  _cam_landing.pow_finish_landing_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_finish_landing_speed_pow_factor', 1.0);
+  _cam_landing.cam_speed_finish_landing_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_finish_landing_speed_factor', 1.0);
+
 
   _controller_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_time', 3)*1000);
   _controller_prepare_time:=floor(game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_prepare_time', 3)*1000);
