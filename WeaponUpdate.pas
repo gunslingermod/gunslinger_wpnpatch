@@ -80,13 +80,13 @@ begin
   end;
 
   lb:=buf.GetLaserBreakingParams();
-  max_problems_cnt := buf.GetLaserProblemsLevel();
+  max_problems_cnt := buf.GetLaserProblemsLevel();  //уровень помех, выше которого отрубится лазер
 
   if GetCurrentCondition(wpn)<lb.end_condition then begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
     buf.StopLaserdotParticle();
     exit;
-  end else if (GetCurrentCondition(wpn)<lb.start_condition) or ( (max_problems_cnt>0) and (max_problems_cnt >= buf.GetLaserProblemsLevel()) ) then begin
+  end else if (GetCurrentCondition(wpn)<lb.start_condition) or ( (max_problems_cnt>0) and ( CurrentElectronicsProblemsCnt() >= max_problems_cnt) ) then begin
     if ( TargetElectronicsProblemsCnt() >= max_problems_cnt ) then begin
       probability:=1;
     end else if (lb.start_condition = lb.end_condition) then begin

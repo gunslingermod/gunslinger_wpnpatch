@@ -69,6 +69,7 @@ function IsTriStateReload(wpn:pointer):boolean; stdcall;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
+procedure CHudItem_StopAllSounds(itm:pointer); stdcall;
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall
 function GetGameVertexID(wpn:pointer):cardinal; stdcall
 function GetSilencerSection(wpn:pointer):PChar; stdcall;
@@ -941,6 +942,18 @@ asm
   call virtual_CHudItem_PlaySound
 
   popad
+end;
+
+procedure CHudItem_StopAllSounds(itm:pointer); stdcall;
+asm
+pushad
+  mov ecx, itm
+  add ecx, $2e0 + $44 //m_sounds
+
+  mov eax, xrGame_addr
+  add eax, $2FA560 //HUD_SOUND_COLLECTION::StopAllSounds
+  call eax
+popad
 end;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -574,7 +574,13 @@ begin
   if IsActorControlled() or not (CanUseNV(itm)) then exit;
 
   wpn:=GetActorActiveItem();
-  if (wpn<>nil) and IsAimNow(wpn) then modifier:='_aim' else modifier:='';
+
+  if (wpn<>nil) and IsAimNow(wpn) then begin
+    if not game_ini_r_bool_def(GetHUDSection(wpn), 'can_use_nv_when_aim', false) then exit;
+    modifier:='_aim' ;
+  end else begin
+    modifier:='';
+  end;
 
   if IsNVSwitchedOn(itm) then begin
     OnActorSwithesSmth('disable_nv_anim', GetNVDisableAnimator(), PChar('anm_nv_off'+modifier), 'sndNVOff', kfNIGHTVISION, NVCallback, 0);
@@ -594,7 +600,7 @@ begin
   wpn:=GetActorActiveItem();
 
   if (wpn<>nil) and IsAimNow(wpn) then begin
-    if IsBino(wpn) then exit;
+    if not game_ini_r_bool_def(GetHUDSection(wpn), 'can_use_torch_when_aim', false) then exit;
     modifier:='_aim' ;
   end else begin
     modifier:='';
@@ -1598,6 +1604,7 @@ begin
         SetActorActionState(act, actModNeedBlowoutAnim, true)
       end else if (blowout_level>CurrentElectronicsProblemsCnt) and (leftstr(GetActualCurrentAnim(itm), length('anm_blowout')) = 'anm_blowout') then begin
         virtual_CHudItem_SwitchState(itm, EHudStates__eIdle);
+        CHudItem_StopAllSounds(itm);
       end;
     end;
   end;

@@ -77,6 +77,8 @@ function PreviousElectronicsProblemsCnt():single; stdcall;
 function ElectronicsProblemsImmediateApply():boolean; stdcall;
 procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 
+function IsElectronicsProblemsDecreasing():boolean; stdcall;
+
 implementation
 uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils;
 var
@@ -84,6 +86,7 @@ var
   previous_electronics_problems_counter:single;
   current_electronics_problems_counter:single;
   target_electronics_problems_counter:single;
+  last_problems_update_was_decrease:boolean;
 
 procedure ResetElectronicsProblems(); stdcall;
 begin
@@ -95,6 +98,7 @@ begin
   ResetElectronicsProblems();
   current_electronics_problems_counter:=0;
   previous_electronics_problems_counter:=0;
+  last_problems_update_was_decrease:=false;
 end;
 
 function PreviousElectronicsProblemsCnt():single; stdcall;
@@ -134,6 +138,11 @@ begin
   end;
 end;
 
+function IsElectronicsProblemsDecreasing():boolean; stdcall;
+begin
+  result:=last_problems_update_was_decrease;
+end;
+
 procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 var
   delta, max_delta:single;
@@ -150,6 +159,7 @@ begin
     current_electronics_problems_counter:=target_electronics_problems_counter;
   end else begin
     current_electronics_problems_counter:=current_electronics_problems_counter+sign(delta)*max_delta;
+    last_problems_update_was_decrease := (delta<0)
   end;
 //  Log(floattostr(current_electronics_problems_counter));
 end;

@@ -103,8 +103,11 @@ begin
 end;
 
 procedure binder_affects_setup(C:pR_constant); stdcall;
+var
+  decr:single;
 begin
-  RCache__set(C, CurrentElectronicsProblemsCnt()/10, random, TargetElectronicsProblemsCnt()/10, 0);
+  if IsElectronicsProblemsDecreasing() then decr:=1 else decr := 0;
+  RCache__set(C, CurrentElectronicsProblemsCnt()/10, random, TargetElectronicsProblemsCnt()/10, decr);
 end;
 
 procedure binder_actor_states_setup(C:pR_constant); stdcall;
