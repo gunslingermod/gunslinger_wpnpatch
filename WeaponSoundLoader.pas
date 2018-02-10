@@ -351,7 +351,7 @@ procedure DecideHowToPlaySnd(snd:pHUD_SOUND_ITEM; O:pointer; pos:pFVector3; flag
 const
   sm_Looped:cardinal = $1;
 begin
-  if (snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0)  then begin
+  if (not IsSndUnlock()) or ((snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0))  then begin
     ref_sound__play_at_pos(@snd.m_activeSnd.snd, O, pos, flags, snd.m_activeSnd.delay);
   end else begin
     ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos,nil,nil,nil);
@@ -385,35 +385,37 @@ begin
   sound_load_knife_addr:=xrGame_addr+$2D4DC2;
   if not WriteJump(sound_load_knife_addr, cardinal(@SoundLoader_Knife_Patch), 5) then exit;
 
-  //перезагрузка звука в HUD_SOUND_COLLECTION вместо вылета.
-  addr:=xrGame_addr+$2FB46C;
-  nop_code(addr, 37);
-  if not WriteJump(addr, cardinal(@HUD_SOUND_COLLECTION__LoadSound_Patch), 5, true) then exit;
 
-  //обновляем позиции всех звуков
-  addr:=xrGame_addr+$2CCBD3;
-  if not WriteJump(addr, cardinal(@CWeaponMagazined__UpdateSounds_Patch), 13, true) then exit;
+  if IsSoundPatchNeeded() then begin
+    //перезагрузка звука в HUD_SOUND_COLLECTION вместо вылета.
+    addr:=xrGame_addr+$2FB46C;
+    nop_code(addr, 37);
+    if not WriteJump(addr, cardinal(@HUD_SOUND_COLLECTION__LoadSound_Patch), 5, true) then exit;
 
-  //фикс обрыва звука
-  addr:=xrGame_addr+$2FA652;
-  if not WriteJump(addr, cardinal(@HUD_SOUND_ITEM__PlaySound_Patch), 5, true) then exit;
+    //обновляем позиции всех звуков
+    addr:=xrGame_addr+$2CCBD3;
+    if not WriteJump(addr, cardinal(@CWeaponMagazined__UpdateSounds_Patch), 13, true) then exit;
 
-  //переводим в эксклюзивный режим все звуки типа доставания, убирания и т.д.
-  nop_code(xrGame_addr+$2CFA6B, 1, chr(1));
-  nop_code(xrGame_addr+$2CFA8C, 1, chr(1));
-  nop_code(xrGame_addr+$2CFAC2, 1, chr(1));
-  nop_code(xrGame_addr+$2DE2C6, 1, chr(1));
-  nop_code(xrGame_addr+$2DE2E7, 1, chr(1));
-  nop_code(xrGame_addr+$2DE302, 1, chr(1));
-  nop_code(xrGame_addr+$2C5146, 1, chr(1));
+    //фикс обрыва звука
+    addr:=xrGame_addr+$2FA652;
+    if not WriteJump(addr, cardinal(@HUD_SOUND_ITEM__PlaySound_Patch), 5, true) then exit;
 
-  //увеличиваем максимальное число snd_targets
-  tmp:=20000;
-  addr:=xrEngine_addr+$939a0;
-  WriteBufAtAdr(addr, @tmp, 4);
-  tmp:=32;
-  WriteBufAtAdr(addr-4, @tmp, 4);
+    //переводим в эксклюзивный режим все звуки типа доставания, убирания и т.д.
+    nop_code(xrGame_addr+$2CFA6B, 1, chr(1));
+    nop_code(xrGame_addr+$2CFA8C, 1, chr(1));
+    nop_code(xrGame_addr+$2CFAC2, 1, chr(1));
+    nop_code(xrGame_addr+$2DE2C6, 1, chr(1));
+    nop_code(xrGame_addr+$2DE2E7, 1, chr(1));
+    nop_code(xrGame_addr+$2DE302, 1, chr(1));
+    nop_code(xrGame_addr+$2C5146, 1, chr(1));
 
+    //увеличиваем максимальное число snd_targets
+    tmp:=20000;
+    addr:=xrEngine_addr+$939a0;
+    WriteBufAtAdr(addr, @tmp, 4);
+    tmp:=32;
+    WriteBufAtAdr(addr-4, @tmp, 4);
+  end;
 
   result:=true;
 end;

@@ -90,6 +90,34 @@ asm
   popad
 end;
 
+procedure CWeaponRPG7__switch2_Fire_Patch(); stdcall;
+asm
+  test eax, eax
+  je @finish
+  lea edx, [esp+$34]
+  lea ecx, [esp+$4C]
+  pushad
+
+    push ecx//dir
+    push edx//pos
+    push eax //e
+    push esi//wpn
+
+    call CorrectShooting
+  popad
+
+{  pushad
+    push 00
+    push esi
+    call virtual_CWeaponMagazined__UnloadMagazine
+  popad }
+
+  @finish:
+  xor eax, eax
+  test eax, eax
+  ret 4
+end;
+
 function Init:boolean;
 var
     addr:cardinal;
@@ -97,6 +125,8 @@ begin
   result:=false;
   addr:=xrGame_addr+$2d0554;
   if not WriteJump(addr, cardinal(@CWeaponMagazined__state_Fire_Patch), 29, true) then exit;
+  addr:=xrGame_addr+$2D9A43;
+  if not WriteJump(addr, cardinal(@CWeaponRPG7__switch2_Fire_Patch), 5, true) then exit;
   result:=true;
 end;
 

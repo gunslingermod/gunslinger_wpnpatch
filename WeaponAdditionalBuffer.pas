@@ -99,7 +99,6 @@ type
 
     _shells_needed:boolean;
     _shells_offset:FVector3;
-    _shells_impulse:single;
     _preloaded:boolean;
     _is_preload_mode:boolean;
 
@@ -193,7 +192,6 @@ type
     function GetLaserBreakingParams():conditional_breaking_params;
 
     function IsShellsNeeded():boolean;
-    function GetShellsImpulse():single;
     function GetShellsOffset:FVector3;
 
     function IsPreloadMode():boolean;
@@ -327,8 +325,7 @@ begin
   tmpvec.y := 0;
   tmpvec.z := 0;
   _shells_needed:=game_ini_r_bool_def(GetSection(wpn), 'spawn_shells', false);
-  _shells_offset:=game_ini_read_vector3_def(GetSection(wpn), 'shells_offset', @tmpvec);
-  _shells_impulse:=game_ini_r_single_def(GetSection(wpn), 'shells_impulse', 75);
+  _shells_offset:=game_ini_read_vector3_def(GetSection(wpn), 'spawn_shells_offset', @tmpvec);
 
   _need_permanent_lensrender:=game_ini_r_bool_def(GetHUDSection(wpn), 'permanent_lens_render', false);
 
@@ -1244,11 +1241,6 @@ end;
 function WpnBuf.GetLaserBreakingParams: conditional_breaking_params;
 begin
   result:=self._laser_breaking;
-end;
-
-function WpnBuf.GetShellsImpulse: single;
-begin
-  result:=self._shells_impulse;
 end;
 
 function WpnBuf.GetShellsOffset: FVector3;

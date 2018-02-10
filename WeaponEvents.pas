@@ -21,14 +21,14 @@ var
 //-------------------------------–азр€жание магазина-----------------------------
 procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
 begin
-  virtual_CWeaponMagazined__UnloadMagazine(wpn);
+  virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   ForceWpnHudBriefUpdate(wpn);
   SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure OnUnloadInMiddleAnim(wpn:pointer; param:integer);stdcall;
 begin
-  virtual_CWeaponMagazined__UnloadMagazine(wpn);
+  virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   ForceWpnHudBriefUpdate(wpn);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
   SetAnimForceReassignStatus(wpn, true);
@@ -1769,6 +1769,15 @@ asm
   @finish:
 end;
 
+procedure CWeaponRPG7__OnEvent_RemoveAmmoAfterRocketShot(); stdcall;
+asm
+  //тут разр€жаем магазин принудительно после вылета ракеты - так как оно однозар€дное, там ничего не могло остатьс€
+  //!!!к сожалению, тер€етс€ возможность создани€ многозар€дного оружи€!!!
+  push 0
+  push esi
+  call virtual_CWeaponMagazined__UnloadMagazine
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -1942,6 +1951,12 @@ begin
   //реализаци€ изменени€ скорости доставани€/убирани€ оружи€ при переключении на/со слота аниматоров и прочей юзабельной хрени
   jmp_addr:=xrGame_addr+$2FB5EA;
   if not WriteJump(jmp_addr, cardinal(@CalcMotionSpeed_QuickItems_Patch), 5, false) then exit;
+
+
+  //ѕредотвращение повторных выстрелов из –ѕ√
+  //!!!Ћомает возможность многозар€дных гранатометов!!!
+//  jmp_addr:=xrGame_addr+$2D980B;
+//  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__OnEvent_RemoveAmmoAfterRocketShot), 5, true) then exit;
 
   //[bug] баг с неназначением нового эффектора камеры при неоконченном старом - thanks to SkyLoader
   //[upd ломаетс€ кой-чего еще... ќтключаем, лучше уж так

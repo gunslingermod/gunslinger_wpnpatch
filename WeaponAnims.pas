@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster, UIUtils, xr_strings;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster, UIUtils, xr_strings, ScriptFunctors;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -754,6 +754,7 @@ var
   buf:WpnBuf;
   off, pos:FVector3;
   sitm:pCSE_Abstract;
+  wpn_id:string;
 begin
   buf:=GetBuffer(wpn);
   if (buf=nil) or not buf.IsShellsNeeded() then exit;
@@ -765,9 +766,13 @@ begin
   transform_tiny(GetXFORM(wpn), @pos, @off);
   off:=GetLastFD(wpn);
 
-  sitm:=alife_create(ammo_sect, @pos, GetLevelVertexID(wpn), GetGameVertexID(wpn));
+
+  sitm := CLevel__SpawnItem(GetLevel(), ammo_sect, @pos, $FFFFFFFF, $FFFF, true);
+
   if sitm<>nil then begin
     CSE_SetAngle(sitm, @off);
+    set_name_replace(sitm, PChar(inttostr(GetID(wpn))));
+    CLevel__AfterSpawnSendAndFree (GetLevel(), sitm);
   end;
 
 end;
@@ -1805,6 +1810,8 @@ begin
   if not nop_code(xrGame_addr+$2D1A2A, 1, CHR(1)) then exit;
   //микс выстрела с подствола
   if not nop_code(xrGame_addr+$2D1943, 1, CHR(1)) then exit;
+  //микс выстрела с –ѕ√
+  if not nop_code(xrGame_addr+$2D9518, 1, CHR(1)) then exit;  
 
   //Ѕаг с повторением анимации сокрыти€
   jump_addr:=xrGame_addr+$2D1860; //CWeaponMagazinedWGrenade

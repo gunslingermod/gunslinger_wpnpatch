@@ -125,10 +125,11 @@ procedure virtual_CHudItem_PlaySound(CHudItem:pointer; alias:PChar; position_ptr
 procedure virtual_CHudItem_SwitchState(Weapon:pointer; state:cardinal); stdcall;
 procedure virtual_CShootingObject_FireStart(Weapon:pointer); stdcall;
 
-procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
+procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer; spawn_ammo:boolean);stdcall;
 procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;
 procedure virtual_CWeaponMagazined__OnEmptyClick(wpn:pointer);stdcall;
 procedure virtual_CWeaponShotgun__AddCartridge(wpn:pointer; cnt:cardinal);stdcall;
+
 function  CWeaponShotgun__HaveCartridgeInInventory(wpn:pointer; cnt:cardinal):boolean; stdcall; //должно работать и для остального оружия
 
 function CHudItem__HudItemData(CHudItem:pointer):{attachable_hud_item*}pointer; stdcall;
@@ -898,11 +899,10 @@ begin
 
 
       @active_gl:
-      mov eax, [esi]
-      mov edx, [eax+$20c]
       push 01
-      mov ecx, esi
-      call edx                 //UnloadMagazine
+      push esi
+      call virtual_CWeaponMagazined__UnloadMagazine
+
 
       mov ecx, esi
       mov eax, xrgame_addr
@@ -1479,13 +1479,15 @@ asm
     popad
 end;
 
-procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer);stdcall;
+procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer; spawn_ammo:boolean);stdcall;
 begin
   asm
     pushad
     pushfd
 
-    push 01
+    movzx eax, spawn_ammo
+    push eax
+
     mov ecx, wpn
 
     mov edx, [ecx]
@@ -1931,7 +1933,7 @@ var
 begin
   hud_sect:=GetHUDSection(wpn);
   snd_name:='snd_'+anm;
-  if game_ini_line_exist(hud_sect, PChar(snd_name)) then begin
+  if IsSoundPatchNeeded and game_ini_line_exist(hud_sect, PChar(snd_name)) then begin
     if game_ini_r_bool_def(hud_sect, PChar('snd_exclusive_'+anm), true) then
       is_exclusive:=1
     else

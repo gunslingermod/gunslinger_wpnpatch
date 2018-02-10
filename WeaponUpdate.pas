@@ -599,6 +599,17 @@ begin
   result:=dynamic_cast(CObject, 0, RTTI_CObject, RTTI_CWeapon, false);
 end;
 
+procedure CheckRLHasActiveRocket(wpn:pointer; rl:pointer); stdcall;
+begin
+  if GetRocketsCount(rl)>0 then begin
+    if not IsActionProcessing(wpn) and (GetAmmoInMagCount(wpn)>0)  then begin
+      virtual_Action(wpn, kWPN_FIRE, kActPress);
+    end else begin
+      UnloadRockets(rl);
+    end;
+  end;
+end;
+
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
@@ -639,9 +650,7 @@ begin
     end else begin
       rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher, false);
       if (rl<>nil) then begin
-        if GetRocketsCount(rl)>0 then begin
-          virtual_Action(wpn, kWPN_FIRE, kActPress);
-        end;
+        CheckRLHasActiveRocket(wpn, rl);
       end;
     end;
 
@@ -839,6 +848,7 @@ begin
   result:=false;
   tst_light:=nil;
 
+//может прилететь что-то невалидное - отрубим
 //  patch_addr:=xrGame_addr+$2C04A0;
 //  if not WriteJump(patch_addr, cardinal(@CWeapon__UpdateCL_Patch), 6, true) then exit;
   patch_addr:=xrEngine_addr+$1B226;

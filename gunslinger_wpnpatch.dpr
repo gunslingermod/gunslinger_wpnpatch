@@ -103,4 +103,6 @@ begin
 //  AutoUpdater.Init();
 //
 //  Messenger.Init;
+
+  Log('Dll Injected!')
 end.

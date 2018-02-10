@@ -137,6 +137,7 @@ function GetPDAUpdatePeriod():cardinal; stdcall;
 
 function GetLensRenderFactor():cardinal;  stdcall;
 function IsForcedLens:boolean;  stdcall;
+function IsSndUnlock:boolean; stdcall;
 
 function GetModVer():PChar; stdcall;
 function GetQuickUseScriptFunctorName():PChar; stdcall;
@@ -145,6 +146,8 @@ function IsAnimatedAddons():boolean; stdcall;
 function IsMandatoryAnimatedUnloadMag():boolean; stdcall;
 
 function IsVSyncEnabled():boolean; stdcall;
+
+function IsSoundPatchNeeded():boolean; stdcall;
 
 
 implementation
@@ -221,6 +224,7 @@ var
 
   CCC_lens_render_factor:CCC_Integer;
   CCC_force_lense:CCC_Mask;
+  CCC_unlock_snd:CCC_Mask;
 
 //вырезанные движковые консольные команды
   CCC_mt_sound:CCC_Mask;
@@ -249,6 +253,7 @@ const
   _mask_npclasers:cardinal=$8;
   _mask_realballistics:cardinal=$10;
   _mask_forcelense:cardinal=$20;
+  _mask_unlocksnd:cardinal=$40;  
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -448,6 +453,12 @@ begin
   result:=((_console_bool_flags and _mask_laserdotcorrection)>0);
 end;
 
+
+function IsSoundPatchNeeded():boolean; stdcall;
+begin
+  result:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'patch_weapon_sounds', true);
+end;
+
 function IsNPCLasers():boolean; stdcall;
 begin
   result:=((_console_bool_flags and _mask_npclasers)>0);
@@ -578,6 +589,8 @@ begin
   CConsole__AddCommand(@(CCC_lens_render_factor.base));
   CCC_Mask__CCC_Mask(@CCC_force_lense, 'lens_render_forced', @_console_bool_flags, _mask_forcelense);
   CConsole__AddCommand(@(CCC_force_lense.base));
+  CCC_Mask__CCC_Mask(@CCC_unlock_snd, 'snd_unlock', @_console_bool_flags, _mask_unlocksnd);
+  CConsole__AddCommand(@(CCC_unlock_snd.base));
 
 
 //-----------------------------------------------------------------------------------------------------------------
@@ -833,6 +846,11 @@ end;
 function IsForcedLens:boolean; stdcall;
 begin
   result:=((_console_bool_flags and _mask_forcelense)>0);
+end;
+
+function IsSndUnlock:boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_unlocksnd)>0);
 end;
 
 function GetQuickUseScriptFunctorName():PChar; stdcall;

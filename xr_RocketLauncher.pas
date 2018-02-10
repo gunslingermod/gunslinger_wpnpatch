@@ -23,12 +23,29 @@ function GetRocketsCount(rl:pCRocketLauncher):cardinal; stdcall;
 function GetRocket(rl:pCRocketLauncher; index:cardinal):pCCustomRocket; stdcall;
 procedure UnloadRockets(rl:pCRocketLauncher); stdcall;
 procedure UnloadOneRocket(rl:pCRocketLauncher); stdcall;
+procedure DetachRocket(rl:pCRocketLauncher; rocket_id:word; bLaunch:boolean); stdcall;
 
 procedure CWeaponMagazinedWGrenade__LaunchGrenade(wpn:pointer); stdcall;
 procedure CRocketLauncher__SpawnRocket(rl:pointer; g_section:PChar);
 
 implementation
 uses Misc, BaseGameData, sysutils, dynamic_caster;
+
+procedure DetachRocket(rl:pCRocketLauncher; rocket_id:word; bLaunch:boolean); stdcall;
+asm
+  pushad
+    movzx ebx, bLaunch
+    push ebx
+
+    movzx eax, rocket_id
+    push eax    
+
+    mov ecx, rl
+    mov eax, xrgame_addr
+    add eax, $2CC880
+    call eax
+  popad
+end;
 
 function GetRocketsCount(rl:pCRocketLauncher):cardinal; stdcall;
 begin

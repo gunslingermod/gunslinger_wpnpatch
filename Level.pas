@@ -1,15 +1,17 @@
 unit Level;
 
 interface
-uses MatVectors, xr_Cartridge;
+uses MatVectors, xr_Cartridge, Misc;
 function GetLevel():pointer; stdcall;
 function Level_to_CObjectSpace(l:pointer):pointer; stdcall;
 procedure spawn_phantom(pos:pFVector3);
 procedure AddBullet(position:pFVector3; direction:pFVector3; starting_speed:single; power:single; impulse:single; sender_id:word; sendersweapon_id:word; e_hit_type:cardinal; maximum_distance:single; cartridge:pCCartridge;  air_resistance_factor:single; SendHit:boolean; AimBullet:boolean); stdcall;
 procedure MakeWeaponKick(pos:pFVector3; dir:pFVector3; wpn:pointer); stdcall;
+function CLevel__SpawnItem(this:pointer; section:PChar; pos:pFVector3; vertex_id:cardinal; parent_id:word; return_item:boolean):pCSE_Abstract; stdcall;
+procedure CLevel__AfterSpawnSendAndFree(this:pointer; obj:pCSE_Abstract); stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, Misc, HitUtils, math, sysutils;
+uses BaseGameData, gunsl_config, HudItemUtils, HitUtils, math, sysutils;
 
 function GetLevel():pointer; stdcall;
 asm
@@ -71,6 +73,78 @@ asm
     call eax
 
   popad
+end;
+
+function CLevel__SpawnItem(this:pointer; section:PChar; pos:pFVector3; vertex_id:cardinal; parent_id:word; return_item:boolean):pCSE_Abstract; stdcall;
+asm
+  pushad
+    xor eax, eax
+    mov al, return_item
+    push eax
+    mov ax, parent_id
+    push eax
+    push vertex_id
+    push pos
+    push section
+    mov ecx, this
+    mov eax, xrgame_addr
+    add eax, $23BB40
+    call eax 
+    mov @result, eax
+  popad
+end;
+
+procedure CLevel__AfterSpawnSendAndFree(this:pointer; obj:pCSE_Abstract); stdcall;
+asm
+  //взято из CLevel::SpawnItem - фрагмент отправки сообщения серверу и уничтожения объекта
+  sub esp, $4020
+  lea ecx, [esp]
+  mov eax, xrgame_addr
+  add eax, $512818 //NET_Packet constructor
+  call [eax]
+
+
+  lea eax, [esp]
+  mov esi, obj
+  mov edx, [esi]
+  mov ecx, [edx]
+
+  push 01
+  push eax  //packet
+  push esi  //this
+  call ecx  //obj->Spawn_Write
+
+  lea eax, [esp]
+  mov ecx, this
+  add ecx, $40110
+  mov edx, [ecx]
+  mov edx, [edx+$10]
+  push 0
+  push 8
+  push eax  //packet
+  call edx  //CLevel->Send
+
+  push esi
+  mov eax, xrgame_addr
+  add eax, $509DA6
+  call eax
+
+  lea ecx, [esi+$08]
+  mov edi, eax
+  mov eax, [ecx]
+  mov edx, [eax+$14]
+  add esp, 4
+
+  push 0
+  call edx
+
+  mov ecx, xrgame_addr
+  mov ecx, [ecx+$5127B4]
+  push edi
+  mov eax, xrgame_addr
+  call [eax+$5127B8]
+
+  add esp, $4020
 end;
 
 procedure MakeWeaponKick(pos:pFVector3; dir:pFVector3; wpn:pointer); stdcall;

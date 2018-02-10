@@ -62,13 +62,27 @@ function GetAngleByLegs(x,y:single):single;
 
 function IsInputExclusive:boolean; stdcall;
 
+procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
+
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
 
 
+
+procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
+asm
+  pushad
+    mov edx, swpn
+    mov edx, [edx]
+    mov eax, [edx+$14]
+    push name
+    push swpn
+    call eax
+  popad
+end;
 
 function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
 asm
@@ -502,6 +516,156 @@ begin
 end;
 
 
+procedure CGameObject_x_axis(v:pFVector3); stdcall
+asm
+  pushad
+
+  mov eax, [ecx+4]
+  sub eax, $e8      //nonportable - cast to CWeapon
+  push eax
+  call GetXFORM
+
+  mov esi, [eax+FMatrix4x4.i.x]
+  mov edi, [eax+FMatrix4x4.i.y]
+  mov ebx, [eax+FMatrix4x4.i.z]
+
+  mov edx, v  
+  mov [edx+FVector3.x], esi
+  mov [edx+FVector3.y], edi
+  mov [edx+FVector3.z], ebx
+
+  popad
+
+  mov eax, v
+end;
+
+procedure CGameObject_y_axis(v:pFVector3); stdcall
+asm
+  pushad
+
+  mov eax, [ecx+4]
+  sub eax, $e8      //nonportable - cast to CWeapon
+  push eax
+  call GetXFORM
+
+  mov esi, [eax+FMatrix4x4.j.x]
+  mov edi, [eax+FMatrix4x4.j.y]
+  mov ebx, [eax+FMatrix4x4.j.z]
+
+  mov edx, v
+  mov [edx+FVector3.x], esi
+  mov [edx+FVector3.y], edi
+  mov [edx+FVector3.z], ebx
+
+  popad
+
+  mov eax, v
+end;
+
+procedure CGameObject_z_axis(v:pFVector3); stdcall
+asm
+  pushad
+
+  mov eax, [ecx+4]
+  sub eax, $e8      //nonportable - cast to CWeapon
+  push eax
+  call GetXFORM
+
+  mov esi, [eax+FMatrix4x4.k.x]
+  mov edi, [eax+FMatrix4x4.k.y]
+  mov ebx, [eax+FMatrix4x4.k.z]
+
+  mov edx, v
+  mov [edx+FVector3.x], esi
+  mov [edx+FVector3.y], edi
+  mov [edx+FVector3.z], ebx
+
+  popad
+
+  mov eax, v
+end;
+
+procedure CScriptGameObject_ExportAxisVectors; stdcall;
+const
+  get_x:PChar='get_x_axis';
+  get_y:PChar='get_y_axis';
+  get_z:PChar='get_z_axis';    
+asm
+  mov [esp+$24], 0
+  mov edx, [esp+$24]
+  push edx
+
+  mov [esp+$1C], 0
+  mov ecx, [esp+$1C]
+  push ecx
+
+  lea edx, [esp+$1C]
+  push edx
+
+  lea ecx, [esp+$28]
+  push ecx
+  push get_x
+  mov ecx, eax
+
+  lea edx, dword ptr CGameObject_x_axis
+  mov [esp+$30], edx
+
+  mov edx, xrgame_addr
+  add edx, $1D6D20
+  call edx
+
+
+  mov [esp+$24], 0
+  mov edx, [esp+$24]
+  push edx
+
+  mov [esp+$1C], 0
+  mov ecx, [esp+$1C]
+  push ecx
+
+  lea edx, [esp+$1C]
+  push edx
+
+  lea ecx, [esp+$28]
+  push ecx
+  push get_y
+  mov ecx, eax
+
+  lea edx, dword ptr CGameObject_y_axis
+  mov [esp+$30], edx
+
+  mov edx, xrgame_addr
+  add edx, $1D6D20
+  call edx
+
+  mov [esp+$24], 0
+  mov edx, [esp+$24]
+  push edx
+
+  mov [esp+$1C], 0
+  mov ecx, [esp+$1C]
+  push ecx
+
+  lea edx, [esp+$1C]
+  push edx
+
+  lea ecx, [esp+$28]
+  push ecx
+  push get_z
+  mov ecx, eax
+
+  lea edx, dword ptr CGameObject_z_axis
+  mov [esp+$30], edx
+
+  mov edx, xrgame_addr
+  add edx, $1D6D20
+  call edx
+
+  mov [esp+$24], 0
+  mov edx, [esp+$20]
+end;
+
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -510,6 +674,12 @@ begin
   result:=false;
   jmp_addr:=xrGame_addr+$4CCD0E;
   if not WriteJump(jmp_addr, cardinal(@get_rank_Patch), 47, true) then exit;
+
+  //экспорт функций получения локальных осей CScriptGameObject
+  jmp_addr:=xrGame_addr+$1D8D9D;
+  if not WriteJump(jmp_addr, cardinal(@CScriptGameObject_ExportAxisVectors), 8, true) then exit;
+
+
 
   //[bug] баг -в CLevel::ClientSend исправляем if (GameID() == eGameIDSingle || OnClient()) на if (GameID() != eGameIDSingle || OnClient()) - thanks to Shoker
   if not nop_code(xrGame_addr+$238D55, 1, CHR($75)) then exit;

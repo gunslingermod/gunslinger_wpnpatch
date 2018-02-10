@@ -141,6 +141,8 @@ procedure CCameraManager__RemoveCamEffector(index:cardinal); stdcall;
 function GetPDAJoystickAnimationModifier():string;
 procedure CActor__OnKeyboardPress_initiate(dik:cardinal); stdcall;
 
+procedure PerformDrop(act:pointer); stdcall;
+
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
 
@@ -187,6 +189,16 @@ var
   _pda_cursor_state:TCursorState;
 
 
+
+procedure PerformDrop(act:pointer); stdcall;
+asm
+  pushad
+    mov ecx, act
+    mov edx, [ecx]
+    mov eax, [edx+$28C]
+    call eax
+  popad
+end;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure CTorch__Switch(CTorch:pointer; status:boolean);stdcall;
@@ -1519,6 +1531,10 @@ begin
       ActivateActorSlot(GetActorPreviousSlot());
     end;
     _was_pda_animator_spawned:=false;
+  end;
+
+  if (itm<>nil) and (WpnCanShoot(itm)) then begin
+    CWeapon__ModUpdate(itm);
   end;
 
 

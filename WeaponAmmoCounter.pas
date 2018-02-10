@@ -114,13 +114,13 @@ begin
     SwapFirstLastAmmo(wpn);
     buf.is_firstlast_ammo_swapped:=true;
     ChangeAmmoVectorStart(wpn, sizeof(CCartridge));
-    virtual_CWeaponMagazined__UnloadMagazine(wpn);
+    virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
     ChangeAmmoVectorStart(wpn, (-1)*sizeof(CCartridge));    
   end else begin
     if buf <> nil then begin
       buf.is_firstlast_ammo_swapped:=false;
     end;
-    virtual_CWeaponMagazined__UnloadMagazine(wpn);
+    virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   end;
 end;
 

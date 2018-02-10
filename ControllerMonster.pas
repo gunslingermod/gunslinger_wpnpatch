@@ -71,7 +71,7 @@ asm
 
 end;
 
-procedure CGameObject__export(); stdcall;
+procedure CGameObject__script_export(); stdcall;
 const
   is_psi_blocked_name:PChar = 'is_psi_blocked';
 asm
@@ -228,16 +228,18 @@ begin
       ActivateActorSlot__CInventory(1, false);
     end else begin
       _planning_suicide:=CanUseItemForSuicide(wpn);
-      if (GetActorActiveSlot()<>0) and not _planning_suicide then begin
-        if (GetCurrentDifficulty()>=gd_veteran) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+      if not _planning_suicide then begin
+        //этой штукой убиться нельзя...
+        if (wpn<>nil) then begin
+          PerformDrop(act);
+        end;
+        //А можно ли ножом?
+        if CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
           ActivateActorSlot__CInventory(1, false);
           _planning_suicide:=true;
         end else begin
           ActivateActorSlot__CInventory(0, false);
         end;
-      end else if (wpn=nil) and (GetCurrentDifficulty()>=gd_stalker) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
-        _planning_suicide:=true;
-        ActivateActorSlot__CInventory(1, false);
       end;
     end;
   end;  
@@ -317,14 +319,22 @@ begin
   end;
 
   if (wpn=nil) then begin
-    if (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+    {if (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+      _planning_suicide:=true;
+       result:=true;
+    end else begin
+      _planning_suicide:=false;
+      result:=false;
+    end;}
+
+    if CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
       _planning_suicide:=true;
        result:=true;
     end else begin
       _planning_suicide:=false;
       result:=false;
     end;
-
+    
     _suicide_now:=false;
     exit;
   end;  
@@ -540,13 +550,14 @@ end;
 function Init():boolean; stdcall;
 var
   addr:cardinal;
+  addr2:cardinal;
 begin
   result:=false;
 
   IsPsiBlocked_adapter_ptr:=@IsPsiBlocked_adapter;
 
   addr:=xrgame_addr+$1ED146;
-  if not WriteJump(addr, cardinal(@CGameObject__export), 8, true) then exit;
+  if not WriteJump(addr, cardinal(@CGameObject__script_export), 8, true) then exit;
 
 
   addr:=xrgame_addr+$131A3D;
@@ -565,6 +576,26 @@ begin
 
   addr:=xrgame_addr+$1318DF;
   if not WriteJump(addr, cardinal(@CControllerPsyHit__activate_Patch), 6, true) then exit;
+
+  //почему-то при обычных атаках контроля возникают рандомные вылеты вида
+  //Expression    : assertion failed
+  //Function      : CLensFlare::OnFrame
+  //File          : D:\prog_repository\sources\trunk\xrEngine\xr_efflensflare.cpp
+  //Line          : 330
+  //Description   : _valid(vecX)
+  //причина - NaN'ы в CRenderDevice, как они туда попадают - хз
+  //Предполагаются особенности работы эффектора, возможно, из-за какой-то врезки
+  //Отрубаем этот эффектор к чертям от греха подальше
+  addr:=xrgame_addr+$131C20;
+  addr2:=xrgame_addr+$131C94;
+  if not WriteJump(addr, addr2, 9, false) then exit;
+  nop_code(xrgame_addr+$131E93, 1);
+  nop_code(xrgame_addr+$131E9B, 8);
+  nop_code(xrgame_addr+$131F01, 5);
+  nop_code(xrgame_addr+$131A5C, 6);
+  nop_code(xrgame_addr+$131A69, 1, CHR($EB));  
+  nop_code(xrgame_addr+$131F12, 1,chr(0));   
+   
 
   result:=true;
 end;
