@@ -220,6 +220,61 @@ begin
   //todo:разные скорости суицида в зависимости от пси-защищенности
 end;
 
+
+procedure GetCurrentTargetOffset_aim(act:pointer; section:PChar; pos:pFVector3; rot:pFVector3; factor:pSingle);
+var
+  zerovec:FVector3;
+  koef:single;  
+begin
+  v_zero(pos);
+  v_zero(rot);
+  v_zero(@zerovec);
+  factor^:=1;
+
+  if GetActorActionState(act, actCrouch) and GetActorActionState(act, actSlow) then begin
+    koef:=game_ini_r_single_def(section, 'hud_aim_move_slow_crouch_factor', 1.0);
+  end else if GetActorActionState(act, actCrouch) then begin
+    koef:=game_ini_r_single_def(section, 'hud_aim_move_crouch_factor', 1.0);
+  end else if GetActorActionState(act, actSlow) then begin
+    koef:=game_ini_r_single_def(section, 'hud_aim_move_slow_factor', 1.0);
+  end else begin
+    koef:=1;
+  end;
+
+  if tocrouch_time_remains>0 then begin
+    AddOffsets('hud_aim_move_to_crouch_offset', section, pos, rot, koef);
+  end;
+
+  if fromcrouch_time_remains>0 then begin
+    AddOffsets('hud_aim_move_from_crouch_offset', section, pos, rot, koef);
+  end;
+
+  if toslowcrouch_time_remains>0 then begin
+    AddOffsets('hud_aim_move_to_slow_crouch_offset', section, pos, rot, koef);
+  end;
+
+  if fromslowcrouch_time_remains>0 then begin
+    AddOffsets('hud_aim_move_from_slow_crouch_offset', section, pos, rot, koef);
+  end;
+
+  if torlookout_time_remains>0 then begin
+    AddOffsets('hud_aim_move_to_rlookout_offset', section, pos, rot, koef);
+  end;
+
+  if fromrlookout_time_remains>0 then begin
+    AddOffsets('hud_aim_move_from_rlookout_offset', section, pos, rot, koef);
+  end;
+
+  if tollookout_time_remains>0 then begin
+    AddOffsets('hud_aim_move_to_llookout_offset', section, pos, rot, koef);
+  end;
+
+  if fromllookout_time_remains>0 then begin
+    AddOffsets('hud_aim_move_from_llookout_offset', section, pos, rot, koef);
+  end;
+
+end;
+
 procedure GetCurrentTargetOffset(act:pointer; section:PChar; pos:pFVector3; rot:pFVector3; factor:pSingle);
 var
   zerovec:FVector3;
@@ -283,12 +338,12 @@ begin
 
   if GetActorActionState(act, actRLookout) and not GetActorActionState(act, actLLookout) then begin
     AddOffsets('hud_move_rlookout_offset', section, pos, rot, koef);
-    factor^:=1;
+    factor^:=game_ini_r_single_def(section, 'hud_move_rlookout_offset_speed_factor', 1);
   end;
 
   if GetActorActionState(act, actLLookout) and not GetActorActionState(act, actRLookout) then begin
     AddOffsets('hud_move_llookout_offset', section, pos, rot, koef);
-    factor^:=1;
+    factor^:=game_ini_r_single_def(section, 'hud_move_llookout_offset_speed_factor', 1);
   end;
 
   if GetActorActionState(act, actMovingLeft) and not GetActorActionState(act, actMovingRight) then begin
@@ -449,8 +504,7 @@ begin
     v_zero(@targetrot);
     factor:=game_ini_r_single_def(section, 'hud_move_weaponhide_factor', 1.0);
   end else if (WpnCanShoot(itm) or IsBino(itm)) and (IsAimNow(itm) or IsHolderInAimState(itm) or (GetAimFactor(itm)>0)) then begin
-    v_zero(@targetpos);
-    v_zero(@targetrot);
+    GetCurrentTargetOffset_aim(act, section, @targetpos, @targetrot, @factor);
     factor:=game_ini_r_single_def(section, 'hud_move_unzoom_factor', 1.0);
   end else begin
     GetCurrentTargetOffset(act, section, @targetpos, @targetrot, @factor);

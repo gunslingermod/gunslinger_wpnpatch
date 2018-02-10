@@ -2046,8 +2046,8 @@ begin
 
   //[bug] баг с неназначением нового эффектора камеры при неоконченном старом - thanks to SkyLoader
   //[upd ломается кой-чего еще... Отключаем, лучше уж так
-  jmp_addr:=xrGame_addr+$2FEC28;
-  if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;
+  //jmp_addr:=xrGame_addr+$2FEC28;
+  //if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;
 end;
 
 
