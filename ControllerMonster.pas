@@ -15,6 +15,7 @@ procedure Update(dt:cardinal); stdcall;
 procedure DoSuicideShot(); stdcall;
 function CanUseItemForSuicide(wpn:pointer):boolean;
 function GetCurrentSuicideWalkKoef():single;
+function IsControllerPreparing():boolean; stdcall;
 
 
 implementation
@@ -28,8 +29,10 @@ var
   _death_action_started:boolean;
   _inventory_disabled_set:boolean;
   _knife_suicide_exit:boolean;
+  _controller_preparing_starttime:cardinal;
+  IsPsiBlocked_adapter_ptr:pointer;
 
-function IsPsiBlocked(act:pointer):boolean;
+function IsPsiBlocked(act:pointer):boolean; stdcall;
 asm
   mov @result, 0
   pushad
@@ -45,6 +48,69 @@ asm
 
     @finish:
   popad
+end;
+
+procedure IsPsiBlocked_adapter(); stdcall;
+asm
+  pushad
+    mov eax, [ecx+04]
+    test eax, eax
+    je @finish
+      push eax
+      call IsPsiBlocked
+    @finish:
+    cmp al, 0
+  popad
+  je @no_block
+  mov eax, 1
+  ret
+
+  @no_block:
+  mov eax, 0
+  ret
+
+end;
+
+procedure CGameObject__export(); stdcall;
+const
+  is_psi_blocked_name:PChar = 'is_psi_blocked';
+asm
+  pop edx
+
+  mov [esp+$54], bl
+  mov ecx, [esp+$54]
+  push ecx
+
+  mov [esp+$24], bl
+  mov ecx, [esp+$24]
+  push ecx
+
+  lea ecx, [esp+$5c]
+  push ecx
+
+  lea ecx, [esp+$24]
+  push ecx
+
+  push is_psi_blocked_name
+
+  mov ecx,IsPsiBlocked_adapter_ptr
+  mov [esp+$2c],ecx
+
+  mov ecx, eax
+
+  mov ebx, edx
+
+  mov edx, xrgame_addr
+  add edx, $1D4D10
+  call edx
+
+  mov edx, ebx
+  xor ebx, ebx
+
+  mov [esp+$54], bl
+  mov ecx, [esp+$54]
+
+  jmp edx
 end;
 
 function GetCurrentSuicideWalkKoef():single;
@@ -197,19 +263,20 @@ end;
 
 procedure OnSuicideAnimEnd(wpn:pointer; param:integer);stdcall;
 begin
-
   if (wpn<>GetActorActiveItem()) then exit;
   if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) then begin
+    script_call('gunsl_controller.on_suicide_shot', '', 0);
     DoSuicideShot();
   end else begin
     _suicide_now:=false;
     _planning_suicide:=false;
+    script_call('gunsl_controller.on_stop_suicide', '', 0);
     WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_stop_suicide', 'sndStopSuicide');
     SetHandsJitterTime(GetShockTime());
   end;
 end;
 
-function PsiEffects():boolean; stdcall;
+function PsiEffects(monster_controller:pointer):boolean; stdcall;
 var
   act, det, wpn:pointer;
   buf:WpnBuf;
@@ -304,7 +371,7 @@ begin
   end;
 end;
 
-function PsiStart():boolean; stdcall;
+function PsiStart(monster_controller:pointer):boolean; stdcall;
 var
   wpn, act:pointer;
   scream:string;
@@ -313,7 +380,8 @@ var
   radius:single;
   p:phantoms_params;
 begin
-  result:=PsiEffects;
+//  _is_controller_preparing:=false;
+  result:=PsiEffects(monster_controller);
   act:=GetActor();
   if (act<>nil) and not CActor__get_inventory_disabled(act) then begin
     HideShownDialogs();
@@ -327,9 +395,9 @@ begin
       scream:='sndScream'+inttostr(random(3)+1);
       CHudItem_Play_Snd(wpn, PChar(scream));
     end;
-    script_call('gunsl_controller.on_suicide_attack', '', 0);
+    script_call('gunsl_controller.on_suicide_attack', '', GetCObjectID(monster_controller));
   end else begin
-    script_call('gunsl_controller.on_std_attack', '', 0);
+    script_call('gunsl_controller.on_std_attack', '', GetCObjectID(monster_controller));
   end;
 
 
@@ -404,6 +472,7 @@ asm
   call eax //CControllerPsyHit::check_conditions_final
   je @finish
   pushad
+    push [esi+$8] //CBaseMonster* CControllerPsyHit.m_object
     call PsiStart
     cmp al, 1
   popad
@@ -442,9 +511,10 @@ begin
   _knife_suicide_exit:=status;
 end;
 
-procedure OnPsyHitActivate(); stdcall;
+procedure OnPsyHitActivate(monster_controller:pointer); stdcall;
 begin
-  script_call('gunsl_controller.on_psi_attack_prepare', '', 0);
+  _controller_preparing_starttime:=GetGameTickCount();
+  script_call('gunsl_controller.on_psi_attack_prepare', '', GetCObjectID(monster_controller));
   if not IsPsiBlocked(GetActor()) and (_controlled_time_remains>0) then begin
     _controlled_time_remains:=GetControllerPrepareTime();
   end;
@@ -454,8 +524,17 @@ procedure CControllerPsyHit__activate_Patch(); stdcall;
 asm
   add edi, $AA0
   pushad
+    push [esi+8] //CBaseMonster* CControllerPsyHit.m_object
     call OnPsyHitActivate
   popad
+end;
+
+function IsControllerPreparing():boolean; stdcall;
+begin
+  if IsPsiBlocked(GetActor()) then
+    result:=false
+  else
+    result:=(GetTimeDeltaSafe(_controller_preparing_starttime)<GetControllerPrepareTime+1000);
 end;
 
 function Init():boolean; stdcall;
@@ -463,6 +542,12 @@ var
   addr:cardinal;
 begin
   result:=false;
+
+  IsPsiBlocked_adapter_ptr:=@IsPsiBlocked_adapter;
+
+  addr:=xrgame_addr+$1ED146;
+  if not WriteJump(addr, cardinal(@CGameObject__export), 8, true) then exit;
+
 
   addr:=xrgame_addr+$131A3D;
   if not WriteJump(addr, cardinal(@CControllerPsyHit__death_glide_start_Patch), 7, true) then exit;

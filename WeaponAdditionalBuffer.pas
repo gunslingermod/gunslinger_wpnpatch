@@ -624,7 +624,7 @@ function CanSprintNow(wpn:pointer):boolean;stdcall;
 begin
   if (wpn=nil) then
     result:=true
-  else if IsActionProcessing(wpn) or IsActorPlanningSuicide() or IsActorSuicideNow() or IsSuicideAnimPlaying(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
+  else if IsActionProcessing(wpn) or IsControllerPreparing() or IsActorPlanningSuicide() or IsActorSuicideNow() or IsSuicideAnimPlaying(wpn) or (GetCurrentState(wpn)<>0) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_sprint_end'))= 'anm_idle_sprint_end') or (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot'))= 'anm_shoot') or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))= 'anm_idle_aim') then
     result:=false
   else if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle'))<> 'anm_idle') then
     result:=false
@@ -637,7 +637,7 @@ var
   tmp:pointer;
 begin
   result:=true;
-  if IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+  if IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing() then begin
     result:=false;
   end else if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim') then begin
     //на случай, если мы недовышли из прицеливания
@@ -677,7 +677,7 @@ begin
     exit;
   end;
 
-  if IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+  if IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing() then begin
     result:=true;
     exit;
   end;

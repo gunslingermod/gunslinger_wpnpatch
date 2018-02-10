@@ -9,7 +9,7 @@ function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=
 function anm_shots_selector(wpn:pointer; play_breech_snd:boolean):pchar;stdcall;
 
 implementation
-uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster, UIUtils;
+uses BaseGameData, HudItemUtils, ActorUtils, WeaponAdditionalBuffer, math, WeaponEvents, sysutils, strutils, DetectorUtils, WeaponAmmoCounter, Throwable, gunsl_config, messenger, xr_Cartridge, ActorDOF, MatVectors, WeaponUpdate, WeaponInertion, ControllerMonster, Misc, Level, dynamic_caster, UIUtils, xr_strings;
 
 var
   anim_name:string;   //из-за того, что все нужное в одном потоке - имем право заглобалить переменную, куда будем писать измененное название анимы
@@ -1745,6 +1745,35 @@ asm
   @finish:
 end;
 
+function IsCustomIdleAnimNow(anm:pshared_str):boolean; stdcall;
+var
+  n:PChar;
+begin
+  n:=@anm.p_.value;
+//  log(n);
+  result := (leftstr(n, length('anm_idle'))<>'anm_idle') or (leftstr(n, length('anm_idle_aim'))='anm_idle_aim') or (leftstr(n, length('anm_idle_sprint'))='anm_idle_sprint');
+end;
+
+procedure player_hud__OnMovementChanged_stopmove_patch; stdcall;
+asm
+  //оригинальный код
+  mov ecx, [eax+04]
+  cmp dword ptr [ecx+04], 00
+
+  //если мы не собираемся останавливать аниму - то ничего не меняется
+  jne @finish
+  
+  //проверяем, играем ли мы кастомную аниму
+  pushad
+    lea ecx, [ecx+$1C]// shared_str
+    push ecx
+    call IsCustomIdleAnimNow
+    cmp al, 0
+  popad
+
+  @finish:
+end;
+
 /////////////////////////////////////
 function Init:boolean;
 var
@@ -2080,6 +2109,18 @@ begin
   if not WriteJump(jump_addr, cardinal(@CWeapon__Action_kWPNFire_Patch), 7, true) then exit;
   jump_addr:=xrGame_addr+$2CFE8A;
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__FireStart_EarlyReloadShot), 6, true) then exit;
+
+
+  //т.к. при открытии главного меню вызывается player_hud::OnMovementChanged(0), то наши кастомные анимы сбрасываются
+  //добавляем проверку на то, не играется ли кастомная анима
+
+  jump_addr:=xrGame_addr+$2FBA16;
+  if not WriteJump(jump_addr, cardinal(@player_hud__OnMovementChanged_stopmove_patch), 6, true) then exit;
+  jump_addr:=xrGame_addr+$2FBA38;
+  if not WriteJump(jump_addr, cardinal(@player_hud__OnMovementChanged_stopmove_patch), 7, true) then exit;
+
+
+
   result:=true;
 end;
 

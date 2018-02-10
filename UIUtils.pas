@@ -725,6 +725,7 @@ begin
   IndicatorsShown_adapter_ptr:=@IndicatorsShown_adapter;
   IsInventoryShown_adapter_ptr:=@IsInventoryShown_adapter;
 
+  //экспорт в скрипты
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;
 
   jmp_addr:=xrGame_addr+$49f10f;

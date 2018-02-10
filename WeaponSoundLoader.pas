@@ -1,7 +1,7 @@
 unit WeaponSoundLoader;
 
 interface
-uses strings;
+uses xr_strings;
 
 type ref_sound = packed record
   _p:{ref_sound_data_ptr}pointer;
@@ -270,7 +270,7 @@ begin
   HUD_SOUND_ITEM__StopSound(snd);
   HUD_SOUND_ITEM__DestroySound(snd);
   collection.last:=(pHUD_SOUND_ITEM(cardinal(collection.last)-sizeof(HUD_SOUND_ITEM)));
-  snd^:=collection.last^;
+  if snd<>collection.last then snd^:=collection.last^;
 end;
 
 procedure HUD_SOUND_COLLECTION__LoadSound_Patch; stdcall;
