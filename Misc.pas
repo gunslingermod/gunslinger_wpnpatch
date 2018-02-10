@@ -70,45 +70,73 @@ function is_visible_by_thermovisor(cobject:pointer):boolean; stdcall;
 procedure ResetElectronicsProblems(); stdcall;
 function ElectronicsProblemsDec():boolean; stdcall;
 function ElectronicsProblemsInc():boolean; stdcall;
-function ElectronicsProblemsCnt():cardinal; stdcall;
+function TargetElectronicsProblemsCnt():single; stdcall;
+function CurrentElectronicsProblemsCnt():single; stdcall;
+function ElectronicsProblemsImmediateApply():boolean; stdcall;
+procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
-  electronics_problems_counter:cardinal;
+  current_electronics_problems_counter:single;
+  target_electronics_problems_counter:single;
 
 procedure ResetElectronicsProblems(); stdcall;
 begin
-  electronics_problems_counter:=0;
- end;
+  target_electronics_problems_counter:=0;
+end;
+
+function ElectronicsProblemsImmediateApply():boolean; stdcall;
+begin
+  current_electronics_problems_counter:=target_electronics_problems_counter;
+  result:=true;
+end;
 
 function ElectronicsProblemsInc():boolean; stdcall;
 begin
-  if electronics_problems_counter <> $FFFFFFFF then begin
-    electronics_problems_counter:=electronics_problems_counter+1;
-    result:=true;
-  end else begin
-    result:=false;
-  end;
+  target_electronics_problems_counter:=target_electronics_problems_counter+1;
+  result:=true;
 end;
 
-function ElectronicsProblemsCnt():cardinal; stdcall;
+function TargetElectronicsProblemsCnt():single; stdcall;
 begin
-  result:=electronics_problems_counter;
+  result:=target_electronics_problems_counter;
+end;
+
+function CurrentElectronicsProblemsCnt():single; stdcall;
+begin
+  result:=current_electronics_problems_counter;
 end;
 
 function ElectronicsProblemsDec():boolean; stdcall;
 begin
-  if electronics_problems_counter <> 0 then begin
-    electronics_problems_counter:=electronics_problems_counter-1;
+  if target_electronics_problems_counter > 0 then begin
+    target_electronics_problems_counter:=target_electronics_problems_counter-1;
     result:=true;
   end else begin
     result:=false;
   end;
 end;
 
+procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
+var
+  delta, max_delta:single;
+begin
+  if target_electronics_problems_counter = current_electronics_problems_counter then begin
+    exit;
+  end;
 
+  max_delta:= dt/2000;
+  delta:=target_electronics_problems_counter-current_electronics_problems_counter;
+
+  if abs(delta) <= abs(max_delta) then begin
+    current_electronics_problems_counter:=target_electronics_problems_counter;
+  end else begin
+    current_electronics_problems_counter:=current_electronics_problems_counter+sign(delta)*max_delta;
+  end;
+//  Log(floattostr(current_electronics_problems_counter));
+end;
 
 procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
 asm

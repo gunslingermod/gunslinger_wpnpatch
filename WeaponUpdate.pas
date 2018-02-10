@@ -24,7 +24,7 @@ var
 
   lb:conditional_breaking_params;
   probability, probability2:single;
-  max_problems_cnt:cardinal;
+  max_problems_cnt:single;
 
 begin
   buf:=GetBuffer(wpn);
@@ -80,13 +80,14 @@ begin
   end;
 
   lb:=buf.GetLaserBreakingParams();
+  max_problems_cnt := buf.GetLaserProblemsLevel();
 
   if GetCurrentCondition(wpn)<lb.end_condition then begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
     buf.StopLaserdotParticle();
     exit;
-  end else if (GetCurrentCondition(wpn)<lb.start_condition) or ( ElectronicsProblemsCnt() >= buf.GetLaserProblemsLevel() ) then begin
-    if ( ElectronicsProblemsCnt() >= buf.GetLaserProblemsLevel() ) then begin
+  end else if (GetCurrentCondition(wpn)<lb.start_condition) or ( (max_problems_cnt>0) and (max_problems_cnt >= buf.GetLaserProblemsLevel()) ) then begin
+    if ( TargetElectronicsProblemsCnt() >= max_problems_cnt ) then begin
       probability:=1;
     end else if (lb.start_condition = lb.end_condition) then begin
       probability := lb.start_condition;
@@ -670,7 +671,7 @@ var
   slot, prevslot:integer;
 
   probability, probability2:single;
-  collim_problems_cnt:cardinal;
+  collim_problems_cnt:single;
   
   bp:conditional_breaking_params;
   last_rec_time:cardinal;
@@ -768,19 +769,19 @@ begin
         bp:=buf.GetCollimatorBreakingParams();
         if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter() and game_ini_r_bool_def(GetSection(wpn),'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
           SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), false);
-        end else if (GetCurrentCondition(wpn)<bp.start_condition) or ( ElectronicsProblemsCnt() > 0 ) then begin
+        end else if (GetCurrentCondition(wpn)<bp.start_condition) or ( CurrentElectronicsProblemsCnt() > 0 ) then begin
           if (bp.start_condition=bp.end_condition) then begin
             probability := bp.end_condition;
           end else begin
             probability := bp.start_probability+(bp.start_condition-GetCurrentCondition(wpn))* (1-bp.start_probability)/(bp.start_condition-bp.end_condition);
           end;
 
-          if ( ElectronicsProblemsCnt() > 0 ) then begin
-            collim_problems_cnt := buf.GetCollimatorProblemsLevel();
-            if ElectronicsProblemsCnt() >= collim_problems_cnt then begin
+          collim_problems_cnt := buf.GetCollimatorProblemsLevel();
+          if ( CurrentElectronicsProblemsCnt() > 0 ) and ( collim_problems_cnt > 0) then begin
+            if CurrentElectronicsProblemsCnt() >= collim_problems_cnt then begin
               probability := 1;
             end else begin
-              probability2 := ElectronicsProblemsCnt() / collim_problems_cnt;
+              probability2 := CurrentElectronicsProblemsCnt() / collim_problems_cnt;
               if probability2 > probability then begin
                 probability:= probability2;
               end;

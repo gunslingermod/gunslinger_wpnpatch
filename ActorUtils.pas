@@ -1442,6 +1442,7 @@ begin
   UpdateInertion(GetActorActiveItem());
   UpdateWeaponOffset(act, dt);
   ControllerMonster.Update(dt);
+  UpdateElectronicsProblemsCnt(dt);
 
   if _jitter_time_remains>dt then _jitter_time_remains:=_jitter_time_remains-dt else _jitter_time_remains:=0;
 
@@ -1863,6 +1864,7 @@ begin
   SetForcedQuickthrow(false);
   ResetBirdsAttackingState();
   ResetElectronicsProblems();
+  ElectronicsProblemsImmediateApply();
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}  

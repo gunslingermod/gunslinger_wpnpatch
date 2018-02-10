@@ -227,7 +227,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr:pointer;
-  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr:pointer;
+  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr:pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -524,6 +524,14 @@ asm
   popad
 end;
 
+function ElectronicProblemsApply():boolean; stdcall;
+asm
+  pushad
+    call ElectronicsProblemsImmediateApply
+    mov @result, 1
+  popad
+end;
+
 function ElectronicProblemsEnd():boolean; stdcall;
 asm
   pushad
@@ -541,6 +549,7 @@ const
   name_electroproblem_begin:PChar='electronics_break';
   name_electroproblem_end:PChar='electronics_restore';
   name_electroproblem_reset:PChar='electronics_reset';
+  name_electroproblem_apply:PChar='electronics_apply';
 asm
   push eax
 
@@ -594,6 +603,29 @@ asm
   push ecx
   mov ecx, esp
   push name_electroproblem_reset
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+ ////////////////////////////
+  push eax
+
+  mov ecx, ElectronicProblemsApply_ptr
+  push ecx
+  mov ecx, esp
+  push name_electroproblem_apply
   push ecx
   mov ecx, xrgame_addr
   add ecx, $1FF277;
@@ -826,7 +858,8 @@ begin
   IsInventoryShown_adapter_ptr:=@IsInventoryShown_adapter;
   ElectronicProblemsBegin_ptr:=@ElectronicProblemsBegin;
   ElectronicProblemsEnd_ptr:=@ElectronicProblemsEnd;
-  ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;  
+  ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;
+  ElectronicProblemsApply_ptr:=@ElectronicProblemsApply;
 
   //экспорт в скрипты
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;

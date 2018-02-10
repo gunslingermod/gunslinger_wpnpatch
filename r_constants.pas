@@ -104,7 +104,7 @@ end;
 
 procedure binder_affects_setup(C:pR_constant); stdcall;
 begin
-  RCache__set(C, ElectronicsProblemsCnt()/10, random, 0, 0);
+  RCache__set(C, CurrentElectronicsProblemsCnt()/10, random, TargetElectronicsProblemsCnt()/10, 0);
 end;
 
 procedure binder_actor_states_setup(C:pR_constant); stdcall;

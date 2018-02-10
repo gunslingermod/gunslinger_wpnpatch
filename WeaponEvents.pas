@@ -1929,11 +1929,13 @@ end; }
 function CWeaponMagazined__CheckForMisfire_validate_NoMisfire(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
+  problems_lvl:single;
 begin
   //осечки было быть не должно. Ќо все еще можно изменить! ¬ернуть true, если не стрел€ть
   result:=false;
   buf:=GetBuffer(wpn);
-  if (buf<>nil) and ( ElectronicsProblemsCnt()>=buf.GetMisfireProblemsLevel() ) then begin
+  problems_lvl:=buf.GetMisfireProblemsLevel();
+  if (buf<>nil) and (problems_lvl>0) and (CurrentElectronicsProblemsCnt()>=problems_lvl) then begin
     SetWeaponMisfireStatus(wpn, true);
     virtual_CHudItem_SwitchState(wpn, EWeaponStates__eMisfire);
     result:= not OnWeaponJam(wpn);
