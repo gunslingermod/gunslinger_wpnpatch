@@ -1881,10 +1881,6 @@ begin
   //Не дадим прерывать анимацию выстрела при назначении идла
   jump_addr:=xrGame_addr+$2D0209;
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__OnStateSwitch_IdlePatch), 8, false) then exit;
-  //исправляем таблицу свитча в CWeaponMagazined::OnAnimationEnd, чтобы при окончании анимы выстрела шло перенаправление не в else, а на проигрывание идла и таким образом не допускалось застывания оружия на месте
-  buf:=$E9;
-  if not WriteBufAtAdr(xrGame_addr+$2CCE20, @buf,1) then exit;
-
 
   //Не дадим перезаряжаться 
   jump_addr:=xrGame_addr+$2CE821;
@@ -2168,7 +2164,7 @@ begin
   jump_addr:=xrGame_addr+$2FBA38;
   if not WriteJump(jump_addr, cardinal(@player_hud__OnMovementChanged_stopmove_patch), 7, true) then exit;
 
-  //принудительный сброс автоматического режима огня у оружия
+  //принудительный сброс автоматического режима огня у оружия (сделано для гаусса - компьютер сделан на режиме автоогня, но стрелять все равно должен одиночными)
   jump_addr:=xrGame_addr+$2d06c5;
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__state_Fire_queue_Patch), 6, true) then exit;
 

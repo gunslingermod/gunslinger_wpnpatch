@@ -1364,8 +1364,13 @@ asm
 end;
 
 //----------------------------------------------------------------------------------------------------------
-procedure CWeaponMagazined__OnAnimationEnd(wpn:pointer); stdcall;
+procedure CWeaponMagazined__OnAnimationEnd(wpn:pointer; state:cardinal); stdcall;
 begin
+  //Если закончилась анимация стрельбы, заставим играться анимацию идла
+  if state = EWeaponStates__eFire then begin
+    PlayAnimIdle(wpn);
+  end;
+
   //тут что-то было... И может быть будет
   if (GetSection(wpn)=GetPDAShowAnimator()) and not IsPDAWindowVisible() and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim_end'))='anm_idle_aim_end') then begin
       virtual_CHudItem_SwitchState(wpn, EHudStates__eHidden);
@@ -1376,6 +1381,7 @@ procedure CWeaponMagazined__OnAnimationEnd_Patch(); stdcall;
 asm
   pushad
     sub ecx, $2e0
+    push edi
     push ecx
     call CWeaponMagazined__OnAnimationEnd
   popad

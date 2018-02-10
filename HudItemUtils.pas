@@ -92,6 +92,7 @@ procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
 procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
+procedure SetQueueFiredCount(wpn:pointer; cnt:cardinal); stdcall;
 function GetCurrentMotionDef(wpn:pointer):pCMotionDef; stdcall;
 
 
@@ -641,6 +642,15 @@ asm
     mov eax, wpn
     mov eax, [eax+$774]
     mov @result, eax
+end;
+
+procedure SetQueueFiredCount(wpn:pointer; cnt:cardinal); stdcall;
+asm
+  pushad
+    mov eax, wpn
+    mov ecx, cnt
+    mov [eax+$774], ecx
+  popad
 end;
 
 function GetSection(wpn:pointer):PChar; stdcall;
