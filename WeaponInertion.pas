@@ -635,10 +635,12 @@ begin
   if tollookout_time_remains>delta then tollookout_time_remains:=tollookout_time_remains-delta else tollookout_time_remains:=0;
 end;
 
+
+//h - и вход и выход. ¬ход - целевое, выход - фактическое к установке
 procedure CorrectActorCameraHeight(h:psingle); stdcall;
 var
-  delta, curtime:cardinal;
-  max_offset, offset, speed:single;
+  dt, curtime:cardinal;
+  max_offset, offset, speed, target_h, dh, delta, dh_pow:single;
   landing:landing_params;
   act, wpn:pointer;
   buf:WpnBuf;
@@ -654,7 +656,7 @@ begin
   end;
 
   curtime:=GetGameTickCount();
-  delta:=GetTimeDeltaSafe(_last_cam_update_time, curtime);
+  dt:=GetTimeDeltaSafe(_last_cam_update_time, curtime);
   _last_cam_update_time:=curtime;
 
   landing:=GetCamLandingParams();
@@ -666,41 +668,44 @@ begin
     _landing_effect_time_remains:=landing.time_landing;
   end;
 
-  if _landing_effect_time_remains>0 then begin
-    h^:=h^+landing.offset_landing;
-    max_offset:=delta*landing.cam_speed_factor/1000;
-    //log('landing');
-  end else if _landing2_effect_time_remains>0 then begin
-    h^:=h^+landing.offset_landing2;
-    max_offset:=delta*landing.cam_speed_factor2/1000;
-    //log('landing2');
-  end else begin
-    speed:=GetCamSpeedDef();
-    if act<>nil then begin
-      wpn := GetActorActiveItem();
-      if wpn<>nil then begin
-        buf:=GetBuffer(wpn);
-        if buf<>nil then begin
-          speed:=buf.GetCameraSpeed();
-        end;
+  dh_pow:=GetCamSpeedPow();
+  speed:=GetCamSpeedDef();
+  if act<>nil then begin
+    wpn := GetActorActiveItem();
+    if wpn<>nil then begin
+      buf:=GetBuffer(wpn);
+      if buf<>nil then begin
+        speed:=buf.GetCameraSpeed();
       end;
     end;
-    max_offset:=delta*speed/1000;
   end;
 
-  offset:=h^-_last_camera_height;
+  if _landing_effect_time_remains>0 then begin
+    max_offset:=landing.offset_landing;
+  end else if _landing2_effect_time_remains>0 then begin
+    max_offset:=landing.offset_landing2;
+  end else begin
+    max_offset:=0;
+  end;
 
-  if abs(offset)>max_offset then begin
-    if offset>0 then begin
-      h^:=_last_camera_height+max_offset
-    end else begin
-      h^:=_last_camera_height-max_offset
-    end;
-  end;    
 
+  target_h:=h^+max_offset;
+  dh:=target_h-_last_camera_height;
+  delta:=abs(power(abs(dh), dh_pow)*dt*speed/1000);
+
+  if dh<0 then begin
+    delta:=delta*(-1);
+  end;
+
+  if abs(delta)>abs(dh) then begin
+    delta:=dh;
+  end;
+
+  h^:=_last_camera_height+delta;
   _last_camera_height:=h^;
-  if _landing_effect_time_remains>delta then _landing_effect_time_remains:=_landing_effect_time_remains-delta else _landing_effect_time_remains:=0;
-  if _landing2_effect_time_remains>delta then _landing2_effect_time_remains:=_landing2_effect_time_remains-delta else _landing2_effect_time_remains:=0;
+
+  if _landing_effect_time_remains>dt then _landing_effect_time_remains:=_landing_effect_time_remains-dt else _landing_effect_time_remains:=0;
+  if _landing2_effect_time_remains>dt then _landing2_effect_time_remains:=_landing2_effect_time_remains-dt else _landing2_effect_time_remains:=0;
 
 end;
 

@@ -113,6 +113,7 @@ function IsCollimAimEnabled():boolean; stdcall;
 
 function GetStdInertion(aim:boolean):weapon_inertion_params;
 function GetCamSpeedDef():single;
+function GetCamSpeedPow():single;
 function GetCamLandingParams():landing_params;
 
 function GetControllerTime():cardinal; stdcall;
@@ -220,7 +221,9 @@ var
 //данные консольных команд
 //булевские флаги
   _console_bool_flags:cardinal;
+
   _max_actor_cam_speed:single;
+  _actor_cam_pow:single;
   _cam_landing:landing_params;
   _jitter:jitter_params;
   _lens_render_factor:cardinal;
@@ -642,6 +645,7 @@ begin
 
   hud_move_cam_anms_enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_move_cam_anms', false);
   _max_actor_cam_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_actor_camera_speed', 10);
+  _actor_cam_pow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_speed_pow', 1.0);
 
   _cam_landing.offset_landing:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing_offset', 0);
   _cam_landing.offset_landing2:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_camera_landing2_offset', 0);
@@ -752,6 +756,12 @@ function GetCamSpeedDef():single;
 begin
   result:=_max_actor_cam_speed;
 end;
+
+function GetCamSpeedPow():single;
+begin
+  result:=_actor_cam_pow;
+end;
+
 
 function GetCamLandingParams():landing_params;
 begin
