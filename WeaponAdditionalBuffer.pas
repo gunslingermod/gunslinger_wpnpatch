@@ -94,8 +94,14 @@ type
     _is_alter_zoom_last:boolean;
 
     _collimator_breaking:conditional_breaking_params;
+    _collimator_problems_level:cardinal;
+
     _laser_breaking:conditional_breaking_params;
-    _torch_breaking:conditional_breaking_params;
+    _laser_problems_level:cardinal;
+
+    _misfire_problems_level:cardinal;
+
+    _torch_breaking:conditional_breaking_params;    
 
     _shells_needed:boolean;
     _shells_offset:FVector3;
@@ -242,6 +248,10 @@ type
 
     procedure SetLastRechargeTime(t:single);
     function GetLastRechargeTime():single;
+
+    function GetCollimatorProblemsLevel():cardinal;
+    function GetLaserProblemsLevel():cardinal;
+    function GetMisfireProblemsLevel():cardinal;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -267,9 +277,6 @@ type
   function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
-
-
-
 
 
 implementation
@@ -342,6 +349,7 @@ begin
   _collimator_breaking.start_condition:=tmpvec.x;
   _collimator_breaking.end_condition:=tmpvec.y;
   _collimator_breaking.start_probability:=tmpvec.z;
+  _collimator_problems_level := game_ini_r_int_def(GetSection(wpn), 'collimator_problems_level', 0);
 
 
   tmpvec.x := 0;
@@ -385,6 +393,8 @@ begin
   _lens_misfire_recoil_max.w:=game_ini_r_single_def(GetSection(wpn), 'lens_misfire_recoil_deviation', 0.0);
 
   _autoaim_delay:=floor(game_ini_r_single_def(GetSection(wpn), 'autoaim_time', 0.0)*1000);
+
+  _misfire_problems_level := game_ini_r_int_def(GetSection(wpn), 'misfire_after_problems_level', 10);
 
   _lens_shoot_recoil_current.x:=0;
   _lens_shoot_recoil_current.y:=0;
@@ -1048,6 +1058,7 @@ begin
   _laser_breaking.start_condition:=tmpvec.x;
   _laser_breaking.end_condition:=tmpvec.y;
   _laser_breaking.start_probability:=tmpvec.z;
+  _laser_problems_level := game_ini_r_int_def(params_section, 'laser_problems_level', 0);
 
   self._laser_installed:=true;
 end;
@@ -1528,6 +1539,22 @@ begin
     result:=0;
   end;
 end;
+
+function WpnBuf.GetCollimatorProblemsLevel():cardinal;
+begin
+  result:=FindIntValueInUpgradesDef(self._my_wpn, 'collimator_problems_level', self._collimator_problems_level);
+end;
+
+function WpnBuf.GetLaserProblemsLevel():cardinal;
+begin
+  result:=self._laser_problems_level;
+end;
+
+function WpnBuf.GetMisfireProblemsLevel: cardinal;
+begin
+  result:= FindIntValueInUpgradesDef(self._my_wpn, 'misfire_after_problems_level', self._misfire_problems_level); 
+end;
+
 
 function WpnBuf.GetAutoAimStartTime():cardinal;
 begin

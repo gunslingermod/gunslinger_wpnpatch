@@ -1264,6 +1264,8 @@ begin
   ResetWpnOffset();
   ResetActorFlags(act);
   ResetActivationHoldState();
+
+  if (slot<=0) then ResetDof(1000);
   if slot<>4 then SetForcedQuickthrow(false);
 
   itm:=GetActorActiveItem();
@@ -1860,6 +1862,7 @@ begin
   ResetActivationHoldState();
   SetForcedQuickthrow(false);
   ResetBirdsAttackingState();
+  ResetElectronicsProblems();
 {$ifdef USE_SCRIPT_USABLE_HUDITEMS}
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}  

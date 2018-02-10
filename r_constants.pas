@@ -7,7 +7,7 @@ interface
 function Init():boolean;
 
 implementation
-uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors, math;
+uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors, math, Misc;
 //////////////////////////////////////////////////////////////////
 type R_constant = record
 //todo:дописать
@@ -37,7 +37,8 @@ var
   r_constant_vftable:R_constant_setup_vftable;
   binder_cur_zoom_factor:R_constant_setup;
   binder_actor_states:R_constant_setup;
-  binder_zoom_deviation:R_constant_setup;  
+  binder_zoom_deviation:R_constant_setup;
+  binder_affects:R_constant_setup;
 
 
 
@@ -99,6 +100,11 @@ begin
   GetScreenParams(@x, @y);
   RCache__set(C, y/x,val,abberation,0.5);
 
+end;
+
+procedure binder_affects_setup(C:pR_constant); stdcall;
+begin
+  RCache__set(C, ElectronicsProblemsCnt()/10, random, 0, 0);
 end;
 
 procedure binder_actor_states_setup(C:pR_constant); stdcall;
@@ -198,6 +204,10 @@ begin
   binder_zoom_deviation.vftable:=@r_constant_vftable;
   binder_zoom_deviation.setup_proc_addr:=@binder_zoom_deviation_setup;
   CBlender_Compile__r_Constant(this, 'm_zoom_deviation', @binder_zoom_deviation);
+
+  binder_affects.vftable:=@r_constant_vftable;
+  binder_affects.setup_proc_addr:=@binder_affects_setup;
+  CBlender_Compile__r_Constant(this, 'm_affects', @binder_affects);
 end;
 
 //Патч для добавления констант

@@ -23,6 +23,9 @@ var
   time:cardinal;
 
   lb:conditional_breaking_params;
+  probability, probability2:single;
+  max_problems_cnt:cardinal;
+
 begin
   buf:=GetBuffer(wpn);
   if not buf.IsLaserInstalled() then exit;
@@ -82,8 +85,16 @@ begin
     SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
     buf.StopLaserdotParticle();
     exit;
-  end else if GetCurrentCondition(wpn)<lb.start_condition then begin
-    if random<lb.start_probability+(lb.start_condition-GetCurrentCondition(wpn))* (1-lb.start_probability)/(lb.start_condition-lb.end_condition) then begin
+  end else if (GetCurrentCondition(wpn)<lb.start_condition) or ( ElectronicsProblemsCnt() >= buf.GetLaserProblemsLevel() ) then begin
+    if ( ElectronicsProblemsCnt() >= buf.GetLaserProblemsLevel() ) then begin
+      probability:=1;
+    end else if (lb.start_condition = lb.end_condition) then begin
+      probability := lb.start_condition;
+    end else begin
+      probability := lb.start_probability+(lb.start_condition-GetCurrentCondition(wpn))* (1-lb.start_probability)/(lb.start_condition-lb.end_condition);
+    end;
+
+    if random<probability then begin
       SetWeaponMultipleBonesStatus(wpn, laserdot_data.ray_bones, false);
       buf.StopLaserdotParticle();
       exit;
@@ -657,6 +668,9 @@ var
 
   offset:integer;
   slot, prevslot:integer;
+
+  probability, probability2:single;
+  collim_problems_cnt:cardinal;
   
   bp:conditional_breaking_params;
   last_rec_time:cardinal;
@@ -754,11 +768,29 @@ begin
         bp:=buf.GetCollimatorBreakingParams();
         if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter() and game_ini_r_bool_def(GetSection(wpn),'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
           SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), false);
-        end else if GetCurrentCondition(wpn)<bp.start_condition then begin
+        end else if (GetCurrentCondition(wpn)<bp.start_condition) or ( ElectronicsProblemsCnt() > 0 ) then begin
+          if (bp.start_condition=bp.end_condition) then begin
+            probability := bp.end_condition;
+          end else begin
+            probability := bp.start_probability+(bp.start_condition-GetCurrentCondition(wpn))* (1-bp.start_probability)/(bp.start_condition-bp.end_condition);
+          end;
+
+          if ( ElectronicsProblemsCnt() > 0 ) then begin
+            collim_problems_cnt := buf.GetCollimatorProblemsLevel();
+            if ElectronicsProblemsCnt() >= collim_problems_cnt then begin
+              probability := 1;
+            end else begin
+              probability2 := ElectronicsProblemsCnt() / collim_problems_cnt;
+              if probability2 > probability then begin
+                probability:= probability2;
+              end;
+            end;
+          end;
+
           SetWeaponMultipleBonesStatus(
                                         wpn,
                                         game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'),
-                                        not (random<bp.start_probability+(bp.start_condition-GetCurrentCondition(wpn))* (1-bp.start_probability)/(bp.start_condition-bp.end_condition))
+                                        not (random<probability)
                                       );
 
         end else begin

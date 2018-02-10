@@ -67,11 +67,46 @@ procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
 function is_object_has_health(obj:pointer):boolean;
 function is_visible_by_thermovisor(cobject:pointer):boolean; stdcall;
 
+procedure ResetElectronicsProblems(); stdcall;
+function ElectronicsProblemsDec():boolean; stdcall;
+function ElectronicsProblemsInc():boolean; stdcall;
+function ElectronicsProblemsCnt():cardinal; stdcall;
 
 implementation
 uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
+  electronics_problems_counter:cardinal;
+
+procedure ResetElectronicsProblems(); stdcall;
+begin
+  electronics_problems_counter:=0;
+ end;
+
+function ElectronicsProblemsInc():boolean; stdcall;
+begin
+  if electronics_problems_counter <> $FFFFFFFF then begin
+    electronics_problems_counter:=electronics_problems_counter+1;
+    result:=true;
+  end else begin
+    result:=false;
+  end;
+end;
+
+function ElectronicsProblemsCnt():cardinal; stdcall;
+begin
+  result:=electronics_problems_counter;
+end;
+
+function ElectronicsProblemsDec():boolean; stdcall;
+begin
+  if electronics_problems_counter <> 0 then begin
+    electronics_problems_counter:=electronics_problems_counter-1;
+    result:=true;
+  end else begin
+    result:=false;
+  end;
+end;
 
 
 

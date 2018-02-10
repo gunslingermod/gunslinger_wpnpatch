@@ -227,6 +227,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr:pointer;
+  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr:pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -507,11 +508,39 @@ asm
   popad
 end;
 
+function ElectronicProblemsBegin():boolean; stdcall;
+asm
+  pushad
+    call ElectronicsProblemsInc
+    mov @result, al
+  popad
+end;
+
+function ElectronicProblemsReset():boolean; stdcall;
+asm
+  pushad
+    call ResetElectronicsProblems
+    mov @result, 1
+  popad
+end;
+
+function ElectronicProblemsEnd():boolean; stdcall;
+asm
+  pushad
+    call ElectronicsProblemsDec
+    mov @result, al
+  popad
+end;
+
 procedure register_level_isuishown(); stdcall;
 const
   name:PChar='is_ui_shown';
   name2:PChar='indicators_shown';
   name3:PChar='inventory_shown';
+
+  name_electroproblem_begin:PChar='electronics_break';
+  name_electroproblem_end:PChar='electronics_restore';
+  name_electroproblem_reset:PChar='electronics_reset';
 asm
   push eax
 
@@ -557,7 +586,78 @@ asm
   push ecx
   mov ecx, eax
   call esi
+
+ ////////////////////////////
+  push eax
+
+  mov ecx, ElectronicProblemsReset_ptr
+  push ecx
+  mov ecx, esp
+  push name_electroproblem_reset
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
   ////////////////////////////
+  push eax
+
+  mov ecx, ElectronicProblemsEnd_ptr
+  push ecx
+  mov ecx, esp
+  push name_electroproblem_end
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ////////////////////////////
+  push eax
+
+  mov ecx, ElectronicProblemsBegin_ptr
+  push ecx
+  mov ecx, esp
+  push name_electroproblem_begin
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ////////////////////////////
+
   push eax
 
   mov ecx, IsInventoryShown_adapter_ptr
@@ -724,6 +824,9 @@ begin
   IsUIShown_ptr:=@IsUIShown;
   IndicatorsShown_adapter_ptr:=@IndicatorsShown_adapter;
   IsInventoryShown_adapter_ptr:=@IsInventoryShown_adapter;
+  ElectronicProblemsBegin_ptr:=@ElectronicProblemsBegin;
+  ElectronicProblemsEnd_ptr:=@ElectronicProblemsEnd;
+  ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;  
 
   //экспорт в скрипты
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;

@@ -1239,7 +1239,7 @@ begin
         buf.SetLensFactorPos(pos);
 
         buf.GetLensParams(min, max, pos, dt);
-        if (pos<>oldpos) and (min<>max) and ( abs(oldpos-pos)>abs(dt)*0.1 ) then begin
+        if (pos<>oldpos) and (min<>max) and ( abs(oldpos-pos)>0.0001 ) then begin
           if id=kWPN_ZOOM_INC then begin
             CHudItem_Play_Snd(wpn, 'sndScopeZoomPlus');
           end else begin
@@ -1926,6 +1926,31 @@ asm
 end; }
 
 
+function CWeaponMagazined__CheckForMisfire_validate_NoMisfire(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+begin
+  //осечки было быть не должно. Но все еще можно изменить! Вернуть true, если не стрелять
+  result:=false;
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and ( ElectronicsProblemsCnt()>=buf.GetMisfireProblemsLevel() ) then begin
+    SetWeaponMisfireStatus(wpn, true);
+    virtual_CHudItem_SwitchState(wpn, EWeaponStates__eMisfire);
+    result:= not OnWeaponJam(wpn);
+  end;
+end;
+
+procedure CWeaponMagazined__CheckForMisfire_validate_NoMisfire_patch(); stdcall;
+asm
+  pushad
+    push esi
+    call CWeaponMagazined__CheckForMisfire_validate_NoMisfire
+    cmp al, 0
+  popad
+  setnz al
+  ret
+end;
+
 
 function Init:boolean;
 var
@@ -1933,7 +1958,7 @@ var
 begin
   result:=false;
 
-  //Событие назначения клина
+  //Событие назначения клина ( внутри CWeapon::CheckForMisfire)
   jmp_addr:= xrGame_addr+$2BD0AF;
   if not WriteJump(jmp_addr, cardinal(@WeaponJammed_Patch),16, true) then exit;
 
@@ -2108,6 +2133,10 @@ begin
   //фича, требующая задержки выстрелов(автоаим)
   jmp_addr:=xrGame_addr+$2D05E3;
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__state_Fire_autoaim_patch), 7, true) then exit;
+
+  // в CWeapon::CheckForMisfire - после того, как убедились, что осечки быть не должно, подумаем еще раз - а может, все-таки назначить?
+  jmp_addr:=xrGame_addr+$2bd0c4;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__CheckForMisfire_validate_NoMisfire_patch), 5, false) then exit;
 
   //Предотвращение повторных выстрелов из РПГ
   //!!!Ломает возможность многозарядных гранатометов!!!
