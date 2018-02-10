@@ -31,6 +31,7 @@ var
   _knife_suicide_exit:boolean;
   _controller_preparing_starttime:cardinal;
   IsPsiBlocked_adapter_ptr:pointer;
+  _active_controllers:array of pointer;
 
 function IsPsiBlocked(act:pointer):boolean; stdcall;
 asm
@@ -155,6 +156,7 @@ end;
 
 procedure ResetActorControl(); stdcall;
 begin
+  setlength(_active_controllers, 0);
   _controlled_time_remains:=0;
   _suicide_now:=false;
   _lastshot_done_time:=0;
@@ -262,14 +264,48 @@ begin
   virtual_CShootingObject_FireStart(wpn);
 end;
 
+function IsControllerSeeActor(contr:pointer; act:pointer):boolean; stdcall;
+asm
+  pushad
+    mov ecx, contr
+    add ecx, $5b4
+
+    push act
+    mov ebx, xrgame_addr
+    add ebx, $D0C80 //CMonsterEnemyManager::see_enemy_now
+    call ebx
+    mov @result, al
+  popad
+end;
+
+
+function CheckActorVisibility():boolean; stdcall;
+var
+  act:pointer;
+  i:integer;
+begin
+  result:=false;
+  act:=GetActor();
+  if act=nil then exit;
+
+//  Log('Check visibility for '+inttostr(length(_active_controllers))+'controllers');
+  for i:=0 to length(_active_controllers)-1 do begin
+    result:=IsControllerSeeActor(_active_controllers[i], act);
+    if result then begin
+//      log('Visible by #'+inttostr(i));
+      exit;
+    end;
+  end;
+end;
 
 procedure OnSuicideAnimEnd(wpn:pointer; param:integer);stdcall;
 begin
   if (wpn<>GetActorActiveItem()) then exit;
-  if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) then begin
+  if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) and CheckActorVisibility() then begin
     script_call('gunsl_controller.on_suicide_shot', '', 0);
     DoSuicideShot();
   end else begin
+    setlength(_active_controllers, 0);
     _suicide_now:=false;
     _planning_suicide:=false;
     script_call('gunsl_controller.on_stop_suicide', '', 0);
@@ -282,6 +318,8 @@ function PsiEffects(monster_controller:pointer):boolean; stdcall;
 var
   act, det, wpn:pointer;
   buf:WpnBuf;
+
+  psi_blocked, not_seen:boolean;
 begin
   //true в результате означает, что мы использовали кастомный эффект и обычную атаку играть не надо
   result:=true;
@@ -289,9 +327,12 @@ begin
   act:=GetActor();
   if GetActor=nil then exit;
 
+  psi_blocked:=IsPsiBlocked(act);
+  not_seen:= not IsControllerSeeActor(monster_controller, act);
   //Если активен бустер псиблокады, то суицид не делаем
-  if IsPsiBlocked(act) and not IsActorSuicideNow() and not IsSuicideInreversible() then begin
-    result:=false;
+  //Также не делаем, если актор свалил
+  if ( psi_blocked or not_seen ) and not IsActorSuicideNow() and not IsSuicideInreversible() then begin
+    result:=not_seen;
     _planning_suicide:=false;
     _suicide_now:=false;
     SetHandsJitterTime(GetControllerBlockedTime());
@@ -389,6 +430,8 @@ var
   i,j:cardinal;
   radius:single;
   p:phantoms_params;
+  found:boolean;
+  k:integer;
 begin
 //  _is_controller_preparing:=false;
   result:=PsiEffects(monster_controller);
@@ -405,6 +448,20 @@ begin
       scream:='sndScream'+inttostr(random(3)+1);
       CHudItem_Play_Snd(wpn, PChar(scream));
     end;
+
+    found:=false;
+    for k:=0 to length(_active_controllers)-1 do begin
+      if _active_controllers[k]=monster_controller then begin
+        found:=true;
+        break;
+      end;
+    end;
+
+    if not found then begin
+      setlength(_active_controllers, length(_active_controllers)+1);
+      _active_controllers[length(_active_controllers)-1] := monster_controller;
+    end;
+
     script_call('gunsl_controller.on_suicide_attack', '', GetCObjectID(monster_controller));
   end else begin
     script_call('gunsl_controller.on_std_attack', '', GetCObjectID(monster_controller));
