@@ -106,7 +106,7 @@ begin
   HID :=CHudItem__HudItemData(wpn);
   if (HID<>nil) and (GetActorActiveItem()=wpn)then begin // and (not IsDemoRecord()) then begin
     //1st person view
-    if IsAimNow(wpn) or IsHolderInAimState(wpn) and (not IsGrenadeMode(wpn)) then begin
+    if (IsAimNow(wpn) or IsHolderInAimState(wpn)) and (not IsGrenadeMode(wpn)) then begin
       //в режиме прицеливания привязываемся к камере - иначе при настройке прицеливания у оружия будем проводить прямую через 3 точки :(
       viewdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
       viewpos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
