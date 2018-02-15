@@ -67,9 +67,9 @@ var
   buf:WpnBuf;
   scope_sect:PChar;
 begin
+    result:=false;
     wpn:=GetActorActiveItem();
     if (wpn=nil) then begin
-      result:=false;
       exit;
     end;
     
@@ -82,7 +82,6 @@ begin
     //работать пока надо только с CWeapon
     wpn:=dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
     if (wpn=nil) then begin
-      result:=false;
       exit;
     end;
 
@@ -93,10 +92,7 @@ begin
       end else begin
         result:=game_ini_r_bool_def(GetHUDSection(wpn), 'need_lens_frame', false);
       end;
-      exit;
     end;
-
-    result:=false;
 end;
 
 function NeedLensFrameNow():boolean; stdcall;

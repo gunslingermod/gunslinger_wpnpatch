@@ -138,8 +138,6 @@ begin
         param_name:='use_sildetach_anim';
         anim_name:='anm_detach_sil';
         snd_name:='sndSilDet';
-
-
       end;
     2:begin
         param_name:='use_gldetach_anim';
@@ -152,7 +150,6 @@ begin
           else
             virtual_Action(wpn, kWPN_ZOOM, kActRelease);
         end;
-                
       end;
     else begin
       log('WeaponEvents.OnAddonDetach: Invalid addontype!', true);
@@ -161,6 +158,7 @@ begin
   end;
   hud_sect:=GetHUDSection(wpn);
 
+  CHudItem_Play_Snd(wpn, 'sndAddonDetach');  
   if (not IsAnimatedAddons()) or (param_name=nil) or (not game_ini_line_exist(hud_sect, param_name)) or (not game_ini_r_bool(hud_sect, param_name)) then begin
     DetachAddon(wpn, addontype);
     exit;
@@ -294,6 +292,12 @@ begin
     //Сейчас присоединять аддон нельзя. Отспавним его назад в инвентарь.
     if addontype = 1 then SetCurrentScopeType(wpn, 0);
     if (actor<>nil) and (actor=GetOwner(wpn)) then CreateObjectToActor(addonname);
+  end;
+
+  if result then begin
+    CHudItem_Play_Snd(wpn, 'sndAddonAttach');
+  end else begin
+    CHudItem_Play_Snd(wpn, 'sndAddonAttachFail');
   end;
 end;
 
@@ -1984,6 +1988,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@EmptyClick_Patch), 8, true) then exit;
 
   //-----------------------------------------------------------------------------------------------------
+  //в CWeaponMagazined::Attach
   //Аттач прицела
   InitAttachAddon(xrGame_addr+$2CEE33, $11);
   //                           register^|^addon type  
@@ -1993,9 +1998,12 @@ begin
   InitAttachAddon(xrGame_addr+$2D26F7, $02);
 
   //Аттач глушителя
-  InitAttachAddon(xrGame_addr+$2CEE5A, $14);  
+  InitAttachAddon(xrGame_addr+$2CEE5A, $14);
+
+  //в CUIActorMenu::AttachAddon отключим проигрывание звука аттача аддонов
 
   //-----------------------------------------------------------------------------------------------------
+  //CWeaponMagazined::Detach
   //Детач глушителя
   InitDetachAddon(xrGame_addr+$2CDB22, 4, 38);
 

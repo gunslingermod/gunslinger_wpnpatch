@@ -167,6 +167,10 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scope_zoom_gyro', 'sndScopeZoomGyro', 0, $FFFFFFFF);
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_blowout', 'sndBlowout', 1, $FFFFFFFF);
+
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_attach', 'sndAddonAttach', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_attach_fail', 'sndAddonAttachFail', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_detach', 'sndAddonDetach', 1, $FFFFFFFF);  
 end;
 
 procedure LoadSounds_Knife(hsc:pHUD_SOUND_COLLECTION; section:PChar); stdcall;
@@ -193,7 +197,6 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $FFFFFFFF);
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $FFFFFFFF);
-
 
 end;
 
