@@ -6,7 +6,7 @@ uses CRT;
 function Init():boolean; stdcall;
 function IsLensFrameNow():boolean; stdcall;
 function NeedLensFrameNow():boolean; stdcall;
-function LensConditions():boolean; stdcall;
+function LensConditions(ignore_forcing_override:boolean):boolean; stdcall;
 function GetLensFOV(default:single):single;stdcall;
 function GetCurrentFrameGpuID():cardinal; stdcall;
 procedure CopyRenderTargetData(src:pCRT_rec; dest:pCRT_rec); stdcall;
@@ -61,7 +61,7 @@ begin
   result:=_is_lens_frame;
 end;
 
-function LensConditions():boolean; stdcall;
+function LensConditions(ignore_forcing_override:boolean):boolean; stdcall;
 var
   wpn:pointer;
   buf:WpnBuf;
@@ -74,7 +74,7 @@ begin
     end;
     
     buf:=GetBuffer(wpn);
-    if (buf<>nil) and buf.NeedPermanentLensRendering() then begin
+    if (not ignore_forcing_override) and (buf<>nil) and buf.NeedPermanentLensRendering() then begin
       result:=true;
       exit;
     end;
@@ -85,7 +85,7 @@ begin
       exit;
     end;
 
-    if (IsAimNow(wpn) or IsHolderInAimState(wpn) or (GetAimFactor(wpn)>0.001)) and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'doblerendered_gl_zoom', false)) then begin
+    if (IsAimNow(wpn) or IsHolderInAimState(wpn) or (GetAimFactor(wpn)>0.001)) and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'doublerendered_gl_zoom', false)) then begin
       if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
         scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
         result:=game_ini_r_bool_def(scope_sect, 'need_lens_frame', false);
@@ -111,7 +111,7 @@ begin
       result:=false;
       exit;
     end;
-    result:=LensConditions();
+    result:=LensConditions(false);
   end;
 end;
 

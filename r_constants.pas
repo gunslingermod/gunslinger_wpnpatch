@@ -7,7 +7,7 @@ interface
 function Init():boolean;
 
 implementation
-uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors, math, Misc;
+uses BaseGameData, sysutils, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, gunsl_config, MatVectors, math, Misc, LensDoubleRender;
 //////////////////////////////////////////////////////////////////
 type R_constant = record
 //todo:дописать
@@ -85,10 +85,13 @@ var
   abberation:single;
   x,y:cardinal;
   sect:PChar;
+
+  lens_working:single;
 begin
   val:=0;
   wpn:=GetActorActiveItem();
   abberation:=0;
+  lens_working:=0;
   if (wpn<>nil) and (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)<>nil) then begin
     val:=GetAimFactor(wpn);
     abberation:=ModifyFloatUpgradedValue(wpn, 'scope_abberation', game_ini_r_single_def(GetSection(wpn), 'scope_abberation', 0));
@@ -96,9 +99,12 @@ begin
      sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
       abberation:=game_ini_r_single_def(sect, 'scope_abberation', abberation);
     end;
+    if LensConditions(true) then begin
+      lens_working:=1;
+    end;
   end;
   GetScreenParams(@x, @y);
-  RCache__set(C, y/x,val,abberation,0.5);
+  RCache__set(C, y/x,val,abberation,lens_working);
 
 end;
 
