@@ -399,7 +399,8 @@ var all_upgrades:string;
     up_gr_sect:string;
     i:integer;
     buf:WpnBuf;
-    min, max, pos, delta, t_dt:single;
+    lens_params:lens_zoom_params;
+    t_dt:single;
 begin
   section:=GetSection(wpn);
   buf:=GetBuffer(wpn);
@@ -438,23 +439,19 @@ begin
       buf.SetPermanentLensRenderingStatus(true);
     end;
 
-
     if (buf<>nil) then begin
-      buf.GetLensParams(min, max, pos, delta);
+      lens_params:=buf.GetLensParams();
       t_dt:=game_ini_r_single_def(section, 'lens_factor_levels_count', 0);
 
       if t_dt <> 0 then begin
-        delta:=1.0/t_dt;
+        lens_params.delta:=1.0/t_dt;
       end;
-
-      buf.SetLensParams(
-        game_ini_r_single_def(section, 'min_lens_factor', min),
-        game_ini_r_single_def(section, 'max_lens_factor', max),
-        delta
-      );
+      lens_params.factor_min:=game_ini_r_single_def(section, 'min_lens_factor', lens_params.factor_min);
+      lens_params.factor_max:=game_ini_r_single_def(section, 'max_lens_factor', lens_params.factor_max);
+      lens_params.speed:=game_ini_r_single_def(section, 'lens_speed', lens_params.speed);
+      lens_params.gyro_period:=game_ini_r_single_def(section, 'lens_gyro_sound_period', lens_params.gyro_period);
+      buf.SetLensParams(lens_params);
     end;
-
-
 
     if game_ini_line_exist(section, 'flame_particles') then begin
       ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES);

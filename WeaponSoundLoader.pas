@@ -168,9 +168,9 @@ begin
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_blowout', 'sndBlowout', 1, $FFFFFFFF);
 
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_attach', 'sndAddonAttach', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_attach_fail', 'sndAddonAttachFail', 1, $FFFFFFFF);
-  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_detach', 'sndAddonDetach', 1, $FFFFFFFF);  
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_attach', 'sndAddonAttach', 0, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_attach_fail', 'sndAddonAttachFail', 0, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_addon_detach', 'sndAddonDetach', 0, $FFFFFFFF);  
 end;
 
 procedure LoadSounds_Knife(hsc:pHUD_SOUND_COLLECTION; section:PChar); stdcall;

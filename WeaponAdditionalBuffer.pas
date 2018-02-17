@@ -39,6 +39,17 @@ type lens_offset_params = record
 end;
 plens_offset_params = ^lens_offset_params;
 
+type lens_zoom_params = record
+  delta:single;
+  target_position:single;
+  speed:single;
+  factor_min:single;
+  factor_max:single;
+  gyro_period:single;
+  real_position:single;
+  last_gyro_snd_time:cardinal;
+end;
+
 type stepped_params = record
   max_value:single;
   min_value:single;
@@ -110,14 +121,7 @@ type
 
     _need_permanent_lensrender:boolean;
 
-    //TODO: оформить следующие параметры в отдельную структуру, так удобнее?
-    _lens_scope_factor_min:single;
-    _lens_scope_factor_max:single;
-    _lens_zoom_position:single;
-    _lens_zoom_delta:single;
-    _lens_speed:single;
-    _lens_scope_factor_last_change_time:cardinal;
-    _lens_scope_factor_last_value:single;
+    _lens_zoom_params:lens_zoom_params;
 
     //параметры смещени€ при поломке оружи€ - пол€рна€ с.к!
     _lens_offset:lens_offset_params;
@@ -149,17 +153,13 @@ type
 
     last_shot_time:cardinal;
 
-    //дл€ плавного хода зума линзы
-    lens_scope_factor_last_change_time:cardinal;
-    lens_scope_factor_last_value:single;
-    lens_last_gyro_snd_time:cardinal;
-
 
     constructor Create(wpn:pointer);
     destructor Destroy; override;
     function PlayCustomAnim(base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
 
     function Update():boolean;
+    procedure UpdateLensFactor(timedelta:cardinal);
     procedure UpdateTorch();
 
     procedure SetBeforeReloadAmmoCnt(cnt:integer);
@@ -223,11 +223,8 @@ type
 
     function NeedPermanentLensRendering():boolean;
     procedure SetPermanentLensRenderingStatus(status:boolean);
-    function GetDefaultLensSpeed():single;
-    procedure GetLensParams(var min:single; var max:single; var position:single; var delta:single);
-    procedure SetLensParams(min:single; max:single; delta:single);
-    function GetLensFactorPos():single;
-    procedure SetLensFactorPos(pos:single);
+    function GetLensParams():lens_zoom_params;
+    procedure SetLensParams(params:lens_zoom_params);
     procedure GetLensOffsetParams(p:plens_offset_params);
     procedure SetLensOffsetParams(p:plens_offset_params);
     function GetLensOffsetDir():single;
@@ -360,21 +357,21 @@ begin
 
   _need_permanent_lensrender:=game_ini_r_bool_def(GetHUDSection(wpn), 'permanent_lens_render', false);
 
-  _lens_scope_factor_min:=game_ini_r_single_def(GetSection(wpn), 'min_lens_factor', 1);
-  _lens_scope_factor_max:=game_ini_r_single_def(GetSection(wpn), 'max_lens_factor', 1);
-  _lens_zoom_position:=1;
-  _lens_speed := game_ini_r_single_def(GetSection(wpn), 'lens_speed', 0);
-  _lens_zoom_delta:=1/game_ini_r_single_def(GetSection(wpn), 'lens_factor_levels_count', 5);
+  self._lens_zoom_params.factor_min:=game_ini_r_single_def(GetSection(wpn), 'min_lens_factor', 1);
+  self._lens_zoom_params.factor_max:=game_ini_r_single_def(GetSection(wpn), 'max_lens_factor', 1);
+  self._lens_zoom_params.speed := game_ini_r_single_def(GetSection(wpn), 'lens_speed', 0);
+  self._lens_zoom_params.gyro_period:=game_ini_r_single_def(GetSection(wpn), 'lens_gyro_sound_period', 0);
+  self._lens_zoom_params.delta:=1/game_ini_r_single_def(GetSection(wpn), 'lens_factor_levels_count', 5);
+  self._lens_zoom_params.target_position:=1;
+  
+  self._lens_zoom_params.last_gyro_snd_time := GetGameTickCount();
+  self._lens_zoom_params.real_position := 0;
 
-  lens_last_gyro_snd_time := GetGameTickCount();
-
+  //параметры сбивающегос€ прицела
   _lens_offset.max_value:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_max_val', 0.05);
   _lens_offset.start_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_start_condition', 0.5);
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
-  self.SetOffsetDir(random); //смещение линзы
-
-  lens_scope_factor_last_change_time := GetGameTickCount();
-  lens_scope_factor_last_value := 0;
+  self.SetOffsetDir(random); //смещение линзы (перезапишетс€ в load в случае загрузки сейва)
 
   scope_sect:=GetSection(wpn);
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
@@ -593,6 +590,65 @@ begin
   result:=self._wanim_force_assign;
 end;
 
+procedure WpnBuf.UpdateLensFactor(timedelta:cardinal);
+var
+  lens_params_tmp, lens_params_final:lens_zoom_params;
+  dt_needed, dt, zoom_remains, snd_remains:single;
+  scope_sect:PChar;
+const
+  EPS:single = 0.00001;
+begin
+  lens_params_final:=GetLensParams();
+  lens_params_tmp:=lens_params_final;
+
+  if IsScopeAttached(_my_wpn) and (GetScopeStatus(_my_wpn)=2) then begin
+    scope_sect:=game_ini_read_string(GetCurrentScopeSection(_my_wpn), 'scope_name');
+    lens_params_tmp.factor_min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
+    lens_params_tmp.factor_max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);
+    lens_params_tmp.speed:=game_ini_r_single_def(scope_sect, 'lens_speed', 0);
+    lens_params_tmp.gyro_period := game_ini_r_single_def(scope_sect, 'lens_gyro_sound_period', 0);
+  end;
+
+  //—мотрим, сколько фова надо добрать еще
+  dt_needed:= lens_params_tmp.target_position - lens_params_tmp.real_position;
+
+  if (lens_params_tmp.speed < EPS) then begin
+    //«ум мен€етс€ скачками
+    lens_params_final.real_position:=lens_params_tmp.target_position;
+    SetLensParams(lens_params_final);
+  end else if (abs(dt_needed) > EPS) then begin
+    //—ейчас требуетс€ плавно мен€ть зум. ќценим, с какой скоростью надо зумить, чтобы зум закончилс€ ровно на звуке
+
+    if (lens_params_tmp.gyro_period>EPS) then begin
+      //посмотрим, сколько еще продлитс€ зум при константной скорости
+      zoom_remains:=abs(dt_needed)/lens_params_tmp.speed;
+      //ѕосчитаем, сколько времени еще будет игратьс€ звук
+      snd_remains:= lens_params_tmp.gyro_period - GetTimeDeltaSafe(lens_params_tmp.last_gyro_snd_time)/1000;
+      //если звук играетс€ дольше, чем длитс€ зум - непор€док, замедлим зум
+      if (snd_remains>zoom_remains) and (snd_remains>0) then begin
+        lens_params_tmp.speed:= abs(dt_needed)/snd_remains;
+      end;
+    end;
+
+    //плавное изменение увеличени€
+    dt := timedelta*lens_params_tmp.speed/1000; //насколько можем измениь
+
+    if (dt < abs(dt_needed)) then begin
+      if (lens_params_tmp.gyro_period>EPS) then begin
+        if GetTimeDeltaSafe(lens_params_tmp.last_gyro_snd_time)/1000 > lens_params_tmp.gyro_period then begin
+          //играем звук мотора
+          CHudItem_Play_Snd(_my_wpn, 'sndScopeZoomGyro');
+          lens_params_final.last_gyro_snd_time := GetGameTickCount();
+        end;
+      end;
+      lens_params_final.real_position:=lens_params_final.real_position+sign(dt_needed)*dt;
+    end else begin
+      lens_params_final.real_position:=lens_params_tmp.target_position;
+    end;
+    SetLensParams(lens_params_final);
+  end;
+end;
+
 function WpnBuf.Update():boolean;
 var
   delta:cardinal;
@@ -651,9 +707,10 @@ begin
     SetLastRechargeTime(shot_time);
   end;
 
+  UpdateLensFactor(delta);
+
   _last_update_time:=GetGameTickCount();
   result:=true;
-
 end;
 
 class procedure WpnBuf._SetWpnBufPtr(wpn: pointer; what_write: pointer);
@@ -1362,44 +1419,34 @@ begin
   _need_permanent_lensrender:=status;
 end;
 
-procedure WpnBuf.GetLensParams(var min, max, position, delta: single);
+function WpnBuf.GetLensParams():lens_zoom_params;
 begin
-  min:=_lens_scope_factor_min;
-  max:=_lens_scope_factor_max;
-  position:=_lens_zoom_position;
-  delta:=_lens_zoom_delta;
+  result:=_lens_zoom_params;
 end;
 
-function WpnBuf.GetDefaultLensSpeed():single;
-begin
-  result:=_lens_speed;
-end;
-
-procedure WpnBuf.SetLensParams(min, max, delta: single);
+procedure WpnBuf.SetLensParams(params:lens_zoom_params);
 var
   t:single;
 begin
-  if max<min then begin
-    t:=min;
-    min:=max;
-    max:=t;
+  if params.factor_max < params.factor_min then begin
+    t:=params.factor_min;
+    params.factor_min:=params.factor_max;
+    params.factor_max:=t;
   end;
 
-  _lens_scope_factor_min:=min;
-  _lens_scope_factor_max:=max;
-  _lens_zoom_delta:=delta;
-end;
+  if params.target_position<0 then begin
+    params.target_position:=0;
+  end else if params.target_position>1 then begin
+    params.target_position:=1;
+  end;
 
-function WpnBuf.GetLensFactorPos: single;
-begin
-  result:=_lens_zoom_position;
-end;
+  if params.real_position<0 then begin
+    params.real_position:=0;
+  end else if params.real_position>1 then begin
+    params.real_position:=1;
+  end;
 
-procedure WpnBuf.SetLensFactorPos(pos: single);
-begin
-  if pos<0 then pos:=0;
-  if pos>1 then pos:=1;
-  _lens_zoom_position:=pos;
+  _lens_zoom_params:=params;
 end;
 
 procedure WpnBuf.GetLensOffsetParams(p: plens_offset_params);

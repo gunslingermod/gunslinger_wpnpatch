@@ -1190,8 +1190,10 @@ function CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal):boolean; stdc
 //вернуть true, если дальше обрабатывать нажатие не надо
 var
   buf:WpnBuf;
-  min, max, pos, dt, oldpos:single;
   scope_sect:PChar;
+
+  lens_params:lens_zoom_params;
+  dt, oldpos:single;
 begin
   result:=false;
   buf:=GetBuffer(wpn);
@@ -1228,22 +1230,24 @@ begin
       result:=true;
     end else if (buf<>nil) and IsAimNow(wpn) then begin
       if (id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) then begin
-        buf.GetLensParams(min, max, pos, dt);
+        lens_params:=buf.GetLensParams();
+        dt:=lens_params.delta;
+        oldpos := lens_params.target_position;
+        
         if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
           scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
           dt:=1/game_ini_r_int_def(scope_sect, 'lens_factor_levels_count', 5);
         end;
 
-        oldpos := pos;
         if id=kWPN_ZOOM_INC then begin
-          pos:=pos+dt;
+          lens_params.target_position:=lens_params.target_position+dt;
         end else begin
-          pos:=pos-dt;
+          lens_params.target_position:=lens_params.target_position-dt;
         end;
-        buf.SetLensFactorPos(pos);
+        buf.SetLensParams(lens_params);
 
-        buf.GetLensParams(min, max, pos, dt);
-        if (pos<>oldpos) and (min<>max) and ( abs(oldpos-pos)>0.0001 ) then begin
+        lens_params:=buf.GetLensParams();
+        if (lens_params.target_position<>oldpos) and (lens_params.factor_min<>lens_params.factor_max) and ( abs(oldpos-lens_params.target_position)>0.0001 ) then begin
           if id=kWPN_ZOOM_INC then begin
             CHudItem_Play_Snd(wpn, 'sndScopeZoomPlus');
           end else begin

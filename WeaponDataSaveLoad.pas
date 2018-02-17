@@ -20,6 +20,8 @@ var
   ammos_in_mag, i, cnt, cnt_total:word;
   ammotype:byte;
   so:pointer;
+
+  lens_params:lens_zoom_params;
 begin
 
   if not WpnCanShoot(wpn) then exit;
@@ -41,11 +43,11 @@ begin
   ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
   buf.SetExplosed(tmp_bool);
 
-  ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
-  buf.SetLensFactorPos(tmp_single);
 
-  buf.lens_scope_factor_last_value := tmp_single;
-  buf.lens_scope_factor_last_change_time := GetGameTickCount();
+  lens_params:=buf.GetLensParams();
+  ReadFromReader(packet, @lens_params.target_position, sizeof(tmp_single));
+  lens_params.real_position:=lens_params.target_position;
+  buf.SetLensParams(lens_params);
 
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetOffsetDir(tmp_single);
@@ -83,6 +85,7 @@ var
   i, cnt, max_in_mag:word;
   ammotype:byte;
   c:pCCartridge;
+  lens_params:lens_zoom_params;
 begin
   if not WpnCanShoot(wpn) then exit;
   buf:=GetBuffer(wpn);
@@ -96,8 +99,10 @@ begin
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
   tmp_bool:=buf.IsExplosed();
   WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
-  tmp_single:=buf.GetLensFactorPos();
-  WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
+
+  lens_params:=buf.GetLensParams();
+  WriteToPacket(packet, @lens_params.target_position, sizeof(lens_params.target_position));
+
   tmp_single:=buf.GetLensOffsetDir();
   WriteToPacket(packet, @tmp_single, sizeof(tmp_single));
   tmp_stepped:=buf.GetCurBrightness();
