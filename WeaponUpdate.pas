@@ -179,6 +179,11 @@ begin
   end;
 end;
 
+function GetGlAmmotype(wpn:pointer):byte; stdcall;
+begin
+  result:=GetAmmoTypeIndex(wpn, not IsGrenadeMode(wpn));
+end;
+
 procedure ProcessAmmoAdv(wpn: pointer; forced:boolean=false);
 var
   hud_sect:PChar;
@@ -220,43 +225,30 @@ begin
       //обновление синхронно со счетчиком
       ammotype:=GetAmmoTypeIndex(wpn, g_b);
     end
-
   end else begin
     //не в состоянии перезарядки, подствол выключен
     ammotype:=GetOrdinalAmmotype(wpn);
   end;
 
-  {  if (not g_b) and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) and game_ini_r_bool_def(hud_sect, 'ammo_params_changing_when_reload_starts', false) then begin
-    //обновление нужно производить в начале перезарядки - для дробашей
-    ammotype:=GetAmmoTypeToReload(wpn);
-    if IsTriStateReload(wpn) and not IsWeaponJammed(wpn) then cnt:=cnt+1;
-  end else if (not g_b) and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) and not IsWeaponJammed(wpn) then begin
-    //обновление в перезарядке синхронно со счетчиком
-    ammotype:=GetAmmoTypeIndex(wpn, g_b);
-  end else if game_ini_r_bool_def(hud_sect, 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
-    //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
-    ammotype:=GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype;
-  end else begin
-    //за тип секции отвечает общий тип оружия
-    ammotype:=GetAmmoTypeIndex(wpn, g_b);
-  end; }
-
+  bones_sect:=nil;
   sect_w_ammotype:='ammo_params_section_'+inttostr(ammotype);
   if game_ini_line_exist(hud_sect, PChar(sect_w_ammotype)) then begin
     bones_sect:= game_ini_read_string(hud_sect, PChar(sect_w_ammotype));
   end else if game_ini_line_exist(hud_sect, 'ammo_params_section') then begin
     bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
-  end else begin
-    exit;
   end;
 
-  //скрываем все
-  bones:= game_ini_read_string(bones_sect, 'all_bones');
-  SetWeaponMultipleBonesStatus(wpn, bones, false);
+  if bones_sect<>nil then begin
+    //скрываем все
+    bones:= game_ini_read_string(bones_sect, 'all_bones');
+    SetWeaponMultipleBonesStatus(wpn, bones, false);
 
-  //отображаем нужные
-  bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
-  SetWeaponMultipleBonesStatus(wpn, bones, true);
+    //отображаем нужные
+    if game_ini_line_exist(bones_sect, PChar('configuration_'+inttostr(cnt))) then begin
+      bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
+      SetWeaponMultipleBonesStatus(wpn, bones, true);
+    end;
+  end;
 end;
 
 procedure ProcessAmmoGL(wpn: pointer; forced:boolean=false);
@@ -274,28 +266,31 @@ begin
 
   cnt:=GetAmmoInGLCount(wpn);
   if g_m and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) then begin
-    ammotype:=GetAmmoTypeToReload(wpn);
+    ammotype:=GetGlAmmoType(wpn);
     if cnt=0 then cnt:=1;
   end else begin
-    ammotype:=GetAmmoTypeIndex(wpn, not g_m);
+    ammotype:=GetGlAmmoType(wpn);
   end;
 
+  bones_sect:=nil;
   sect_w_ammotype:='gl_ammo_params_section_'+inttostr(ammotype);
   if game_ini_line_exist(hud_sect, PChar(sect_w_ammotype)) then begin
     bones_sect:= game_ini_read_string(hud_sect, PChar(sect_w_ammotype));
-  end else if game_ini_line_exist(hud_sect, 'ammo_params_section') then begin
-    bones_sect:= game_ini_read_string(hud_sect, 'ammo_params_section');
-  end else begin
-    exit;
+  end else if game_ini_line_exist(hud_sect, 'gl_ammo_params_section') then begin
+    bones_sect:= game_ini_read_string(hud_sect, 'gl_ammo_params_section');
   end;
-  
-  //скрываем все
-  bones:= game_ini_read_string(bones_sect, 'all_bones');
-  SetWeaponMultipleBonesStatus(wpn, bones, false);
 
-  //отображаем нужные
-  bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
-  SetWeaponMultipleBonesStatus(wpn, bones, true);
+  if bones_sect<>nil then begin
+    //скрываем все
+    bones:= game_ini_read_string(bones_sect, 'all_bones');
+    SetWeaponMultipleBonesStatus(wpn, bones, false);
+
+    //отображаем нужные
+    if game_ini_line_exist(bones_sect, PChar('configuration_'+inttostr(cnt))) then begin      
+      bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
+      SetWeaponMultipleBonesStatus(wpn, bones, true);
+    end;
+  end;    
 end;
 
 
