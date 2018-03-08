@@ -1340,7 +1340,7 @@ var
 begin
   act:=GetActor;
   if (wpn=GetActorActiveItem) and (GetActualCurrentAnim(wpn)='anm_selfkill') then begin
-    CActor__Die(act, act);
+    KillActor(act, act);
   end;
   
   //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры

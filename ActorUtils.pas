@@ -112,7 +112,7 @@ procedure RecreateLefthandedTorch(params_section:PChar; det:pointer); stdcall;
 function GetLefthandedTorchLinkedDetector():pointer; stdcall;
 function GetLefthandedTorchParams():torchlight_params; stdcall;
 
-procedure CActor__Die(this:pointer; who:pointer); stdcall;
+procedure KillActor(actor:pointer; who:pointer); stdcall;
 procedure CEntity__KillEntity(this:pointer; who:word); stdcall;
 
 procedure CActor__set_inventory_disabled(this:pointer; status:boolean); stdcall;
@@ -895,6 +895,17 @@ asm
     call eax
   popad
 end;
+
+procedure KillActor(actor:pointer; who:pointer); stdcall;
+const
+  EPS = 0.001;
+begin
+  if actor = nil then exit;
+  if GetActorHealthPtr(actor)^ >= EPS then begin
+    CActor__Die(actor, who);
+  end;
+end;
+
 
 function IsHolderInSprintState(wpn:pointer):boolean;stdcall;
 var actor:pointer;
@@ -2527,7 +2538,7 @@ begin
     anm_id^:=eCEActorMovingSprint;        
   end;
 
-  if (result<>nil) then Log('CamAnim: '+result+', id='+inttostr(anm_id^));
+//  if (result<>nil) then Log('CamAnim: '+result+', id='+inttostr(anm_id^));
 end;
 
 procedure CActor__g_cl_CheckControls_select_cam_anm_Patch; stdcall;
@@ -3124,7 +3135,7 @@ procedure OnActorHit(act:pointer; hit:pSHit); stdcall;
 begin
   if IsActorControlled() and (hit.whoId = hit.DestID) and (hit.power>0.3) and ( (hit.hit_type = EHitType__eHitTypeFireWound) or (hit.hit_type = EHitType__eHitTypeExplosion)) then begin
     hit.power:=hit.power * 100000;
-    CActor__Die(act, act);
+    KillActor(act, act);
   end;
 end;
 
@@ -3138,6 +3149,34 @@ asm
   //original
   mov eax,[edi+$34]
   test eax,eax
+end;
+
+function CanActorTakeItems():boolean; stdcall;
+begin
+  result:= not IsActorControlled() and not IsActorSuicideNow() and not IsActorPlanningSuicide();
+end;
+
+procedure CInventory__CanTakeItem_Conditions(); stdcall;
+asm
+  pop edx     //ret addr
+  add esp, 4  //orig code
+  test eax, eax
+  je @normal
+
+  pushad
+    call CanActorTakeItems
+    test al, al
+  popad
+  jne @normal
+  //брать предмет нельзя, выходим
+  pop edi
+  xor eax, eax  
+  pop esi
+  ret 4
+
+  @normal:
+  test eax, eax
+  jmp edx
 end;
 
 function Init():boolean; stdcall;
@@ -3288,6 +3327,10 @@ begin
   // смене темпа ходьбы\приседании
   jmp_addr:=xrGame_addr+$22d8ac;
   if not WriteJump(jmp_addr, cardinal(@CEffectorBobbing__ProcessCam_Patch), 10, true) then exit;
+
+  //Дополнительные условия, когда актор не может поднимать предметы с земли (например, под воздействием контролера)
+  jmp_addr:=xrGame_addr+$2a9ce3;
+  if not WriteJump(jmp_addr, cardinal(@CInventory__CanTakeItem_Conditions), 5, true) then exit;
 
   result:=true;
 end;

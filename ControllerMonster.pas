@@ -121,7 +121,7 @@ var
   itm:pointer;
 begin
   result:=1.0;
-  if IsActorControlled() or IsActorSuicideNow() then begin
+  if IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() then begin
     result:=GetControlledActorSpeedKoef();
     exit;
   end;
@@ -173,17 +173,31 @@ begin
 end;
 
 function CanUseItemForSuicide(wpn:pointer):boolean;
+var
+  can_shoot, is_knife, can_switch_gl, can_shoot_gl:boolean;
 begin
-  result:= (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false) and (IsKnife(wpn) or (WpnCanShoot(wpn) and not (IsWeaponJammed(wpn)) and not (GetAmmoInMagCount(wpn)=0)));
-  if (result) and IsGrenadeMode(wpn) then begin
-    result:=false;
-    if game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_switch_gl', false) then begin
-      //контролер выключит подствол
-      result:=true;
-    end else if game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_shoot_gl', false) then begin
-      //контролер выстрелит из подствола под ноги
-      result:= true; 
+  result:=false;
+  if (wpn=nil) then exit;
+
+  can_shoot:=WpnCanShoot(wpn);
+  is_knife:=IsKnife(wpn);
+  if (not is_knife) and (not can_shoot) then exit;
+  if can_shoot and IsWeaponJammed(wpn) then exit;
+
+  if game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false) then exit;
+
+  if IsGrenadeMode(wpn) then begin
+    can_switch_gl:= game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_switch_gl', false); //контролер выключит подствол
+    can_shoot_gl := game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_shoot_gl', false);  //контролер выстрелит из подствола под ноги
+    if (GetAmmoInGLCount(wpn) > 0) then begin
+      result:=can_switch_gl or can_shoot_gl;
+    end else if GetAmmoInMagCount(wpn) > 0 then begin
+      result:=can_switch_gl;
+    end else begin
+      result:=false;
     end;
+  end else begin
+    result:=GetAmmoInMagCount(wpn) > 0;
   end;
 end;
 
@@ -244,7 +258,7 @@ begin
       SetActorActionState(act, actMovingRight, false, mState_WISHFUL);
     end;
     if (wpn=nil) or (GetTimeDeltaSafe(_lastshot_done_time, GetGameTickCount()) > floor(1000*game_ini_r_single_def(GetHUDSection(wpn), 'suicide_delay', 0.1))) then begin
-      CActor__Die(act, act);
+      KillActor(act, act);
       _lastshot_done_time:=0;
     end;
   end;
@@ -263,13 +277,21 @@ begin
     end else if (wpn<>nil) and IsThrowable(wpn) then begin
       _planning_suicide:=true;
       _suicide_now:=false;
-      if GetCurrentState(wpn) = EMissileStates__eReady then begin
-        //делать нечего - придется кидать...
-        SetThrowForce(wpn, 1);
+      if (GetCurrentState(wpn) = EMissileStates__eReady) then begin
+        //делать нечего - придется кидать... Но кидаем под ноги и временем дестроя не манипулируем
         virtual_CHudItem_SwitchState(wpn, EMissileStates__eThrow);
-      end else if (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CGrenade, false)<>nil) and  (DistToContr()>game_ini_r_single_def(GetHUDSection(wpn), 'controller_g_attack_min_dist', 10)) and (GetCurrentState(wpn) = EHudStates__eIdle) then begin
+        PrepareGrenadeForSuicideThrow(wpn, game_ini_r_single_def(GetSection(wpn), 'suicide_ready_force', 8));
+      end else if (GetCurrentState(wpn) = EMissileStates__eThrowStart) then begin
+        //Здесь может быть либо начало обычного броска, либо суицидного.
+        //Если суицид - на всякий обновляем статусы для гарантированного срабатывания броска (хотя они и должны обновиться нами в OnAnimationEnd перед самим броском)
+        if IsMissileInSuicideState(wpn) then begin
+          SetConstPowerStatus(wpn, true);
+          SetImmediateThrowStatus(wpn, true);
+        end else begin
+          PrepareGrenadeForSuicideThrow(wpn, game_ini_r_single_def(GetSection(wpn), 'suicide_ready_force', 8));        
+        end;
+      end else if (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CGrenade, false)<>nil) and  (DistToContr()>game_ini_r_single_def(GetHUDSection(wpn), 'controller_g_attack_min_dist', 10)) and (GetCurrentState(wpn) = EHudStates__eIdle) and (not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false)) then begin
         //атакуем игрока его же греной
-        SetThrowForce(wpn, 1);
         virtual_CHudItem_SwitchState(wpn, EMissileStates__eThrowStart);
       end else if CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
         ActivateActorSlot__CInventory(1, false);
@@ -384,6 +406,8 @@ var
   psi_blocked, not_seen:boolean;
   c_pos, a_pos:pFVector3;
   c_pos_cp:FVector3;
+
+  can_switch_gl, can_shoot_gl:boolean;  
 begin
   //true в результате означает, что мы использовали кастомный эффект и обычную атаку играть не надо
   result:=true;
@@ -467,12 +491,19 @@ begin
 
   if IsGrenadeMode(wpn) then begin
     //если дошлю сюда - значит, с подстволом можем работать
-    if game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_switch_gl', false) then begin
+    can_switch_gl:=game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_switch_gl', false);
+    can_shoot_gl:=game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_shoot_gl', false);
+    if can_shoot_gl and (GetAmmoInGLCount(wpn) > 0) and (game_ini_r_single_def(GetHUDSection(wpn), 'controller_shoot_gl_min_dist', 10) < v_length(@c_pos_cp)) then begin
+      //дистанция до контры большая, можно стрелять из подствола
+      //Ничего особенного делать тут не надо (пока?), просто идем дальше по if'ам
+    end else if can_switch_gl and (GetAmmoInMagCount(wpn) > 0) then begin
+      //выключаем подствол
       virtual_CHudItem_SwitchState(wpn, EWeaponStates__eSwitch);
      _planning_suicide:=true;
      _suicide_now:=false;
-      exit;    
-    end else if not game_ini_r_bool_def(GetHUDSection(wpn), 'controller_can_shoot_gl', false) or (game_ini_r_single_def(GetHUDSection(wpn), 'controller_shoot_gl_min_dist', 10)>v_length(@c_pos_cp)) then begin
+      exit;
+    end else begin
+      //выбрасываем ствол
       PerformDrop(act);
       exit;
     end;

@@ -10,6 +10,13 @@ procedure SetForcedQuickthrow(status:boolean);
 function GetForcedQuickthrow():boolean;
 
 procedure SetThrowForce(CMissile:pointer; force:single); stdcall;
+procedure PrepareGrenadeForSuicideThrow(CMissile:pointer; force:single); stdcall;
+procedure SetImmediateThrowStatus(CMissile:pointer; status:boolean); stdcall;
+procedure SetConstPowerStatus(CMissile:pointer; status:boolean); stdcall;
+function IsMissileInSuicideState(CMissile:pointer):boolean; stdcall;
+
+procedure CMissile__SetDestroyTimeMax(CMissile:pointer; time:cardinal); stdcall;
+function CMissile__GetDestroyTimeMax(CMissile:pointer):cardinal; stdcall;
 
 const
 		EMissileStates__eThrowStart:cardinal = 5;
@@ -85,6 +92,21 @@ asm
   pop eax
 end;
 
+procedure CMissile__SetDestroyTimeMax(CMissile:pointer; time:cardinal); stdcall;
+asm
+  pushad
+
+  mov eax, CMissile
+  test eax, eax
+  je @finish
+
+  mov ebx, time
+  mov [eax+$344], ebx
+
+  @finish:
+  popad
+end;
+
 procedure CMissile__spawn_fake_missile(CMissile:pointer); stdcall;
 asm
   pushad
@@ -114,7 +136,52 @@ asm
     mov @result, al
   popad
 end;
+// 0x33C - bool m_throw
+// 0x344 - m_dwDestroyTimeMax
+// 0x348 - Fvector m_throw_direction;
+// 0x354 - Fmatrix m_throw_matrix;
+// 0x394 - CMissile	*m_fake_missile;
+// 0x398 - float m_fMinForce,
+// 0x39c - float m_fConstForce,
+// 0x3a0 - float m_fMaxForce,
+// 0x3a4 - float m_fForceGrowSpeed;
+// 0x3a8 - bool m_constpower;
+// 0x3ac - float m_fThrowForce;
 
+procedure PrepareGrenadeForSuicideThrow(CMissile:pointer; force:single); stdcall;
+asm
+  pushad
+    mov ecx, CMissile
+    lea eax, [force]
+    mov eax, [eax]
+    mov [ecx+$398], eax
+    mov [ecx+$39c], eax
+    mov [ecx+$3a0], eax
+    mov [ecx+$3ac], eax
+
+    mov eax, 1
+    mov [ecx+$33C], eax
+    mov [ecx+$3a8], eax
+  popad
+end;
+
+procedure SetImmediateThrowStatus(CMissile:pointer; status:boolean); stdcall;
+asm
+  pushad
+    mov ecx, CMissile
+    movzx eax, [status]
+    mov [ecx+$33c], eax
+  popad
+end;
+
+procedure SetConstPowerStatus(CMissile:pointer; status:boolean); stdcall;
+asm
+  pushad
+    mov ecx, CMissile
+    movzx eax, [status]
+    mov [ecx+$3a8], eax
+  popad
+end;
 
 procedure SetupQuickThrowForceParams(CMissile:pointer); stdcall;
 asm
@@ -130,7 +197,9 @@ asm
     mov [ecx+$3ac], eax //выставим силу броска, использующуюся при нажатии ЛКМ
     jmp @finish
     @controlled:
-    mov [ecx+$3ac], $3f800000
+    push $40000000
+    push ecx
+    call PrepareGrenadeForSuicideThrow
     @finish:
   pop ecx
   pop eax
@@ -141,10 +210,9 @@ asm
   pushad
     mov ecx, CMissile
     movss xmm0, force
-    movss [ecx+$3a0], xmm0
+    movss [ecx+$39c], xmm0
   popad
 end;
-
 
 function CGrenade__GetDetonationTresholdHit(this:pointer):single; stdcall;
 asm
@@ -180,7 +248,9 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $FFFFFFFF);
 
-
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_suicide_begin', 'sndSuicideBegin', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_suicide_throw', 'sndSuicideThrow', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_suicide_stop', 'sndSuicideStop', 1, $FFFFFFFF);
 end;
 
 procedure CMissile__Load_Patch();stdcall;
@@ -217,7 +287,7 @@ begin
     if _activate_key_state.IsActive and _activate_key_state.IsHoldContinued then begin
       _activate_key_state.IsActive:=false;
       sect:=GetSection(CMissile);
-      if game_ini_r_bool_def(sect, 'supports_quick_throw', false) then begin
+      if game_ini_r_bool_def(sect, 'supports_quick_throw', false) and not IsActorControlled() and not IsActorSuicideNow() and not IsActorPlanningSuicide() then begin
         //надо выполнить быстрый бросок
         isquickthrow:=true;
         result:='anm_throw_quick';
@@ -255,9 +325,14 @@ begin
   CHudItem_Play_Snd(CMissile, 'sndHide');
 end;
 
-
+function IsMissileInSuicideState(CMissile:pointer):boolean; stdcall;
+begin
+  result:=(leftstr(GetActualCurrentAnim(CMissile), length('anm_suicide')) = 'anm_suicide');
+end;
 
 function CMissile__State_anm_selector_dispatcher(CMissile:pointer; ret_addr:cardinal):PChar; stdcall;
+var
+  is_suicide_anim, is_suicide_allowed:boolean;
 begin
   result:='anm_unknown';
   ret_addr:=ret_addr and $0000FFFF;
@@ -267,14 +342,53 @@ begin
     $75AA:result:=CMissile__State_anm_show_selector(CMissile);
     $7629:result:=CMissile__State_anm_hide_selector(CMissile);
     $76B4:begin
-            result:='anm_throw_begin';
-            CHudItem_Play_Snd(CMissile, 'sndThrowBegin');
-            StartCompanionAnimIfNeeded('throw_begin', CMissile, true);
+            //Анимация начала броска
+            if IsActorControlled() and game_ini_r_bool_def(GetHudSection(CMissile), 'allow_suicide', false) then begin
+              result:='anm_suicide_begin';
+              CHudItem_Play_Snd(CMissile, 'sndSuicideBegin');
+              StartCompanionAnimIfNeeded('suicide_begin', CMissile, true);
+              SetConstPowerStatus(CMissile, true);
+              SetImmediateThrowStatus(CMissile, true);
+            end else begin
+              result:='anm_throw_begin';
+              CHudItem_Play_Snd(CMissile, 'sndThrowBegin');
+              StartCompanionAnimIfNeeded('throw_begin', CMissile, true);
+            end;
           end;
     $7740:begin
-            result:='anm_throw';
-            CHudItem_Play_Snd(CMissile, 'sndThrow');
-            StartCompanionAnimIfNeeded('throw_end', CMissile, true);
+            //Анимация завершения броска
+            is_suicide_anim:=IsMissileInSuicideState(CMissile);
+            is_suicide_allowed:=game_ini_r_bool_def(GetHudSection(CMissile), 'allow_suicide', false);
+            log('throw select, cur anim is '+GetActualCurrentAnim(CMissile));
+            if is_suicide_allowed and is_suicide_anim and IsActorControlled() then begin
+              //Игрался суицид. Закончим начатое.
+              log('anm_suicide_throw');
+
+              result:='anm_suicide_throw';
+              CMissile__SetDestroyTimeMax(CMissile, game_ini_r_int_def(GetSection(CMissile), 'suicide_success_destroy_time', CMissile__GetDestroyTimeMax(CMissile)));
+              PrepareGrenadeForSuicideThrow(CMissile, game_ini_r_single_def(GetSection(CMissile), 'suicide_success_force', 20));
+                            
+              CHudItem_Play_Snd(CMissile, 'sndSuicideThrow');
+              StartCompanionAnimIfNeeded('suicide_throw', CMissile, true);
+
+            end else if is_suicide_anim and is_suicide_allowed then begin
+              log('anm_suicide_stop');
+
+              //отыгрывался суицид, но актор свалил. Выставляем силу броска и играем отброс грены в сторону
+              result:='anm_suicide_stop';
+              CMissile__SetDestroyTimeMax(CMissile, game_ini_r_int_def(GetSection(CMissile), 'suicide_fail_destroy_time', CMissile__GetDestroyTimeMax(CMissile)));              
+              PrepareGrenadeForSuicideThrow(CMissile, game_ini_r_single_def(GetSection(CMissile), 'suicide_fail_force', 20));
+
+              CHudItem_Play_Snd(CMissile, 'sndSuicideStop');
+              StartCompanionAnimIfNeeded('suicide_stop', CMissile, true);
+            end else begin
+              log('anm_throw');
+              
+              //Просто стандартный бросок
+              result:='anm_throw';
+              CHudItem_Play_Snd(CMissile, 'sndThrow');
+              StartCompanionAnimIfNeeded('throw_end', CMissile, true);
+            end;
           end;
   else
     log('CMissile__State_anm_selector_dispatcher: unknown call detected!', true);
@@ -568,6 +682,11 @@ var
   act:pointer;
 begin
   result:=true;
+  if IsMissileInSuicideState(CMissile) then begin
+    SetConstPowerStatus(CMissile, true);
+    SetImmediateThrowStatus(CMissile, true);
+  end;
+
   act:=GetActor();
   if (state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick') then begin
     virtual_CHudItem_SwitchState(CMissile, EMissileStates__eThrowEnd);
