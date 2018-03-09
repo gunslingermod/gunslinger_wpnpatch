@@ -664,14 +664,14 @@ begin
         exit;      
       end;
 
-      if (wpn<>nil) and ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_attached', false), true) then begin
-        OnActorSwithesSmth('disable_kick_anim_when_gl_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
-        exit;      
-      end;
-
       if (wpn<>nil) and IsGrenadeMode(wpn) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_enabled', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_enabled', false), true) then begin
         OnActorSwithesSmth('disable_kick_anim_when_gl_enabled', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
         exit;      
+      end;
+
+      if (wpn<>nil) and ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_gl_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_gl_attached', false), true) then begin
+        OnActorSwithesSmth('disable_kick_anim_when_gl_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
+        exit;
       end;
 
       if (wpn<>nil) and (GetSection(wpn)=GetKickAnimator()) then begin

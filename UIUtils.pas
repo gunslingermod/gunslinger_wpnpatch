@@ -222,7 +222,7 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -845,6 +845,66 @@ asm
   @finish:
 end;
 
+function ReadFloatUiParameter(uiXml:pointer; path:PAnsiChar; attrib_name:PAnsiChar; def_val:single):single; stdcall;
+asm
+  pushad
+    lea eax, [def_val]
+    push [eax]
+    push [attrib_name]
+    push 0
+    push [path]
+    
+    mov ecx, [uiXml]
+    mov eax, [xrGame_addr]
+    call [eax+$5132CC] //CXml::ReadAttribFlt
+  popad
+end;
+
+procedure UpdateStaticPosition(uiXml:pointer; path:PAnsiChar; index:integer; pos:pFVector2); stdcall;
+var
+  cols_num:integer;
+  dx:integer;
+  dy:integer;
+  x_start:single;
+  y_start:single;
+
+  item_col:integer;
+  item_row:integer;
+begin
+  x_start:=floor(ReadFloatUiParameter(uiXml, path, 'x', 0));
+  y_start:=floor(ReadFloatUiParameter(uiXml, path, 'y', 0));
+  dx:=floor(ReadFloatUiParameter(uiXml, path, 'dx', 0));
+  dy:=floor(ReadFloatUiParameter(uiXml, path, 'dy', 0));
+  cols_num:=floor(ReadFloatUiParameter(uiXml, path, 'cols_num', 1));
+
+  item_col:= index mod cols_num;
+  item_row:= index div cols_num;
+
+  pos.x:=x_start+dx*item_col;
+  pos.y:=y_start+dy*item_row;
+  Log('Slot '+inttostr(index)+' : ('+inttostr(floor(pos.x))+', '+inttostr(floor(pos.y))+')');
+end;
+
+procedure CorrectBeltListOver(); stdcall;
+const
+  path:PAnsiChar = 'belt_list_over';
+asm
+  mov edx,[edx]
+  lea ecx, [esp+$28]
+  pushad
+    push ecx
+
+    mov edx, 5
+    sub edx, ebx
+    push edx
+
+    push path
+    add ecx, $C
+    push ecx
+    call UpdateStaticPosition
+  popad
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -917,10 +977,13 @@ begin
   if not nop_code(xrgame_addr+$442b23, 2) then exit;
 
   //фикс позиции курсора - чтобы не скакал при переключениях режима мыши в ПДА
-  jmp_addr:=xrGame_addr+$4D9834;  
+  jmp_addr:=xrGame_addr+$4D9834;
   if not WriteJump(jmp_addr, cardinal(@CUICursor__UpdateCursorPosition_Patch), 6, true) then exit;
 
-
+  //Фикс позиции заглушек слотов для артефактов (CUIActorMenu::Construct)
+  //Отключено в связи с невозможностью выстроить сами слоты не то, что в сложной конфигурации, а даже просто вертикально
+  //jmp_addr:=xrGame_addr+$46AB17;
+  //if not WriteJump(jmp_addr, cardinal(@CorrectBeltListOver), 6, true) then exit;
 
   result:=true;
 end;

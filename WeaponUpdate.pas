@@ -405,89 +405,98 @@ begin
   if IsGrenadeMode(wpn) and game_ini_line_exist(section, 'def_hide_bones_grenade') and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_grenade'), false);
   
   //Прочитаем секции всех доступных апов из конфига
-  if not game_ini_line_exist(section, 'upgrades') then exit;
-  all_upgrades:=game_ini_read_string(section, 'upgrades');
-  //Переберем их все
-  while (GetNextSubStr(all_upgrades, up_gr_sect, ',')) do begin
-      HideOneUpgradeLevel(wpn, PChar(up_gr_sect));
-  end;
-
-  //Посмотрим, какие апгрейды уже установлены, и отобразим их
-  for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
-    section:=GetInstalledUpgradeSection(wpn, i);
-    section:=game_ini_read_string(section, 'section');
-    if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
-    if game_ini_line_exist(section, 'hud') then begin
-      SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
-    end;
-    if game_ini_line_exist(section, 'visual') then begin
-      SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
+  if game_ini_line_exist(section, 'upgrades') then begin
+    all_upgrades:=game_ini_read_string(section, 'upgrades');
+    //Переберем их все
+    while (GetNextSubStr(all_upgrades, up_gr_sect, ',')) do begin
+        HideOneUpgradeLevel(wpn, PChar(up_gr_sect));
     end;
 
-    if (buf<>nil) and not buf.IsLaserInstalled() and game_ini_r_bool_def(section, 'laser_installed', false) then begin
-      buf.InstallLaser(section);
-    end;
-    if (buf<>nil) and not buf.IsTorchInstalled() and game_ini_r_bool_def(section, 'torch_installed', false) then begin
-      buf.InstallTorch(section);
-    end;
-    if (buf<>nil) and not buf.NeedPermanentLensRendering() and game_ini_r_bool_def(section, 'permanent_lens_render', false) then begin
-      buf.SetPermanentLensRenderingStatus(true);
-    end;
-
-    if (buf<>nil) then begin
-      lens_params:=buf.GetLensParams();
-      t_dt:=game_ini_r_single_def(section, 'lens_factor_levels_count', 0);
-
-      if t_dt <> 0 then begin
-        lens_params.delta:=1.0/t_dt;
+    //Посмотрим, какие апгрейды уже установлены, и отобразим их
+    for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+      section:=GetInstalledUpgradeSection(wpn, i);
+      section:=game_ini_read_string(section, 'section');
+      if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
+      if game_ini_line_exist(section, 'hud') then begin
+        SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
       end;
-      lens_params.factor_min:=game_ini_r_single_def(section, 'min_lens_factor', lens_params.factor_min);
-      lens_params.factor_max:=game_ini_r_single_def(section, 'max_lens_factor', lens_params.factor_max);
-      lens_params.speed:=game_ini_r_single_def(section, 'lens_speed', lens_params.speed);
-      lens_params.gyro_period:=game_ini_r_single_def(section, 'lens_gyro_sound_period', lens_params.gyro_period);
-      buf.SetLensParams(lens_params);
+      if game_ini_line_exist(section, 'visual') then begin
+        SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
+      end;
+
+      if (buf<>nil) and not buf.IsLaserInstalled() and game_ini_r_bool_def(section, 'laser_installed', false) then begin
+        buf.InstallLaser(section);
+      end;
+      if (buf<>nil) and not buf.IsTorchInstalled() and game_ini_r_bool_def(section, 'torch_installed', false) then begin
+        buf.InstallTorch(section);
+      end;
+      if (buf<>nil) and not buf.NeedPermanentLensRendering() and game_ini_r_bool_def(section, 'permanent_lens_render', false) then begin
+        buf.SetPermanentLensRenderingStatus(true);
+      end;
+
+      if (buf<>nil) then begin
+        lens_params:=buf.GetLensParams();
+        t_dt:=game_ini_r_single_def(section, 'lens_factor_levels_count', 0);
+
+        if t_dt <> 0 then begin
+          lens_params.delta:=1.0/t_dt;
+        end;
+        lens_params.factor_min:=game_ini_r_single_def(section, 'min_lens_factor', lens_params.factor_min);
+        lens_params.factor_max:=game_ini_r_single_def(section, 'max_lens_factor', lens_params.factor_max);
+        lens_params.speed:=game_ini_r_single_def(section, 'lens_speed', lens_params.speed);
+        lens_params.gyro_period:=game_ini_r_single_def(section, 'lens_gyro_sound_period', lens_params.gyro_period);
+        buf.SetLensParams(lens_params);
+      end;
+
+      if game_ini_line_exist(section, 'flame_particles') then begin
+        ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES);
+        if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES_CURRENT);
+      end;
+      if game_ini_line_exist(section, 'smoke_particles') then begin
+        ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES);
+        if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES_CURRENT);
+      end;
+      if game_ini_line_exist(section, 'shell_particles') then ChangeParticles(wpn, game_ini_read_string(section, 'shell_particles'), CWEAPON_SHELL_PARTICLES);
+
+      if game_ini_line_exist(section, 'actor_camera_speed_factor') then begin
+        buf.SetCameraSpeed(GetCamSpeedDef()*game_ini_r_single(section, 'actor_camera_speed_factor'));
+      end;
     end;
 
-    if game_ini_line_exist(section, 'flame_particles') then begin
-      ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES);
-      if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'flame_particles'), CWEAPON_FLAME_PARTICLES_CURRENT);
-    end;
-    if game_ini_line_exist(section, 'smoke_particles') then begin
-      ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES);
-      if not IsSilencerAttached(wpn) then ChangeParticles(wpn, game_ini_read_string(section, 'smoke_particles'), CWEAPON_SMOKE_PARTICLES_CURRENT);
-    end;
-    if game_ini_line_exist(section, 'shell_particles') then ChangeParticles(wpn, game_ini_read_string(section, 'shell_particles'), CWEAPON_SHELL_PARTICLES);
+   for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
+      section:=GetInstalledUpgradeSection(wpn, i);
+      section:=game_ini_read_string(section, 'section');
+      if game_ini_line_exist(section, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'show_bones'), true);
 
-    if game_ini_line_exist(section, 'actor_camera_speed_factor') then begin
-      buf.SetCameraSpeed(GetCamSpeedDef()*game_ini_r_single(section, 'actor_camera_speed_factor'));
-    end;            
+      //для сокрытия костей, отвечающих за предыдущие апы ветки
+      if game_ini_line_exist(section, 'hide_bones_override') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override'), false);
+
+
+      if (IsSilencerAttached(wpn)) then begin
+        if game_ini_line_exist(section, 'hide_bones_override_when_silencer_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_silencer_attached'), false);
+      end;
+
+      if (IsScopeAttached(wpn)) then begin
+        if game_ini_line_exist(section, 'hide_bones_override_when_scope_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_scope_attached'), false);
+      end;
+
+      if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) then begin
+        if game_ini_line_exist(section, 'hide_bones_override_when_gl_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_gl_attached'), false);
+      end;
+
+      if IsGrenadeMode(wpn) and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then begin
+        if game_ini_line_exist(section, 'hide_bones_override_grenade') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_grenade'), false);
+      end;
+    end;
   end;
 
- for i:=0 to GetInstalledUpgradesCount(wpn)-1 do begin
-    section:=GetInstalledUpgradeSection(wpn, i);
-    section:=game_ini_read_string(section, 'section');
-    if game_ini_line_exist(section, 'show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'show_bones'), true);
-
-    //для сокрытия костей, отвечающих за предыдущие апы ветки
-    if game_ini_line_exist(section, 'hide_bones_override') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override'), false);
-
-
-    if (IsSilencerAttached(wpn)) then begin
-      if game_ini_line_exist(section, 'hide_bones_override_when_silencer_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_silencer_attached'), false);
-    end;
-
-    if (IsScopeAttached(wpn)) then begin
-      if game_ini_line_exist(section, 'hide_bones_override_when_scope_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_scope_attached'), false);
-    end;
-
-    if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) then begin
-      if game_ini_line_exist(section, 'hide_bones_override_when_gl_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_gl_attached'), false);
-    end;
-
-    if IsGrenadeMode(wpn) and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then begin
-      if game_ini_line_exist(section, 'hide_bones_override_grenade') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_grenade'), false);    
-    end;
+  section:=GetSection(wpn);
+  if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) then begin
+    if game_ini_line_exist(section, 'def_hide_bones_override_when_gl_attached') then begin
+      SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_override_when_gl_attached'), false);
+    end;      
   end;
+
 end;
 
 procedure ProcessScope(wpn:pointer); stdcall;
