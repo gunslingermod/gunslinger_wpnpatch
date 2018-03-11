@@ -182,7 +182,6 @@ begin
   can_shoot:=WpnCanShoot(wpn);
   is_knife:=IsKnife(wpn);
   if (not is_knife) and (not can_shoot) then exit;
-  if can_shoot and IsWeaponJammed(wpn) then exit;
 
   if game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false) then exit;
 
@@ -197,7 +196,11 @@ begin
       result:=false;
     end;
   end else begin
-    result:=GetAmmoInMagCount(wpn) > 0;
+    if can_shoot then begin
+      result:= (GetAmmoInMagCount(wpn) > 0) and not IsWeaponJammed(wpn)
+    end else begin
+      result:=true;
+    end;
   end;
 end;
 
@@ -496,7 +499,7 @@ begin
     if can_shoot_gl and (GetAmmoInGLCount(wpn) > 0) and (game_ini_r_single_def(GetHUDSection(wpn), 'controller_shoot_gl_min_dist', 10) < v_length(@c_pos_cp)) then begin
       //дистанция до контры большая, можно стрелять из подствола
       //Ничего особенного делать тут не надо (пока?), просто идем дальше по if'ам
-    end else if can_switch_gl and (GetAmmoInMagCount(wpn) > 0) then begin
+    end else if can_switch_gl and (GetAmmoInMagCount(wpn) > 0) and not IsWeaponJammed(wpn) then begin
       //выключаем подствол
       virtual_CHudItem_SwitchState(wpn, EWeaponStates__eSwitch);
      _planning_suicide:=true;

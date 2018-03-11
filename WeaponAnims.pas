@@ -1080,6 +1080,9 @@ begin
       SetActorActionState(actor, actShowDetectorNow, true);
     end;
 
+
+    anim_name:=anim_name + GetFireModeStateMark(wpn);
+    
     if IsWeaponJammed(wpn) then begin
       anim_name:=anim_name+'_jammed';
     end else if (GetAmmoInMagCount(wpn)<=0) then begin
