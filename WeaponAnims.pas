@@ -1064,6 +1064,14 @@ begin
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния оружия----------------------------------------------------
+    anim_name:=anim_name + GetFireModeStateMark(wpn);
+
+    if IsWeaponJammed(wpn) then begin
+      anim_name:=anim_name+'_jammed';
+    end else if (GetAmmoInMagCount(wpn)<=0) then begin
+      anim_name:=anim_name+'_empty';
+    end;   
+
     if (GetCurrentAmmoCount(wpn)>0) and  (GetAmmoTypeChangingStatus(wpn)<>$FF) then begin
       anim_name:=anim_name+'_ammochange';
       snd:='sndChangeGrenade';
@@ -1080,14 +1088,6 @@ begin
       SetActorActionState(actor, actShowDetectorNow, true);
     end;
 
-
-    anim_name:=anim_name + GetFireModeStateMark(wpn);
-    
-    if IsWeaponJammed(wpn) then begin
-      anim_name:=anim_name+'_jammed';
-    end else if (GetAmmoInMagCount(wpn)<=0) then begin
-      anim_name:=anim_name+'_empty';
-    end;
 
     ModifierGL(wpn, anim_name);
     //назначим аниму детектору при необходимости

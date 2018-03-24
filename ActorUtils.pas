@@ -2419,6 +2419,7 @@ asm
   @finish:
 end;
 
+//Return pointer to CONSTANT char string!
 function GetActorCameraMovingAnim(act:pointer; factor:psingle; anm_id:pcardinal):PChar; stdcall;
 var
   wpn:pointer;
@@ -2435,12 +2436,58 @@ const
   eCEActorMovingJump:cardinal = 27;
   eCEActorMovingFall:cardinal = 28;
   eCEActorMovingLanding:cardinal = 29;
+
+  eCEActorRLookoutStart:cardinal = 30;
+  eCEActorLLookoutStart:cardinal = 31;
+  eCEActorRLookoutEnd:cardinal = 32;
+  eCEActorLLookoutEnd:cardinal = 33;
 begin
   result:=nil;
   anm_id^:=eCEActorMoving;
   factor^:=70;    //default value for 1
   wpn:=GetActorActiveItem();
-  if GetActorActionState(act, actMovingLeft, mState_REAL) and not GetActorActionState(act, actMovingLeft, mState_OLD) then begin
+  
+  if not GetActorActionState(act, actRLookout, mState_REAL) and GetActorActionState(act, actRLookout, mState_WISHFUL) then begin
+    result:='lookout_right_start';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='lookout_right_start_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorRLookoutStart;
+
+  end else if GetActorActionState(act, actRLookout, mState_REAL) and not GetActorActionState(act, actRLookout, mState_WISHFUL) then begin
+    result:='lookout_right_end';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='lookout_right_end_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorRLookoutEnd;
+
+  end else if not GetActorActionState(act, actLLookout, mState_REAL) and GetActorActionState(act, actLLookout, mState_WISHFUL) then begin
+    result:='lookout_left_start';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='lookout_left_start_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorLLookoutStart;
+
+  end else if GetActorActionState(act, actLLookout, mState_REAL) and not GetActorActionState(act, actLLookout, mState_WISHFUL) then begin
+    result:='lookout_left_end';
+    if (wpn<>nil) then begin
+      if (IsAimNow(wpn)) then begin
+        result:='lookout_left_end_aim';
+      end;
+      result:=game_ini_read_string_def(GetHudSection(wpn), PChar(HUD_PREFIX+result), result);
+    end;
+    anm_id^:=eCEActorLLookoutEnd;
+
+  end else if GetActorActionState(act, actMovingLeft, mState_REAL) and not GetActorActionState(act, actMovingLeft, mState_OLD) then begin
     result:='strafe_left';
     if (wpn<>nil) then begin
       if (IsAimNow(wpn)) then begin
