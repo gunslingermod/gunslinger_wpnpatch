@@ -950,7 +950,16 @@ begin
 
   //общий патч сокрытия прицела от уровня сложности
   patch_addr:=xrGame_addr+$4d8c43;
-  if not WriteJump(patch_addr, cardinal(@CHudTarget__Render_Patch), 6, true) then exit; 
+  if not WriteJump(patch_addr, cardinal(@CHudTarget__Render_Patch), 6, true) then exit;
+
+  //CActor::PickupModeUpdate - xrgame+268b10
+  //CActor::PickupModeUpdate_COD - xrgame+267de0
+
+  //[bug] Баг - в CActor::PickupModeUpdate кто-то поставил условие !m_pUsableObject->nonscript_usable() на поднятие с земли
+  //Из-за этого при отключенном COD-режиме с земли вообще ничего не поднимается, а при включенном - не поднимается то, центр чего игра видимым не считает
+  //Правим путем патчинга глупого отрицания (je -> jne)
+  nop_code(xrGame_addr+$268b8d, 1, chr($74));
+
 
   result:=true;
 end;
