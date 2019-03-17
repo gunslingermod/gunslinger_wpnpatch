@@ -54,13 +54,15 @@ procedure CWeaponMagazined__OnAnimationEnd_DoReload(wpn:pointer); stdcall;
 var
   buf: WpnBuf;
   def_magsize, mod_magsize, curammocnt:integer;
+  gl_status:cardinal;
 begin
   buf:=GetBuffer(wpn);
   //если буфера нет или мы уже перезарядилиcь или у нас режим подствола - ничего особенного не делаем
   if (buf=nil) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 
   if buf.IsReloaded() then begin buf.SetReloaded(false); exit; end;
-  if (((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
+  gl_status:=GetGLStatus(wpn);
+  if (((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 
   //посмотрим, каков размер магазина у оружия и сколько патронов в нем сейчас
   def_magsize:=GetMagCapacityInCurrentWeaponMode(wpn);
@@ -383,8 +385,10 @@ function GetTotalGrenadesCountInInventory(wpn:pointer):cardinal;stdcall;
 var
   g_m:boolean;
   cnt, i:cardinal;
+  gl_status:cardinal;
 begin
-  if (GetGLStatus(wpn)=0) or ((GetGLStatus(wpn)=2) and not IsGLAttached(wpn)) then begin
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status=2) and not IsGLAttached(wpn)) then begin
     result:=0;
     exit;
   end;
@@ -480,6 +484,7 @@ var
   ammotypes, i:cardinal;
   ammo_cnt, queue:integer;
   g_m:boolean;
+  gl_status:cardinal;
   ammo_sect:PChar;
   current:byte;
   s:string;  
@@ -532,7 +537,8 @@ begin
   end;
 
   //переопределяем строку числа грен
-  if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=1) or ((gl_status=2) and IsGLAttached(wpn)) then begin
     ammotypes:=GetGLAmmoTypesCount(wpn);
     ammo_cnt:=0;
     for i:=0 to ammotypes-1 do begin

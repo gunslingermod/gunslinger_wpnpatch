@@ -413,9 +413,11 @@ asm
     pushfd
     mov ebx, wpn
 
+    pushad
     push ebx
     call GetGLStatus
     cmp eax, 0
+    popad
     je @use_main
     
     push ebx
@@ -596,25 +598,46 @@ asm
     popad
 end;
 
-function GetGLStatus(wpn:pointer):cardinal; stdcall;
+function GetGLStatus_internal(wpn:pointer):cardinal; stdcall;
 asm
     mov eax, wpn
     mov eax, [eax+$46c]
     mov @result, eax
 end;
 
-function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
+function GetGLStatus(wpn:pointer):cardinal; stdcall;
+begin
+  result:=0;
+  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazinedWGrenade, false)=nil then exit;
+  result:=GetGLStatus_internal(wpn);
+end;
+
+function GetSilencerStatus_internal(wpn:pointer):cardinal; stdcall;
 asm
     mov eax, wpn
     mov eax, [eax+$468]
     mov @result, eax
 end;
 
-function GetScopeStatus(wpn:pointer):cardinal; stdcall;
+function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
+begin
+  result:=0;
+  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazinedWGrenade, false)=nil then exit;
+  result:=GetSilencerStatus_internal(wpn);
+end;
+
+function GetScopeStatus_internal(wpn:pointer):cardinal; stdcall;
 asm
     mov eax, wpn
     mov eax, [eax+$464]
     mov @result, eax
+end;
+
+function GetScopeStatus(wpn:pointer):cardinal; stdcall;
+begin
+  result:=0;
+  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazinedWGrenade, false)=nil then exit;
+  result:=GetScopeStatus_internal(wpn);
 end;
 
 function IsWeaponJammed(wpn:pointer):boolean; stdcall;
@@ -2063,8 +2086,11 @@ begin
 end;
 
 function IsGrenadeMode(wpn:pointer):boolean; stdcall;
+var
+  status:cardinal;
 begin
-  result:=((GetGLStatus(wpn)=1) or ( (GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn);
+  status:=GetGLStatus(wpn);
+  result:=((status=1) or ( (status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn);
 end;
 
 procedure PerformSwitchGL(wpn:pointer); stdcall;

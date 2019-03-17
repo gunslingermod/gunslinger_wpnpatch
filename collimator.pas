@@ -25,10 +25,13 @@ begin
 end;
 
 function CanUseAlterScope(wpn:pointer):boolean;
+var
+  gl_status:cardinal;
 begin
   result:=false;
 
-  if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit; 
+  gl_status:=GetGLStatus(wpn);
+  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
 
   if IsScopeAttached(wpn) then begin
     result:=game_ini_r_bool_def(GetCurrentScopeSection(wpn), 'alter_zoom_allowed', false);

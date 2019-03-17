@@ -22,8 +22,11 @@ var
 
 
 procedure ModifierGL(wpn:pointer; var anm:string);
+var
+  status:cardinal;
 begin
-  if (GetGLStatus(wpn)=1) or IsGLAttached(wpn) then begin
+  status:=GetGLStatus(wpn);
+  if (status=1) or ((status = 2) and IsGLAttached(wpn)) then begin
     if IsGLEnabled(wpn) then
       anm:=anm+'_g'
     else

@@ -186,9 +186,11 @@ asm
   pushfd
     mov ebx, wpn
 
+    pushad
     push ebx
     call GetGLStatus
     cmp eax, 0
+    popad
     je @use_main
     push ebx
     call IsGLEnabled

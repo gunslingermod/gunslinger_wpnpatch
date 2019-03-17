@@ -352,10 +352,12 @@ end;
 procedure CWeaponMagazinedWGrenade__net_Spawn_applyglstatus(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
+  gl_status:cardinal;
 begin
   buf:=GetBuffer(wpn);
   if buf.loaded_gl_state<>IsGLEnabled(wpn) then begin
-    if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
+    gl_status:=GetGLStatus(wpn);
+    if (gl_status=1) or ((gl_status=2) and IsGLAttached(wpn)) then begin
       PerformSwitchGL(wpn);
     end;
   end;

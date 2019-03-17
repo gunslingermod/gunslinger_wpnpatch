@@ -396,14 +396,20 @@ var all_upgrades:string;
     buf:WpnBuf;
     lens_params:lens_zoom_params;
     t_dt:single;
+    gl_status:cardinal;
+    gl_enabled:boolean;
 begin
   section:=GetSection(wpn);
   buf:=GetBuffer(wpn);
+
+  gl_status:=GetGLStatus(wpn);
+  gl_enabled:=(gl_status>0) and IsGrenadeMode(wpn);
+
   //Скроем все кости, которые надо скрыть, исходя из данных секции оружия
   if game_ini_line_exist(section, 'def_hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones'), false);
   if game_ini_line_exist(section, 'def_show_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_show_bones'), true);
-  if IsGrenadeMode(wpn) and game_ini_line_exist(section, 'def_hide_bones_grenade') and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_grenade'), false);
-  
+  if gl_enabled and game_ini_line_exist(section, 'def_hide_bones_grenade') and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_grenade'), false);
+
   //Прочитаем секции всех доступных апов из конфига
   if game_ini_line_exist(section, 'upgrades') then begin
     all_upgrades:=game_ini_read_string(section, 'upgrades');
@@ -480,18 +486,18 @@ begin
         if game_ini_line_exist(section, 'hide_bones_override_when_scope_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_scope_attached'), false);
       end;
 
-      if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) then begin
+      if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn)) ) then begin
         if game_ini_line_exist(section, 'hide_bones_override_when_gl_attached') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_when_gl_attached'), false);
       end;
 
-      if IsGrenadeMode(wpn) and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then begin
+      if gl_enabled and not (leftstr(GetActualCurrentAnim(wpn), length('anm_switch'))='anm_switch') then begin
         if game_ini_line_exist(section, 'hide_bones_override_grenade') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones_override_grenade'), false);
       end;
     end;
   end;
 
   section:=GetSection(wpn);
-  if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) ) then begin
+  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn)) ) then begin
     if game_ini_line_exist(section, 'def_hide_bones_override_when_gl_attached') then begin
       SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_override_when_gl_attached'), false);
     end;      
