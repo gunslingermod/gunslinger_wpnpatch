@@ -622,7 +622,7 @@ end;
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
 begin
   result:=0;
-  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazinedWGrenade, false)=nil then exit;
+  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)=nil then exit;
   result:=GetSilencerStatus_internal(wpn);
 end;
 
@@ -636,7 +636,7 @@ end;
 function GetScopeStatus(wpn:pointer):cardinal; stdcall;
 begin
   result:=0;
-  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazinedWGrenade, false)=nil then exit;
+  if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)=nil then exit;
   result:=GetScopeStatus_internal(wpn);
 end;
 
