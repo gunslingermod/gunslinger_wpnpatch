@@ -1531,13 +1531,16 @@ begin
   last_steps:=_lens_night_brightness.cur_step;
   
   _lens_night_brightness.cur_step:=steps;
-  if (_lens_night_brightness.cur_step<0) then begin
+  if (_lens_night_brightness.cur_step<=0) then begin
     _lens_night_brightness.cur_step:=0;
-  end else if (_lens_night_brightness.cur_step>_lens_night_brightness.steps) then begin
+    _lens_night_brightness.cur_value:=_lens_night_brightness.min_value;
+  end else if (_lens_night_brightness.cur_step>=_lens_night_brightness.steps) then begin
     _lens_night_brightness.cur_step:=_lens_night_brightness.steps;
+    _lens_night_brightness.cur_value:=_lens_night_brightness.max_value;
+  end else begin
+    delta:= (_lens_night_brightness.max_value-_lens_night_brightness.min_value)/(_lens_night_brightness.steps);
+    _lens_night_brightness.cur_value:=_lens_night_brightness.min_value+delta*(_lens_night_brightness.cur_step);
   end;
-  delta:= (_lens_night_brightness.max_value-_lens_night_brightness.min_value)/(_lens_night_brightness.steps);
-  _lens_night_brightness.cur_value:=_lens_night_brightness.min_value+delta*(_lens_night_brightness.cur_step);
 
   if last_steps>_lens_night_brightness.cur_step then begin
     CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessMinus');  
