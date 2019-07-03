@@ -266,8 +266,14 @@ begin
 
   cnt:=GetAmmoInGLCount(wpn);
   if g_m and (GetCurrentState(wpn)=cardinal(EWeaponStates__eReload)) then begin
-    ammotype:=GetGlAmmoType(wpn);
-    if cnt=0 then cnt:=1;
+    if cnt = 0 then begin
+      //Тут нужно использовать именно GetAmmoTypeToReload, а не GetGlAmmoType, иначе при смене типа гранаты после выстрела схема не просечет, что нужно изменить скин, и отрисует грену другого типа
+      ammotype:=GetAmmoTypeToReload(wpn);
+       cnt:=1;
+    end else begin
+      //Очевидно, смена типа - а в случае, когда граната вытаскивается визуально, в начале смены типа необходимо показывать старый тип
+      ammotype:=GetGlAmmoType(wpn);    
+    end;
   end else begin
     ammotype:=GetGlAmmoType(wpn);
   end;
@@ -424,7 +430,15 @@ begin
       section:=game_ini_read_string(section, 'section');
       if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
       if game_ini_line_exist(section, 'hud') then begin
-        SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
+        if game_ini_r_bool_def(section, 'hud_when_silencer_is_attached', false) and IsSilencerAttached(wpn) then begin
+          SetHUDSection(wpn, game_ini_read_string(section, 'hud_silencer'));
+        end else if game_ini_r_bool_def(section, 'hud_when_gl_is_attached', false) and IsGLAttached(wpn) then begin
+          SetHUDSection(wpn, game_ini_read_string(section, 'hud_gl'));
+        end else if game_ini_r_bool_def(section, 'hud_when_scope_is_attached', false) and IsScopeAttached(wpn) then begin
+          SetHUDSection(wpn, game_ini_read_string(section, 'hud_scope'));        
+        end else begin
+          SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
+        end;          
       end;
       if game_ini_line_exist(section, 'visual') then begin
         SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));

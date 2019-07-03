@@ -47,7 +47,7 @@ procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
 function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
 procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
 function GetAmmoTypeIndex(wpn:pointer; second:boolean=false):byte; stdcall;
-function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
+function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;   //Вернет индекс для текущего активного магазина (т.е. разные в режиме подствола и обычном)
 function CWeapon__GetAmmoCount(wpn:pointer; ammo_type:byte):integer; stdcall;
 function CWeaponMagazinedWGrenade__GetAmmoCount2(wpn:pointer; ammo_type:byte):integer; stdcall;
 function GetCartridgeSection(c:pCCartridge):PChar; stdcall;
@@ -219,6 +219,7 @@ end;
 
 function GetAmmoTypeToReload(wpn:pointer):byte; stdcall;
 begin
+  //Вернет индекс для текущего активного магазина (т.е. разные в режиме подствола и обычном)
   result:=GetAmmoTypeChangingStatus(wpn);
   if result=$FF then result:=GetAmmoTypeIndex(wpn);
 end;
