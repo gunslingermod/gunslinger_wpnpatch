@@ -16,9 +16,10 @@ procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
 var
   cs, ce:pCCartridge;
   tmp:CCartridge;
-  cnt:cardinal;
+  cnt, gl_status:cardinal;
 begin
-  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
+  gl_status:=GetGLStatus(wpn);
+  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
   cnt:=GetAmmoInMagCount(wpn);
   if cnt>1 then begin
     cnt:=cnt-1;
@@ -34,9 +35,10 @@ procedure SwapLastPrevAmmo(wpn:pointer);stdcall;
 var
   cs, ce:pCCartridge;
   tmp:CCartridge;
-  cnt:cardinal;
+  cnt, gl_status:cardinal;
 begin
-  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
+  gl_status:=GetGLStatus(wpn);
+  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
   cnt:=GetAmmoInMagCount(wpn);
   if cnt>1 then begin
     cnt:=cnt-1;

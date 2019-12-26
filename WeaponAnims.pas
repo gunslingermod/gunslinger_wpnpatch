@@ -1269,9 +1269,11 @@ asm
 end;
 
 function CanSwitchGL(wpn:pointer):boolean; stdcall;
+var
+  gl_status:cardinal;
 begin
-
-  if (GetGLStatus(wpn)=0) or not(IsGLAttached(wpn)) then begin
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status=2) and not (IsGLAttached(wpn))) then begin
     result:=false;
   end else begin
     result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn,kfGLAUNCHSWITCH);

@@ -450,11 +450,15 @@ end;
 
 function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
 var
-  pstart, pend:cardinal;
+  pstart, pend, gl_status:cardinal;
   ptr:pointer;
 begin
   result:=0;
-  if (wpn=nil) or (GetGLStatus(wpn)=0) or not IsGLAttached(wpn) then exit;
+
+  if wpn = nil then exit;
+
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status=2) and not IsGLAttached(wpn)) then exit;
   if IsGrenadeMode(wpn) then
     ptr:= PChar(wpn)+$6C8
   else
@@ -470,10 +474,13 @@ end;
 procedure SetAmmoInGLCount(wpn:pointer; cnt:cardinal); stdcall;
 //работает только на уменьшение!!!
 var
-  pstart, pend:cardinal;
+  pstart, pend, gl_status:cardinal;
   ptr:pointer;
 begin
-  if (wpn=nil) or (GetGLStatus(wpn)=0) or not IsGLAttached(wpn) then exit;
+  if wpn = nil then exit;
+
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status=2) and not IsGLAttached(wpn)) then exit;
   if IsGrenadeMode(wpn) then
     ptr:= PChar(wpn)+$6C8
   else

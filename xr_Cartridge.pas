@@ -93,12 +93,14 @@ end;
 
 function GetCartridgeFromMagVector(wpn:pointer; index:cardinal):pCCartridge; stdcall;
 var
-  tmp:cardinal;
+  tmp, gl_status:cardinal;
   ptr:pointer;
 begin
   result:=nil;
   if (wpn=nil) or (index>=GetAmmoInMagCount(wpn)) then exit;
-  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then
+
+  gl_status:=GetGLStatus(wpn);
+  if ((gl_status=1) or ((gl_status=2) and (IsGLAttached(wpn)))) and IsGLEnabled(wpn) then
     ptr:= PChar(wpn)+$7EC
   else
     ptr:= PChar(wpn)+$6C8;
@@ -108,11 +110,14 @@ end;
 
 function GetGrenadeCartridgeFromGLVector(wpn:pointer; index:cardinal):pCCartridge; stdcall;
 var
-  tmp:cardinal;
+  tmp, gl_status:cardinal;
   ptr:pointer;
 begin
   result:=nil;
-  if (wpn=nil) or (GetGLStatus(wpn)=0) or not (IsGLAttached(wpn)) or (index>=GetAmmoInGLCount(wpn)) then exit;
+  if (wpn=nil) then exit;
+
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status=2) and not (IsGLAttached(wpn))) or (index>=GetAmmoInGLCount(wpn)) then exit;
   if IsGrenadeMode(wpn) then
     ptr:= PChar(wpn)+$6C8
   else
@@ -125,13 +130,14 @@ end;
 
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 var
-  tmp:cardinal;
+  tmp, gl_status:cardinal;
   ptr:pointer;
 begin
   result:=nil;
   if (wpn=nil) or (ammotype>=GetMainAmmoTypesCount(wpn)) then exit;
 
-  if ((GetGLStatus(wpn)=1) or (IsGLAttached(wpn))) and IsGLEnabled(wpn) then
+  gl_status:=GetGLStatus(wpn);
+  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then
     ptr:= PChar(wpn)+$7D8
   else
     ptr:= PChar(wpn)+$6A4;
@@ -144,11 +150,14 @@ end;
 
 function GetGLCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 var
-  tmp:cardinal;
+  tmp, gl_status:cardinal;
   ptr:pointer;
 begin
   result:=nil;
-  if (wpn=nil) or (GetGLStatus(wpn)=0) or (not IsGLAttached(wpn)) or (ammotype>=GetGLAmmoTypesCount(wpn)) then exit;
+  if (wpn=nil) then exit;
+
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status=2) and not IsGLAttached(wpn)) or (ammotype>=GetGLAmmoTypesCount(wpn)) then exit;
 
   if not IsGLEnabled(wpn) then
     ptr:= PChar(wpn)+$7D8
@@ -164,11 +173,15 @@ end;
 
 function GetGLAmmoTypesCount(wpn:pointer):cardinal; stdcall;
 var
-  pstart, pend:cardinal;
+  pstart, pend, gl_status:cardinal;
   ptr:pointer;
 begin
   result:=0;
-  if (wpn=nil) or (GetGLStatus(wpn)=0) or not IsGLAttached(wpn) then exit;
+  if (wpn=nil) then exit;
+
+  gl_status:=GetGLStatus(wpn);
+  if (gl_status=0) or ((gl_status = 2) and not IsGLAttached(wpn)) then exit;
+
   if IsGrenadeMode(wpn) then
     ptr:= PChar(wpn)+$6A4
   else
