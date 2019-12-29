@@ -1504,8 +1504,8 @@ begin
   end;
 
   if (abs(_lens_night_brightness.max_value-last.max_value)>EPS) or (abs(_lens_night_brightness.min_value-last.min_value)>EPS) or (_lens_night_brightness.steps<>last.steps) then begin
-    _lens_night_brightness.cur_value:=_lens_night_brightness.max_value;
-    _lens_night_brightness.cur_step:=_lens_night_brightness.steps;
+    _lens_night_brightness.cur_step:=game_ini_r_int_def(sect, 'default_brightness_step', _lens_night_brightness.steps);
+    SetNightBrightness(_lens_night_brightness.cur_step);
   end;
 
 end;
