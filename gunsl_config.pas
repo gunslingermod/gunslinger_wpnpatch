@@ -166,6 +166,9 @@ function IsSoundPatchNeeded():boolean; stdcall;
 function GetBaseLookoutParams():lookout_params; stdcall;
 
 
+var
+  g_pickup_distance:single;
+
 implementation
 uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils;
 
@@ -746,6 +749,8 @@ begin
   _lookout_params.ampl_k:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_ampl_k', 1.0);
 
   _lookout_params.dx_pow:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lookout_ampl_dx_pow', 1.0);
+
+  g_pickup_distance:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_pickup_distance', 2.0);
 
   result:=true;
 end;

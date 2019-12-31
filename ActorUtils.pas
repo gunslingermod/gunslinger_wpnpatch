@@ -198,6 +198,7 @@ var
   _was_pda_animator_spawned:boolean;
   _pda_cursor_state:TCursorState;
   _changed_grenade:pointer;
+  _actor_hands_length:single;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure SetChangedGrenade(itm:pointer);
@@ -2092,7 +2093,7 @@ begin
 
   wpn:=GetActorActiveItem();
 
-  if not game_ini_line_exist('gunslinger_base', 'fov') then exit;
+  if not game_ini_line_exist(GUNSL_BASE_SECTION, 'fov') then exit;
   fov:=GetBaseFOV();
   if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'fov_factor');
   SetFOV(fov);
@@ -3378,6 +3379,10 @@ begin
   //Дополнительные условия, когда актор не может поднимать предметы с земли (например, под воздействием контролера)
   jmp_addr:=xrGame_addr+$2a9ce3;
   if not WriteJump(jmp_addr, cardinal(@CInventory__CanTakeItem_Conditions), 5, true) then exit;
+
+  // Удлиненние рук актора - чтобы мог взять хабар из нычек в кабинах и т.п
+  jmp_addr:=cardinal(@g_pickup_distance);
+  if not WriteBufAtAdr(xrGame_addr+$2629a3, @jmp_addr, sizeof(jmp_addr)) then exit;
 
   result:=true;
 end;
