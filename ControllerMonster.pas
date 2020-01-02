@@ -446,7 +446,7 @@ begin
   if (det<>nil) or ((wpn<>nil) and not CanUseItemForSuicide(wpn)) then begin
     _planning_suicide:=CanUseItemForSuicide(wpn);
     _suicide_now:=false;
-    result:=not ((GetCurrentState(wpn)=EHudStates__eHidden) or (GetCurrentState(wpn)=EHudStates__eHiding));
+    result:= (wpn=nil) or (not ((GetCurrentState(wpn)=EHudStates__eHidden) or (GetCurrentState(wpn)=EHudStates__eHiding)));
     exit;
   end;
 
