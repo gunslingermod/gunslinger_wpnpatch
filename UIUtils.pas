@@ -222,12 +222,12 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level;
 
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr:pointer;
-  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr:pointer;
+  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr :pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -540,6 +540,18 @@ asm
   popad
 end;
 
+function GetParameterUpgraded_int(objid:word; param_name:PAnsiChar):word; cdecl;
+var
+  obj, ii:pointer;
+begin
+  result:=255;
+  obj:=GetObjectById(objid);
+  ii:=dynamic_cast(obj, 0, RTTI_CGameObject, RTTI_CInventoryItem, false);
+
+  if ii=nil then exit;
+  result:=FindIntValueInUpgradesDef(ii, param_name, result);
+end;
+
 procedure register_level_isuishown(); stdcall;
 const
   name:PChar='is_ui_shown';
@@ -550,6 +562,8 @@ const
   name_electroproblem_end:PChar='electronics_restore';
   name_electroproblem_reset:PChar='electronics_reset';
   name_electroproblem_apply:PChar='electronics_apply';
+
+  name_get_parameter_upgraded:PChar='name_get_parameter_upgraded_int';
 asm
   push eax
 
@@ -712,7 +726,29 @@ asm
   mov ecx, eax
   call esi
   ///////////////////////////////
+  push eax
 
+  mov ecx, GetParameterUpgraded_int_ptr
+  push ecx
+  mov ecx, esp
+  push name_get_parameter_upgraded
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $241cd2;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ///////////////////////////////
   //original
   mov ecx, eax
   call esi
@@ -909,6 +945,7 @@ function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
 begin
+  result:=false;
   bShowPauseString:=pointer(xrengine_addr+$9032c);
 
   jmp_addr:=xrGame_addr+$24A762;
@@ -920,6 +957,7 @@ begin
   ElectronicProblemsEnd_ptr:=@ElectronicProblemsEnd;
   ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;
   ElectronicProblemsApply_ptr:=@ElectronicProblemsApply;
+  GetParameterUpgraded_int_ptr:=@GetParameterUpgraded_int;
 
   //экспорт в скрипты
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;

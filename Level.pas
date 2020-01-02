@@ -9,6 +9,7 @@ procedure AddBullet(position:pFVector3; direction:pFVector3; starting_speed:sing
 procedure MakeWeaponKick(pos:pFVector3; dir:pFVector3; wpn:pointer); stdcall;
 function CLevel__SpawnItem(this:pointer; section:PChar; pos:pFVector3; vertex_id:cardinal; parent_id:word; return_item:boolean):pCSE_Abstract; stdcall;
 procedure CLevel__AfterSpawnSendAndFree(this:pointer; obj:pCSE_Abstract); stdcall;
+function GetObjectById(id:word):pointer; stdcall;
 
 implementation
 uses BaseGameData, gunsl_config, HudItemUtils, HitUtils, math, sysutils;
@@ -242,6 +243,25 @@ begin
       true,
       false);
   end;
+end;
+
+function GetObjectById(id:word):pointer; stdcall;
+asm
+  pushad
+  movzx eax, id
+  push eax
+  mov eax, xrgame_addr;
+  add eax, $23f5a0
+  call eax // get_object_by_id
+  pop ecx
+
+  cmp eax, 0
+  je @finish
+  mov eax, [eax+$4]
+
+  @finish:
+  mov @result, eax
+  popad 
 end;
 
 end.
