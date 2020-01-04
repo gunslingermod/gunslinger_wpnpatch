@@ -525,13 +525,20 @@ procedure CActor__UpdateCL_Crosshair_Patch(); stdcall;
 //запрещаем обновлять дисперсию, когда рендерится кадр прицела
 asm
   cmp _is_lens_frame, 0
-  jne @finish
+  jne @restore_fpu
     sub esp, 8
     fstp dword ptr [esp+$4]
     fstp dword ptr [esp]
     mov eax, xrGame_addr
     add eax, $4b01e0
-    call eax          //CHudManager::SetCrosshairDisp    
+    call eax          //CHudManager::SetCrosshairDisp
+    jmp @finish
+
+  @restore_fpu: //Восстанавливаем состояние FPU, если вызова не производилось - оно тут важно!
+    sub esp, 8
+    fstp dword ptr [esp+$4]
+    fstp dword ptr [esp]
+    add esp, 8
   @finish:
 end;
 
