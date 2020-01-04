@@ -231,8 +231,9 @@ type
     procedure SetOffsetDir(val:single);
 
     procedure LoadNightBrightnessParamsFromSection(sect:PChar);
+    procedure ReloadNightBrightnessParams();
     procedure ChangeNightBrightness(steps:integer);
-    procedure SetNightBrightness(steps:integer);
+    procedure SetNightBrightness(steps:integer; use_sound:boolean);
     function GetCurBrightness():stepped_params;
     function GetCurLensRecoil():FVector3;
     procedure ApplyLensRecoil(recoil:FVector4);
@@ -1479,6 +1480,17 @@ begin
   _lens_offset.dir:=val;
 end;
 
+procedure WpnBuf.ReloadNightBrightnessParams();
+var
+  scope_sect:PChar;
+begin
+  scope_sect:=GetSection(self._my_wpn);
+  if IsScopeAttached(self._my_wpn) and (GetScopeStatus(self._my_wpn)=2) then begin
+    scope_sect:=game_ini_read_string(GetCurrentScopeSection(self._my_wpn), 'scope_name');
+  end;
+  self.LoadNightBrightnessParamsFromSection(scope_sect);
+end;
+
 procedure WpnBuf.LoadNightBrightnessParamsFromSection(sect: PChar);
 var
   last:stepped_params;
@@ -1505,7 +1517,7 @@ begin
 
   if (abs(_lens_night_brightness.max_value-last.max_value)>EPS) or (abs(_lens_night_brightness.min_value-last.min_value)>EPS) or (_lens_night_brightness.steps<>last.steps) then begin
     _lens_night_brightness.cur_step:=game_ini_r_int_def(sect, 'default_brightness_step', _lens_night_brightness.steps);
-    SetNightBrightness(_lens_night_brightness.cur_step);
+    SetNightBrightness(_lens_night_brightness.cur_step, false);
   end;
 
 end;
@@ -1517,13 +1529,12 @@ begin
     exit;
   end;
 
-//  _lens_night_brightness.cur_step:=_lens_night_brightness.cur_step+steps;
-  SetNightBrightness(_lens_night_brightness.cur_step+steps);
+  SetNightBrightness(_lens_night_brightness.cur_step+steps, true);
 end;
 
 
 // try to use ChangeNightBrightness instead of SetNightBrightness!
-procedure WpnBuf.SetNightBrightness(steps: integer);
+procedure WpnBuf.SetNightBrightness(steps: integer; use_sound:boolean);
 var
   delta:single;
   last_steps:integer;
@@ -1542,11 +1553,13 @@ begin
     _lens_night_brightness.cur_value:=_lens_night_brightness.min_value+delta*(_lens_night_brightness.cur_step);
   end;
 
-  if last_steps>_lens_night_brightness.cur_step then begin
-    CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessMinus');  
-  end else if last_steps<_lens_night_brightness.cur_step then begin
-    CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessPlus');
-  end;
+  if (use_sound) then begin
+    if last_steps>_lens_night_brightness.cur_step then begin
+      CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessMinus');
+    end else if last_steps<_lens_night_brightness.cur_step then begin
+      CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessPlus');
+    end;
+  end;    
 end;
 
 function WpnBuf.GetCurBrightness: stepped_params;

@@ -1256,11 +1256,7 @@ begin
         end;
 
       end else begin
-        scope_sect:=GetSection(wpn);
-        if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
-          scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-        end;
-        buf.LoadNightBrightnessParamsFromSection(scope_sect);
+        buf.ReloadNightBrightnessParams();
         if id=kBRIGHTNESS_MINUS then begin
           buf.ChangeNightBrightness(-1);
         end else begin
@@ -1500,11 +1496,7 @@ begin
       SetZoomFactor(wpn, GetAlterScopeZoomFactor(wpn));
     end;
 
-    scope_sect:=GetSection(wpn);
-    if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
-      scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-    end;
-    buf.LoadNightBrightnessParamsFromSection(scope_sect);
+    buf.ReloadNightBrightnessParams();
   end;
 
   if IsPDAWindowVisible() then begin

@@ -52,8 +52,9 @@ begin
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetOffsetDir(tmp_single);
 
+  buf.ReloadNightBrightnessParams();
   ReadFromReader(packet, @tmp_int, sizeof(tmp_int));
-  buf.ChangeNightBrightness(tmp_int);
+  buf.SetNightBrightness(tmp_int, false);
 
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
   SetLength(buf.ammos, ammos_in_mag);
