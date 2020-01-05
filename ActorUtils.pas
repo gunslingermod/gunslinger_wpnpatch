@@ -1624,6 +1624,13 @@ begin
       end else begin
         ActivateActorSlot(GetActorPreviousSlot());
       end;
+
+      //Если ПДА играет аниму выхода из режима приближения - форсированно переходим в аниму убирание (полагаемся на миксовку, которая сгладит переход)
+      //Само убирание будет отработано в OnAnimationEnd
+      anm_name:=GetActualCurrentAnim(GetActorActiveItem());
+      if (rightstr(anm_name, length('_aim_end')) = '_aim_end') and (GetCurrentState(GetActorActiveItem()) <> EHudStates__eHiding) then begin
+        PlayHudAnim(GetActorActiveItem(), 'anm_hide_emerg', true)        
+      end;      
     end;
     _was_pda_animator_spawned:=false;
   end;

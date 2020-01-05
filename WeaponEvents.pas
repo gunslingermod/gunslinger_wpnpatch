@@ -1385,8 +1385,12 @@ begin
   end;
 
   //тут что-то было... И может быть будет
-  if (GetSection(wpn)=GetPDAShowAnimator()) and not IsPDAWindowVisible() and (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim_end'))='anm_idle_aim_end') then begin
-      virtual_CHudItem_SwitchState(wpn, EHudStates__eHidden);
+  if (GetSection(wpn)=GetPDAShowAnimator()) and not IsPDAWindowVisible() then begin
+     if (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim_end'))='anm_idle_aim_end') then begin
+       virtual_CHudItem_SwitchState(wpn, EHudStates__eHiding);
+     end else if (leftstr(GetActualCurrentAnim(wpn), length('anm_hide_emerg'))='anm_hide_emerg') then begin
+       virtual_CHudItem_SwitchState(wpn, EHudStates__eHidden);
+     end;
   end;
 end;
 
