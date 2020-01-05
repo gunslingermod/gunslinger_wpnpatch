@@ -1808,7 +1808,7 @@ begin
   end;
 
   if (dik=kJUMP) then begin
-    result:=not IsActorControlled();
+    result:=not (IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing());
   end else if (dik >= kQUICK_USE_1) and (dik<=kQUICK_USE_4) then begin
     tmp_pchar:=GetQuickUseScriptFunctorName();
     if tmp_pchar<>nil then begin
@@ -2785,7 +2785,7 @@ end;
 
 function IsHandJitter(itm:pointer):boolean; stdcall;
 begin
- result := ((IsActorControlled() or IsSuicideAnimPlaying(itm)) and not IsSuicideInreversible()) or (_jitter_time_remains>0);
+ result := ((IsActorControlled() or IsSuicideAnimPlaying(itm) or IsControllerPreparing()) and not IsSuicideInreversible()) or (_jitter_time_remains>0);
 end;
 
 function GetHandJitterScale(itm:pointer):single; stdcall;
@@ -2793,7 +2793,7 @@ var
   restore_time:cardinal;
 begin
   restore_time:=floor(game_ini_r_single_def(GetHUDSection(itm), 'jitter_stop_time', 3)*1000);
-  if (IsActorControlled() or IsSuicideAnimPlaying(itm)) or (_jitter_time_remains>restore_time) then begin
+  if (IsActorControlled() or IsSuicideAnimPlaying(itm) or IsControllerPreparing()) or (_jitter_time_remains>restore_time) then begin
     result:=1;
   end else if _jitter_time_remains=0 then begin
     result:=0;

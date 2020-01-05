@@ -121,7 +121,7 @@ var
   itm:pointer;
 begin
   result:=1.0;
-  if IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+  if IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing() then begin
     result:=GetControlledActorSpeedKoef();
     exit;
   end;
