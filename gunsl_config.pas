@@ -149,6 +149,7 @@ function GetPDAScreen_kx():single; stdcall;
 function GetPDAUpdatePeriod():cardinal; stdcall;
 
 function GetLensRenderFactor():cardinal;  stdcall;
+function IsLensEnabled():boolean;
 function IsForcedLens:boolean;  stdcall;
 function IsSndUnlock:boolean; stdcall;
 
@@ -234,6 +235,7 @@ var
   _cam_landing:landing_params;
   _jitter:jitter_params;
   _lens_render_factor:cardinal;
+  _lens_enabled:boolean;
 
 //Сами консольные команды
   CCC_dyndof:CCC_Mask;
@@ -243,6 +245,7 @@ var
   CCC_realballistics:CCC_Mask;
 
   CCC_lens_render_factor:CCC_Integer;
+  CCC_lens_enabled:CCC_Mask;
   CCC_force_lense:CCC_Mask;
   CCC_unlock_snd:CCC_Mask;
 
@@ -274,7 +277,8 @@ const
   _mask_npclasers:cardinal=$8;
   _mask_realballistics:cardinal=$10;
   _mask_forcelense:cardinal=$20;
-  _mask_unlocksnd:cardinal=$40;  
+  _mask_unlocksnd:cardinal=$40;
+  _mask_lens_enabled:cardinal=$80;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -557,6 +561,7 @@ begin
   result:=false;
   _console_bool_flags:=0;
   _lens_render_factor:=1;
+  _lens_enabled:=true;
 //--------------------------------Uncut console commands-----------------------------------------------------------
   if IsDebug() then begin
     psDeviceFlags:=pointer(xrEngine_addr+$91304);
@@ -614,6 +619,8 @@ begin
   CConsole__AddCommand(@(CCC_force_lense.base));
   CCC_Mask__CCC_Mask(@CCC_unlock_snd, 'snd_unlock', @_console_bool_flags, _mask_unlocksnd);
   CConsole__AddCommand(@(CCC_unlock_snd.base));
+  CCC_Mask__CCC_Mask(@CCC_lens_enabled, 'lens_enabled', @_console_bool_flags, _mask_lens_enabled);
+  CConsole__AddCommand(@(CCC_lens_enabled.base));
 
   CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
   CConsole__AddCommand(@(CCC_fov.base));
@@ -875,6 +882,11 @@ end;
 function GetLensRenderFactor():cardinal; stdcall;
 begin
   result:=_lens_render_factor;
+end;
+
+function IsLensEnabled():boolean;
+begin
+  result:=(_mask_lens_enabled and _console_bool_flags) <> 0;
 end;
 
 function GetModVer():PChar; stdcall;

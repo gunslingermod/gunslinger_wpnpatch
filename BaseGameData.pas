@@ -67,36 +67,57 @@ const
 function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
 var rb:cardinal;
     i:cardinal;
+    old:cardinal;
 begin
   result:=true;
+  virtualprotect(PChar(addr), count, PAGE_EXECUTE_READWRITE, @old);
+
   for i:=addr to addr+count-1 do begin
     writeprocessmemory(hndl, PChar(i), @opcode, 1, rb);
     if rb<>1 then result:=false;
   end;
+
+  virtualprotect(PChar(addr), count, old, @rb);
 end;
 
 function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
-var rb:cardinal;
+var
+  rb:cardinal;
+  old:cardinal;
 begin
   result:=true;
+  virtualprotect(PChar(addr), count, PAGE_EXECUTE_READWRITE, @old);
   writeprocessmemory(hndl, PChar(addr), buf, count, rb);
   if rb<>count then result:=false;
+  virtualprotect(PChar(addr), count, old, rb);
 end;
 
 function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
 var offsettowrite:cardinal;
     rb:cardinal;
     opcode:char;
+    old:cardinal;
+    vprotcnt:cardinal;   
 begin
   result:=true;
   if writecall then opcode:=CHR($E8) else opcode:=CHR($E9);
   offsettowrite:=dest_addr-write_addr-5;
+
+  if addbytescount>5 then begin
+    vprotcnt:=addbytescount;
+  end else begin
+    vprotcnt:=5
+  end;
+  virtualprotect(PChar(write_addr), vprotcnt, PAGE_EXECUTE_READWRITE, @old);
+
   writeprocessmemory(hndl, PChar(write_addr), @opcode, 1, rb);
   if rb<>1 then result:=false;
   writeprocessmemory(hndl, PChar(write_addr+1), @offsettowrite, 4, rb);
   if rb<>4 then result:=false;
   if addbytescount>5 then nop_code(write_addr+5, addbytescount-5);
   write_addr:=write_addr+addbytescount;
+
+  virtualprotect(PChar(write_addr), vprotcnt, old, rb);
 end;
 
 function GetGameTickCount:cardinal;

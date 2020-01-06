@@ -83,7 +83,7 @@ begin
       SetDOF(ReadZoomDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
     end;
   end else begin
-    result:= (not IsCollimatorInstalled(wpn)) and (not game_ini_r_bool_def(GetSection(wpn), 'disable_zoom_dof', false));
+    result:= (not IsCollimatorInstalled(wpn) and not IsLensedScopeInstalled(wpn)) and (not game_ini_r_bool_def(GetSection(wpn), 'disable_zoom_dof', false));
     if result then SetDofSpeedfactor(GetDefaultDOFSpeed());
   end;
 end;

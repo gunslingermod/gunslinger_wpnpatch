@@ -4,6 +4,7 @@ unit collimator;
 interface
 function Init:boolean;
 function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
+function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
 function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
 function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
@@ -52,12 +53,23 @@ begin
   result:=game_ini_r_bool_def(scope, 'collimator', false)
 end;
 
+function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
+var
+  scope:PChar;
+begin
+  result:=false;
+  if not IsScopeAttached(wpn) then exit;
+  scope:=GetCurrentScopeSection(wpn);
+  scope:=game_ini_read_string(scope, 'scope_name');
+  result:=game_ini_r_bool_def(scope, 'need_lens_frame', false)
+end;
+
 function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
-  result:=IsCollimatorInstalled(wpn) or ((buf<>nil) and buf.IsAlterZoomMode());
+  result:=IsCollimatorInstalled(wpn) or (IsLensedScopeInstalled(wpn) and IsLensEnabled()) or ((buf<>nil) and buf.IsAlterZoomMode());
 end;
 
 procedure PatchHudVisibility(); stdcall;
@@ -335,9 +347,28 @@ asm
 
 end;
 
+function CWeapon__UseScopeTexture_override(wpn:pointer):boolean; stdcall;
+begin
+  result:= not IsGrenadeMode(wpn) and not (IsLensedScopeInstalled(wpn) and IsLensEnabled());
+end;
+
+function CWeapon__UseScopeTexture_override_patch():boolean; stdcall;
+asm
+  xor eax, eax
+  pushad
+  push ecx
+  call CWeapon__UseScopeTexture_override
+  test al, al
+  popad
+  je @finish
+  inc eax;
+  @finish:
+end;
+
 function Init:boolean;
 var
   patch_addr:cardinal;
+  buf:pointer;
 begin
   result:=false;
 
@@ -363,6 +394,15 @@ begin
 
   patch_addr:=xrGame_addr+$2BD1C5;
   if not WriteJump(patch_addr, cardinal(@CWeapon__show_crosshair_Patch), 7, true) then exit;
+
+  //Заменяем в vtable CWeapon метод UseScopeTexture
+  patch_addr:=xrGame_addr+$5650f8;
+  buf:=@CWeapon__UseScopeTexture_override_patch;
+  if not WriteBufAtAdr(patch_addr, @buf, sizeof(buf)) then exit;
+
+  //и в CWeaponMagazinedWGrenade
+  patch_addr:=xrGame_addr+$560a88;
+  if not WriteBufAtAdr(patch_addr, @buf, sizeof(buf)) then exit;
 
   result:=true;
 end;

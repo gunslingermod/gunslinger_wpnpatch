@@ -13,7 +13,7 @@ procedure CopyRenderTargetData(src:pCRT_rec; dest:pCRT_rec); stdcall;
 
 
 implementation
-uses BaseGameData, Windows, SysUtils, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, MatVectors, math, ConsoleUtils, ActorDOF, UIUtils, KeyUtils;
+uses BaseGameData, Windows, SysUtils, Misc, gunsl_config, ActorUtils, HudItemUtils, dynamic_caster, WeaponAdditionalBuffer, MatVectors, math, ConsoleUtils, ActorDOF, UIUtils, KeyUtils, collimator;
 
 type
   render_f=function():pCRT_rec;
@@ -65,13 +65,12 @@ function LensConditions(ignore_forcing_override:boolean):boolean; stdcall;
 var
   wpn:pointer;
   buf:WpnBuf;
-  scope_sect:PChar;
 begin
     result:=false;
     wpn:=GetActorActiveItem();
-    if (wpn=nil) then begin
+    if (wpn=nil) or not IsLensEnabled() then begin
       exit;
-    end;
+    end;	
     
     buf:=GetBuffer(wpn);
     if (not ignore_forcing_override) and (buf<>nil) and buf.NeedPermanentLensRendering() then begin
@@ -86,9 +85,8 @@ begin
     end;
 
     if (IsAimNow(wpn) or IsHolderInAimState(wpn) or (GetAimFactor(wpn)>0.001)) and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'doublerendered_gl_zoom', false)) then begin
-      if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
-        scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-        result:=game_ini_r_bool_def(scope_sect, 'need_lens_frame', false);
+      if IsLensedScopeInstalled(wpn) then begin
+        result:=true;
       end else begin
         result:=game_ini_r_bool_def(GetHUDSection(wpn), 'need_lens_frame', false);
       end;
@@ -411,7 +409,25 @@ asm
 end;
 
 procedure CCameraManager__Update_Lens_FOV_manipulation(value:pSingle); stdcall;
+var
+  need_lens_frame_now:boolean;
+  wpn:pointer;
+  buf:WpnBuf;
 begin
+  need_lens_frame_now:=NeedLensFrameNow();
+
+  if not IsLensEnabled() then begin
+    // Линза отключена в настройках. Если мы в режиме прицеливания - все кадры рендерим с указанным фов
+    wpn:=GetActorActiveItem();
+    wpn:=dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
+    if (wpn<>nil) and (GetAimFactor(wpn) > 0.999) and not IsGLEnabled(wpn) and ((GetScopeStatus(wpn)=1) or ((GetScopeStatus(wpn)=2) and IsScopeAttached(wpn))) then begin
+       buf:=GetBuffer(wpn);
+       if (buf=nil) or not buf.IsAlterZoomMode() then begin
+          value^:=GetLensFOV(value^);
+       end;
+    end;
+    exit;
+  end;
 
   if GetDevicedwFrame()=_last_fov_changed_frame then begin
     value^:=GetLensFOV(value^);
@@ -420,7 +436,7 @@ begin
 
   if _restore_fov_after_lens_frame = 0 then begin
     //мы не меняли ФОВ ранее. Если рисуется кадр линзы - сохраним и выставим фов линзы
-    if NeedLensFrameNow() then begin
+    if need_lens_frame_now then begin
       _restore_fov_after_lens_frame:=value^;
       _last_fov_changed_frame:=GetDevicedwFrame();
       value^:=GetLensFOV(value^);
@@ -428,7 +444,7 @@ begin
     end;
   end else begin
     //Мы ранее уже изменили фов. Если до сих пор нужно делать кадр линзы - просто выставим его фов, иначе - восстановим то, что изменили
-    if NeedLensFrameNow() then begin
+    if need_lens_frame_now then begin
       value^:=GetLensFOV(value^);
       _last_fov_changed_frame:=GetDevicedwFrame();
       _is_lens_frame:=true;
