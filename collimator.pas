@@ -11,7 +11,7 @@ function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
 function IsUINotNeededToBeHidden(wpn:pointer): boolean;stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, sysutils, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer, windows;
+uses BaseGameData, gunsl_config, HudItemUtils, sysutils, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer, windows, LensDoubleRender;
 
 var
   last_hud_data:pointer;
@@ -365,6 +365,42 @@ asm
   @finish:
 end;
 
+procedure CWeapon__render_item_ui__nozoomtex_Patch(); stdcall;
+asm
+  cmp ecx, 0
+  jne @finish_normal
+  // Сетки нет. Рендерить нечего. Выходим из CWeapon__render_item_ui
+  pop esi // ret_addr from patch
+  pop esi // saved var from render_item_ui
+  ret     // from render_item_ui
+
+  @finish_normal:
+  mov eax, [ecx]
+  mov edx, [eax+$64]
+end;
+
+function NeedRenderBinocVision(wpn:pointer):boolean; stdcall;
+begin
+  // Если рисуем кадр линзы - ничего с рамками делать не надо!
+  result:=not IsLensFrameNow();
+end;
+
+procedure CWeapon__needrenderbinocvision_Patch(); stdcall;
+asm
+  pushad
+  push ecx
+  call NeedRenderBinocVision
+  cmp al, 0
+  popad
+  je @finish
+
+  //original
+  mov ecx, [esi+$4b8]
+  test ecx, ecx
+
+  @finish:
+end;
+
 function Init:boolean;
 var
   patch_addr:cardinal;
@@ -403,6 +439,25 @@ begin
   //и в CWeaponMagazinedWGrenade
   patch_addr:=xrGame_addr+$560a88;
   if not WriteBufAtAdr(patch_addr, @buf, sizeof(buf)) then exit;
+
+  //в CWeapon::render_item_ui проверяем: если ZoomTexture() вернула NULL, то не рендерим сетку
+  patch_addr:=xrGame_addr+$2bc73c;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui__nozoomtex_Patch), 5, true) then exit;
+
+  //в CWeapon::render_item_ui рисуем рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
+//  patch_addr:=xrGame_addr+$2bc713;
+//  if not WriteJump(patch_addr, cardinal(@CWeapon__needrenderbinocvision_Patch), 8, true) then exit;
+
+  //в CWeapon::UpdateCL апдейтим рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
+  patch_addr:=xrGame_addr+$2c0706;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__needrenderbinocvision_Patch), 8, true) then exit;
+
+
+  //в CWeapon::render_item_ui_query вырезаем вызовы ZoomTexture - мешают рисовать на линзе рамки
+  patch_addr:=xrGame_addr+$2bc73c;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui__nozoomtex_Patch), 5, true) then exit;
+  if not nop_code(xrGame_addr+$2bd127, 4) then exit;
+  if not nop_code(xrGame_addr+$2bd10e, 4) then exit;  
 
   result:=true;
 end;
