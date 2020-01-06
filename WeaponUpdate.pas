@@ -234,6 +234,11 @@ begin
   end else begin
     //не в состо€нии перезар€дки, подствол выключен
     ammotype:=GetOrdinalAmmotype(wpn);
+
+    //’ак дл€ неправильно заанимированных моделей, не учитывающих патрон в патроннике - нам может потребоватьс€ отображать в магазине на один патрон ћ≈Ќ№Ў≈
+    if game_ini_r_bool_def(hud_sect, 'minus_ammo_in_bore', false) and (cnt >= 1) and (leftstr(GetActualCurrentAnim(wpn), length('anm_bore'))='anm_bore') then begin
+      cnt:=cnt-1;
+    end;
   end;
 
   bones_sect:=nil;
