@@ -435,9 +435,18 @@ begin
   result:=IsUIShown();
   if result then begin
     wpn:=GetActorActiveItem();
-    result:= (wpn=nil) or not ( (IsAimNow(wpn) and not IsGrenadeMode(wpn)) and (IsScopeAttached(wpn) or (GetScopeStatus(wpn)=1)) and not IsUINotNeededToBeHidden(wpn));
-    if result and (wpn<>nil) and IsBino(wpn) and IsAimNow(wpn) and game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false) then begin
+    if wpn = nil then begin
+      result:=true;
+    end else if IsUIForceHiding(wpn) then begin
       result:=false;
+    end else if IsUIForceUnhiding(wpn) then begin
+      result:=true;
+    end else if IsGrenadeMode(wpn) then begin
+      result:=true;      
+    end else if IsAimNow(wpn) and ((GetScopeStatus(wpn)=1) or (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn)) then begin
+      result:=false;
+    end else begin
+      result:=true;
     end;
   end;
 end;

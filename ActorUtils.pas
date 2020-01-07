@@ -3282,7 +3282,7 @@ begin
   jmp_addr:= xrgame_addr+$4b1b59;
   if not WriteJump(jmp_addr, cardinal(@CUIGameCustom__Render_drawingame_Patch), 5, true) then exit;
 
-  //фов в прицеливании
+  //фов в прицеливании (правим в CActor::currentFOV)
   jmp_addr:= xrgame_addr+$2605d0;
   if not WriteJump(jmp_addr, cardinal(@ZoomFOV_Patch), 13, true) then exit;
 

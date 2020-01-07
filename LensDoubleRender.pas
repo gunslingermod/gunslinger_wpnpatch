@@ -120,6 +120,7 @@ var
   buf:WpnBuf;
   lens_params:lens_zoom_params;
   scope_sect:PChar;
+  scope_status:cardinal;
 const
   EPS:single = 0.00001;
 begin
@@ -131,10 +132,15 @@ begin
   if buf=nil then exit;
 
   lens_params:=buf.GetLensParams();
-  if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+  scope_status:=GetScopeStatus(wpn);
+  if (scope_status=2) and IsScopeAttached(wpn) then begin
     scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
     lens_params.factor_min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
     lens_params.factor_max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);
+  end else if (scope_status=1) then begin
+    scope_sect:=GetHUDSection(wpn);
+    lens_params.factor_min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
+    lens_params.factor_max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);  
   end;
 
   factor:=lens_params.factor_min+(lens_params.factor_max-lens_params.factor_min)*lens_params.real_position;
@@ -420,7 +426,7 @@ begin
     // Линза отключена в настройках. Если мы в режиме прицеливания - все кадры рендерим с указанным фов
     wpn:=GetActorActiveItem();
     wpn:=dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
-    if (wpn<>nil) and (GetAimFactor(wpn) > 0.999) and not IsGLEnabled(wpn) and ((GetScopeStatus(wpn)=1) or ((GetScopeStatus(wpn)=2) and IsScopeAttached(wpn))) then begin
+    if (wpn<>nil) and (GetAimFactor(wpn) > 0.999) and not (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and IsLensedScopeInstalled(wpn) then begin
        buf:=GetBuffer(wpn);
        if (buf=nil) or not buf.IsAlterZoomMode() then begin
           value^:=GetLensFOV(value^);

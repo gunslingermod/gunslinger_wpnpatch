@@ -177,6 +177,8 @@ function HasDifferentFireModes(wpn:pointer):boolean; stdcall;
 
 function SetQueueFired(wpn:pointer; status:boolean):cardinal; stdcall;
 
+function HasBinocularVision(wpn:pointer):boolean; stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -2117,6 +2119,16 @@ asm
       mov ecx, wpn
       mov byte ptr [ecx+$79c], al
   popad
+end;
+
+function HasBinocularVision(wpn:pointer):boolean; stdcall;
+asm
+  mov eax, wpn
+  mov eax, [eax+$4b8]
+  cmp eax, 0
+  je @finish
+  mov eax, 1
+  @finish:
 end;
 
 end.

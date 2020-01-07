@@ -7,8 +7,9 @@ function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
 function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
 function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
-function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
-function IsUINotNeededToBeHidden(wpn:pointer): boolean;stdcall;
+function IsHudModelForceUnhide(wpn:pointer):boolean; stdcall;
+function IsUIForceHiding(wpn:pointer): boolean;stdcall;
+function IsUIForceUnhiding(wpn:pointer): boolean;stdcall;
 
 implementation
 uses BaseGameData, gunsl_config, HudItemUtils, sysutils, MatVectors, ActorUtils, strutils, messenger, WeaponAdditionalBuffer, windows, LensDoubleRender;
@@ -56,15 +57,24 @@ end;
 function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
 var
   scope:PChar;
+  scopestatus:cardinal;
 begin
   result:=false;
-  if not IsScopeAttached(wpn) then exit;
-  scope:=GetCurrentScopeSection(wpn);
-  scope:=game_ini_read_string(scope, 'scope_name');
-  result:=game_ini_r_bool_def(scope, 'need_lens_frame', false)
-end;
+  scopestatus:=GetScopeStatus(wpn);
+  if (scopestatus = 2) then begin
+    if IsScopeAttached(wpn) then begin
+      scope:=GetCurrentScopeSection(wpn);
+      scope:=game_ini_read_string(scope, 'scope_name');
+      result:=game_ini_r_bool_def(scope, 'need_lens_frame', false)
+    end;
+  end else if (scopestatus = 1) then begin
+    scope:=GetSection(wpn);
+    result:=game_ini_r_bool_def(scope, 'need_lens_frame', false);
+    result:=FindBoolValueInUpgradesDef(wpn, 'need_lens_frame', result, true);
+  end;
+end;   
 
-function IsHudNotNeededToBeHidden(wpn:pointer):boolean; stdcall;
+function IsHudModelForceUnhide(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
 begin
@@ -79,7 +89,7 @@ asm
 
     pushad
     push esi
-    call IsHudNotNeededToBeHidden;
+    call IsHudModelForceUnhide;
     test al, al
     popad
 
@@ -225,15 +235,21 @@ asm
     cmp byte ptr [ebp+$5D4], 00
 end;
 
-
-function IsUINotNeededToBeHidden(wpn:pointer): boolean;stdcall;
+function IsUIForceUnhiding(wpn:pointer): boolean;stdcall;
 var
   buf:WpnBuf;
 begin
-  result:=IsHudNotNeededToBeHidden(wpn);
+  result:=IsHudModelForceUnhide(wpn);
+
+  //Дальнейшие проверки имеют смысл только если худовая модель оружия не скрыта
   if result then begin
     buf:=GetBuffer(wpn);
-    if (buf<>nil) and not buf.IsAlterZoomMode() and IsScopeAttached(wpn) then begin
+    if (buf<>nil) and buf.IsAlterZoomMode() then begin
+      //Стрельба с резервных прицельных приспособлений. Не скрываем ничего
+      result:=true;
+    end else if (GetScopeStatus(wpn)=1) then begin
+      result:= not game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false);
+    end else if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
       result:= not game_ini_r_bool_def(game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name'), 'zoom_hide_ui', false);
     end;
   end;
@@ -241,7 +257,15 @@ end;
 
 function IsUIForceHiding(wpn:pointer): boolean;stdcall;
 begin
-  result:=IsBino(wpn) and IsAimNow(wpn) and game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false);
+  if IsBino(wpn) and IsAimNow(wpn) then begin
+    result:=game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false);
+  end else if (GetScopeStatus(wpn)=1) and IsAimNow(wpn) then begin
+    result:= game_ini_r_bool_def(GetSection(wpn), 'zoom_hide_ui', false);
+  end else if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) and IsAimNow(wpn) then begin
+    result:= game_ini_r_bool_def(game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name'), 'zoom_hide_ui', false);
+  end else begin
+    result:=false;
+  end;
 end;
 
 procedure CWeapon_show_indicators_Patch(); stdcall;
@@ -262,7 +286,7 @@ asm
   @check_unhiding:
   pushad
     push esi
-    call IsUINotNeededToBeHidden
+    call IsUIForceUnhiding
     cmp al, 1
   popad
   je @finish
@@ -347,29 +371,52 @@ asm
 
 end;
 
-function CWeapon__UseScopeTexture_override(wpn:pointer):boolean; stdcall;
+function CWeapon__render_item_ui_query_reimpl(wpn:pointer):boolean; stdcall;
 begin
-  result:= not IsGrenadeMode(wpn) and not (IsLensedScopeInstalled(wpn) and IsLensEnabled());
+  result:=false;
+  if (wpn=nil) or (wpn<>GetActorActiveItem()) then exit;
+  if IsGrenadeMode(wpn) then exit;
+  if not IsAimNow(wpn) then exit;
+  if IsAlterZoom(wpn) then exit;
+  if GetAimFactor(wpn) < 0.999 then exit;
+  if IsLensEnabled() and IsLensedScopeInstalled(wpn) then begin
+   // Если у нас прицел, детектящий все живое, то UI (а именно, рамку) придется отрисовать
+   if HasBinocularVision(wpn) then result:=true;
+   exit;
+  end;
+  result:=true;
 end;
 
-function CWeapon__UseScopeTexture_override_patch():boolean; stdcall;
+function CWeapon__render_item_ui_query_reimpl_patch():boolean; stdcall;
 asm
-  xor eax, eax
   pushad
   push ecx
-  call CWeapon__UseScopeTexture_override
-  test al, al
+  call CWeapon__render_item_ui_query_reimpl
+  mov @result, al
   popad
-  je @finish
-  inc eax;
-  @finish:
 end;
 
-procedure CWeapon__render_item_ui__nozoomtex_Patch(); stdcall;
+function IsForceHideZoomTexture(wpn:pointer):boolean; stdcall;
+begin
+  result:=false;
+  if IsLensEnabled() and IsLensedScopeInstalled(wpn) then begin
+    result:=true;
+  end;
+end;
+
+procedure CWeapon__render_item_ui__checkzoomtex_Patch(); stdcall;
 asm
   cmp ecx, 0
-  jne @finish_normal
-  // Сетки нет. Рендерить нечего. Выходим из CWeapon__render_item_ui
+  je @abandon_render_item_ui //Уходим, если сетки нет и рендерить нечего.
+  pushad
+  push esi
+  call IsForceHideZoomTexture
+  cmp al, 0
+  popad
+  je @finish_normal
+
+  @abandon_render_item_ui:
+  //Выходим из CWeapon__render_item_ui
   pop esi // ret_addr from patch
   pop esi // saved var from render_item_ui
   ret     // from render_item_ui
@@ -425,39 +472,20 @@ begin
   patch_addr:=xrGame_addr+$2BC3D1;
   if not WriteJump(patch_addr, cardinal(@CWeapon__ZoomTexture_Patch), 6, true) then exit;
 
-  patch_addr:=xrGame_addr+$2BD12B;
-  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui_query_Patch), 7, true) then exit;
-
   patch_addr:=xrGame_addr+$2BD1C5;
   if not WriteJump(patch_addr, cardinal(@CWeapon__show_crosshair_Patch), 7, true) then exit;
 
-  //Заменяем в vtable CWeapon метод UseScopeTexture
-  patch_addr:=xrGame_addr+$5650f8;
-  buf:=@CWeapon__UseScopeTexture_override_patch;
-  if not WriteBufAtAdr(patch_addr, @buf, sizeof(buf)) then exit;
+  // Заменяем реализацию метода CWeapon::render_item_ui_query своей
+  patch_addr:=xrGame_addr+$2bd0d0;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui_query_reimpl_patch), 9, false) then exit;
 
-  //и в CWeaponMagazinedWGrenade
-  patch_addr:=xrGame_addr+$560a88;
-  if not WriteBufAtAdr(patch_addr, @buf, sizeof(buf)) then exit;
-
-  //в CWeapon::render_item_ui проверяем: если ZoomTexture() вернула NULL, то не рендерим сетку
+  //в CWeapon::render_item_ui проверяем: если ZoomTexture() вернула NULL, то не рендерим сетку; если у нас 3д-прицел с детектором - тоже
   patch_addr:=xrGame_addr+$2bc73c;
-  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui__nozoomtex_Patch), 5, true) then exit;
-
-  //в CWeapon::render_item_ui рисуем рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
-//  patch_addr:=xrGame_addr+$2bc713;
-//  if not WriteJump(patch_addr, cardinal(@CWeapon__needrenderbinocvision_Patch), 8, true) then exit;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui__checkzoomtex_Patch), 5, true) then exit;
 
   //в CWeapon::UpdateCL апдейтим рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
   patch_addr:=xrGame_addr+$2c0706;
   if not WriteJump(patch_addr, cardinal(@CWeapon__needrenderbinocvision_Patch), 8, true) then exit;
-
-
-  //в CWeapon::render_item_ui_query вырезаем вызовы ZoomTexture - мешают рисовать на линзе рамки
-  patch_addr:=xrGame_addr+$2bc73c;
-  if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui__nozoomtex_Patch), 5, true) then exit;
-  if not nop_code(xrGame_addr+$2bd127, 4) then exit;
-  if not nop_code(xrGame_addr+$2bd10e, 4) then exit;  
 
   result:=true;
 end;
