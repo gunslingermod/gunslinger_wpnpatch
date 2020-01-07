@@ -437,6 +437,8 @@ begin
     wpn:=GetActorActiveItem();
     if wpn = nil then begin
       result:=true;
+    end else if dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false) = nil then begin
+      result:=true;
     end else if IsUIForceHiding(wpn) then begin
       result:=false;
     end else if IsUIForceUnhiding(wpn) then begin

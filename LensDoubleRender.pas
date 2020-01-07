@@ -88,7 +88,7 @@ begin
       if IsLensedScopeInstalled(wpn) then begin
         result:=true;
       end else begin
-        result:=game_ini_r_bool_def(GetHUDSection(wpn), 'need_lens_frame', false);
+        result:=game_ini_r_bool_def(GetHUDSection(wpn), 'need_lens_frame', false) or game_ini_r_bool_def(GetSection(wpn), 'need_lens_frame', false);
       end;
     end;
 end;
@@ -137,10 +137,6 @@ begin
     scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
     lens_params.factor_min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
     lens_params.factor_max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);
-  end else if (scope_status=1) then begin
-    scope_sect:=GetHUDSection(wpn);
-    lens_params.factor_min:=game_ini_r_single_def(scope_sect, 'min_lens_factor', 1.0);
-    lens_params.factor_max:=game_ini_r_single_def(scope_sect, 'max_lens_factor', 1.0);  
   end;
 
   factor:=lens_params.factor_min+(lens_params.factor_max-lens_params.factor_min)*lens_params.real_position;

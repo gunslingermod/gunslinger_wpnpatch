@@ -68,8 +68,7 @@ begin
       result:=game_ini_r_bool_def(scope, 'need_lens_frame', false)
     end;
   end else if (scopestatus = 1) then begin
-    scope:=GetSection(wpn);
-    result:=game_ini_r_bool_def(scope, 'need_lens_frame', false);
+    result:=game_ini_r_bool_def(GetSection(wpn), 'need_lens_frame', false);
     result:=FindBoolValueInUpgradesDef(wpn, 'need_lens_frame', result, true);
   end;
 end;   
