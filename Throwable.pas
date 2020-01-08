@@ -490,14 +490,24 @@ asm
   ret
 end;
 
-//не дадим прервать быстрый бросок грены
 function CanHideGrenadeNow(CMissile:pointer):boolean; stdcall;
 var
   state:cardinal;
 begin
   result:=true;
+  
   state:=GetCurrentState(CMissile);
-  if (state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) or ((state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick')) then result:=false;
+  if (state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd then begin
+    result:=false;
+    exit;
+  end;
+
+  if ((state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick')) then begin
+    //не дадим прервать быстрый бросок грены
+    //Но если вдруг он начался на базе или когда взятие оружия в руки заблокировано - отменять надо!
+    result:=(GetActorSlotBlockedCounter(4)>0)
+    exit;
+  end;
 end;
 
 procedure CGrenade__SendHiddenItem_Patch();stdcall;
