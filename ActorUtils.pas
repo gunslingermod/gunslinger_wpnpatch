@@ -158,7 +158,7 @@ var
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils, LensDoubleRender;
 
 type
   TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
@@ -2371,7 +2371,11 @@ end;
 
 function ZoneMapCondition():boolean; stdcall;
 begin
-  result := GetCurrentDifficulty()<gd_veteran;
+  if IsLensFrameNow() then begin
+    result:=false;
+  end else begin
+    result := GetCurrentDifficulty()<gd_veteran;
+  end;
 end;
 
 procedure CUIMainIngameWnd__Draw_zonemap_Patch(); stdcall;
@@ -2410,18 +2414,32 @@ asm
   @finish:
 end;
 
-function drawingame_conditions():boolean; stdcall;
+function drawingame_conditions(hud_flags:cardinal):boolean; stdcall;
+const
+  HUD_DRAW:cardinal = 16;
+  HUD_DRAW_RT:cardinal = 1024;
 begin
-  result := (GetCurrentDifficulty()<gd_master) or IsInventoryShown();
+  if IsLensFrameNow() then begin
+    result:=false;
+  end else if IsInventoryShown() then begin
+    result:=true;
+  end else if ((hud_flags and HUD_DRAW) <> 0) and ((hud_flags and HUD_DRAW_RT) <> 0) then begin
+    result := (GetCurrentDifficulty()<gd_master) or IsInventoryShown();
+  end else begin
+    result:=false;
+  end;
 end;
 
 procedure CUIGameCustom__Render_drawingame_Patch; stdcall;
 asm
   pushad
+    push edx //psHUD_Flags
     call drawingame_conditions
     cmp al, 0
   popad
   je @finish
+  mov ecx, [ebp+$5c]
+  mov eax, [ecx]
   mov edx, [eax+$60]
   call edx
   @finish:
@@ -3279,8 +3297,8 @@ begin
   jmp_addr:= xrgame_addr+$45A0D7;
   if not WriteJump(jmp_addr, cardinal(@CUIMainIngameWnd__Draw_zonemap_Patch), 29, true) then exit;
 
-  jmp_addr:= xrgame_addr+$4b1b59;
-  if not WriteJump(jmp_addr, cardinal(@CUIGameCustom__Render_drawingame_Patch), 5, true) then exit;
+  jmp_addr:= xrgame_addr+$4b1b46;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameCustom__Render_drawingame_Patch), 24, true) then exit;
 
   //фов в прицеливании (правим в CActor::currentFOV)
   jmp_addr:= xrgame_addr+$2605d0;
