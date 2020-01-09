@@ -497,7 +497,7 @@ begin
   result:=true;
   
   state:=GetCurrentState(CMissile);
-  if (state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd then begin
+  if (state=EMissileStates__eThrowStart) or (state=EMissileStates__eReady) or (state=EMissileStates__eThrow) or (state=EMissileStates__eThrowEnd) then begin
     result:=false;
     exit;
   end;
@@ -505,7 +505,7 @@ begin
   if ((state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick')) then begin
     //не дадим прервать быстрый бросок грены
     //Но если вдруг он начался на базе или когда взятие оружия в руки заблокировано - отменять надо!
-    result:=(GetActorSlotBlockedCounter(4)>0)
+    result:=(GetActorSlotBlockedCounter(4)>0);
     exit;
   end;
 end;
