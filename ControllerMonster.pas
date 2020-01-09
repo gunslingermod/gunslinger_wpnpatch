@@ -204,25 +204,35 @@ begin
   end;
 end;
 
-function DistToContr():single; stdcall;
+function DistToSelectedContr(controller_monster:pointer):single; stdcall;
 var
   a_pos, c_pos:pFVector3;
   c_pos_cp:FVector3;
   act:pointer;
-  i:integer;
 begin
   result:=1000;
   act:=GetActor();
   if act=nil then exit;
 
   a_pos:=GetEntityPosition(act);
+  c_pos:=GetEntityPosition(controller_monster);
+  c_pos_cp:=c_pos^;
+  v_sub(@c_pos_cp, a_pos);
+  result:=v_length(@c_pos_cp);
+end;
+
+function DistToContr():single; stdcall;
+var
+  dist:single;
+
+  i:integer;
+begin
+  result:=1000;
 
   for i:=0 to length(_active_controllers)-1 do begin
-    c_pos:=GetEntityPosition(_active_controllers[i]);
-    c_pos_cp:=c_pos^;
-    v_sub(@c_pos_cp, a_pos);
-    if v_length(@c_pos_cp) < result then begin
-      result:=v_length(@c_pos_cp);
+    dist:=DistToSelectedContr(_active_controllers[i]);
+    if dist < result then begin
+      dist:=result;
     end;
   end;
 end;
@@ -406,11 +416,13 @@ var
   act, det, wpn:pointer;
   buf:WpnBuf;
 
-  psi_blocked, not_seen:boolean;
+  psi_blocked, not_seen, dist_forcer:boolean;
   c_pos, a_pos:pFVector3;
   c_pos_cp:FVector3;
+  dist:single;
+  contr_feel:controller_feel_params;
 
-  can_switch_gl, can_shoot_gl:boolean;  
+  can_switch_gl, can_shoot_gl:boolean;
 begin
   //true в результате означает, что мы использовали кастомный эффект и обычную атаку играть не надо
   result:=true;
@@ -420,9 +432,20 @@ begin
 
   psi_blocked:=IsPsiBlocked(act);
   not_seen:= not IsControllerSeeActor(monster_controller, act);
+  dist:=DistToSelectedContr(monster_controller);
+  contr_feel:=GetControllerFeelParams();
+
+  if dist < contr_feel.min_dist then begin
+    dist_forcer:=true;
+  end else if dist > contr_feel.max_dist then begin
+    dist_forcer:=false;
+  end else begin
+    dist_forcer:= ((dist - contr_feel.min_dist) / (contr_feel.max_dist - contr_feel.min_dist)) > random;
+  end;
+
   //Если активен бустер псиблокады, то суицид не делаем
   //Также не делаем, если актор свалил
-  if ( psi_blocked or not_seen ) and not IsActorSuicideNow() and not IsSuicideInreversible() then begin
+  if ( psi_blocked or (not dist_forcer and not_seen) ) and not IsActorSuicideNow() and not IsSuicideInreversible() then begin
     result:=not_seen;
     _planning_suicide:=false;
     _suicide_now:=false;

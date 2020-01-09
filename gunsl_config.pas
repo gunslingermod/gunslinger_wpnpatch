@@ -72,6 +72,11 @@ type actor_tiredness_params = record
   decrement_per_second:single;
 end;
 
+type controller_feel_params = record
+  min_dist:single;
+  max_dist:single;
+end;
+
 function Init:boolean;
 
 const
@@ -127,6 +132,7 @@ function GetControllerPrepareTime():cardinal; stdcall;
 function GetControllerBlockedTime():cardinal; stdcall;
 function GetShockTime():cardinal; stdcall;
 function GetMaxJitterHealth():single; stdcall;
+function GetControllerFeelParams():controller_feel_params; stdcall;
 
 function GetControlledActorSpeedKoef():single; stdcall;
 
@@ -192,6 +198,7 @@ var
   _controller_prepare_time:cardinal;
   _controller_blocked_time:cardinal;
   _controller_phantoms:phantoms_params;
+  _controller_feel:controller_feel_params;
 
   _actor_shocked_time:cardinal;
 
@@ -695,6 +702,9 @@ begin
   _controller_phantoms.max_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_max_radius', 10);
   _controller_phantoms.min_radius:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'controller_phantoms_min_radius', 0);
 
+  _controller_feel.min_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_min_feel_dist', 10.0);
+  _controller_feel.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_max_feel_dist', 30.0);
+
   _max_jitter_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_jitter_health', 0.3);
   _actor_max_breath_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_breath_health', 0.15);
   _actor_breath_health_snddelta:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_breath_health_snddelta', 0.05);
@@ -847,6 +857,11 @@ end;
 function GetMaxJitterHealth():single; stdcall;
 begin
   result:=_max_jitter_health;
+end;
+
+function GetControllerFeelParams():controller_feel_params; stdcall;
+begin
+  result:=_controller_feel;
 end;
 
 function GetHeadlampEnableAnimator():PChar;
