@@ -20,6 +20,7 @@ function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
 
 function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
 procedure Log(text:string; IsError:boolean = false);stdcall;
+procedure DebugFail(text:PChar; fun:pchar); stdcall;
 function Is16x9():boolean;stdcall;
 procedure GetScreenParams(width:pCardinal; height:pCardinal);stdcall;
 function get_current_kx():single; stdcall;
@@ -207,6 +208,26 @@ begin
     end;
   except
   end;
+end;
+
+procedure DebugFail(text:PChar; fun:pchar);stdcall;
+const
+  filename:PChar = 'GUNSLINGER Mod';
+asm
+  pushad
+  push text
+
+  push 0
+  push fun
+  push 0
+  push filename
+  push text
+
+  mov eax, xrCore_addr
+  add eax, $1e260
+  call eax
+
+  popad
 end;
 
 function Is16x9():boolean;stdcall;
