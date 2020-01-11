@@ -52,9 +52,9 @@ begin
   ReadFromReader(packet, @tmp_single, sizeof(tmp_single));
   buf.SetOffsetDir(tmp_single);
 
-  buf.ReloadNightBrightnessParams();
+  //ReloadNightBrightnessParams и подобные ему вызывать здесь нельзя - у нас еще не прогрузились и не установились апгрейды, прицела c нужным индексом может тупо не быть!
   ReadFromReader(packet, @tmp_int, sizeof(tmp_int));
-  buf.SetNightBrightness(tmp_int, false);
+  buf.SetNightBrightnessSavedStep(tmp_int);
 
   ReadFromReader(packet, @ammos_in_mag, sizeof(ammos_in_mag));
   SetLength(buf.ammos, ammos_in_mag);

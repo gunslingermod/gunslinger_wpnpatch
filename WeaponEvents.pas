@@ -359,8 +359,6 @@ begin
 end;
 //------------------------------------------------------------------------------
 procedure OnCWeaponNetSpawn_middle(wpn:pointer);stdcall;
-var
-  buf:WpnBuf;
 begin
   if WpnCanShoot(wpn) then begin
     //буфер может уже быть создан в load'e - проверим это
@@ -368,7 +366,6 @@ begin
       WpnBuf.Create(wpn);
     end;
   end;
-
 end;
 
 procedure OnCWeaponNetSpawn_end(wpn:pointer);stdcall;
@@ -376,7 +373,7 @@ var
   buf:WpnBuf;
   i:word;
   c:pointer;
-  sect:PChar;
+  sect, scope_sect:PChar;
   slot:integer;
 
 begin
@@ -404,6 +401,14 @@ begin
        end;
       end;
       setlength(buf.ammos, 0);
+
+      //Т.к. load выполняется раньше применения апгрейдов, то все вносимые ими изменения будут еще невалидны!
+      //Из-за этого мы вынуждены выносить зависящую от них логику сюда - тут апгрейды уже есть.
+      scope_sect:=GetSection(wpn);
+      if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
+        scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
+      end;
+      buf.LoadNightBrightnessParamsFromSection(scope_sect);
     end;
   end;
   SetAnimForceReassignStatus(wpn, true);

@@ -126,6 +126,7 @@ type
     //параметры смещени€ при поломке оружи€ - пол€рна€ с.к!
     _lens_offset:lens_offset_params;
     _lens_night_brightness:stepped_params;
+    _lens_night_brightness_saved_step:integer;
 
     //смещение сетки при выстреле
     _lens_shoot_recoil_current:FVector3; //x,y,speed
@@ -233,6 +234,7 @@ type
     procedure LoadNightBrightnessParamsFromSection(sect:PChar);
     procedure ReloadNightBrightnessParams();
     procedure ChangeNightBrightness(steps:integer);
+    procedure SetNightBrightnessSavedStep(val:integer);
     procedure SetNightBrightness(steps:integer; use_sound:boolean);
     function GetCurBrightness():stepped_params;
     function GetCurLensRecoil():FVector3;
@@ -291,9 +293,12 @@ end;
 constructor WpnBuf.Create(wpn: pointer);
 var
   tmpvec:FVector3;
-  scope_sect:PChar;
 begin
   inherited Create;
+
+  // ¬Ќ»ћјЌ»≈! ћетод load выполн€етс€ раньше применени€ апгрейдов, а нас могут вызвать именно из него при загрузке игры!
+  // »з-за этого все вносимые апгрейдами изменени€ (вроде допприцелов или типов патронов) будут еще невалидны!
+  // ѕоэтому использовать что-то, что может помен€тьс€ при установке апгрейдов, в этом конструкторе Ќ≈Ћ№«я!
 
   _my_wpn := wpn;
   _lock_remain_time:=0;
@@ -374,11 +379,13 @@ begin
   _lens_offset.end_condition:=game_ini_r_single_def(GetSection(wpn), 'lens_offset_end_condition', 0.1);
   self.SetOffsetDir(random); //смещение линзы (перезапишетс€ в load в случае загрузки сейва)
 
-  scope_sect:=GetSection(wpn);
-  if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
-    scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
-  end;
-  LoadNightBrightnessParamsFromSection(scope_sect);
+  _lens_night_brightness.max_value := 1.0;
+  _lens_night_brightness.min_value := 0.0;
+  _lens_night_brightness.cur_value := 0.5;
+  _lens_night_brightness.steps:=2;
+  _lens_night_brightness.cur_step:=1;
+  _lens_night_brightness.jitter:=0.1;
+  _lens_night_brightness_saved_step:=-1;
 
   _lens_shoot_recoil_max.x:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_x', 0.0);
   _lens_shoot_recoil_max.y:=game_ini_r_single_def(GetSection(wpn), 'lens_shoot_recoil_y', 0.0);
@@ -1516,7 +1523,13 @@ begin
   end;
 
   if (abs(_lens_night_brightness.max_value-last.max_value)>EPS) or (abs(_lens_night_brightness.min_value-last.min_value)>EPS) or (_lens_night_brightness.steps<>last.steps) then begin
-    _lens_night_brightness.cur_step:=game_ini_r_int_def(sect, 'default_brightness_step', _lens_night_brightness.steps);
+    if _lens_night_brightness_saved_step >= 0 then begin
+      //суд€ по всему, игра была только загружена, надо восстановить сохраненное значение
+      _lens_night_brightness.cur_step:=_lens_night_brightness_saved_step;
+      _lens_night_brightness_saved_step:=-1;
+    end else begin
+      _lens_night_brightness.cur_step:=game_ini_r_int_def(sect, 'default_brightness_step', _lens_night_brightness.steps);
+    end;
     SetNightBrightness(_lens_night_brightness.cur_step, false);
   end;
 
@@ -1643,6 +1656,11 @@ end;
 function WpnBuf.GetLastRechargeTime: single;
 begin
   result:=_last_recharge_time;
+end;
+
+procedure WpnBuf.SetNightBrightnessSavedStep(val: integer);
+begin
+  _lens_night_brightness_saved_step:=val;
 end;
 
 end.
