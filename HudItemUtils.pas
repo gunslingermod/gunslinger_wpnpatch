@@ -29,6 +29,8 @@ procedure PlayAnimIdle(wpn: pointer); stdcall;
 //function GetPositionVector(obj:pointer):pointer;
 //function GetCurrentHud(wpn: pointer):pointer; stdcall;
 procedure PlayHudAnim(wpn: pointer; anim_name:PChar; bMixIn:boolean); stdcall;
+function get_addons_state(wpn:pointer):cardinal; stdcall;
+procedure set_addons_state(wpn:pointer; state:cardinal); stdcall;
 function IsScopeAttached(wpn:pointer):boolean; stdcall;
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
 function IsGLAttached(wpn:pointer):boolean; stdcall;
@@ -723,10 +725,26 @@ asm
     mov @result, eax
 end;
 
+function get_addons_state(wpn:pointer):cardinal; stdcall;
+asm
+  mov eax, wpn
+  movzx eax, byte ptr [eax+$460]
+  mov @result, eax
+end;
+
+procedure set_addons_state(wpn:pointer; state:cardinal); stdcall;
+asm
+  pushad
+  mov eax, wpn
+  mov ebx, state
+  mov byte ptr [eax+$460], bl
+  popad
+end;
+
 function IsScopeAttached(wpn:pointer):boolean; stdcall;
 asm
-    mov eax, wpn
-    mov eax, [eax+$460]
+    push wpn
+    call get_addons_state
     test eax, 1
     jz @noaddon
     mov @result, 1
@@ -738,8 +756,8 @@ end;
 
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
 asm
-    mov eax, wpn
-    mov eax, [eax+$460]
+    push wpn
+    call get_addons_state
     test eax, 4
     jz @noaddon
     mov @result, 1
@@ -751,8 +769,8 @@ end;
 
 function IsGLAttached(wpn:pointer):boolean; stdcall;
 asm
-    mov eax, wpn
-    mov eax, [eax+$460]
+    push wpn
+    call get_addons_state
     test eax, 2
     jz @noaddon
     mov @result, 1

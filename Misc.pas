@@ -90,13 +90,17 @@ procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 function IsElectronicsProblemsDecreasing():boolean; stdcall;
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
   current_electronics_problems_counter:single;
   target_electronics_problems_counter:single;
   last_problems_update_was_decrease:boolean;
+
+  get_addons_state_ptr:pointer;
+  set_addons_state_ptr:pointer;
+  set_scope_idx_ptr:pointer;  
 
 procedure ResetElectronicsProblems(); stdcall;
 begin
@@ -895,6 +899,142 @@ asm
   popad
 end;
 
+function get_addons_state_adapter():cardinal;
+asm
+  pushad
+  mov eax, [ecx+4] //CScriptGameObject.m_game_object
+  mov @result, 0
+
+  push 0
+  push RTTI_CWeapon
+  push RTTI_CGameObject
+  push 0
+  push eax
+  call dynamic_cast
+  test eax, eax
+  je @finish
+
+  push eax
+  call get_addons_state
+  mov @result, eax
+
+  @finish:
+  popad
+end;
+
+procedure set_addons_state_adapter(state:cardinal); stdcall
+asm
+  pushad
+  mov eax, [ecx+4] //CScriptGameObject.m_game_object
+  mov ebx, state
+
+  push 0
+  push RTTI_CWeapon
+  push RTTI_CGameObject
+  push 0
+  push eax
+  call dynamic_cast
+  test eax, eax
+  je @finish
+
+  push ebx
+  push eax
+  call set_addons_state
+
+  @finish:
+  popad
+end;
+
+procedure set_scope_idx_adapter(state:cardinal); stdcall
+asm
+  pushad
+  mov eax, [ecx+4] //CScriptGameObject.m_game_object
+  mov ebx, state
+
+  push 0
+  push RTTI_CWeapon
+  push RTTI_CGameObject
+  push 0
+  push eax
+  call dynamic_cast
+  test eax, eax
+  je @finish
+
+  push ebx
+  push eax
+  call SetCurrentScopeType
+
+  @finish:
+  popad
+end;
+
+procedure script_register_game_object1_patch(); stdcall;
+const
+  get_addons_state_name:PChar = 'get_addons_state';
+  set_addons_state_name:PChar = 'set_addons_state';
+  set_scope_idx_name:PChar = 'set_scope_idx';
+asm
+//---
+  mov [esp+$24], bl
+  mov edx, [esp+$24]
+  push edx
+  mov [esp+$1c], bl
+  mov ecx, [esp+$1c]
+  push ecx
+  lea edx, [esp+$1c]
+  push edx
+  lea ecx, [esp+$28]
+  push ecx //esp+$28 - pointer to function, will be filled below
+  push get_addons_state_name
+  mov ecx, eax
+  mov edx, get_addons_state_ptr
+  mov [esp+$30], edx // write actual pointer to function
+  mov edx, xrgame_addr
+  add edx, $1d3990
+  call edx
+//---
+  mov [esp+$24], bl
+  mov edx, [esp+$24]
+  push edx
+  mov [esp+$1c], bl
+  mov ecx, [esp+$1c]
+  push ecx
+  lea edx, [esp+$1c]
+  push edx
+  lea ecx, [esp+$28]
+  push ecx //esp+$28 - pointer to function, will be filled below
+  push set_addons_state_name
+  mov ecx, eax
+  mov edx, set_addons_state_ptr
+  mov [esp+$30], edx // write actual pointer to function
+  mov edx, xrgame_addr
+  add edx, $1d4a10
+  call edx
+//---
+  mov [esp+$24], bl
+  mov edx, [esp+$24]
+  push edx
+  mov [esp+$1c], bl
+  mov ecx, [esp+$1c]
+  push ecx
+  lea edx, [esp+$1c]
+  push edx
+  lea ecx, [esp+$28]
+  push ecx //esp+$28 - pointer to function, will be filled below
+  push set_scope_idx_name
+  mov ecx, eax
+  mov edx, set_scope_idx_ptr
+  mov [esp+$30], edx // write actual pointer to function
+  mov edx, xrgame_addr
+  add edx, $1d4a10
+  call edx
+//---
+
+  //Original
+  mov [esp+$24], bl
+  mov edx, [esp+$24]
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -952,6 +1092,13 @@ begin
   // 3) Добавим удаление эффектора в CCameraManager::UpdateCamEffectors когда ProcessCameraEffector возвращает false
   jmp_addr:=xrEngine_addr+$2cc10;
   if not WriteJump(jmp_addr, cardinal(@CCameraManager__UpdateCamEffectors_removefinishedeff_Patch), 5, true) then exit;
+
+
+  get_addons_state_ptr:=@get_addons_state_adapter;
+  set_addons_state_ptr:=@set_addons_state_adapter;
+  set_scope_idx_ptr:=@set_scope_idx_adapter;
+  jmp_addr:=xrgame_addr+$1d813d;
+  if not WriteJump(jmp_addr, cardinal(@script_register_game_object1_patch), 8, true) then exit;
 
   result:=true;
 end;
