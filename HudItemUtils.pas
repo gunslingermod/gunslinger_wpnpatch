@@ -588,22 +588,40 @@ asm
 end;
 
 function GetCurrentScopeSection(wpn:pointer):PChar; stdcall;
+const
+  FUNNAME:PChar = 'GetCurrentScopeSection';
+  EXPR:PChar='Invalid scope idx';
+  DEFAULT_SCOPE_SECT:PChar='';
 asm
     pushad
     pushfd
-    mov @result, 0
+    mov eax, DEFAULT_SCOPE_SECT
+    mov @result, eax
     mov edi, wpn
 
     mov ebx, [edi+$6b0]
-    cmp ebx, [edi+$6b4]
-    je @finish    
-
+    mov edx, [edi+$6b4]
+    cmp ebx, edx
+    je @finish
     movzx eax, byte ptr [edi+$6bc]
+
+    //Проверим, вписываемся ли в диапазон значений (всякое бывает)
+    sub edx, ebx
+    shr edx, 2
+    cmp eax, edx
+    jnb @assert_gen
+
     mov ebx, [edi+$6b0]
     mov ebx, [4*eax+ebx]
     add ebx, $10
     mov @result, ebx
+    jmp @finish
 
+    @assert_gen:
+    push FUNNAME
+    push EXPR
+    call DebugFail
+    
     @finish:
     popfd
     popad
