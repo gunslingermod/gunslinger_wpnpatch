@@ -383,10 +383,7 @@ var
   cnt:cardinal;
 begin
   if act<>GetActor() then exit;
-  for i:=1 to 12 do begin
-    cnt:=GetActorSlotBlockedCounter(i);
-    if cnt>0 then SetActorSlotBlockedCounter(i, cnt-1)
-  end;
+  ChangeSlotsBlockStatus(false);
 end;
 
 procedure CScriptgameobject__restoreweaponimmediatly();stdcall;

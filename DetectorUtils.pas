@@ -14,6 +14,7 @@ function WasLastDetectorHiddenManually():boolean; stdcall;
 procedure ForgetDetectorAutoHide(); stdcall;
 procedure AssignDetectorAutoHide(); stdcall;
 function StartCompanionAnimIfNeeded(anim_name:string; wpn:pointer; show_msg_if_line_not_exist:boolean=true):boolean;
+procedure ForceHideDetector(det:pointer); stdcall;
 
 procedure MakeUnActive(det: pointer);stdcall;
 
@@ -730,6 +731,14 @@ end;
 procedure ForgetDetectorAutoHide(); stdcall;
 begin
   _was_detector_hidden_manually:=true;
+end;
+
+procedure ForceHideDetector(det:pointer); stdcall;
+begin
+  if (det <> nil) and (GetActor()<>nil) and (GetOwner(det)=GetActor()) and (GetCurrentState(det)<>EHudStates__eHidden) then begin
+    virtual_CHudItem_SwitchState(det, EHudStates__eHiding);
+    OnDetectorForceHiding(det);
+  end;
 end;
 
 function Init:boolean;

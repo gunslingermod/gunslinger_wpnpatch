@@ -90,6 +90,7 @@ procedure ActivateActorSlot(slot:cardinal); stdcall;
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
 function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
 procedure SetActorSlotBlockedCounter(slot:cardinal; cnt:byte); stdcall;
+procedure ChangeSlotsBlockStatus(block:boolean); stdcall;
 
 function IsHandJitter(itm:pointer):boolean; stdcall;
 procedure SetHandsJitterTime(time:cardinal); stdcall;
@@ -158,7 +159,7 @@ var
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils, LensDoubleRender;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils, LensDoubleRender, xr_strings;
 
 type
   TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
@@ -199,6 +200,62 @@ var
   _pda_cursor_state:TCursorState;
   _changed_grenade:pointer;
   _actor_hands_length:single;
+
+  _hud_update_sect:string;
+  _slot_to_restore_after_outfit_change:integer;
+
+//-------------------------------------------------------------------------------------------------------------
+procedure player_hud__load_fixpatched(); stdcall;
+asm
+  sub esp, 8
+  push esi
+  push edi
+  mov edi, xrgame_addr
+  add edi, $2fecf5
+  jmp edi
+end;
+
+procedure player_hud__load(sect:pshared_str); stdcall;
+asm
+  mov ecx, xrgame_addr
+  mov ecx, [ecx+$64f0e4] //g_player_hud
+  push sect
+  call player_hud__load_fixpatched
+end;
+
+procedure SetHudReloadRequest(sect:pshared_str); stdcall;
+begin
+  R_ASSERT(sect<>nil, 'sect == nil', 'SetHudReloadRequest');
+  _hud_update_sect:=get_string_value(sect);
+end;
+
+procedure player_hud__onloadrequest(); stdcall;
+asm
+  mov eax, [esp+4]
+  pushad
+  call GetActor
+  test eax, eax
+  popad
+  jne @registerrequest
+  
+  // если актора не существует - нужно установить худ
+  pushad
+  push eax
+  call player_hud__load
+  popad
+  jmp @finish
+
+  @registerrequest:
+  // Если актор существует - зарегистрируем "запрос" на смену худа
+  pushad
+  push eax
+  call SetHudReloadRequest
+  popad
+
+  @finish:
+  // больше ничего не делаем
+  ret 4
+end;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure SetChangedGrenade(itm:pointer);
@@ -1071,6 +1128,28 @@ asm
   popad
 end;
 
+procedure ChangeSlotsBlockStatus(block:boolean); stdcall;
+var
+  i:integer;
+  cnt:cardinal;
+begin
+  for i:=1 to 12 do begin
+    cnt:=GetActorSlotBlockedCounter(i);
+    if block then begin
+      if cnt<200 then begin
+        SetActorSlotBlockedCounter(i, cnt+1)
+      end else begin
+        Log('ChangeSlotsBlockStatus - block count > 200!', true);
+      end;
+    end else begin
+      if cnt>0 then begin
+        SetActorSlotBlockedCounter(i, cnt-1);
+      end else begin
+        Log('ChangeSlotsBlockStatus - block count = 0!', true);
+      end;
+    end;
+  end;
+end;
 
 function GetActorTargetSlot():integer; stdcall;
 asm
@@ -1453,6 +1532,10 @@ var
 
   blowout_level:single;
   is_nv_enabled:boolean;
+
+  ss:shared_str;
+  canshoot:boolean;
+  slot:cardinal;
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1686,6 +1769,42 @@ begin
   //[bug] Баг оригинала с ПНВ - если надеть шлем/броню, включить ПНВ на ней и выбросить её из слота - эффект НВ останется
   DisableNVIfNeeded(act);
   DisableTorchIfNeeded(act);
+
+  //Обработка смены худовой модели рук - если был запрос и оружия нет / оно скрыто, то меняем, иначе - ждем сокрытия
+  if length(_hud_update_sect) > 0 then begin
+    itm:=GetActorActiveItem();
+    det:=GetActiveDetector(act);
+    if (itm = nil) and (det = nil) then begin
+      //Log('Changing hud');
+      init_string(@ss);
+      assign_string(@ss, PAnsiChar(_hud_update_sect));
+      player_hud__load(@ss);
+      _hud_update_sect:='';
+      assign_string(@ss, nil);
+    end else if (_slot_to_restore_after_outfit_change < 0) then begin
+      canshoot:= (itm<>nil) and WpnCanShoot(itm);
+      if (itm=nil) or (canshoot and CanStartAction(itm)) or (not canshoot and (GetCurrentState(itm) = CHUDState__eIdle)) then begin
+        //Log('Hide slots for hud section change');
+        slot:=GetActorActiveSlot();
+        if slot < 0 then slot:=0;
+        _slot_to_restore_after_outfit_change:=slot;
+        ActivateActorSlot(0);
+        if (det <> nil) then begin
+          ForceHideDetector(det);
+        end;
+      end;
+    end;
+  end else if (_slot_to_restore_after_outfit_change >= 0) then begin
+    //Log('Restore slots after hud section change');
+    itm:=GetActorActiveItem();    
+    if itm = nil then begin
+      RestoreLastActorDetector();
+      if (_slot_to_restore_after_outfit_change > 0) and (ItemInSlot(act, _slot_to_restore_after_outfit_change)<>nil) then begin
+        ActivateActorSlot(_slot_to_restore_after_outfit_change)
+      end;
+    end;
+    _slot_to_restore_after_outfit_change:=-1;    
+  end;
 
 end;
 
@@ -1984,6 +2103,9 @@ begin
 
   _sprint_tiredness:=0;
   _was_pda_animator_spawned:=false;
+
+  _hud_update_sect:='';
+  _slot_to_restore_after_outfit_change:=-1;
 
   ForgetDetectorAutoHide();
 end;
@@ -3409,6 +3531,10 @@ begin
   jmp_addr:=cardinal(@g_pickup_distance);
   if not WriteBufAtAdr(xrGame_addr+$2629a3, @jmp_addr, sizeof(jmp_addr)) then exit;
 
+  //player_hud::load - заставляем функцию не делать ничего, кроме как выставлять в нашем коде флаг о необходимости смены модели худа
+  //Реальная смена модели рук будет из апдейта
+  jmp_addr:=xrGame_addr+$2fecf0;
+  if not WriteJump(jmp_addr, cardinal(@player_hud__onloadrequest), 5, false) then exit;
   result:=true;
 end;
 
