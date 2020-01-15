@@ -1785,6 +1785,7 @@ begin
       canshoot:= (itm<>nil) and WpnCanShoot(itm);
       if (itm=nil) or (canshoot and CanStartAction(itm)) or (not canshoot and (GetCurrentState(itm) = CHUDState__eIdle)) then begin
         //Log('Hide slots for hud section change');
+        ChangeSlotsBlockStatus(true);
         slot:=GetActorActiveSlot();
         if slot < 0 then slot:=0;
         _slot_to_restore_after_outfit_change:=slot;
@@ -1802,6 +1803,7 @@ begin
       if (_slot_to_restore_after_outfit_change > 0) and (ItemInSlot(act, _slot_to_restore_after_outfit_change)<>nil) then begin
         ActivateActorSlot(_slot_to_restore_after_outfit_change)
       end;
+      ChangeSlotsBlockStatus(false);
     end;
     _slot_to_restore_after_outfit_change:=-1;    
   end;
