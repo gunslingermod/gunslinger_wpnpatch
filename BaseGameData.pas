@@ -21,6 +21,7 @@ function WriteBufAtAdr(addr:cardinal; buf:pointer; count:cardinal):boolean;
 function GetNextSubStr(var data:string; var buf:string; separator:char=char($00)):boolean;
 procedure Log(text:string; IsError:boolean = false);stdcall;
 procedure DebugFail(text:PChar; fun:pchar); stdcall;
+procedure R_ASSERT(cond:boolean; text:pchar; fun:pchar); stdcall;
 function Is16x9():boolean;stdcall;
 procedure GetScreenParams(width:pCardinal; height:pCardinal);stdcall;
 function get_current_kx():single; stdcall;
@@ -228,6 +229,13 @@ asm
   call eax
 
   popad
+end;
+
+procedure R_ASSERT(cond:boolean; text:pchar; fun:pchar); stdcall;
+begin
+  if not cond then begin
+    DebugFail(text, fun);
+  end;
 end;
 
 function Is16x9():boolean;stdcall;
