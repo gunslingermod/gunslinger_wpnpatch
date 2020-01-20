@@ -381,6 +381,10 @@ end;
 procedure EndSecondVP_OnUIRender( ); stdcall;
 begin
   ForcedRenderUI();
+
+  if _is_lens_frame then begin
+    _scopeframe_renderspecific_end(@GetScoperenderWithUI);
+  end;
 end;
 
 procedure CLevel__OnRender_Before_Patch(); stdcall

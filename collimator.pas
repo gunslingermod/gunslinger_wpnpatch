@@ -378,10 +378,15 @@ begin
   if not IsAimNow(wpn) then exit;
   if IsAlterZoom(wpn) then exit;
   if GetAimFactor(wpn) < 0.999 then exit;
-  if IsLensEnabled() and IsLensedScopeInstalled(wpn) then begin
-   // Если у нас прицел, детектящий все живое, то UI (а именно, рамку) придется отрисовать
-   if HasBinocularVision(wpn) then result:=true;
-   exit;
+
+  // Если у нас прицел, детектящий все живое, то UI в нем надо отрисовать ради рамки
+  if HasBinocularVision(wpn) then begin
+    if IsLensEnabled() then begin
+      result:=IsLensedScopeInstalled(wpn) and IsLensFrameNow();
+    end else begin
+      result:=true;
+    end;
+    exit;
   end;
   result:=true;
 end;
@@ -425,17 +430,17 @@ asm
   mov edx, [eax+$64]
 end;
 
-function NeedRenderBinocVision(wpn:pointer):boolean; stdcall;
+function NeedUpdateBinocVision(wpn:pointer):boolean; stdcall;
 begin
-  // Если рисуем кадр линзы - ничего с рамками делать не надо!
+  // Обновляем только когда у нас НЕ кадр линзы
   result:=not IsLensFrameNow();
 end;
 
-procedure CWeapon__needrenderbinocvision_Patch(); stdcall;
+procedure CWeapon__needupdatebinocvision_Patch(); stdcall;
 asm
   pushad
   push ecx
-  call NeedRenderBinocVision
+  call NeedUpdateBinocVision
   cmp al, 0
   popad
   je @finish
@@ -484,7 +489,7 @@ begin
 
   //в CWeapon::UpdateCL апдейтим рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
   patch_addr:=xrGame_addr+$2c0706;
-  if not WriteJump(patch_addr, cardinal(@CWeapon__needrenderbinocvision_Patch), 8, true) then exit;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__needupdatebinocvision_Patch), 8, true) then exit;
 
   result:=true;
 end;
