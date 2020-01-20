@@ -574,7 +574,7 @@ const
   name_electroproblem_reset:PChar='electronics_reset';
   name_electroproblem_apply:PChar='electronics_apply';
 
-  name_get_parameter_upgraded:PChar='name_get_parameter_upgraded_int';
+  name_get_parameter_upgraded:PChar='get_parameter_upgraded_int';
 asm
   push eax
 

@@ -756,6 +756,12 @@ asm
   mov eax, wpn
   mov ebx, state
   mov byte ptr [eax+$460], bl
+
+  mov ecx, wpn
+  mov eax, [ecx]
+  mov eax, [eax+$158] //wpn->InitAddons
+  call eax
+
   popad
 end;
 
