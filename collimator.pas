@@ -452,6 +452,57 @@ asm
   @finish:
 end;
 
+function SBinocVisibleObj__Update_check_target_position(target:pointer):boolean; stdcall;
+var
+  act:pointer;
+  campos, camdir, targetpos:pFVector3;
+  targetvec:FVector3;
+  ang:single;
+begin
+  result:=false;
+  act:=GetActor();
+  if (act = nil) or (target = nil) then exit;
+
+  campos:=CRenderDevice__GetCamPos();
+  camdir:=CRenderDevice__GetCamDir();
+  targetpos:=GetEntityPosition(target);
+
+  //Получаем вектор на цель
+  targetvec:=FVector3_copyfromengine(targetpos);
+  v_sub(@targetvec, campos);
+
+  //Считаем угол между вектором на цель и взглядом
+  ang:=GetAngleCos(camdir, @targetvec);
+  //Log('Target '+inttohex(cardinal(target), 8)+ '('+
+  //    floattostr(targetpos.x)+', '+
+  //    floattostr(targetpos.y)+', '+
+  //    floattostr(targetpos.z)+') '+
+  //    ', ang '+ floattostr(ang));
+
+  //Если угол больше 90 - такую цель мы точно не должны рисовать
+  if ang >0 then begin
+    result:=true;
+  end;
+
+end;
+
+procedure SBinocVisibleObj__Update_Patch(); stdcall;
+asm
+  pushad
+  //в eax находится указатель на CObject цели, который надо проверить на предмет валидности для отрисовки
+  push eax
+  call SBinocVisibleObj__Update_check_target_position
+  test al, al
+  popad
+  je @finish
+
+  //Original code
+  mov eax, [eax+$90]
+  test eax, eax
+
+  @finish:
+end;
+
 function Init:boolean;
 var
   patch_addr:cardinal;
@@ -490,6 +541,10 @@ begin
   //в CWeapon::UpdateCL апдейтим рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
   patch_addr:=xrGame_addr+$2c0706;
   if not WriteJump(patch_addr, cardinal(@CWeapon__needupdatebinocvision_Patch), 8, true) then exit;
+
+  //Баг оригинала с метками автозахвата цели - показывает цели, которые уже позади тебя. Правим в SBinocVisibleObj::Update
+  patch_addr:=xrGame_addr+$2dcf9f;
+  if not WriteJump(patch_addr, cardinal(@SBinocVisibleObj__Update_Patch), 8, true) then exit;
 
   result:=true;
 end;
