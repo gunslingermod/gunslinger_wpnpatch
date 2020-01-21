@@ -1825,8 +1825,7 @@ function IsCustomIdleAnimNow(anm:pshared_str):boolean; stdcall;
 var
   n:PChar;
 begin
-  n:=@anm.p_.value;
-//  log(n);
+  n:=get_string_value(anm);
   result := (leftstr(n, length('anm_idle'))<>'anm_idle') or (leftstr(n, length('anm_idle_aim'))='anm_idle_aim') or (leftstr(n, length('anm_idle_sprint'))='anm_idle_sprint');
 end;
 
