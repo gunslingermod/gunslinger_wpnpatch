@@ -503,6 +503,16 @@ asm
   @finish:
 end;
 
+procedure CWeaponBinoculars__render_item_ui_Patch(); stdcall;
+asm
+  test ecx, ecx //m_binoc_vision
+  je @finish
+  mov esi, xrgame_addr
+  add esi, $2dcd50
+  call esi
+  @finish:
+end;
+
 function Init:boolean;
 var
   patch_addr:cardinal;
@@ -545,6 +555,13 @@ begin
   //Ѕаг оригинала с метками автозахвата цели - показывает цели, которые уже позади теб€. ѕравим в SBinocVisibleObj::Update
   patch_addr:=xrGame_addr+$2dcf9f;
   if not WriteJump(patch_addr, cardinal(@SBinocVisibleObj__Update_Patch), 8, true) then exit;
+
+  // ¬ CWeaponBinoculars::render_item_ui_query удал€ем проверку на наличие m_binoc_vision, чтобы нормально отрисовывалась сетка бинокл€ при его отсутствии
+  nop_code(xrgame_addr+$2dc041, 2);
+
+  // ¬ CWeaponBinoculars::render_item_ui добавл€ем проверку на существование m_binoc_vision перед тем, как вызывать Draw
+  patch_addr:=xrGame_addr+$2dc059;
+  if not WriteJump(patch_addr, cardinal(@CWeaponBinoculars__render_item_ui_Patch), 5, true) then exit;
 
   result:=true;
 end;
