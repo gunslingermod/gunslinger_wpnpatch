@@ -328,16 +328,14 @@ end;
 
 function GetCartridgeSection(c:pCCartridge):PChar;
 begin
-  result:=nil;
-  if c.m_ammo_sect.p_<>nil then begin
-    result:=PChar(cardinal(c.m_ammo_sect)+$10);
-  end;
+  result:=get_string_value(@c.m_ammo_sect);
+  if length(result)=0 then result:=nil;
 end;
 
 procedure InitCartridge(c:pCCartridge); stdcall;
 begin
   c.vtable:=pointer(xrgame_addr+$5559c4);
-  c.m_ammo_sect.p_:=nil;
+  init_string(@c.m_ammo_sect);
   c.SCartridgeParam__kDist:=1.0;
   c.SCartridgeParam__kDisp:=1.0;
   c.SCartridgeParam__kHit:=1.0;

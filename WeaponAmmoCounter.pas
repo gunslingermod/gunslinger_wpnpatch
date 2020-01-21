@@ -432,15 +432,11 @@ var
   queue:integer;
 begin
   ammo_sect:= GetMainCartridgeSectionByType(wpn, GetAmmoTypeIndex(wpn, false));
-//  if GetAmmoInMagCount(wpn)>0 then begin
-//    ammo_sect:=@(GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_ammo_sect.p_.value);
-//  end;
-  
+
   assign_string(@bi.name, game_ini_read_string(ammo_sect, 'inv_name_short'));
   assign_string(@bi.icon, ammo_sect);
   s:=inttostr(GetAmmoInMagCount(wpn));
   assign_string(@bi.cur_ammo, PChar(s));
-
 
   cnt:=GetMainAmmoTypesCount(wpn);
   if cnt>0 then begin

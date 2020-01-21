@@ -1798,6 +1798,7 @@ var
   act:pointer;
   wpn:pointer;
   str:string;
+  anm_name:string;
 const
   ANIMATOR_SLOT:cardinal =11;
 begin
@@ -1808,15 +1809,11 @@ begin
   wpn:=GetActorActiveItem();
   if wpn=nil then exit;
 
-  //str:=getsection(wpn)+'; '+PChar(@name.p_.value)+'; '+inttostr(GetActorTargetSlot())+'; '+inttostr(GetActorPreviousSlot());
-  //log(PChar(str));
-
-  if (leftstr(PChar(@name.p_.value), length('anm_hide'))='anm_hide') and (GetForcedQuickthrow() or (GetActorTargetSlot()=ANIMATOR_SLOT)) then begin
+  anm_name:=get_string_value(name);
+  if (leftstr(anm_name, length('anm_hide'))='anm_hide') and (GetForcedQuickthrow() or (GetActorTargetSlot()=ANIMATOR_SLOT)) then begin
     value^:=game_ini_r_single_def(GetHUDSection(wpn), 'hide_factor_common', 1.8);
-    value^:=game_ini_r_single_def(GetHUDSection(wpn), PChar('hide_factor_'+PChar(@name.p_.value)), value^);
+    value^:=game_ini_r_single_def(GetHUDSection(wpn), PChar('hide_factor_'+anm_name), value^);
   end;
-
-
 end;
 
 procedure CalcMotionSpeed_QuickItems_Patch(); stdcall;

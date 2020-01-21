@@ -294,12 +294,16 @@ end;
 procedure UpdateSoundsPos(collection:pHUD_SOUND_COLLECTION; pos:pFVector3);stdcall;
 var
   snd:pHUD_SOUND_ITEM;
+  alias:PAnsiChar;
 begin
   snd:=collection.first;
-//  log('collection '+inttohex(cardinal(collection),8));
   while(snd<>collection.last) do begin
-//    log('snd '+inttohex(cardinal(snd),8));
-    if snd.m_activeSnd<>nil then HUD_SOUND_COLLECTION__SetPosition(collection, @snd.m_alias.p_.value, pos);
+    if snd.m_activeSnd<>nil then begin
+      alias:=get_string_value(@snd.m_alias);
+      if length(alias) > 0 then begin
+        HUD_SOUND_COLLECTION__SetPosition(collection, alias, pos);
+      end;
+    end;
     snd:=pHUD_SOUND_ITEM(cardinal(snd)+sizeof(HUD_SOUND_ITEM))
   end;
 end;

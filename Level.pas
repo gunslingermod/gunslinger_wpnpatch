@@ -12,7 +12,7 @@ procedure CLevel__AfterSpawnSendAndFree(this:pointer; obj:pCSE_Abstract); stdcal
 function GetObjectById(id:word):pointer; stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, HitUtils, math, sysutils;
+uses BaseGameData, gunsl_config, HudItemUtils, HitUtils, math, sysutils, xr_strings;
 
 function GetLevel():pointer; stdcall;
 asm
@@ -171,7 +171,7 @@ begin
 
   material:=FindStrValueInUpgradesDef(wpn, 'kick_material', material);
 
-  c.m_ammo_sect.p_:=nil;
+  init_string(@c.m_ammo_sect);
 
   InitCartridge(@c);
   c.SCartridgeParam__kAP:=0.001;
