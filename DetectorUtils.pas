@@ -435,8 +435,8 @@ procedure DetectorUpdate(det: pointer);stdcall;
 var
   act:pointer;
   HID:pointer;
-  pos, dir, tmp, zerovec, omnidir, omnipos:FVector3;
-  params:torchlight_params;
+  pos, dir, tmp, zerovec, omnidir, omnipos, aim_offset:FVector3;
+  params:lefthanded_torchlight_params;
   light_time_treshold_f:single;
   light_cur_time:cardinal;
   flag:boolean;
@@ -461,22 +461,29 @@ begin
     HID:=CHudItem__HudItemData(det);
     params:=GetLefthandedTorchParams();
     if (HID<>nil) then begin
-      attachable_hud_item__GetBoneOffsetPosDir(HID, params.light_bone, @pos, @dir, @params.offset);
-      if params.is_lightdir_by_bone then begin
+      itm:=GetActorActiveItem();
+      if (itm<>nil) and WpnCanShoot(itm) and (GetAimFactor(itm) > 0.001) then begin
+        aim_offset:=params.aim_offset;
+        v_mul(@aim_offset, GetAimFactor(itm));
+        v_add(@params.base.offset, @aim_offset);
+        v_add(@params.base.omni_offset, @aim_offset);
+      end;
+
+      attachable_hud_item__GetBoneOffsetPosDir(HID, params.base.light_bone, @pos, @dir, @params.base.offset);
+      if params.base.is_lightdir_by_bone then begin
         //направление света задается через разность позиций 2х костей оружия
         zerovec.x:=0;
         zerovec.y:=0;
         zerovec.z:=0;
-        attachable_hud_item__GetBoneOffsetPosDir(HID, params.lightdir_bone_name, @dir, @tmp, @zerovec);
+        attachable_hud_item__GetBoneOffsetPosDir(HID, params.base.lightdir_bone_name, @dir, @tmp, @zerovec);
         v_sub(@dir, @pos);
         v_normalize(@dir);
       end;
-      //log(floattostr(pos.x)+' '+floattostr(pos.y)+' '+floattostr(pos.z));
-      //log(floattostr(dir.x)+' '+floattostr(dir.y)+' '+floattostr(dir.z));
-      attachable_hud_item__GetBoneOffsetPosDir(HID, params.light_bone, @omnipos, @omnidir, @params.omni_offset);
-      SetTorchlightPosAndDir(@params, @pos, @dir, true, @omnipos, @dir);
+
+      attachable_hud_item__GetBoneOffsetPosDir(HID, params.base.light_bone, @omnipos, @omnidir, @params.base.omni_offset);
+      SetTorchlightPosAndDir(@params.base, @pos, @dir, true, @omnipos, @dir);
     end else begin
-      SetTorchlightPosAndDir(@params, GetPosition(det), GetOrientation(det), false)
+      SetTorchlightPosAndDir(@params.base, GetPosition(det), GetOrientation(det), false)
     end;
 
     if leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show' then begin
@@ -518,7 +525,7 @@ begin
     end else begin
       SwitchLefthandedTorch(true);
     end;
-  end else if GetLefthandedTorchParams().render<>nil then begin
+  end else if GetLefthandedTorchParams().base.render<>nil then begin
     SwitchLefthandedTorch(false);
   end;
 

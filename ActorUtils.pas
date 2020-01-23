@@ -58,7 +58,11 @@ const
   kfPDASHOW:cardinal = $20000;
 
 
-
+type
+  lefthanded_torchlight_params = packed record
+    base:torchlight_params;
+    aim_offset:FVector3;
+  end;
 
 
 function GetActor():pointer; stdcall;
@@ -111,7 +115,7 @@ function GetActorThirst():single;stdcall;
 procedure SwitchLefthandedTorch(status:boolean); stdcall;
 procedure RecreateLefthandedTorch(params_section:PChar; det:pointer); stdcall;
 function GetLefthandedTorchLinkedDetector():pointer; stdcall;
-function GetLefthandedTorchParams():torchlight_params; stdcall;
+function GetLefthandedTorchParams():lefthanded_torchlight_params; stdcall;
 
 procedure KillActor(actor:pointer; who:pointer); stdcall;
 procedure CEntity__KillEntity(this:pointer; who:word); stdcall;
@@ -184,7 +188,7 @@ var
   _was_unprocessed_use_of_usable_huditem:boolean;
 {$endif}
 
-  _lefthanded_torch:torchlight_params;
+  _lefthanded_torch:lefthanded_torchlight_params;
   _torch_linked_detector:pointer;
 
   _last_update_time:cardinal;
@@ -1577,10 +1581,10 @@ begin
 
   if _jitter_time_remains>dt then _jitter_time_remains:=_jitter_time_remains-dt else _jitter_time_remains:=0;
 
-  if (_lefthanded_torch.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
+  if (_lefthanded_torch.base.render<>nil) and ((GetActiveDetector(act) = nil) or not game_ini_r_bool_def(GetSection(GetActiveDetector(act)), 'torch_installed', false)) then begin
 //    log('Destroy lefthand light');
     SwitchLefthandedTorch(false);
-    DelTorchlight(@_lefthanded_torch);
+    DelTorchlight(@_lefthanded_torch.base);
     _torch_linked_detector:=nil;
   end;
 
@@ -2131,9 +2135,9 @@ end;
 
 procedure CActor__net_Destroy(CActor:pointer); stdcall;
 begin
-  if _lefthanded_torch.render<>nil then begin
+  if _lefthanded_torch.base.render<>nil then begin
     SwitchLefthandedTorch(false);
-    DelTorchlight(@_lefthanded_torch);
+    DelTorchlight(@_lefthanded_torch.base);
     _torch_linked_detector:=nil;
   end;
 
@@ -2437,13 +2441,27 @@ end;
 
 
 procedure RecreateLefthandedTorch(params_section:PChar; det:pointer); stdcall;
+var
+  defpos, defdir:FVector3;
 begin
-  if _lefthanded_torch.render<>nil then begin
-    DelTorchlight(@_lefthanded_torch);
+  if _lefthanded_torch.base.render<>nil then begin
+    DelTorchlight(@_lefthanded_torch.base);
   end;
-  NewTorchlight(@_lefthanded_torch, params_section);
-  SwitchTorchlight(@_lefthanded_torch, false);
-  SetWeaponMultipleBonesStatus(det, _lefthanded_torch.light_cone_bones, false);
+  NewTorchlight(@_lefthanded_torch.base, params_section);
+  _lefthanded_torch.aim_offset.x:=game_ini_r_single_def(params_section, 'torch_aim_attach_offset_x', 0.0);
+  _lefthanded_torch.aim_offset.y:=game_ini_r_single_def(params_section, 'torch_aim_attach_offset_y', 0.0);
+  _lefthanded_torch.aim_offset.z:=game_ini_r_single_def(params_section, 'torch_aim_attach_offset_z', 0.0);
+
+  v_zero(@defpos);
+  v_zero(@defdir);
+
+  // Уводим фонарь за пределы карты и направляем вверх - чтобы актор точно не увидел вспышку в момент спавна
+  defpos.y:=1000;
+  defdir.y:=1;
+  SetTorchlightPosAndDir(@_lefthanded_torch.base, @defpos, @defdir);
+
+  SwitchTorchlight(@_lefthanded_torch.base, false);
+  SetWeaponMultipleBonesStatus(det, _lefthanded_torch.base.light_cone_bones, false);
   _torch_linked_detector:=det;
 end;
 
@@ -2456,21 +2474,21 @@ procedure SwitchLefthandedTorch(status:boolean); stdcall;
 var
   act, det:pointer;
 begin
-  if _lefthanded_torch.render=nil then exit;
+  if _lefthanded_torch.base.render=nil then exit;
 
-  if _lefthanded_torch.enabled<>status then begin
-    SwitchTorchlight(@_lefthanded_torch, status);
+  if _lefthanded_torch.base.enabled<>status then begin
+    SwitchTorchlight(@_lefthanded_torch.base, status);
   end;
 
   act:=GetActor;
   if act=nil then exit;
   det:=GetActiveDetector(act);
   if det<>nil then begin
-    SetWeaponMultipleBonesStatus(det, _lefthanded_torch.light_cone_bones, status);
+    SetWeaponMultipleBonesStatus(det, _lefthanded_torch.base.light_cone_bones, status);
   end;
 end;
 
-function GetLefthandedTorchParams():torchlight_params; stdcall;
+function GetLefthandedTorchParams():lefthanded_torchlight_params; stdcall;
 begin
   result:=_lefthanded_torch;
 end;
@@ -3389,10 +3407,12 @@ begin
   _was_unprocessed_use_of_usable_huditem:=false;
 {$endif}
 
-  _lefthanded_torch.render:=nil;
-  _lefthanded_torch.omni:=nil;
-  _lefthanded_torch.glow:=nil;
-  _lefthanded_torch.enabled:=false;
+  _lefthanded_torch.base.render:=nil;
+  _lefthanded_torch.base.omni:=nil;
+  _lefthanded_torch.base.glow:=nil;
+  _lefthanded_torch.base.enabled:=false;
+  v_zero(@_lefthanded_torch.aim_offset);
+
   _pda_cursor_state.last_moving_time:=0;
   _pda_cursor_state.current_dir:=Idle;
   _pda_cursor_state.last_click_time:=0;
