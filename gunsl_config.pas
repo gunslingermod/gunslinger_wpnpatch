@@ -227,6 +227,7 @@ var
   _mod_ver:PChar;
 
   psDeviceFlags:pointer;
+  g_upgrades_log:pointer;
 
   _pda_screen_kx:single;
   _pda_update_period:cardinal;
@@ -275,6 +276,8 @@ var
 
   CCC_rs_disable_objects_as_crows:CCC_Mask;
   CCC_fov:CCC_Float;
+
+  CCC_upgrades_log:CCC_Integer;
 
 //маски для флагов
 const
@@ -572,6 +575,7 @@ begin
 //--------------------------------Uncut console commands-----------------------------------------------------------
   if IsDebug() then begin
     psDeviceFlags:=pointer(xrEngine_addr+$91304);
+    g_upgrades_log:=pointer(xrGame_addr+$64bd94);
 
     CCC_Mask__CCC_Mask(@CCC_mt_sound, 'mt_sound', psDeviceFlags, 1 shl 14);
     CConsole__AddCommand(@(CCC_mt_sound.base));
@@ -608,6 +612,10 @@ begin
 
     CCC_Mask__CCC_Mask(@CCC_rs_disable_objects_as_crows, 'rs_disable_objects_as_crows', psDeviceFlags, 1 shl 11);
     CConsole__AddCommand(@(CCC_rs_disable_objects_as_crows.base));
+
+
+    CCC_Integer__CCC_Integer(@CCC_upgrades_log, 'g_upgrades_log', g_upgrades_log, 0, 1);
+    CConsole__AddCommand(@(CCC_upgrades_log.base));
   end;
 //-----------------------------------------------------------------------------------------------------------------
   CCC_Mask__CCC_Mask(@CCC_dyndof, 'r2_dynamic_dof', @_console_bool_flags, _mask_dyndof);
