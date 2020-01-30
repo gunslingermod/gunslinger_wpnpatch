@@ -1974,6 +1974,24 @@ asm
   ret
 end;
 
+procedure Manager__upgrade_install_Patch(); stdcall;
+asm
+  test eax, eax
+  jne @upgrade_found
+  mov [esp+$30], 10
+  mov esi, xrgame_addr
+  add esi, $af60e
+  jmp esi
+
+
+  @upgrade_found:
+  //original instructions
+  mov ebx, [esp+$34]
+  mov edi, [esp+$2c]
+  mov esi, xrgame_addr
+  add esi, $af4e9
+  jmp esi
+end;
 
 function Init:boolean;
 var
@@ -2164,6 +2182,10 @@ begin
   // в CWeapon::CheckForMisfire - после того, как убедились, что осечки быть не должно, подумаем еще раз - а может, все-таки назначить?
   jmp_addr:=xrGame_addr+$2bd0c4;
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__CheckForMisfire_validate_NoMisfire_patch), 5, false) then exit;
+
+  //¬ Manager::upgrade_install добавл€ем проверку - если апгрейд не нашелс€ после upgrade_verify, то и не примен€ем его вообще
+  jmp_addr:=xrGame_addr+$af4e1;
+  if not WriteJump(jmp_addr, cardinal(@Manager__upgrade_install_Patch), 8, false) then exit;
 
   //ѕредотвращение повторных выстрелов из –ѕ√
   //!!!Ћомает возможность многозар€дных гранатометов!!!
