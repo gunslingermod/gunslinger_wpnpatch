@@ -2510,13 +2510,32 @@ asm
   @finish:
 end;
 
+function IsTacticHudInstalled():boolean;
+var
+  act:pointer;
+  helmet:pointer;
+begin
+  result:=false;
+  act:=GetActor();
+  if act<>nil then helmet:=ItemInSlot(act, 12) else helmet := nil;
+
+  if helmet<>nil then begin
+    helmet:=dynamic_cast(helmet, 0, RTTI_CInventoryItem, RTTI_CHelmet, false);
+    if helmet<>nil then begin
+      result:=FindIntValueInUpgradesDef(helmet, 'nearest_enemies_show_dist', -1) > 0;
+    end;
+  end;
+end;
+
 
 function ZoneMapCondition():boolean; stdcall;
 begin
+  result := GetCurrentDifficulty()<gd_veteran;
+
   if IsLensFrameNow() then begin
     result:=false;
-  end else begin
-    result := GetCurrentDifficulty()<gd_veteran;
+  end else if not result and IsTacticHudInstalled() then begin
+    result:=true;
   end;
 end;
 
@@ -2566,7 +2585,7 @@ begin
   end else if IsInventoryShown() then begin
     result:=true;
   end else if ((hud_flags and HUD_DRAW) <> 0) and ((hud_flags and HUD_DRAW_RT) <> 0) then begin
-    result := (GetCurrentDifficulty()<gd_master) or IsInventoryShown();
+    result := (GetCurrentDifficulty()<gd_master) or IsInventoryShown() or IsTacticHudInstalled();
   end else begin
     result:=false;
   end;
