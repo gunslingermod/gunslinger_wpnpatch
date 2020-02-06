@@ -100,39 +100,70 @@ end;
 
 
 //---------------------------------------------------Несмена типа патрона в патроннике в релоаде-------------------------
-procedure NeedNotUnloadLastCartridge(wpn:pointer); stdcall;
+procedure PerformUnloadAmmo(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
+  need_unload:boolean;
+  i, cnt:integer;
 begin
   buf:=GetBuffer(wpn);
-  if
-    not IsGrenadeMode(wpn)
-  and
-    (buf<>nil)    
-  and
-    buf.IsAmmoInChamber()
-  and
-    buf.SaveAmmoInChamber()
+  //Вызывается при КАЖДОЙ перезарядке при НЕПУСТОМ магазине - не только при смене типа патронов (это пропатчено другой врезкой)
 
-  then begin
-    SwapFirstLastAmmo(wpn);
-    buf.is_firstlast_ammo_swapped:=true;
-    ChangeAmmoVectorStart(wpn, sizeof(CCartridge));
-    virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
-    ChangeAmmoVectorStart(wpn, (-1)*sizeof(CCartridge));    
-  end else begin
-    if buf <> nil then begin
-      buf.is_firstlast_ammo_swapped:=false;
+  if buf <> nil then begin
+    buf.is_firstlast_ammo_swapped:=false;
+
+    if not IsGrenadeMode(wpn) and buf.IsAmmoInChamber() and buf.SaveAmmoInChamber() then begin
+      //При использовании схемы с патронником в патроне не разряжаем патрон в патроннике
+
+      //Меняем местами первый патрон из вектора магазина с последним
+      //После этого на месте первого патрона оказывается патрон из патронника
+      SwapFirstLastAmmo(wpn);
+      buf.is_firstlast_ammo_swapped:=true;
+
+      // Хак - смещаем указатель на первый элемент из вектора патронов, чтобы его не разрядило
+      ChangeAmmoVectorStart(wpn, sizeof(CCartridge));
     end;
+  end;
+
+  //Если текущий тип патронов не соответствует тому, который будем заряжать - разрядим оружие
+  need_unload:=false;
+  if IsGrenadeMode(wpn) then begin
+    cnt:=GetAmmoInGLCount(wpn);
+    if cnt > 0 then begin
+      for i:=0 to cnt - 1 do begin
+        if GetGrenadeCartridgeFromGLVector(wpn, i).m_local_ammotype <> GetAmmoTypeIndex(wpn) then begin
+          need_unload:=true;
+          break;
+        end;
+      end;
+    end;
+  end else begin
+    cnt:=GetAmmoInMagCount(wpn);
+    if cnt > 0 then begin
+      for i:=0 to cnt - 1 do begin
+        if GetCartridgeFromMagVector(wpn, i).m_local_ammotype <> GetAmmoTypeIndex(wpn) then begin
+          need_unload:=true;
+          break;
+        end;
+      end;
+    end;
+  end;
+
+  if need_unload then begin
     virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   end;
+
+  if (buf<>nil) and buf.is_firstlast_ammo_swapped then begin
+    //Откатываем сделанные хаком изменения в векторе - неразряженный патрон из патронника магическим образом появляется обратно
+    ChangeAmmoVectorStart(wpn, (-1)*sizeof(CCartridge));
+  end;  
 end;
 
 procedure CWeaponMagazined__ReloadMagazine_OnUnloadMag_Patch(); stdcall;
 asm
   pushad
     push esi
-    call NeedNotUnloadLastCartridge
+    call PerformUnloadAmmo
   popad
   @finish:
 end;
