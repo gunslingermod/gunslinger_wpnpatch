@@ -19,6 +19,8 @@ function IsControllerPreparing():boolean; stdcall;
 
 function CheckActorVisibilityForController():boolean; stdcall;
 
+procedure NotifySuicideStopCallbackIfNeeded();
+procedure NotifySuicideShotCallbackIfNeeded();
 
 implementation
 uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc, WeaponEvents, Throwable, dynamic_caster;
@@ -400,12 +402,13 @@ begin
   if (wpn<>GetActorActiveItem()) then exit;
   if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) and CheckActorVisibilityForController() then begin
     script_call('gunsl_controller.on_suicide_shot', '', 0);
+    NotifySuicideShotCallbackIfNeeded();
     DoSuicideShot();
   end else begin
     setlength(_active_controllers, 0);
     _suicide_now:=false;
     _planning_suicide:=false;
-    script_call('gunsl_controller.on_stop_suicide', '', 0);
+    NotifySuicideStopCallbackIfNeeded();
     WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_stop_suicide', 'sndStopSuicide');
     SetHandsJitterTime(GetShockTime());
   end;
@@ -742,6 +745,16 @@ begin
     result:=false
   else
     result:=(GetTimeDeltaSafe(_controller_preparing_starttime)<GetControllerPrepareTime+1000);
+end;
+
+procedure NotifySuicideStopCallbackIfNeeded();
+begin
+  script_call('gunsl_controller.on_stop_suicide', '', 0);
+end;
+
+procedure NotifySuicideShotCallbackIfNeeded();
+begin
+  script_call('gunsl_controller.on_suicide_shot', '', 0);
 end;
 
 function Init():boolean; stdcall;

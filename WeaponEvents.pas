@@ -1002,6 +1002,7 @@ begin
         SetDisableInputStatus(true);
         result:='anm_selfkill';
         CHudItem_Play_Snd(knife, 'sndSelfKill');
+        NotifySuicideShotCallbackIfNeeded();
       end;
       exit;
     end else if IsSuicideAnimPlaying(knife) then begin
@@ -1010,6 +1011,7 @@ begin
       CHudItem_Play_Snd(knife, 'sndStopSuicide');
       result:='anm_stop_suicide';
       ResetActorControl();
+      NotifySuicideStopCallbackIfNeeded();
       exit;
     end;
   end;

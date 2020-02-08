@@ -363,6 +363,7 @@ begin
             if is_suicide_allowed and is_suicide_anim and IsActorControlled() then begin
               //Игрался суицид. Закончим начатое.
               log('anm_suicide_throw');
+              NotifySuicideShotCallbackIfNeeded();
 
               result:='anm_suicide_throw';
               CMissile__SetDestroyTimeMax(CMissile, game_ini_r_int_def(GetSection(CMissile), 'suicide_success_destroy_time', CMissile__GetDestroyTimeMax(CMissile)));
@@ -373,6 +374,7 @@ begin
 
             end else if is_suicide_anim and is_suicide_allowed then begin
               log('anm_suicide_stop');
+              NotifySuicideStopCallbackIfNeeded();
 
               //отыгрывался суицид, но актор свалил. Выставляем силу броска и играем отброс грены в сторону
               result:='anm_suicide_stop';

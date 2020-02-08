@@ -222,12 +222,12 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster;
 
 var
   register_level_isuishown_ret:cardinal;
-  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr:pointer;
-  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr :pointer;
+  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr:pointer;
+  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, IsActorControlled_ptr :pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -563,6 +563,35 @@ begin
   result:=FindIntValueInUpgradesDef(ii, param_name, result);
 end;
 
+function IsActorControlled_adapter():boolean;
+asm
+  pushad
+    call IsActorSuicideNow
+    mov @result, al
+    cmp al, 0
+  popad
+  jne @finish
+
+  pushad
+    call IsActorControlled
+    mov @result, al
+    cmp al, 0
+  popad
+  jne @finish
+
+  pushad
+    call GetActorActiveItem
+    test eax, eax
+    je @nowpn
+    push eax
+    call IsSuicideAnimPlaying
+    mov @result, al
+    @nowpn:
+  popad
+
+  @finish:
+end;
+
 procedure register_level_isuishown(); stdcall;
 const
   name:PChar='is_ui_shown';
@@ -575,6 +604,7 @@ const
   name_electroproblem_apply:PChar='electronics_apply';
 
   name_get_parameter_upgraded:PChar='get_parameter_upgraded_int';
+  name_is_actor_suicide:PChar='is_actor_controlled';
 asm
   push eax
 
@@ -651,6 +681,29 @@ asm
   push ecx
   mov ecx, esp
   push name_electroproblem_apply
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ////////////////////////////
+  push eax
+
+  mov ecx, IsActorControlled_adapter_ptr
+  push ecx
+  mov ecx, esp
+  push name_is_actor_suicide
   push ecx
   mov ecx, xrgame_addr
   add ecx, $1FF277;
@@ -969,6 +1022,7 @@ begin
   ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;
   ElectronicProblemsApply_ptr:=@ElectronicProblemsApply;
   GetParameterUpgraded_int_ptr:=@GetParameterUpgraded_int;
+  IsActorControlled_adapter_ptr:=@IsActorControlled_adapter;
 
   //экспорт в скрипты
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;
