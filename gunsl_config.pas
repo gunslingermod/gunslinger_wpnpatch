@@ -133,6 +133,7 @@ function GetControllerBlockedTime():cardinal; stdcall;
 function GetShockTime():cardinal; stdcall;
 function GetMaxJitterHealth():single; stdcall;
 function GetControllerFeelParams():controller_feel_params; stdcall;
+function GetControllerQueueStopProb():single; stdcall;
 
 function GetControlledActorSpeedKoef():single; stdcall;
 
@@ -197,6 +198,7 @@ var
   _controller_time:cardinal;
   _controller_prepare_time:cardinal;
   _controller_blocked_time:cardinal;
+  _controller_queue_stop_prob:single;
   _controller_phantoms:phantoms_params;
   _controller_feel:controller_feel_params;
 
@@ -712,6 +714,7 @@ begin
 
   _controller_feel.min_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_min_feel_dist', 10.0);
   _controller_feel.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_max_feel_dist', 30.0);
+  _controller_queue_stop_prob :=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_queue_stop_prob', 0.95);  
 
   _max_jitter_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_jitter_health', 0.3);
   _actor_max_breath_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_breath_health', 0.15);
@@ -870,6 +873,11 @@ end;
 function GetControllerFeelParams():controller_feel_params; stdcall;
 begin
   result:=_controller_feel;
+end;
+
+function GetControllerQueueStopProb():single; stdcall;
+begin
+  result:=_controller_queue_stop_prob;
 end;
 
 function GetHeadlampEnableAnimator():PChar;

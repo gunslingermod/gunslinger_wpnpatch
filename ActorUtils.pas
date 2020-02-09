@@ -1942,9 +1942,12 @@ begin
   if (dik=kJUMP) then begin
     result:=not (IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing());
   end else if (dik >= kQUICK_USE_1) and (dik<=kQUICK_USE_4) then begin
-    tmp_pchar:=GetQuickUseScriptFunctorName();
-    if tmp_pchar<>nil then begin
-      script_call(tmp_pchar, '', 1);
+    result:=not (IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide());
+    if result then begin
+      tmp_pchar:=GetQuickUseScriptFunctorName();
+      if tmp_pchar<>nil then begin
+        script_call(tmp_pchar, '', 1);
+      end;
     end;
   end else if dik = kDETECTOR then begin
       if (wpn<>nil) then begin
@@ -3385,9 +3388,18 @@ asm
   test eax,eax
 end;
 
-function CanActorTakeItems():boolean; stdcall;
+function CanActorTakeItems(inventoryitem:pointer):boolean; stdcall;
+var
+  sect:PAnsiChar;
 begin
-  result:= not IsActorControlled() and not IsActorSuicideNow() and not IsActorPlanningSuicide();
+  result:=true;
+  if IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+    result:=false;
+    sect:=GetSection(inventoryitem);
+    if sect<>nil and game_ini_r_bool_def(sect, 'can_take_when_controlled', false) then begin
+      result:=true;
+    end;
+  end;
 end;
 
 procedure CInventory__CanTakeItem_Conditions(); stdcall;
@@ -3398,6 +3410,7 @@ asm
   je @normal
 
   pushad
+    push [esp+$2c]
     call CanActorTakeItems
     test al, al
   popad

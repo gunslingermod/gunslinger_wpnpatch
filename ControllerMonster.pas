@@ -287,6 +287,13 @@ begin
       SetActorKeyRepeatFlag(kfUNZOOM, true, true);
     end;
 
+    if (wpn<>nil) and (WpnCanShoot(wpn)) then begin
+      //Если стрельба "залипла", не допускаем исчерпания боезапаса (не ножом же резаться :) )
+      if (GetCurrentState(wpn)=EWeaponStates__eFire) and (_lastshot_done_time=0) and (GetCurrentAmmoCount(wpn) <= 3) then begin
+        SetWorkingState(wpn, false);
+      end;
+    end;
+
     if (wpn<>nil) and (GetSection(wpn)=GetPDAShowAnimator()) then begin 
       if IsPDAWindowVisible() then HidePDAMenu();
     end else if (wpn<>nil) and IsThrowable(wpn) then begin
@@ -560,8 +567,14 @@ begin
       _suicide_now:=true;
       _controlled_time_remains:=floor(game_ini_r_single_def(GetHUDSection(wpn), 'controller_time', _controlled_time_remains/1000)*1000);
     end;
-    if GetCurrentState(wpn)=EWeaponStates__eFire then SetWorkingState(wpn, false);
     _planning_suicide:=true;
+  end;
+
+  if (GetCurrentState(wpn)=EWeaponStates__eFire) then begin
+    // Когда актор ведет огонь очередью, стрельба может либо прекратиться, либо "залипнуть". Это поведение by design
+    if (GetControllerQueueStopProb() >= random) then begin
+      SetWorkingState(wpn, false);
+    end;
   end;
 end;
 
