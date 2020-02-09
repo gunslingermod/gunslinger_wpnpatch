@@ -3396,7 +3396,7 @@ begin
   if IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() then begin
     result:=false;
     sect:=GetSection(inventoryitem);
-    if sect<>nil and game_ini_r_bool_def(sect, 'can_take_when_controlled', false) then begin
+    if (sect<>nil) and game_ini_r_bool_def(sect, 'can_take_when_controlled', false) then begin
       result:=true;
     end;
   end;

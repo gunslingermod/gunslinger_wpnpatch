@@ -31,6 +31,7 @@ string_path=array [0..519] of Char;
 
 procedure init_string(str:pshared_str); stdcall;
 procedure assign_string(str:pshared_str; text:PChar); stdcall;
+procedure assign_string_noaddref(str:pshared_str; text:PChar); stdcall; //'Hacky' version, try don't use
 function get_string_value(str:pshared_str):PAnsiChar; stdcall;
 function Init():boolean; stdcall;
 function str_container_dock(str:PChar):pstr_value; stdcall
@@ -39,6 +40,14 @@ implementation
 uses basegamedata;
 var
   g_pStringContainer:ppstr_container;
+
+procedure assign_string_noaddref(str:pshared_str; text:PChar); stdcall;
+begin
+  assign_string(str, text);
+  if (str^.p_<>nil) then begin
+    str^.p_.dwReference:=str^.p_.dwReference-1;  
+  end;
+end;
 
 procedure assign_string(str:pshared_str; text:PChar); stdcall;
 var

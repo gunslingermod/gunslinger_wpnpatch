@@ -1005,6 +1005,52 @@ asm
   popad
 end;
 
+var
+  temp_eatable_sect:shared_str;
+function OverrideEatableSection(old_sect:pshared_str):pshared_str; stdcall;
+var
+  base_sect, hud_sect, eat_sect:PAnsiChar;
+  ignore_eatable_boost:boolean;
+begin
+  result:=old_sect;
+
+  base_sect:=get_string_value(old_sect);
+  hud_sect:=game_ini_read_string_def(base_sect, 'hud', '');
+  ignore_eatable_boost:=game_ini_r_bool_def(base_sect, 'ignore_eatable_boost', false);
+  if not ignore_eatable_boost and (length(hud_sect) > 0) then begin
+    eat_sect:=game_ini_read_string_def(hud_sect, 'gwr_eatable_object', '');
+    if length(eat_sect) > 0 then begin
+      //Об увеличении счетчика ссылок не заботимся - все равно строка не протухнет никуда до завершения игры, зато у нас об уменьшении потом голова не будет болеть
+      assign_string_noaddref(@temp_eatable_sect, eat_sect);
+      result:=@temp_eatable_sect;
+    end;
+  end;
+end;
+
+procedure CUIBoosterInfo__SetInfo_Patch(); stdcall;
+asm
+  //Save pointer to the argument
+  lea edx, [esp+8]
+
+  //Execute original code
+  sub esp, $24 //28 in original, but we have a return address
+  push ebx
+  mov ebx, ecx
+
+  //copy return addr to the top of the stack
+  push [esp+$28]
+
+  //Change the section
+  pushad
+  push edx
+  push [edx]
+  call OverrideEatableSection
+  pop edx
+  mov [edx],eax
+  popad
+
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1088,9 +1134,12 @@ begin
   //jmp_addr:=xrGame_addr+$46AB17;
   //if not WriteJump(jmp_addr, cardinal(@CorrectBeltListOver), 6, true) then exit;
 
+  // В CUIBoosterInfo::SetInfo в самом начале проверяем, не относится ли текущая секция к предметам с худом, и если так - заменяем ее на секцию итейбла
+  init_string(@temp_eatable_sect);
+  jmp_addr:=xrGame_addr+$450e90;
+  if not WriteJump(jmp_addr, cardinal(@CUIBoosterInfo__SetInfo_Patch), 6, true) then exit;
+
   result:=true;
 end;
-
-
 
 end.
