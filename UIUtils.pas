@@ -1021,6 +1021,7 @@ begin
     eat_sect:=game_ini_read_string_def(hud_sect, 'gwr_eatable_object', '');
     if length(eat_sect) > 0 then begin
       //Об увеличении счетчика ссылок не заботимся - все равно строка не протухнет никуда до завершения игры, зато у нас об уменьшении потом голова не будет болеть
+      init_string(@temp_eatable_sect);
       assign_string_noaddref(@temp_eatable_sect, eat_sect);
       result:=@temp_eatable_sect;
     end;
@@ -1155,7 +1156,6 @@ begin
   //if not WriteJump(jmp_addr, cardinal(@CorrectBeltListOver), 6, true) then exit;
 
   // В CUIBoosterInfo::SetInfo в самом начале проверяем, не относится ли текущая секция к предметам с худом, и если так - заменяем ее на секцию итейбла
-  init_string(@temp_eatable_sect);
   jmp_addr:=xrGame_addr+$450e90;
   if not WriteJump(jmp_addr, cardinal(@CUIBoosterInfo__SetInfo_Patch), 6, true) then exit;
   
