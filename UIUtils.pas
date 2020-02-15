@@ -227,7 +227,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr:pointer;
-  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, IsActorControlled_ptr :pointer;
+  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr:pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -1051,6 +1051,26 @@ asm
 
 end;
 
+procedure CUITalkWnd__SwitchToUpgrade_Patch(); stdcall;
+asm
+  // m_pOurInvOwner->IsTradeEnabled()
+  mov eax,[esi+$6C]
+  cmp byte ptr [eax+$35],0
+  je @finish
+
+  // m_pOthersInvOwner->IsTradeEnabled()
+  mov ecx,[esi+$70]
+  cmp byte ptr [ecx+$35],0 
+  je @finish
+
+  // Original call
+  mov eax, xrgame_addr
+  add eax, $4afd90
+  call eax
+
+  @finish:
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1138,6 +1158,10 @@ begin
   init_string(@temp_eatable_sect);
   jmp_addr:=xrGame_addr+$450e90;
   if not WriteJump(jmp_addr, cardinal(@CUIBoosterInfo__SetInfo_Patch), 6, true) then exit;
+  
+  //в CUITalkWnd::SwitchToUpgrade нет проверки на то, что у нас разрешено грейдиться (как в CUITalkWnd::SwitchToTrade) - из-за этого возможен грейд у Дядьки Яра при нажатии спринта. Точнее, есть закомменченная и с вызовом метода IsInvUpgradeEnabled, который... не очень актуален. Скопируем проверку.
+  jmp_addr:=xrGame_addr+$456a13;
+  if not WriteJump(jmp_addr, cardinal(@CUITalkWnd__SwitchToUpgrade_Patch), 5, true) then exit;
 
   result:=true;
 end;
