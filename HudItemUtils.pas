@@ -180,6 +180,7 @@ function HasDifferentFireModes(wpn:pointer):boolean; stdcall;
 function SetQueueFired(wpn:pointer; status:boolean):cardinal; stdcall;
 
 function HasBinocularVision(wpn:pointer):boolean; stdcall;
+function GetHudFlags():cardinal; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -225,8 +226,11 @@ const
   CWEAPON_FLAME_PARTICLES_CURRENT:cardinal=$42C;  
   CWEAPON_FLAME_PARTICLES:cardinal=$430;
   CWEAPON_SMOKE_PARTICLES_CURRENT:cardinal=$438;  
-  CWEAPON_SMOKE_PARTICLES:cardinal=$43C;    
+  CWEAPON_SMOKE_PARTICLES:cardinal=$43C;
 
+  HUD_DRAW:cardinal = 16;
+  HUD_DRAW_RT:cardinal = 1024;
+  HUD_WEAPON_RT2:cardinal = 2048;
 
 //procedure SetCollimatorStatus(wpn:pointer; status:boolean); stdcall;
 
@@ -235,6 +239,7 @@ implementation
 uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster, xr_Cartridge, xr_strings;
 var
   PlayHudAnim_Func:cardinal;
+  _pps_HudFlags:pcardinal;
 
 
 procedure SetHUDSection(wpn:pointer; new_hud_section:PChar); stdcall;
@@ -1188,6 +1193,7 @@ end;
 function Init():boolean;
 begin
   PlayHudAnim_Func:=xrGame_addr+$2F9A60;
+  _pps_HudFlags:=pointer(xrEngine_addr+$90904);
   result:=true;
 end;
 
@@ -2171,6 +2177,11 @@ asm
   je @finish
   mov eax, 1
   @finish:
+end;
+
+function GetHudFlags():cardinal; stdcall;
+begin
+  result:=_pps_HudFlags^;
 end;
 
 end.

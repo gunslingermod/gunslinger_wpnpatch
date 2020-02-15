@@ -486,7 +486,10 @@ begin
       SetTorchlightPosAndDir(@params.base, GetPosition(det), GetOrientation(det), false)
     end;
 
-    if leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show' then begin
+    if (GetHudFlags() and HUD_WEAPON_RT2) = 0 then begin
+      //weapon hud render is disabled - probably cut-scene, we shouldn't draw torchlight
+      SwitchLefthandedTorch(false);
+    end else if leftstr(GetActualCurrentAnim(det), length('anm_show'))='anm_show' then begin
       light_time_treshold_f:=game_ini_r_single_def(GetHUDSection(det), PChar('torch_enable_time_'+GetActualCurrentAnim(det)), 0)*1000;
       if light_time_treshold_f>=0 then begin
         light_cur_time:=GetTimeDeltaSafe(GetAnimTimeState(det, ANM_TIME_START), GetAnimTimeState(det, ANM_TIME_CUR));

@@ -2578,16 +2578,13 @@ asm
   @finish:
 end;
 
-function drawingame_conditions(hud_flags:cardinal):boolean; stdcall;
-const
-  HUD_DRAW:cardinal = 16;
-  HUD_DRAW_RT:cardinal = 1024;
+function drawingame_conditions():boolean; stdcall;
 begin
   if IsLensFrameNow() then begin
     result:=false;
   end else if IsInventoryShown() then begin
     result:=true;
-  end else if ((hud_flags and HUD_DRAW) <> 0) and ((hud_flags and HUD_DRAW_RT) <> 0) then begin
+  end else if ((GetHudFlags() and HUD_DRAW) <> 0) and ((GetHudFlags() and HUD_DRAW_RT) <> 0) then begin
     result := (GetCurrentDifficulty()<gd_master) or IsInventoryShown() or IsTacticHudInstalled();
   end else begin
     result:=false;
@@ -2597,7 +2594,6 @@ end;
 procedure CUIGameCustom__Render_drawingame_Patch; stdcall;
 asm
   pushad
-    push edx //psHUD_Flags
     call drawingame_conditions
     cmp al, 0
   popad
