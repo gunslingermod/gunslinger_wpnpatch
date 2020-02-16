@@ -892,6 +892,7 @@ begin
     ResetActorFlags(act);
     det:=ItemInSlot(act, 9);
     if (det<>nil) and not CanUseDetectorWithItem(wpn) then begin
+      ForceHideDetector(det);
       SetDetectorForceUnhide(det, false);
       SetActorActionState(act, actShowDetectorNow, false);
     end;
