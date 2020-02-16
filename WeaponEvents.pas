@@ -1172,6 +1172,7 @@ procedure OnZoomAlterButton(wpn:pointer; flags:cardinal);
 var
   buf:WpnBuf;
   act:pointer;
+  aim_now, alter_aim_now:boolean;
 begin
 
     buf:=GetBuffer(wpn);
@@ -1187,26 +1188,132 @@ begin
      exit;
     end;
 
+    aim_now:=IsAimNow(wpn);
+    alter_aim_now:=IsAlterZoom(wpn);
+
     if IsAimToggle() then begin
       if flags=kActPress then begin
-        if not IsAimNow(wpn) then begin
+        if not aim_now then begin
+          //Никакое прицеливание неактивно, начинаем альтернативное
           buf.SetAlterZoomMode(true);
           virtual_Action(wpn, kWPN_ZOOM, kActPress);
-        end else if buf.IsAlterZoomMode() then begin
+        end else if alter_aim_now then begin
+          //Активно альтернативное прицеливание, нажали его кнопку снова - надо выходить из него
           buf.SetAlterZoomMode(false);
           virtual_Action(wpn, kWPN_ZOOM, kActPress);
+        end else begin
+          //Активно обычное прицеливание, нажали кнопку альтернативного - надо перейти в альтернативное
+          buf.SetLastZoomAlter(true);
+          buf.SetAlterZoomMode(true);
+          RefreshZoomDOF(wpn);
         end;
       end;
+
     end else begin
-      if (flags=kActPress) and not IsAimNow(wpn) then begin
+
+      if flags=kActPress then begin
+        if not aim_now then begin
+          // Никакое прицеливание неактивно - начинаем альтернативное
           buf.SetAlterZoomMode(true);
           virtual_Action(wpn, kWPN_ZOOM, kActPress);
-      end else if (flags=kActRelease) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
-          buf.SetAlterZoomMode(false);
-          virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+        end else if alter_aim_now then begin
+          // Уже активно альтернативное прицеливание - ничего не делаем
+        end else begin
+          // Активно обычное прицеливание - переходим в альтернативное
+          buf.SetLastZoomAlter(true);
+          buf.SetAlterZoomMode(true);
+          RefreshZoomDOF(wpn);
+        end;
+      end else begin
+        if not aim_now then begin
+          // Никакое прицеливание неактивно - странно, но ничего не делаем
+        end else if alter_aim_now then begin
+          // Активно альтернативное прицеливание - если зажата кнопка обычного, переходим в него, иначе - выходим из прицеливания
+          if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
+            buf.SetLastZoomAlter(false);
+            buf.SetAlterZoomMode(false);
+            RefreshZoomDOF(wpn);
+          end else begin
+            buf.SetAlterZoomMode(false);
+            virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+          end;
+        end else begin
+          // Активно обычное прицеливание - ничего не делаем
+        end;
       end;
     end;
 end;
+
+function OnZoomButton(wpn:pointer; flags:cardinal):boolean;
+var
+  buf:WpnBuf;
+  aim_now, alter_aim_now:boolean;  
+begin
+  //Если вернем true - нажатие будет считаться обработанным и дальше не пойдет
+  result:=false;
+  buf:=GetBuffer(wpn);
+  if buf = nil then exit;
+
+  aim_now:=IsAimNow(wpn);
+  alter_aim_now:=IsAlterZoom(wpn);
+  if IsAimToggle() then begin
+    if flags=kActPress then begin
+      if not aim_now then begin
+        // На момент нажатия клавиши не было активно никакого прицеливания, теперь (очевидно) собираемся войти в какое-то (если alter_aim_now = true - значит, в альтернативное)
+        // Все сделает штатный код
+        result:=false;        
+      end else if alter_aim_now then begin
+        // Перед нажатием клавиши уже было активно альтернативное прицеливание. Переходим в обычное
+        buf.SetLastZoomAlter(false);
+        buf.SetAlterZoomMode(false);
+        RefreshZoomDOF(wpn);
+        result:=true;
+      end else begin
+        // Перед нажатием клавиши уже было активно обычное прицеливание. Выходим из прицеливания
+        // Все сделает штатный код
+        result:=false;
+      end;
+    end;
+
+  end else begin
+  
+    if flags=kActPress then begin
+      if not aim_now then begin
+        // На момент нажатия клавиши не было активно никакого прицеливания, теперь (очевидно) собираемся войти в какое-то (если alter_aim_now = true - значит, в альтернативное)
+        // Все сделает штатный код
+        result:=false;
+      end else if alter_aim_now then begin
+        // Перед нажатием клавиши уже было активно альтернативное прицеливание. Переходим в обычное
+        buf.SetLastZoomAlter(false);
+        buf.SetAlterZoomMode(false);
+        RefreshZoomDOF(wpn);
+        result:=true;
+      end else begin
+        // Перед нажатием клавиши уже почему-то было активно обычное прицеливание. Ничего не делаем.
+        result:=true;
+      end;
+    end else begin
+      if not aim_now then begin
+        // В момент отпускания клавиши прицеливания не было. Странно, но ничего не делаем.
+        result:=true;
+      end else if alter_aim_now then begin
+        // В момент отпускания клавиши было активно альтернативное прицеливание. Оставляем его.
+        result:=true;
+      end else begin
+        // В момент отпускания клавиши было активно обычное прицеливание. Если зажата кнопка альтернативного, то переходим в него, иначе -  выходим из прицеливания
+        if IsActionKeyPressedInGame(kWPN_ZOOM_ALTER) then begin
+          buf.SetLastZoomAlter(true);
+          buf.SetAlterZoomMode(true);
+          RefreshZoomDOF(wpn);
+          result:=true;
+        end else begin
+          result:=false;
+        end;
+      end;
+    end;
+  end;
+end;
+
 //---------------------------------------------------------------------------------------------------------
 function CWeapon__Action(wpn:pointer; id:cardinal; flags:cardinal):boolean; stdcall;
 //вернуть true, если дальше обрабатывать нажатие не надо
@@ -1242,11 +1349,8 @@ begin
     OnTorchButton(wpn);
   end else if (id=kWPN_ZOOM_ALTER) then begin
     OnZoomAlterButton(wpn, flags);
-
   end else if (id=kWPN_ZOOM) then begin
-    if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
-      result:=true;
-    end;
+    result:=OnZoomButton(wpn, flags);
   end else if ((id=kWPN_ZOOM_INC) or (id=kWPN_ZOOM_DEC) or (id=kBRIGHTNESS_PLUS) or (id=kBRIGHTNESS_MINUS)) and (flags=kActPress) then begin
     if (buf<>nil) and IsAimNow(wpn) and buf.IsAlterZoomMode() then begin
       result:=true;
