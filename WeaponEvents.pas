@@ -111,6 +111,7 @@ var
   snd_name:PChar;
   hud_sect:PChar;
   act:pointer;
+  key:cardinal;
 
 begin
   act:=GetActor();
@@ -128,10 +129,16 @@ begin
         end;
 
         if IsAimNow(wpn) then begin
+          if IsAlterZoom(wpn) then begin
+            key:=kWPN_ZOOM_ALTER;
+          end else begin
+            key:=kWPN_ZOOM;
+          end;
+
           if IsAimToggle() then
-            virtual_Action(wpn, kWPN_ZOOM, kActPress)
+            virtual_Action(wpn, key, kActPress)
           else
-            virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+            virtual_Action(wpn, key, kActRelease);
         end;
       end;
     4:begin
@@ -199,6 +206,7 @@ var addonname:PChar;
     anim_name:string;
     hud_sect, sect:PChar;
     err_msg:PChar;
+    key:cardinal;
 begin
   param_name:=nil;
   snd_name:=nil;
@@ -219,10 +227,16 @@ begin
         end else if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl') then begin
           err_msg:='gunsl_msg_gl_restricts_scope';
         end else if IsAimNow(wpn) then begin
+          if IsAlterZoom(wpn) then begin
+            key:=kWPN_ZOOM_ALTER;          
+          end else begin
+            key:=kWPN_ZOOM;
+          end;
+
           if IsAimToggle() then
-            virtual_Action(wpn, kWPN_ZOOM, kActPress)
+            virtual_Action(wpn, key, kActPress)
           else
-            virtual_Action(wpn, kWPN_ZOOM, kActRelease);
+            virtual_Action(wpn, key, kActRelease);
         end;
       end;
     4:begin

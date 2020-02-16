@@ -7,6 +7,7 @@ function IsCollimatorInstalled(wpn:pointer):boolean;stdcall;
 function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
 function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
+function IsAlterZoom(wpn:pointer):boolean; stdcall;
 function IsHudModelForceUnhide(wpn:pointer):boolean; stdcall;
 function IsUIForceHiding(wpn:pointer): boolean;stdcall;
 function IsUIForceUnhiding(wpn:pointer): boolean;stdcall;

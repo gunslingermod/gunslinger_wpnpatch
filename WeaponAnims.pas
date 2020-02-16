@@ -1984,7 +1984,7 @@ begin
   //if not WriteJump(jump_addr, cardinal(@ShootGLAnimLockFix), 7, true) then exit;
 
 
-  //для прицеливания
+  //для прицеливания (CWeapon::Action)
   jump_addr:=xrGame_addr+$2BECE4;
   if not WriteJump(jump_addr, cardinal(@AimAnimLockFix), 7, true) then exit;
   jump_addr:=xrGame_addr+$2BED9B;
