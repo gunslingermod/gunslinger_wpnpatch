@@ -209,6 +209,7 @@ type
     function IsAlterZoomMode():boolean;
     procedure SetAlterZoomMode(status:boolean);
 
+    // Показывает, был ли последний вход в прицеливание "альтернативным" - надо для корректного выхода из альтернативного прицеливания
     function IsLastZoomAlter():boolean;
     procedure SetLastZoomAlter(status:boolean);
 

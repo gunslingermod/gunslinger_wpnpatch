@@ -8,6 +8,7 @@ function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
 function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
 function IsAlterZoom(wpn:pointer):boolean; stdcall;
+function IsLastZoomAlter(wpn:pointer):boolean; stdcall;
 function IsHudModelForceUnhide(wpn:pointer):boolean; stdcall;
 function IsUIForceHiding(wpn:pointer): boolean;stdcall;
 function IsUIForceUnhiding(wpn:pointer): boolean;stdcall;
@@ -300,6 +301,14 @@ var
 begin
   buf := GetBuffer(wpn);
   result:= (buf<>nil) and buf.IsAlterZoomMode();
+end;
+
+function IsLastZoomAlter(wpn:pointer):boolean; stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf := GetBuffer(wpn);
+  result:= (buf<>nil) and buf.IsLastZoomAlter();
 end;
 
 procedure CWeapon__OnZoomIn_PreExit_Patch();

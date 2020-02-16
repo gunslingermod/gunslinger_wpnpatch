@@ -71,7 +71,7 @@ function CWeapon__OnZoomIn_needDOF(wpn:pointer):boolean; stdcall;
 begin
   if not IsDofEnabled() then begin
     result:=false;
-  end else if LensConditions(true) then begin
+  end else if LensConditions(true) and not IsAlterZoom(wpn) then begin
     //в режиме прицеливания с помощью линзы
     result:=false;
     SetDOF(ReadLensDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
