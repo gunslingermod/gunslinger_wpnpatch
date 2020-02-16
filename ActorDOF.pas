@@ -26,16 +26,16 @@ function Init():boolean; stdcall;
 function GetGamePersistent():pointer; stdcall;
 procedure SetDOF(dof_near:single; dof_focus:single; dof_far:single; speed:single); stdcall; overload;
 procedure SetDOF(v:FVector3; speed:single); stdcall; overload;
+function RefreshZoomDOF(wpn:pointer):boolean; stdcall;
 procedure ResetDOF(speed:single); stdcall;
 function ReadActionDOFVector(wpn:pointer; var v:FVector3; param:string; def:boolean=true):boolean; stdcall;
 function ReadZoomDOFVector(wpn:pointer):FVector3; stdcall;
+function ReadAlterZoomDOFVector(wpn:pointer):FVector3; stdcall;
 function ReadGLDOFVector(wpn:pointer):FVector3; stdcall;
 function ReadLensDOFVector(wpn:pointer):FVector3; stdcall;
 function ReadActionDOFSpeed_In(wpn:pointer; param:string):single;
 function ReadActionDOFSpeed_Out(wpn:pointer; param:string):single;
 function ReadActionDOFTimeOffset(wpn:pointer; param:string):integer;
-
-function CWeapon__OnZoomIn_needDOF(wpn:pointer):boolean; stdcall;
 
 
 procedure SetDofSpeedfactor(speed:single); stdcall;
@@ -67,24 +67,71 @@ begin
   result:=_dof_changed;
 end;
 
-function CWeapon__OnZoomIn_needDOF(wpn:pointer):boolean; stdcall;
+procedure SetPickableDofEffectorStatus(status:boolean); stdcall;
+asm
+  pushad
+  call GetGamePersistent
+  mov ecx, eax
+
+  mov eax, xrgame_addr
+  add eax, $230960
+  movzx edx, status
+  push edx
+  call eax  //CGamePersistent::SetPickableEffecorDOF
+  popad
+end;
+
+function IsPickableDofEffectorActive():boolean;
+asm
+  pushad
+  call GetGamePersistent
+  mov al, byte ptr [eax+$4e1] //m_bPickableDOF
+  mov result, al
+  popad
+end;
+
+function RefreshZoomDOF(wpn:pointer):boolean; stdcall;
 begin
   if not IsDofEnabled() then begin
     result:=false;
   end else if LensConditions(true) and not IsAlterZoom(wpn) then begin
     //в режиме прицеливания с помощью линзы
     result:=false;
+    if IsPickableDofEffectorActive() then begin
+      //Если была активна "родная" схема дофа - сбросим ее, она мешает
+      SetPickableDofEffectorStatus(false);
+    end;
+    
     SetDOF(ReadLensDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
   end else if IsConstZoomDOF() then begin
     result:=false;  //в родном дофе не нуждаемся
+    if IsPickableDofEffectorActive() then begin
+      //Если была активна "родная" схема дофа - сбросим ее, она мешает
+      SetPickableDofEffectorStatus(false);
+    end;
+
     if IsGrenadeMode(wpn) and CHudItem__GetHUDMode(wpn) then begin
       SetDOF(ReadGLDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'gl_in_dof_speed', GetDefaultDOFSpeed_In()));
+    end else if IsAlterZoom(wpn) then begin
+      SetDOF(ReadAlterZoomDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'alter_zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
     end else if (not IsScopeAttached(wpn)) and (GetScopeStatus(wpn)<>1) and CHudItem__GetHUDMode(wpn) then begin
       SetDOF(ReadZoomDOFVector(wpn), game_ini_r_single_def(GetHUDSection(wpn),'zoom_in_dof_speed', GetDefaultDOFSpeed_In()));
     end;
   end else begin
-    result:= (not IsCollimatorInstalled(wpn) and not IsLensedScopeInstalled(wpn)) and (not game_ini_r_bool_def(GetSection(wpn), 'disable_zoom_dof', false));
+    if game_ini_r_bool_def(GetSection(wpn), 'disable_zoom_dof', false) then begin
+      result:=false;
+    end else if IsAlterZoom(wpn) then begin
+      result:=true;
+    end else begin
+      // С коллиматором использовать нельзя - выглядит странно
+      result:= (not IsCollimatorInstalled(wpn) and not IsLensedScopeInstalled(wpn));    
+    end;
     if result then SetDofSpeedfactor(GetDefaultDOFSpeed());
+  end;
+
+  //Управляем необходимостью "оригинального" эффекта ДОФа, параметры которого зависят от точки, в которую смотрит игрок
+  if result then begin
+    SetPickableDofEffectorStatus(true);
   end;
 end;
 
@@ -92,16 +139,8 @@ procedure CWeapon__OnZoomIn_needDOF_Patch(); stdcall;
 asm
   pushad
     push esi
-    call CWeapon__OnZoomIn_needDOF
-    cmp al, 0
+    call RefreshZoomDOF
   popad
-  je @finish
-  mov eax, xrgame_addr
-  add eax, $230960
-  push 01
-  call eax  //CGamePersistent::SetPickableEffecorDOF
-
-  @finish:
 end;
 
 
@@ -282,6 +321,17 @@ begin
   result.x:=game_ini_r_single_def(sect, PChar('zoom_dof_near'), result.x);
   result.y:=game_ini_r_single_def(sect, PChar('zoom_dof_focus'), result.y);
   result.z:=game_ini_r_single_def(sect, PChar('zoom_dof_far'), result.z);
+end;
+
+function ReadAlterZoomDOFVector(wpn:pointer):FVector3; stdcall;
+var
+  sect:PChar;
+begin
+  sect:=GetHUDSection(wpn);
+  result:=ReadZoomDOFVector(wpn);
+  result.x:=game_ini_r_single_def(sect, PChar('alter_zoom_dof_near'), result.x);
+  result.y:=game_ini_r_single_def(sect, PChar('alter_zoom_dof_focus'), result.y);
+  result.z:=game_ini_r_single_def(sect, PChar('alter_zoom_dof_far'), result.z);
 end;
 
 function ReadGLDOFVector(wpn:pointer):FVector3; stdcall;
