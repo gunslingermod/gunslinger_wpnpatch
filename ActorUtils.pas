@@ -3206,7 +3206,7 @@ var
 begin
   wpn:=GetActorActiveItem();
   if (wpn<>nil) and (IsAimNow(wpn)) then begin
-    if (IsScopeAttached(wpn)) and (GetScopeStatus(wpn)=2) then begin
+    if (IsScopeAttached(wpn)) and (GetScopeStatus(wpn)=2) and not IsAlterZoom(wpn) then begin
       sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
     end else begin
       sect:=GetSection(wpn);
