@@ -103,6 +103,7 @@ type
 
     _is_alter_zoom_now:boolean;
     _is_alter_zoom_last:boolean;
+    _alter_zoom_direct_switch_mixup_factor:single;
 
     _collimator_breaking:conditional_breaking_params;
     _collimator_problems_level:single;
@@ -212,6 +213,12 @@ type
     // Показывает, был ли последний вход в прицеливание "альтернативным" - надо для корректного выхода из альтернативного прицеливания
     function IsLastZoomAlter():boolean;
     procedure SetLastZoomAlter(status:boolean);
+
+    //Управление плавным переходом из альтернативного прицеливания в обычное и наоборот
+    procedure SetAlterZoomDirectSwitchMixupFactor(factor:single);
+    function GetAlterZoomDirectSwitchMixupFactor():single;
+    procedure StartAlterZoomDirectSwitchMixup();
+    procedure UpdateAlterZoomDirectSwitchMixupFactor(dt:cardinal);
 
     function GetCollimatorBreakingParams():conditional_breaking_params;
     function GetLaserBreakingParams():conditional_breaking_params;
@@ -343,6 +350,7 @@ begin
   _actor_camera_speed:=game_ini_r_single_def(GetSection(wpn), 'actor_camera_speed_factor', 1.0)*GetCamSpeedDef();
   _is_alter_zoom_now:=false;
   _is_alter_zoom_last:=false;
+  _alter_zoom_direct_switch_mixup_factor:=0;
 //  Log('creating buf for: '+inttohex(cardinal(wpn), 8));
 
 
@@ -717,6 +725,7 @@ begin
   end;
 
   UpdateLensFactor(delta);
+  UpdateAlterZoomDirectSwitchMixupFactor(delta);
 
   _last_update_time:=GetGameTickCount();
   result:=true;
@@ -1662,6 +1671,55 @@ end;
 procedure WpnBuf.SetNightBrightnessSavedStep(val: integer);
 begin
   _lens_night_brightness_saved_step:=val;
+end;
+
+function WpnBuf.GetAlterZoomDirectSwitchMixupFactor: single;
+begin
+  result:=_alter_zoom_direct_switch_mixup_factor;
+end;
+
+procedure WpnBuf.SetAlterZoomDirectSwitchMixupFactor(factor: single);
+begin
+  if factor > 1.0 then begin
+    factor:=1.0
+  end else if factor < 0.0 then begin
+    factor:=0.0;
+  end;
+
+  _alter_zoom_direct_switch_mixup_factor:=factor;
+end;
+
+procedure WpnBuf.StartAlterZoomDirectSwitchMixup;
+begin
+  SetAlterZoomDirectSwitchMixupFactor(1.0 - GetAlterZoomDirectSwitchMixupFactor());
+end;
+
+procedure WpnBuf.UpdateAlterZoomDirectSwitchMixupFactor(dt:cardinal);
+var
+  sect:PAnsiChar;
+  speed:single;
+  change:single;
+const
+  EPS:single = 0.0001;
+begin
+  sect:=GetHUDSection(_my_wpn);
+  speed:=ModifyFloatUpgradedValue(_my_wpn, 'alter_zoom_direct_switch_speed', game_ini_r_single_def(sect, 'alter_zoom_direct_switch_speed', 0.0));
+
+  if IsScopeAttached(_my_wpn) then begin
+    speed:=game_ini_r_single_def(GetCurrentScopeSection(_my_wpn), 'alter_zoom_direct_switch_speed', speed);
+  end;
+
+  if speed < EPS then begin
+    //Моментальная смена
+    SetAlterZoomDirectSwitchMixupFactor(0);
+  end else begin
+    speed:=speed * dt / 1000;
+    if speed > GetAlterZoomDirectSwitchMixupFactor() then begin
+      SetAlterZoomDirectSwitchMixupFactor(0);
+    end else begin
+      SetAlterZoomDirectSwitchMixupFactor(GetAlterZoomDirectSwitchMixupFactor() - speed);
+    end;
+  end;
 end;
 
 end.

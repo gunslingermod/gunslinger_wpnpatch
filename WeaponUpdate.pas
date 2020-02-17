@@ -728,6 +728,8 @@ var
 
   gl_ammocnt, gl_ammotype:byte;
   so:pointer;
+const
+  EPS:single = 0.0001;
 begin
     so:=get_server_object_by_id(GetID(wpn));
     if so=nil then exit;
@@ -813,7 +815,7 @@ begin
 
       if (game_ini_line_exist(GetSection(wpn), 'collimator_sights_bones')) then begin
         bp:=buf.GetCollimatorBreakingParams();
-        if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter() and game_ini_r_bool_def(GetSection(wpn),'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
+        if ((GetAimFactor(wpn)>0) and (buf.IsLastZoomAlter() or (buf.GetAlterZoomDirectSwitchMixupFactor() > EPS)) and game_ini_r_bool_def(GetSection(wpn),'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
           SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), false);
         end else if (GetCurrentCondition(wpn)<bp.start_condition) or ( CurrentElectronicsProblemsCnt() > 0 ) then begin
           if (bp.start_condition=bp.end_condition) then begin

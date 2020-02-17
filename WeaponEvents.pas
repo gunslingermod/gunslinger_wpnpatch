@@ -1177,10 +1177,10 @@ begin
 
     buf:=GetBuffer(wpn);
     if (buf=nil) or not CanUseAlterScope(wpn) then exit;
-    
+
     act:=GetActor();
     if (act=nil) or (act<>GetOwner(wpn)) then exit;
-    
+
     if not CanAimNow(wpn) then begin
      if IsHolderInSprintState(wpn) and not IsAimToggle() then begin
       SetActorActionState(act, actSprint, false, mState_WISHFUL);
@@ -1205,6 +1205,7 @@ begin
           //Активно обычное прицеливание, нажали кнопку альтернативного - надо перейти в альтернативное
           buf.SetLastZoomAlter(true);
           buf.SetAlterZoomMode(true);
+          buf.StartAlterZoomDirectSwitchMixup();
           RefreshZoomDOF(wpn);
         end;
       end;
@@ -1222,6 +1223,7 @@ begin
           // Активно обычное прицеливание - переходим в альтернативное
           buf.SetLastZoomAlter(true);
           buf.SetAlterZoomMode(true);
+          buf.StartAlterZoomDirectSwitchMixup();
           RefreshZoomDOF(wpn);
         end;
       end else begin
@@ -1232,6 +1234,7 @@ begin
           if IsActionKeyPressedInGame(kWPN_ZOOM) then begin
             buf.SetLastZoomAlter(false);
             buf.SetAlterZoomMode(false);
+            buf.StartAlterZoomDirectSwitchMixup();
             RefreshZoomDOF(wpn);
           end else begin
             buf.SetAlterZoomMode(false);
@@ -1266,6 +1269,7 @@ begin
         // Перед нажатием клавиши уже было активно альтернативное прицеливание. Переходим в обычное
         buf.SetLastZoomAlter(false);
         buf.SetAlterZoomMode(false);
+        buf.StartAlterZoomDirectSwitchMixup();
         RefreshZoomDOF(wpn);
         result:=true;
       end else begin
@@ -1286,6 +1290,7 @@ begin
         // Перед нажатием клавиши уже было активно альтернативное прицеливание. Переходим в обычное
         buf.SetLastZoomAlter(false);
         buf.SetAlterZoomMode(false);
+        buf.StartAlterZoomDirectSwitchMixup();
         RefreshZoomDOF(wpn);
         result:=true;
       end else begin
@@ -1304,6 +1309,7 @@ begin
         if IsActionKeyPressedInGame(kWPN_ZOOM_ALTER) then begin
           buf.SetLastZoomAlter(true);
           buf.SetAlterZoomMode(true);
+          buf.StartAlterZoomDirectSwitchMixup();
           RefreshZoomDOF(wpn);
           result:=true;
         end else begin

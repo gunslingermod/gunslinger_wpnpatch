@@ -8,6 +8,7 @@ function IsLensedScopeInstalled(wpn:pointer):boolean;stdcall;
 function CanUseAlterScope(wpn:pointer):boolean;
 function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
 function IsAlterZoom(wpn:pointer):boolean; stdcall;
+function GetZoomLensVisibilityFactor(wpn:pointer):single; stdcall;
 function IsLastZoomAlter(wpn:pointer):boolean; stdcall;
 function IsHudModelForceUnhide(wpn:pointer):boolean; stdcall;
 function IsUIForceHiding(wpn:pointer): boolean;stdcall;
@@ -107,11 +108,14 @@ procedure ChangeHudOffsets(wpn:pointer; hud_data:pointer); stdcall;
 var
   section:PChar;
   pos_str, rot_str:string;
-  pos, rot, zerovec:FVector3;
+  pos, rot, alt_pos, alt_rot, delta_pos, delta_rot, target_pos, target_rot, zerovec:FVector3;
   rb:cardinal;
 
   buf:WpnBuf;
   is_alter:boolean;
+  mixup_factor:single;
+const
+  EPS = 0.0001;
 begin
   if not IsCollimAimEnabled() then exit;
   is_alter:=false;
@@ -120,14 +124,13 @@ begin
   section:=GetHudSection(wpn);
 
   buf:=GetBuffer(wpn);
+  last_hud_data:=hud_data;
 
   if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
     section:=GetCurrentScopeSection(wpn);
-    last_hud_data:=hud_data;
   end;
-  
+
   if (buf<>nil) and CanUseAlterScope(wpn) and (buf.IsAlterZoomMode() or ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter())) then begin
-    last_hud_data:=hud_data;
     is_alter:=true;
   end;
 
@@ -137,7 +140,7 @@ begin
       rot_str := 'gl';
     end else begin
       pos_str := 'aim';
-      rot_str := 'aim';    
+      rot_str := 'aim';
     end;
 
     pos_str:=pos_str+'_hud_offset_pos';
@@ -148,17 +151,48 @@ begin
       rot_str:=rot_str+'_16x9';
     end;
 
-    if is_alter then begin
-      //log('alter_zoom');
-      pos_str:='alter_' + pos_str;
-      rot_str:='alter_' + rot_str;
-    end;
-
     pos:=game_ini_read_vector3_def(section, PChar(pos_str), @zerovec);
     rot:=game_ini_read_vector3_def(section, PChar(rot_str), @zerovec);
 
-    writeprocessmemory(hndl, PChar(last_hud_data)+$2b, @pos, 12, rb);
-    writeprocessmemory(hndl, PChar(last_hud_data)+$4f, @rot, 12, rb);
+    mixup_factor:=buf.GetAlterZoomDirectSwitchMixupFactor();
+
+    alt_pos:=game_ini_read_vector3_def(section, PChar('alter_' + pos_str), @zerovec);
+    alt_rot:=game_ini_read_vector3_def(section, PChar('alter_' + rot_str), @zerovec);
+
+    if is_alter then begin
+      if (mixup_factor > EPS) then begin
+        //Переходим в альтернативное прицеливание из обычного
+        delta_pos:=alt_pos;
+        v_sub(@delta_pos, @pos);
+        v_mul(@delta_pos, mixup_factor);
+        v_sub(@alt_pos, @delta_pos);
+
+        delta_rot:=alt_rot;
+        v_sub(@delta_rot, @rot);
+        v_mul(@delta_rot, mixup_factor);
+        v_sub(@alt_rot, @delta_rot);
+      end;
+      target_pos:=alt_pos;
+      target_rot:=alt_rot;
+    end else begin
+      if (mixup_factor > EPS) then begin
+        //Переходим в обычное прицеливание из альтернативного
+        delta_pos:=pos;
+        v_sub(@delta_pos, @alt_pos);
+        v_mul(@delta_pos, mixup_factor);
+        v_sub(@pos, @delta_pos);
+
+        delta_rot:=rot;
+        v_sub(@delta_rot, @alt_rot);
+        v_mul(@delta_rot, mixup_factor);
+        v_sub(@rot, @delta_rot);
+      end;
+      target_pos:=pos;
+      target_rot:=rot;
+    end;
+
+    writeprocessmemory(hndl, PChar(last_hud_data)+$2b, @target_pos, 12, rb);
+    writeprocessmemory(hndl, PChar(last_hud_data)+$4f, @target_rot, 12, rb);
   end;
 end;
 
@@ -301,6 +335,32 @@ var
 begin
   buf := GetBuffer(wpn);
   result:= (buf<>nil) and buf.IsAlterZoomMode();
+end;
+
+function GetZoomLensVisibilityFactor(wpn:pointer):single; stdcall;
+var
+  buf:WpnBuf;
+  factor:single;
+const
+  EPS:single = 0.0001;
+begin
+  buf := GetBuffer(wpn);
+  result:=1;
+  if buf = nil then exit;
+
+  factor:=buf.GetAlterZoomDirectSwitchMixupFactor();
+
+  if factor > EPS then begin
+    if buf.IsAlterZoomMode() then begin
+      // Переходим к альтернативному прицеливанию
+      result:=factor;
+    end else begin
+      // Переходим к обычному прицеливанию
+      result:=1-factor;
+    end;
+  end else if not LensConditions(true) then begin
+    result:=0;
+  end;
 end;
 
 function IsLastZoomAlter(wpn:pointer):boolean; stdcall;
