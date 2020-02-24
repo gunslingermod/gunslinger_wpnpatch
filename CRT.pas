@@ -25,6 +25,7 @@ var
   scoperender_viewport:pCRT_rec;
   scoperenderwithui_viewport:pCRT_rec;
   uirender_viewport:pCRT_rec;
+  p_ps_r__Supersample:pcardinal;
 
   resptrcode_crt___create:cardinal;
   resptrcode_crt___destroy:cardinal;
@@ -133,6 +134,25 @@ asm
 
   mov edx, [edi+$0c]
   lea ebx, [edi+$18]
+end;
+
+procedure R1_CRenderTarget__Create_supersampling_Patch(); stdcall;
+asm
+  pushad
+  mov eax, p_ps_r__Supersample
+  mov eax, [eax]
+  cmp eax, 1
+  ja @need_supersampling
+  call GetDeviceWidth
+  mov [edi+$08], eax
+  call GetDeviceHeight
+  mov [edi+$0c], eax
+  @need_supersampling:
+  popad
+  
+  // Original code
+  mov eax,[edi+$0C]
+  mov ecx,[edi+$08]
 end;
 
 procedure R1_CRenderTarget__Destructor_Patch(); stdcall
@@ -270,10 +290,14 @@ end;
 ////////////////////////////////////////////////////////////////////////////
 function Init():boolean;
 var
+ tmp_cardinal:cardinal;
  jmp_addr:cardinal;
 begin
   result:=false;
+  p_ps_r__Supersample:=nil;
+
   if xrRender_R1_addr<>0 then begin
+    p_ps_r__Supersample:=pointer(xrEngine_addr+$90628);
     resptrcode_crt___create:=xrRender_R1_addr+$51FE0;
     jmp_addr:=xrRender_R1_addr+$B4D9;
     if not WriteJump(jmp_addr, cardinal(@R1_CRenderTarget__Constructor_Patch), 6, true) then exit;
@@ -281,6 +305,18 @@ begin
     resptrcode_crt___destroy:=xrRender_r1_addr+$51C90;
     jmp_addr:=xrRender_R1_addr+$B869;
     if not WriteJump(jmp_addr, cardinal(@R1_CRenderTarget__Destructor_Patch), 5, true) then exit;
+
+    // [bug] баг в CRenderTarget::Create - при использовании больших разрешений экрана суперсэмплинг превращается в даунсэмплинг, даже когда r__supersample = 1
+    // решение - при значении суперсэмплинга 1 вообще пропускаем все манипуляциями с размерами RT
+    jmp_addr:=xrRender_R1_addr+$B4B9;
+    if not WriteJump(jmp_addr, cardinal(@R1_CRenderTarget__Create_supersampling_Patch), 6, true) then exit;
+
+    //Увеличиваем максимальный размер суперсэмплинга в CRenderTarget::Create - разрешения в 2048 уже мало по нынешним меркам
+    tmp_cardinal:=16384;
+    WriteBufAtAdr(xrRender_R1_addr+$b401, @tmp_cardinal, sizeof(tmp_cardinal));
+    WriteBufAtAdr(xrRender_R1_addr+$b406, @tmp_cardinal, sizeof(tmp_cardinal));
+    WriteBufAtAdr(xrRender_R1_addr+$b48c, @tmp_cardinal, sizeof(tmp_cardinal));
+    WriteBufAtAdr(xrRender_R1_addr+$b493, @tmp_cardinal, sizeof(tmp_cardinal));
 
   end else if xrRender_R2_addr<>0 then begin
     resptrcode_crt___create:=xrRender_r2_addr+$7A3C0;
