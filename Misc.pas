@@ -56,6 +56,8 @@ function GetDeviceView():pFMatrix4x4; stdcall;
 function GetDeviceProjection():pFMatrix4x4; stdcall;
 function GetDeviceFullTransform():pFMatrix4x4; stdcall;
 function GetDeviceTimeDelta():single; stdcall;
+function GetDeviceWidth():cardinal; stdcall;
+function GetDeviceHeight():cardinal; stdcall;
 
 procedure DrawSphere(parent: pFMatrix4x4; center:pFVector3; radius:single; clr_s:cardinal; clr_w:cardinal; bSolid:boolean; bWire:boolean); stdcall;
 
@@ -562,6 +564,20 @@ function GetDeviceTimeDelta():single; stdcall;
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92ED8+$1C]
+  mov @result, eax
+end;
+
+function GetDeviceWidth():cardinal; stdcall;
+asm
+  mov eax, xrEngine_addr
+  mov eax, [eax+$92ED8+$04]
+  mov @result, eax
+end;
+
+function GetDeviceHeight():cardinal; stdcall;
+asm
+  mov eax, xrEngine_addr
+  mov eax, [eax+$92ED8+$08]
   mov @result, eax
 end;
 

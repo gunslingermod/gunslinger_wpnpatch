@@ -121,8 +121,13 @@ procedure R1_CRenderTarget__Constructor_Patch(); stdcall
 asm
   pushad
     push $16
-    push [edi+$0c]  //height
-    push [edi+$08]  //width
+    // push [edi+$0c]  //rtHeight
+    // push [edi+$08]  //rtWidth
+    // Не используем rtWidth и rtHeight во избежание суперсэмплинга - будет сильно лагать
+    call GetDeviceHeight
+    push eax
+    call GetDeviceWidth
+    push eax
     call CreateNewRTs
   popad
 
