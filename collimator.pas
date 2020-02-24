@@ -154,7 +154,11 @@ begin
     pos:=game_ini_read_vector3_def(section, PChar(pos_str), @zerovec);
     rot:=game_ini_read_vector3_def(section, PChar(rot_str), @zerovec);
 
-    mixup_factor:=buf.GetAlterZoomDirectSwitchMixupFactor();
+    if buf <> nil then begin
+      mixup_factor:=buf.GetAlterZoomDirectSwitchMixupFactor();
+    end else begin
+      mixup_factor:=0;
+    end;
 
     alt_pos:=game_ini_read_vector3_def(section, PChar('alter_' + pos_str), @zerovec);
     alt_rot:=game_ini_read_vector3_def(section, PChar('alter_' + rot_str), @zerovec);
