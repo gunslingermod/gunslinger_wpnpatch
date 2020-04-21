@@ -41,8 +41,8 @@ end;
 
 procedure CorrectShooting(wpn:pointer; CEntity:pointer; pos:pFVector3; dir:pFVector3); stdcall;
 var
-  oldpos:FVector3;
-  olddir:FVector3;
+  oldpos, olddir:FVector3;
+  campos, camdir:pFVector3;
   buf:WpnBuf;
   dist:single;
 begin
@@ -68,7 +68,13 @@ begin
   if v_equal(@oldpos, pos) and v_equal(@olddir, dir) then exit;
 
   //пересчитаем это в соответствии с нашими интересами
-  if (GetOwner(wpn)=GetActor()) and (not (IsAimNow(wpn) or IsHolderInAimState(wpn)) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetCurrentDifficulty>=gd_veteran) or IsRealBallistics() or IsActorControlled()) then begin
+  if (GetOwner(wpn)=GetActor()) and IsAimNow(wpn) and not IsActorControlled() then begin
+    //Актор в режиме прицеливания - стреляем из центра экрана
+    campos:=CRenderDevice__GetCamPos();
+    camdir:=CRenderDevice__GetCamDir();
+    dir^:=camdir^;
+    pos^:=campos^;
+  end else if (GetOwner(wpn)=GetActor()) and (not (IsAimNow(wpn) or IsHolderInAimState(wpn)) and (buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetCurrentDifficulty>=gd_veteran) or IsRealBallistics() or IsActorControlled()) then begin
     pos^:=oldpos;
     dir^:=olddir;
     //вид от 1-го лица, лазер/контроль... короче, стреляем туда, куда показывает оружие
