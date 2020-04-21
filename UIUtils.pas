@@ -63,7 +63,7 @@ end;
 
 CUIWindow = packed record
   base_CUISimpleWindow:CUISimpleWindow;
-  _unknown:cardinal;
+  m_windowName:shared_str;
   m_ChildWndList:WINDOW_LIST;
   m_pParentWnd:pointer; {CUIWindow}
   m_pMouseCapturer:pointer; {CUIWindow}
@@ -211,6 +211,7 @@ function IsPDAWindowVisible():boolean; stdcall;
 procedure virtual_CUIWindow__Draw(window:pCUIWindow); stdcall;
 procedure virtual_CUICursor__OnRender(cursor:pCUICursor); stdcall;
 procedure virtual_CUIDialogWnd__Show(dlg:pCUIDialogWnd; status:boolean); stdcall;
+function CUIWindow__FindChild(parent:pCUIWindow; name:PAnsiChar):pCUIWindow; stdcall;
 
 function IsInventoryShown():boolean; stdcall;
 
@@ -466,6 +467,27 @@ asm
 
     @finish:
   popad
+end;
+
+function CUIWindow__FindChild(parent:pCUIWindow; name:PAnsiChar):pCUIWindow; stdcall;
+var
+  ss_name:shared_str;
+begin
+  init_string(@ss_name);
+  assign_string(@ss_name, name);
+
+  asm
+    pushad
+    mov ecx, parent
+    push ss_name.p_
+    mov eax, xrgame_addr
+    add eax, $485510
+    call eax
+    mov result, eax
+    popad
+  end;
+
+  assign_string(@ss_name, nil);
 end;
 
 procedure virtual_CUIDialogWnd__Show(dlg:pCUIDialogWnd; status:boolean); stdcall;

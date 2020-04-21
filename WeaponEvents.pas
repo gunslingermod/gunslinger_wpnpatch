@@ -1633,6 +1633,7 @@ begin
     end;
 
     buf.ReloadNightBrightnessParams();
+    buf.UpdateZoomCrosshairUI();
   end;
 
   if IsPDAWindowVisible() then begin

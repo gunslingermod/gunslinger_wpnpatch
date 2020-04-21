@@ -1,7 +1,7 @@
 unit HudItemUtils;
 
 interface
-uses MatVectors, WeaponSoundLoader;
+uses MatVectors, WeaponSoundLoader, UIUtils;
 
 type CMotionDef = packed record
   bone_or_part:word;
@@ -181,6 +181,8 @@ function SetQueueFired(wpn:pointer; status:boolean):cardinal; stdcall;
 
 function HasBinocularVision(wpn:pointer):boolean; stdcall;
 function GetHudFlags():cardinal; stdcall;
+
+function GetWeaponZoomUI(wpn:pointer):pCUIWindow; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -2183,5 +2185,12 @@ function GetHudFlags():cardinal; stdcall;
 begin
   result:=_pps_HudFlags^;
 end;
+
+function GetWeaponZoomUI(wpn:pointer):pCUIWindow; stdcall;
+asm
+  mov eax, wpn
+  mov eax, [eax+$4c4] // m_UIScope
+  mov @result, eax
+end
 
 end.

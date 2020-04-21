@@ -400,7 +400,7 @@ asm
   cmp al, 1
   popad
   je @disable
-  mov eax, [esi+$4c4]
+  mov eax, [esi+$4c4] // m_UIScope
   ret
   @disable:
   xor eax, eax
@@ -415,7 +415,7 @@ asm
   cmp al, 1
   popad
   je @finish
-  cmp [esi+$4c4], 0
+  cmp [esi+$4c4], 0 // m_UIScope
   @finish:
 end;
 

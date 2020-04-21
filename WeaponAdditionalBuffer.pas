@@ -244,6 +244,7 @@ type
     procedure ChangeNightBrightness(steps:integer);
     procedure SetNightBrightnessSavedStep(val:integer);
     procedure SetNightBrightness(steps:integer; use_sound:boolean);
+    procedure UpdateZoomCrosshairUI();
     function GetCurBrightness():stepped_params;
     function GetCurLensRecoil():FVector3;
     procedure ApplyLensRecoil(recoil:FVector4);
@@ -288,7 +289,7 @@ type
 
 
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster, misc;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster, misc, UIUtils, xr_strings;
 
 { WpnBuf }
 
@@ -1582,7 +1583,37 @@ begin
     end else if last_steps<_lens_night_brightness.cur_step then begin
       CHudItem_Play_Snd(_my_wpn, 'sndScopeBrightnessPlus');
     end;
-  end;    
+  end;
+
+  if last_steps <> _lens_night_brightness.cur_step then begin
+    UpdateZoomCrosshairUI();
+  end;
+end;
+
+procedure WpnBuf.UpdateZoomCrosshairUI();
+var
+  m_UIScope, child:pCUIWindow;
+  i:integer;
+  wndname:string;
+begin
+  m_UIScope:=GetWeaponZoomUI(_my_wpn);
+  if (m_UIScope<>nil) then begin
+    wndname:=get_string_value(@m_UIScope.m_windowName);
+    if wndname = 'switchable_zoom_wnd' then begin
+      for i:=0 to _lens_night_brightness.steps do begin
+        child := CUIWindow__FindChild(m_UIScope, PAnsiChar('auto_static_'+inttostr(i)));
+        if child<>nil then begin
+          if i = _lens_night_brightness.cur_step then begin
+            virtual_CUIWindow__Show(child, 1);
+          end else begin
+            virtual_CUIWindow__Show(child, 0);
+          end;
+        end;
+      end;
+    end;
+  end else if ((GetScopeStatus(_my_wpn)=1) or (GetScopeStatus(_my_wpn)=2) and IsScopeAttached(_my_wpn)) then begin
+    Log('WpnBuf.UpdateZoomCrosshairUI - scope zoom texture doesn''t exist');
+  end;
 end;
 
 function WpnBuf.GetCurBrightness: stepped_params;
