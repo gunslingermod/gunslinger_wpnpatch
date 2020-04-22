@@ -1,7 +1,7 @@
 unit WeaponSoundLoader;
 
 interface
-uses xr_strings;
+uses xr_strings, MatVectors;
 
 type ref_sound = packed record
   _p:{ref_sound_data_ptr}pointer;
@@ -12,7 +12,8 @@ type pref_sound = ^ref_sound;
 type HUD_SOUND_ITEM_SSnd = packed record
   snd:ref_sound;
   delay:single;
-  volume:single;
+  volume:single; // из-за бага в HUD_SOUND_ITEM::PlaySound толком не работает; вырезаем использование там и используем в своих целях
+                 // отрицательное число значит, что звук "разблокирован". Модуль определяет вариацию частоты
 end;
 type pHUD_SOUND_ITEM_SSnd = ^HUD_SOUND_ITEM_SSnd;
 
@@ -35,13 +36,23 @@ type HUD_SOUND_COLLECTION = packed record
 end;
 type pHUD_SOUND_COLLECTION = ^HUD_SOUND_COLLECTION;
 
+type CSound_params = packed record
+	position:Fvector3;
+	base_volume:single;
+	volume:single;
+	freq:single;
+	min_distance:single;
+	max_distance:single;
+	max_ai_distance:single;
+end;
+type pCSound_params = ^CSound_params;
 
 function Init:boolean;
 procedure HUD_SOUND_COLLECTION__LoadSound(hcs:pHUD_SOUND_COLLECTION; section:PChar; config_name:PChar; internal_name:PChar; exclusive:cardinal; snd_type:cardinal);stdcall;
 
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, MatVectors, sysutils;
+uses BaseGameData, gunsl_config, HudItemUtils, sysutils;
 
 var
   sound_load_magazined_addr:cardinal;
@@ -317,8 +328,28 @@ asm
   popad
 end;
 
-
-//Правка на отключение прерывания звука при его рестарте (для стрельбы главным образом)
+function ref_sound__get_params(this:pref_sound):pCSound_params; stdcall;
+asm
+  // Скопировано из движка
+  mov result, 0
+  pushad
+  mov eax, this
+  mov eax, [eax]
+  mov ecx, eax
+  neg ecx
+  sbb ecx, ecx
+  test ecx, $6D09720
+  je @finish
+  mov ecx,[eax+$C]
+  test ecx, ecx
+  je @finish
+  mov edx,[ecx]
+  mov eax,[edx+$24]
+  call eax
+  mov result, eax
+  @finish:
+  popad
+end;
 
 procedure ref_sound__play_at_pos(this:pref_sound; O:pointer; pos:pFVector3; flags:cardinal; d:single); stdcall;
 asm
@@ -359,14 +390,48 @@ asm
   popad
 end;
 
+//Правка на отключение прерывания звука при его рестарте (для стрельбы главным образом)
+//также тут выполняем коррекцию частоты для стрельбы
 procedure DecideHowToPlaySnd(snd:pHUD_SOUND_ITEM; O:pointer; pos:pFVector3; flags:cardinal); stdcall;
 const
   sm_Looped:cardinal = $1;
+  EPS:single=0.001;
+var
+  params:pCSound_params;
+  freq:single;
+  need_freq_variation, sound_unlocked:boolean;
+  freq_deviation, new_freq, delta:single;
 begin
-  if (not IsSndUnlock()) or ((snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0))  then begin
+  freq_deviation:=abs(snd.m_activeSnd.volume);
+  need_freq_variation := (freq_deviation - 1.0 > EPS);
+  sound_unlocked:=(snd.m_activeSnd.volume < 0) or IsSndUnlock(); // теперь вместо громкости минус в знаке означает анлок звука, а модуль - изменение частоты
+
+  if need_freq_variation then begin
+    if freq_deviation > 1.0 then begin
+      delta:=freq_deviation - 1.0;
+      if delta > 0.9 then delta:=0.9;
+      freq:=1.0 + (random * 2*delta) - delta;
+    end else begin
+      delta:=1.0 - freq_deviation;
+      if delta > 0.9 then delta:=0.9;
+      freq:=1.0 - random * delta;
+    end;
+    // Log('Freq = '+floattostr(freq)+', unlock = '+booltostr(sound_unlocked, true));
+  end;
+
+
+  if (not sound_unlocked) or ((snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0))  then begin
     ref_sound__play_at_pos(@snd.m_activeSnd.snd, O, pos, flags, snd.m_activeSnd.delay);
+    if need_freq_variation then begin
+      params:=ref_sound__get_params(@snd.m_activeSnd.snd);
+      params.freq:=freq;
+    end;
   end else begin
-    ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos,nil,nil,nil);
+    if need_freq_variation then begin
+      ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos, nil, @freq, nil);
+    end else begin
+      ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos, nil, nil, nil);
+    end;
   end;
 end;
 
@@ -410,6 +475,9 @@ begin
     //фикс обрыва звука
     addr:=xrGame_addr+$2FA652;
     if not WriteJump(addr, cardinal(@HUD_SOUND_ITEM__PlaySound_Patch), 5, true) then exit;
+
+    //в HUD_SOUND_ITEM::PlaySound  в вызове snd.set_volume отказываемся от использования hud_snd.m_activeSnd->volume в качестве множителя - все равно не работает
+    nop_code(xrGame_addr+$2fa663, 5); 
 
     //переводим в эксклюзивный режим все звуки типа доставания, убирания и т.д.
     nop_code(xrGame_addr+$2CFA6B, 1, chr(1));

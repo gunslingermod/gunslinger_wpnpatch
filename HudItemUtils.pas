@@ -2191,6 +2191,6 @@ asm
   mov eax, wpn
   mov eax, [eax+$4c4] // m_UIScope
   mov @result, eax
-end
+end;
 
 end.
