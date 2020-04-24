@@ -504,16 +504,37 @@ asm
   mov edx, [eax+$64]
 end;
 
+procedure UpdateWeaponZoomPpe(wpn:pointer); stdcall;
+const
+  effNightvision:cardinal=55;
+var
+  val:single;
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and (GetOwner(wpn)<>nil) and (GetOwner(wpn)=GetActor()) and (IsWeaponNightVisionPPExist(wpn)) then begin
+    val:=buf.GetNightPPEFactor();
+    if val >= 0 then begin
+      set_pp_effector_factor(effNightvision, val, 100000);
+    end;
+  end;
+end;
+
 function NeedUpdateBinocVision(wpn:pointer):boolean; stdcall;
 begin
   // Обновляем только когда у нас НЕ кадр линзы
   result:=not IsLensFrameNow();
 end;
 
-procedure CWeapon__needupdatebinocvision_Patch(); stdcall;
+procedure CWeapon__updateppe_and_needupdatebinocvision_Patch(); stdcall;
 asm
   pushad
-  push ecx
+  push esi
+  call UpdateWeaponZoomPpe
+  popad
+
+  pushad
+  push esi
   call NeedUpdateBinocVision
   cmp al, 0
   popad
@@ -622,9 +643,9 @@ begin
   patch_addr:=xrGame_addr+$2bc73c;
   if not WriteJump(patch_addr, cardinal(@CWeapon__render_item_ui__checkzoomtex_Patch), 5, true) then exit;
 
-  //в CWeapon::UpdateCL апдейтим рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
+  //в CWeapon::UpdateCL апдейтим интенсивность постпроцесса прицела, когда тот активен и добавляем условие на апдейт рамки UI только в случае, если у нас сейчас НЕ идет рендер кадра линзы
   patch_addr:=xrGame_addr+$2c0706;
-  if not WriteJump(patch_addr, cardinal(@CWeapon__needupdatebinocvision_Patch), 8, true) then exit;
+  if not WriteJump(patch_addr, cardinal(@CWeapon__updateppe_and_needupdatebinocvision_Patch), 8, true) then exit;
 
   //Баг оригинала с метками автозахвата цели - показывает цели, которые уже позади тебя. Правим в SBinocVisibleObj::Update
   patch_addr:=xrGame_addr+$2dcf9f;

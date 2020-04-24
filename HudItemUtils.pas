@@ -183,6 +183,7 @@ function HasBinocularVision(wpn:pointer):boolean; stdcall;
 function GetHudFlags():cardinal; stdcall;
 
 function GetWeaponZoomUI(wpn:pointer):pCUIWindow; stdcall;
+function IsWeaponNightVisionPPExist(wpn:pointer):boolean; stdcall;
 
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
@@ -2191,6 +2192,23 @@ asm
   mov eax, wpn
   mov eax, [eax+$4c4] // m_UIScope
   mov @result, eax
+end;
+
+function GetWeaponNightVisionPPName(wpn:pointer):pshared_str; stdcall;
+asm
+  mov eax, wpn
+  lea eax, [eax+$4b0] // m_sUseZoomPostprocess
+  mov @result, eax
+end;
+
+function IsWeaponNightVisionPPExist(wpn:pointer):boolean; stdcall;
+asm
+  mov eax, wpn
+  mov eax, [eax+$4bc] // m_pNight_vision
+  test eax, eax
+  je @finish
+  mov eax, 1
+  @finish:
 end;
 
 end.

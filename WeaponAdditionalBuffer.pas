@@ -244,6 +244,7 @@ type
     procedure ChangeNightBrightness(steps:integer);
     procedure SetNightBrightnessSavedStep(val:integer);
     procedure SetNightBrightness(steps:integer; use_sound:boolean);
+    function GetNightPPEFactor():single;
     procedure UpdateZoomCrosshairUI();
     function GetCurBrightness():stepped_params;
     function GetCurLensRecoil():FVector3;
@@ -1613,6 +1614,43 @@ begin
     end;
   end else if ((GetScopeStatus(_my_wpn)=1) or (GetScopeStatus(_my_wpn)=2) and IsScopeAttached(_my_wpn)) then begin
     Log('WpnBuf.UpdateZoomCrosshairUI - scope zoom texture doesn''t exist');
+  end;
+end;
+
+function WpnBuf.GetNightPPEFactor: single;
+const
+  PP_MIN_FACTOR:PAnsiChar='scope_nightvision_min_factor';
+var
+  val, min_factor:single;
+  scope_sect:PAnsiChar;
+begin
+  result:=-1;
+  scope_sect:=nil;
+  min_factor:=0;
+  
+  if IsScopeAttached(_my_wpn) and (GetScopeStatus(_my_wpn)=2) then begin
+    scope_sect:=game_ini_read_string(GetCurrentScopeSection(_my_wpn), 'scope_name');
+    min_factor:= game_ini_r_single_def(scope_sect, PP_MIN_FACTOR, 0);
+  end else if (GetScopeStatus(_my_wpn)=1) then begin
+    scope_sect:=GetSection(_my_wpn);
+    min_factor:= ModifyFloatUpgradedValue(_my_wpn, PP_MIN_FACTOR, game_ini_r_int_def(scope_sect, PP_MIN_FACTOR, 0));
+  end;
+
+  if scope_sect<>nil then begin
+    if min_factor < 0 then min_factor:=0;
+    if min_factor > 1 then min_factor:=1;
+
+    //—мотрим на уровень текущей €ркости (0-1)
+    if _lens_night_brightness.steps > 0 then begin
+      val:=_lens_night_brightness.cur_step / _lens_night_brightness.steps;
+    end else begin
+      val:=1.0;
+    end;
+
+    // Ќормируем €ркость с учетом минимума
+    val:= min_factor + (1.0-min_factor) * val;
+
+    result:=val;
   end;
 end;
 
