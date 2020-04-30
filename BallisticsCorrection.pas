@@ -146,6 +146,55 @@ asm
   ret 4
 end;
 
+procedure CorrectRocketExplodePos(section:PAnsiChar; normal:pFVector3; old_pos:pFVector3; new_pos:pFVector3); stdcall;
+var
+  jump_height, dist:single;
+  correction:FVector3;
+begin
+  new_pos^:=old_pos^;
+  jump_height:=game_ini_r_single_def(section, 'jump_height', 0);
+
+  if jump_height > 0.001 then begin
+    dist:=TraceAsView(old_pos, normal, nil);
+    if dist < jump_height then begin
+      jump_height:= dist * 0.7;
+    end;
+
+    correction := normal^;
+    v_mul(@correction, jump_height);
+    v_add(new_pos, @correction);
+  end;
+end;
+
+procedure CExplosiveRocket__Contact_jumpgren(); stdcall;
+const sz = sizeof(FVector3);
+asm
+  pushad
+  sub esp, sz
+  push esp
+  push ebx
+  push edi
+
+  lea ecx,[esi+$2e0]  // nonportable - cast from CExplosiveRocket to CInventoryItem
+  push ecx
+  call GetSection
+  push eax
+
+  call CorrectRocketExplodePos
+  mov ebx, esp
+
+  //original code
+  push edi
+  push ebx
+  lea ecx,[esi+$3C8]
+  mov eax, xrgame_addr
+  add eax, $300240 // CExplosive::GenExplodeEvent
+  call eax
+
+  add esp, sz
+  popad
+end;
+
 function Init:boolean;
 var
     addr:cardinal;
@@ -155,6 +204,11 @@ begin
   if not WriteJump(addr, cardinal(@CWeaponMagazined__state_Fire_Patch), 29, true) then exit;
   addr:=xrGame_addr+$2D9A43;
   if not WriteJump(addr, cardinal(@CWeaponRPG7__switch2_Fire_Patch), 5, true) then exit;
+
+  // в CExplosiveRocket::Contact реализуем логику для подпрыгивающих подствольных гранат
+  addr:=xrGame_addr+$2CBFAF;
+  if not WriteJump(addr, cardinal(@CExplosiveRocket__Contact_jumpgren), 13, true) then exit;
+
   result:=true;
 end;
 
