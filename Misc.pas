@@ -65,6 +65,10 @@ function IsMainMenuActive():boolean; stdcall;
 
 procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
 procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
+function ReaderLength(IReader:pointer):cardinal; stdcall;
+function ReaderElapsed(IReader:pointer):cardinal; stdcall;
+procedure IWriter__w_u32(this:pointer; value:cardinal); stdcall;
+procedure IWriter__w_stringZ(this:pointer; value:PAnsiChar); stdcall;
 
 function GetCObjectID(CObject:pointer):word; stdcall;
 function GetCObjectXForm(CObject:pointer):pFMatrix4x4; stdcall;
@@ -559,6 +563,49 @@ asm
   popad
 end;
 
+function ReaderLength(IReader:pointer):cardinal; stdcall
+asm
+  pushad
+    mov eax, xrgame_addr
+    mov eax, [eax+$512970]
+
+    mov ecx, IReader
+    call eax;
+    mov @result, eax
+  popad
+end;
+
+function ReaderElapsed(IReader:pointer):cardinal; stdcall;
+asm
+  push ecx
+  mov ecx, IReader
+  mov eax, [ecx+$10]
+  sub eax, [ecx+$c]
+  mov @result, eax
+  pop ecx
+end;
+
+procedure IWriter__w_u32(this:pointer; value:cardinal); stdcall;
+asm
+  pushad
+  push value
+  mov ecx, this
+  mov eax, xrgame_addr
+  add eax, $5129e8   //IWriter::w_u32
+  call [eax]
+  popad
+end;
+
+procedure IWriter__w_stringZ(this:pointer; value:PAnsiChar); stdcall;
+asm
+  pushad
+  push value
+  mov ecx, this
+  mov eax, xrgame_addr
+  add eax, $5128b4   //IWriter::w_stringZ
+  call [eax]
+  popad
+end;
 
 function GetDeviceTimeDelta():single; stdcall;
 asm

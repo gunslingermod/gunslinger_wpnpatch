@@ -51,7 +51,8 @@ uses
   xr_RocketLauncher in 'xr_RocketLauncher.pas',
   xr_strings in 'xr_strings.pas',
   DynamicWallmarks in 'DynamicWallmarks.pas',
-  HqGeometryFix in 'HqGeometryFix.pas';
+  HqGeometryFix in 'HqGeometryFix.pas',
+  savedgames in 'savedgames.pas';
 
 {$R *.res}
 
@@ -99,6 +100,7 @@ begin
   xr_strings.Init();
   DynamicWallmarks.Init();
   HqGeometryFix.Init();
+  savedgames.Init();
 
 //  AutoUpdater.Init();
 //
