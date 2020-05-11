@@ -14,6 +14,7 @@ const
   GUNS_KEY_ID_MOD_VER:word = $0002;
   GUNS_KEY_ID_AUTH_LOW:word = $0003;
   GUNS_KEY_ID_AUTH_HIGH:word = $0004;
+  GUNS_KEY_ID_SAVE_VER:word = $0005;
 
   GUNS_UNCOMPATIBLE_SAVE:cardinal=0;
   GUNS_FULLY_COMPATIBLE_SAVE:cardinal=1;
@@ -136,7 +137,7 @@ var
   alife_ver:cardinal;
   data_id:word;
   d1, d2:cardinal;
-  version, addon_name:string;
+  version, addon_name, save_ver:string;
 
 const
   CURRENT_ALIFE_VERSION:cardinal=6;
@@ -159,10 +160,11 @@ begin
     if not ReadNextGunsU32Data(reader, data_id, d2) then exit;
 
     if not ReadNextGunsStringZData(reader, data_id, addon_name) or (data_id<>GUNS_KEY_ID_MOD_NAME) then exit;
+    if not ReadNextGunsStringZData(reader, data_id, save_ver) or (data_id<>GUNS_KEY_ID_SAVE_VER) then exit;
     if not ReadNextGunsStringZData(reader, data_id, version) or (data_id<>GUNS_KEY_ID_MOD_VER) then exit;
     if not ReadGunsTerminatorData(reader) then exit;
 
-    if (addon_name=GetAddonName()) and (version=GetModVer()) then begin
+    if (addon_name=GetAddonName()) and (save_ver=GetSaveVer()) then begin
       result:=GUNS_FULLY_COMPATIBLE_SAVE;
     end else begin
       result:=GUNS_ANOTHER_MOD_SAVE;
@@ -181,7 +183,10 @@ begin
   finally
     Log('Saved game status: '+inttostr(result));
     if (result = GUNS_FULLY_COMPATIBLE_SAVE) or (result = GUNS_ANOTHER_MOD_SAVE) then begin
-      Log('Info: '+addon_name+'('+GetAddonName()+')'+', '+version+'('+GetModVer()+')'+', '+inttohex(d2, 8)+inttohex(d1, 8));
+      Log('Info: '+addon_name+'('+GetAddonName()+')'+', '+
+          version+'('+GetModVer()+')'+', '+
+          save_ver+'('+GetSaveVer()+')'+', '+
+          inttohex(d2, 8)+inttohex(d1, 8));
     end;
   end;
 end;
@@ -218,6 +223,7 @@ begin
   WriteGunsU32Data(packet, GUNS_KEY_ID_AUTH_LOW, l);
   WriteGunsU32Data(packet, GUNS_KEY_ID_AUTH_HIGH, h);
   WriteGunsStringZData(packet, GUNS_KEY_ID_MOD_NAME, GetAddonName());
+  WriteGunsStringZData(packet, GUNS_KEY_ID_SAVE_VER, GetSaveVer());
   WriteGunsStringZData(packet, GUNS_KEY_ID_MOD_VER, GetModVer());
 
   //Завершение данных ганса

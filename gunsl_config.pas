@@ -161,6 +161,7 @@ function IsForcedLens:boolean;  stdcall;
 function IsSndUnlock:boolean; stdcall;
 
 function GetModVer():PChar; stdcall;
+function GetSaveVer():PChar; stdcall;
 function GetAddonName():PChar; stdcall;
 function GetQuickUseScriptFunctorName():PChar; stdcall;
 function GetNvMaskUpdateFunctorName():PChar; stdcall;
@@ -228,6 +229,7 @@ var
   _std_tiredness_params:actor_tiredness_params;
 
   _mod_ver:PChar;
+  _save_ver:PChar;
   _addon_name:PChar;
 
   psDeviceFlags:pointer;
@@ -761,6 +763,7 @@ begin
   _std_tiredness_params.decrement_per_second:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'tiredness_decrement_per_second', 0.1);  
 
   _mod_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'version');
+  _save_ver:=game_ini_read_string(GUNSL_BASE_SECTION, 'save_version');
   _addon_name:=game_ini_read_string(GUNSL_BASE_SECTION, 'addon_name');
 
   if game_ini_line_exist(GUNSL_BASE_SECTION, 'quickuse_functor') then begin
@@ -927,6 +930,11 @@ end;
 function GetModVer():PChar; stdcall;
 begin
   result:=_mod_ver;
+end;
+
+function GetSaveVer():PChar; stdcall;
+begin
+  result:=_save_ver;
 end;
 
 function GetAddonName():PChar; stdcall;

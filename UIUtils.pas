@@ -228,7 +228,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr:pointer;
-  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr:pointer;
+  ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, valid_saved_game_int_ptr:pointer;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -585,6 +585,19 @@ begin
   result:=FindIntValueInUpgradesDef(ii, param_name, result);
 end;
 
+function valid_saved_game_int(unused:word; save_name:PAnsiChar):word; cdecl;
+asm
+  pushad
+  mov eax, xrgame_addr
+  add eax, $adb30
+  push save_name
+  call eax
+  add esp, 4
+  movzx ax, al
+  mov @result, ax
+  popad
+end;
+
 function IsActorControlled_adapter():boolean;
 asm
   pushad
@@ -627,6 +640,7 @@ const
 
   name_get_parameter_upgraded:PChar='get_parameter_upgraded_int';
   name_is_actor_suicide:PChar='is_actor_controlled';
+  name_valid_saved_game_int:PChar='valid_saved_game_int';
 asm
   push eax
 
@@ -818,6 +832,29 @@ asm
   push ecx
   mov ecx, esp
   push name_get_parameter_upgraded
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $241cd2;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ///////////////////////////////
+  push eax
+
+  mov ecx, valid_saved_game_int_ptr
+  push ecx
+  mov ecx, esp
+  push name_valid_saved_game_int
   push ecx
   mov ecx, xrgame_addr
   add ecx, $241cd2;
@@ -1111,6 +1148,7 @@ begin
   ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;
   ElectronicProblemsApply_ptr:=@ElectronicProblemsApply;
   GetParameterUpgraded_int_ptr:=@GetParameterUpgraded_int;
+  valid_saved_game_int_ptr:=@valid_saved_game_int;
   IsActorControlled_adapter_ptr:=@IsActorControlled_adapter;
 
   //экспорт в скрипты
