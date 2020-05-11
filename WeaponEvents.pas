@@ -1329,6 +1329,7 @@ var
 
   lens_params:lens_zoom_params;
   dt, oldpos:single;
+  force_zoom_sound:boolean;
 begin
   result:=false;
   buf:=GetBuffer(wpn);
@@ -1365,10 +1366,12 @@ begin
         lens_params:=buf.GetLensParams();
         dt:=lens_params.delta;
         oldpos := lens_params.target_position;
+        force_zoom_sound:=false;
         
         if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then begin
           scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
           dt:=1/game_ini_r_int_def(scope_sect, 'lens_factor_levels_count', 5);
+          force_zoom_sound:=game_ini_r_bool_def(scope_sect, 'force_zoom_sound', false);
         end;
 
         if id=kWPN_ZOOM_INC then begin
@@ -1379,11 +1382,11 @@ begin
         buf.SetLensParams(lens_params);
 
         lens_params:=buf.GetLensParams();
-        if (lens_params.target_position<>oldpos) and (lens_params.factor_min<>lens_params.factor_max) and ( abs(oldpos-lens_params.target_position)>0.0001 ) then begin
+        if (lens_params.target_position<>oldpos) and (force_zoom_sound or (lens_params.factor_min<>lens_params.factor_max)) and ( abs(oldpos-lens_params.target_position)>0.0001 ) then begin
           if id=kWPN_ZOOM_INC then begin
             CHudItem_Play_Snd(wpn, 'sndScopeZoomPlus');
           end else begin
-            CHudItem_Play_Snd(wpn, 'sndScopeZoomMinus');          
+            CHudItem_Play_Snd(wpn, 'sndScopeZoomMinus');
           end;
         end;
 
