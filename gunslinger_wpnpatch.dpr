@@ -50,7 +50,8 @@ uses
   Crows in 'Crows.pas',
   xr_RocketLauncher in 'xr_RocketLauncher.pas',
   xr_strings in 'xr_strings.pas',
-  DynamicWallmarks in 'DynamicWallmarks.pas';
+  DynamicWallmarks in 'DynamicWallmarks.pas',
+  HqGeometryFix in 'HqGeometryFix.pas';
 
 {$R *.res}
 
@@ -97,6 +98,7 @@ begin
   UIUtils.Init();
   xr_strings.Init();
   DynamicWallmarks.Init();
+  HqGeometryFix.Init();
 
 //  AutoUpdater.Init();
 //
