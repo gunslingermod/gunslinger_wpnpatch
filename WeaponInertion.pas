@@ -621,8 +621,6 @@ begin
     v_sub(@rot, @targetrot);
     if (v_length(@pos)<jitter.pos_amplitude*2) and (v_length(@rot)<jitter.rot_amplitude*2) then begin
       DoSuicideShot();
-      //Может дергаться несколько раз в последовательных апдейтах! В legacy-схеме лучше совсем откажемся от колбэков
-      //NotifySuicideShotCallbackIfNeeded();
     end;
   end;
   if fromcrouch_time_remains>delta then fromcrouch_time_remains:=fromcrouch_time_remains-delta else fromcrouch_time_remains:=0;

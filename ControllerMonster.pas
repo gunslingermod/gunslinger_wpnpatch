@@ -158,9 +158,28 @@ begin
   result:=_planning_suicide;
 end;
 
+procedure AddActiveController(monster_controller:pointer); stdcall;
+begin
+  if length(_active_controllers) = 0 then begin
+    script_call('gunsl_controller.on_suicide_scheme_start', '', GetCObjectID(monster_controller));
+  end;
+
+  setlength(_active_controllers, length(_active_controllers)+1);
+  _active_controllers[length(_active_controllers)-1] := monster_controller;
+  script_call('gunsl_controller.on_suicide_selected_by_controller', '', GetCObjectID(monster_controller));
+end;
+
+procedure ClearActiveControllers(); stdcall;
+begin
+  if length(_active_controllers) > 0 then begin
+    script_call('gunsl_controller.on_suicide_scheme_finish', '', 0);
+  end;
+  setlength(_active_controllers, 0);
+end;
+
 procedure ResetActorControl(); stdcall;
 begin
-  setlength(_active_controllers, 0);
+  ClearActiveControllers();
   _controlled_time_remains:=0;
   _suicide_now:=false;
   _lastshot_done_time:=0;
@@ -245,6 +264,11 @@ var
   last_contr_time:cardinal;
 begin
   act:=GetActor();
+  if (act = nil) or (GetActorHealthPtr(act)^ <= 0) then begin
+    ResetActorControl();
+    exit;
+  end;
+
   wpn:=GetActorActiveItem();
   if act<>nil then det:=GetActiveDetector(act) else det:=nil;
 
@@ -362,6 +386,9 @@ begin
   end else begin
     virtual_CShootingObject_FireStart(wpn);
   end;
+
+  NotifySuicideShotCallbackIfNeeded();
+  // ClearActiveControllers() вызовется на апдейте, увидев _lastshot_done_time
 end;
 
 function IsControllerSeeActor(contr:pointer; act:pointer):boolean; stdcall;
@@ -384,8 +411,8 @@ var
   act:pointer;
   i:integer;
 begin
-  if GetCurrentDifficulty >= gd_master then begin
-    // на мастере контролер всегда завершает свое...
+  if GetCurrentDifficulty >= gd_veteran then begin
+    // на высокой сложности контролер всегда завершает свое...
     result:=true;
     exit;
   end;
@@ -408,14 +435,12 @@ procedure OnSuicideAnimEnd(wpn:pointer; param:integer);stdcall;
 begin
   if (wpn<>GetActorActiveItem()) then exit;
   if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) and CheckActorVisibilityForController() then begin
-    script_call('gunsl_controller.on_suicide_shot', '', 0);
-    NotifySuicideShotCallbackIfNeeded();
     DoSuicideShot();
   end else begin
-    setlength(_active_controllers, 0);
     _suicide_now:=false;
     _planning_suicide:=false;
     NotifySuicideStopCallbackIfNeeded();
+    ClearActiveControllers();
     WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_stop_suicide', 'sndStopSuicide');
     SetHandsJitterTime(GetShockTime());
   end;
@@ -438,7 +463,7 @@ begin
   result:=true;
 
   act:=GetActor();
-  if GetActor=nil then exit;
+  if act=nil then exit;
 
   psi_blocked:=IsPsiBlocked(act);
   not_seen:= not IsControllerSeeActor(monster_controller, act);
@@ -614,11 +639,12 @@ begin
     end;
 
     if not found then begin
-      setlength(_active_controllers, length(_active_controllers)+1);
-      _active_controllers[length(_active_controllers)-1] := monster_controller;
-    end;    
+      AddActiveController(monster_controller);
+    end;
 
-    script_call('gunsl_controller.on_suicide_attack', '', GetCObjectID(monster_controller));
+    if _planning_suicide or _suicide_now then begin
+      script_call('gunsl_controller.on_suicide_attack', '', GetCObjectID(monster_controller));
+    end;
   end else begin
     script_call('gunsl_controller.on_std_attack', '', GetCObjectID(monster_controller));
   end;
@@ -762,12 +788,16 @@ end;
 
 procedure NotifySuicideStopCallbackIfNeeded();
 begin
-  script_call('gunsl_controller.on_stop_suicide', '', 0);
+  if length(_active_controllers) > 0 then begin
+    script_call('gunsl_controller.on_stop_suicide', '', 0);
+  end;
 end;
 
 procedure NotifySuicideShotCallbackIfNeeded();
 begin
-  script_call('gunsl_controller.on_suicide_shot', '', 0);
+  if length(_active_controllers) > 0 then begin
+    script_call('gunsl_controller.on_suicide_shot', '', 0);
+  end;
 end;
 
 function Init():boolean; stdcall;

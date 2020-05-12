@@ -963,7 +963,7 @@ const
   EPS = 0.001;
 begin
   if actor = nil then exit;
-  if GetActorHealthPtr(actor)^ >= EPS then begin
+  if GetActorHealthPtr(actor)^ > 0 then begin
     CActor__Die(actor, who);
   end;
 end;

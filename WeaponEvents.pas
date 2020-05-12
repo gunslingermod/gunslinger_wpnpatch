@@ -1025,8 +1025,8 @@ begin
       SetHandsJitterTime(GetShockTime());
       CHudItem_Play_Snd(knife, 'sndStopSuicide');
       result:='anm_stop_suicide';
-      ResetActorControl();
       NotifySuicideStopCallbackIfNeeded();
+      ResetActorControl();
       exit;
     end;
   end;
