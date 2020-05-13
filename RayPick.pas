@@ -37,6 +37,7 @@ type rq_callback = function (res:prq_result; data:pointer):boolean;stdcall;
 function Level_RayPick(start:pFVector3; dir:pFVector3; range:single; tgt:cardinal; R:prq_result; ignore_object:pointer):boolean; stdcall;
 function Level_RayQuery(R:pcollide__ray_defs; CB:pointer; params:pointer; tb:pointer; ignore_object:pointer):boolean; stdcall;
 function TraceAsView(pos:pFVector3; dir:pFVector3; ignore_object:pointer):single;
+function TraceAsView_RQ(pos:pFVector3; dir:pFVector3; ignore_object:pointer):rq_result;
 
 function Init():boolean;
 
@@ -100,6 +101,14 @@ end;
 
 function TraceAsView(pos:pFVector3; dir:pFVector3; ignore_object:pointer):single;
 var
+  rq:rq_result;
+begin
+  rq:=TraceAsView_RQ(pos, dir, ignore_object);
+  result:=rq.range;
+end;
+
+function TraceAsView_RQ(pos:pFVector3; dir:pFVector3; ignore_object:pointer):rq_result;
+var
   rd:collide__ray_defs;
   pp:SPickParam;
 begin
@@ -117,7 +126,7 @@ begin
     pp.pass:=0;
 
     Level_RayQuery(@rd, pointer(xrgame_addr+$4d8940), @pp, nil, ignore_object);
-    result:=pp.RQ.range;
+    result:=pp.rq;
 end;
 
 

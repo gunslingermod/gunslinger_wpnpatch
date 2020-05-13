@@ -175,6 +175,11 @@ function IsSoundPatchNeeded():boolean; stdcall;
 
 function GetBaseLookoutParams():lookout_params; stdcall;
 
+function GetWeaponTorchTreasureDist():single; stdcall;
+function GetHeadlampTreasureDist():single; stdcall;
+function GetLefthandedTorchTreasureDist():single; stdcall;
+function GetLightPalevoDist():single; stdcall;
+function GetLightSeeDist():single; stdcall;
 
 var
   g_pickup_distance:single;
@@ -239,6 +244,12 @@ var
   _pda_update_period:cardinal;
 
   _lookout_params:lookout_params;
+
+  _weapon_torch_treasure_dist:single;
+  _headlamp_treasure_dist:single;
+  _lefthanded_torch_treasure_dist:single;
+  _light_palevo_dist:single;
+  _light_see_dist:single;
 
 //данные консольных команд
 //булевские флаги
@@ -787,6 +798,12 @@ begin
 
   g_pickup_distance:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_pickup_distance', 2.0);
 
+  _weapon_torch_treasure_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_torch_treasure_dist', 45);
+  _headlamp_treasure_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'headlamp_treasure_dist', 45);
+  _lefthanded_torch_treasure_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'lefthanded_torch_treasure_dist', 20);
+  _light_palevo_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'light_palevo_dist', 20);
+  _light_see_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'light_see_dist', 60);
+
   result:=true;
 end;
 
@@ -1001,6 +1018,31 @@ end;
 function GetBaseLookoutParams():lookout_params; stdcall;
 begin
   result:=_lookout_params;
+end;
+
+function GetWeaponTorchTreasureDist():single; stdcall;
+begin
+  result:=_weapon_torch_treasure_dist;
+end;
+
+function GetHeadlampTreasureDist():single; stdcall;
+begin
+  result:=_headlamp_treasure_dist;
+end;
+
+function GetLefthandedTorchTreasureDist():single; stdcall;
+begin
+  result:=_lefthanded_torch_treasure_dist;
+end;
+
+function GetLightPalevoDist():single; stdcall;
+begin
+  result:=_light_palevo_dist;
+end;
+
+function GetLightSeeDist():single; stdcall;
+begin
+  result:=_light_see_dist
 end;
 
 end.

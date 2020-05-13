@@ -156,6 +156,7 @@ procedure PerformDrop(act:pointer); stdcall;
 procedure ResetChangedGrenade();
 procedure SetChangedGrenade(itm:pointer);
 
+function GetEntityDirection(e:pointer):pFVector3; stdcall;
 function GetEntityPosition(e:pointer):pFVector3; stdcall;
 
 var
@@ -163,7 +164,7 @@ var
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils, LensDoubleRender, xr_strings;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils, LensDoubleRender, xr_strings, RayPick;
 
 type
   TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
@@ -3364,6 +3365,14 @@ asm
   mov @result, eax
 end;
 
+function GetEntityDirection(e:pointer):pFVector3; stdcall;
+asm
+  mov eax, e
+  add eax, $70
+  mov @result, eax
+end;
+
+
 procedure OnActorHit(act:pointer; hit:pSHit); stdcall;
 begin
   if IsActorControlled() and (hit.whoId = hit.DestID) and (hit.power>0.3) and ( (hit.hit_type = EHitType__eHitTypeFireWound) or (hit.hit_type = EHitType__eHitTypeExplosion)) then begin
@@ -3420,6 +3429,188 @@ asm
   @normal:
   test eax, eax
   jmp edx
+end;
+
+function GetActorTorchDist():single; stdcall;
+//Возвратить дистанцию засвета или -1, если света нет
+var
+  act:pointer;
+  CTorch:pointer;
+  itm:pointer;
+  buf:WpnBuf;
+begin
+  result:=-1;
+  act:=GetActor();
+  if act=nil then exit;
+
+  //Включен ли налобный фонарь
+  CTorch:=ItemInSlot(act, 10);
+  if (CTorch<>nil) and IsTorchSwitchedOn(CTorch) then begin
+    result:=GetHeadlampTreasureDist;
+    exit;
+  end;
+
+  //Включен ли детектор-фонарь
+  if (GetLefthandedTorchParams().base.render<>nil) and (GetLefthandedTorchParams().base.enabled) then begin
+    result:=GetLefthandedTorchTreasureDist;
+  end;
+  if result > 0 then exit;
+
+  //Включен ли тактический фонарь на оружии
+  itm:=GetActorActiveItem();
+  if itm<>nil then begin
+    buf:=GetBuffer(itm);
+    if buf<>nil then begin
+      if buf.IsTorchInstalled() and buf.IsTorchEnabled() then begin
+        result:=GetWeaponTorchTreasureDist;
+      end;
+    end;
+  end;
+end;
+
+function GetObjectSeePointLevel(o:pointer; point:FVector3):cardinal; stdcall;
+var
+  vdiff, object_point, object_dir:FVector3;
+  o_dist, o_cos:single;
+  rq:rq_result;
+const
+  head_correction_value:single=2;
+begin
+  result:=0;
+
+  object_point:=FVector3_copyfromengine(GetEntityPosition(o));
+  object_dir:=FVector3_copyfromengine(GetEntityDirection(o));
+  object_point.y:=object_point.y+head_correction_value; //Коррекция на высоту глаз
+
+  vdiff:=point;
+  v_sub(@vdiff, @object_point); //вектор от объекта к проверяемой точке
+
+  o_dist:=v_length(@vdiff); //расстояние от объекта до  проверяемой точки
+
+  v_normalize(@vdiff);
+
+  o_cos:=GetAngleCos(@object_dir, @vdiff);
+  if o_cos < 0 then exit;
+
+  rq:=TraceAsView_RQ(@object_point, @vdiff, o);
+
+  if rq.range*1.01 >= o_dist then begin
+    if o_dist <= GetLightPalevoDist() then begin
+      //log('palevo');
+      result:=2;
+      exit;
+    end else if o_dist <= GetLightSeeDist() then begin
+      //log('see');
+      result:=1;
+      exit;
+    end;
+  end;
+end;
+
+function IsObjectTorched(o:pointer):cardinal; stdcall;
+//Вернуть 0 -если палева нет, 1 - если палево среднее, 2-если сильное(будет звук стрельбы)
+var
+  rq:rq_result;
+  torch_dist:single;
+  pcampos, pcamdir:pFVector3;
+  light_point:FVector3;
+  res1, res2:cardinal;
+begin
+  result:=0;
+  torch_dist:=GetActorTorchDist();
+  if torch_dist < 0 then exit;
+
+  pcampos:=CRenderDevice__GetCamPos();
+  pcamdir:=CRenderDevice__GetCamDir();
+
+  rq:=TraceAsView_RQ(pcampos, pcamdir, GetActor());
+  rq.range:=rq.range*0.99;
+  if (rq.O = o) and (torch_dist >= rq.range) then begin
+    //Светим прямо на объект
+    result:=2;
+    exit;
+  end;
+
+  //Если точка, в которую мы светим, или точка, из которой мы светим, видна объекту - палим это
+  res1:=0;
+  res2:=0;
+
+  if rq.range <= torch_dist then begin
+    light_point:=FVector3_copyfromengine(pcamdir);
+    v_mul(@light_point, rq.range);
+    v_add(@light_point, pcampos);
+    res1:=GetObjectSeePointLevel(o, light_point);
+  end;
+
+  light_point:=FVector3_copyfromengine(pcampos);
+  res2:=GetObjectSeePointLevel(o, light_point);
+  result:=max(res1, res2);
+end;
+
+procedure CBaseMonster__shedule_Update_Patch(); stdcall;
+const
+  //SOUND_TYPE_WEAPON | SOUND_TYPE_AMBIENT
+  GUNS_TORCH_LIGHT_SND:cardinal=$80000080;
+
+  //SOUND_TYPE_WEAPON | SOUND_TYPE_SHOOTING | SOUND_TYPE_AMBIENT
+  //GUNS_TORCH_LIGHT_PALEVO_SND:cardinal=$80200080;
+  GUNS_TORCH_LIGHT_PALEVO_SND:cardinal=$80200000;
+asm
+  pushad
+  push esi
+  call IsObjectTorched
+  
+  cmp eax, 0
+  je @no_torch
+  cmp eax, 1
+  jne @palevo
+  mov edi, GUNS_TORCH_LIGHT_SND
+  jmp @pushargs
+
+  @palevo:
+  mov edi, GUNS_TORCH_LIGHT_PALEVO_SND
+
+  @pushargs:
+  push $42c80000 //power
+//  call CRenderDevice__GetCamPos
+  push esi
+  call GetEntityPosition
+
+  push eax // position
+  push 0 //user_data
+  push edi //sound_type
+
+  call GetActor
+  push eax //who
+
+  lea ecx, [esi+$34c]
+  mov edx,[ecx]
+  mov eax,[edx]
+  call eax
+  @no_torch:
+  popad
+end;
+
+procedure CCustomMonster__shedule_Update_Patch(); stdcall;
+asm
+  push esi
+  lea esi, [ebp-$44]
+  call CBaseMonster__shedule_Update_Patch
+  pop esi
+
+  //original
+  mov edx, [ebp+$3e8]
+end;
+
+procedure CAI_Stalker__shedule_Update_Patch(); stdcall;
+asm
+  push esi
+  lea esi, [ebx-$44]
+  call CBaseMonster__shedule_Update_Patch
+  pop esi
+  
+  //original
+  mov edx,[ebx+$254]
 end;
 
 function Init():boolean; stdcall;
@@ -3585,6 +3776,15 @@ begin
   //Реальная смена модели рук будет из апдейта
   jmp_addr:=xrGame_addr+$2fecf0;
   if not WriteJump(jmp_addr, cardinal(@player_hud__onloadrequest), 5, false) then exit;
+
+  //При обнаружении засвета акторским фонариком вызовем из CCustomMonster::shedule_Update (xrgame+bf29c) функцию CBaseMonster::feel_sound_new (наподобие того, как это сделано в CBaseMonster::HitSignal(xrgame+ca440)); смещение this 0x308
+  jmp_addr:=xrGame_addr+$bf29c;
+  if not WriteJump(jmp_addr, cardinal(@CCustomMonster__shedule_Update_Patch), 6, true) then exit;
+  //аналогично - из CAI_Stalker(xrgame+1616b0)
+  jmp_addr:=xrGame_addr+$161963;
+  if not WriteJump(jmp_addr, cardinal(@CAI_Stalker__shedule_Update_Patch), 6, true) then exit;
+
+
   result:=true;
 end;
 
