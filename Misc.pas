@@ -95,8 +95,10 @@ procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 
 function IsElectronicsProblemsDecreasing():boolean; stdcall;
 
+function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; disable_backsee:boolean):boolean; stdcall;
+
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows, raypick;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -1093,6 +1095,33 @@ asm
   //Original
   mov [esp+$24], bl
   mov edx, [esp+$24]
+end;
+
+function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; disable_backsee:boolean):boolean; stdcall;
+var
+  vdiff, object_point, object_dir:FVector3;
+  o_dist, o_cos:single;
+begin
+  result:=false;
+
+  object_point:=FVector3_copyfromengine(GetEntityPosition(o));
+  object_dir:=FVector3_copyfromengine(GetEntityDirection(o));
+  object_point.y:=object_point.y+object_y_correction_value; //Коррекция на высоту глаз
+
+  vdiff:=point;
+  v_sub(@vdiff, @object_point); //вектор от объекта к проверяемой точке
+  o_dist:=v_length(@vdiff); //расстояние от объекта до  проверяемой точки
+  v_normalize(@vdiff);
+
+  if not disable_backsee then begin
+    // Объект не должен видеть то, что у него в "задней полусфере"
+    o_cos:=GetAngleCos(@object_dir, @vdiff);
+    if o_cos < 0 then exit;
+  end;
+
+  if (o_dist<=unconditional_vision_dist) or ((TraceAsView(@object_point, @vdiff, o)*1.01) >= o_dist) then begin
+    result:=true;
+  end;
 end;
 
 function Init():boolean;stdcall;

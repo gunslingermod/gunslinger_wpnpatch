@@ -1350,6 +1350,10 @@ begin
       exit;  
   end;
 
+  if (buf<>nil) and (id=kWPN_FIRE) then begin
+    buf.RegisterShotAttempt();
+  end;
+
   if (id=kLASER) and (flags=kActPress) then begin
     OnLaserButton(wpn);
   end else if (id=kTACTICALTORCH) and (flags=kActPress) then begin
@@ -2124,6 +2128,28 @@ asm
   jmp esi
 end;
 
+procedure RegisterGrenadeShot(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    buf.RegisterShotAttempt();
+  end;
+end;
+
+procedure CWeaponMagazinedWGrenade__LaunchGrenade_RegisterShot_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call RegisterGrenadeShot
+  popad
+
+  //original
+  mov eax, [esi+$318]
+  ret
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -2317,6 +2343,11 @@ begin
   //В Manager::upgrade_install добавляем проверку - если апгрейд не нашелся после upgrade_verify, то и не применяем его вообще
   jmp_addr:=xrGame_addr+$af4e1;
   if not WriteJump(jmp_addr, cardinal(@Manager__upgrade_install_Patch), 8, false) then exit;
+
+
+  // Регистрируем выстрел в   CWeaponMagazinedWGrenade::LaunchGrenade
+  jmp_addr:=xrGame_addr+$2d2cc7;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__LaunchGrenade_RegisterShot_Patch), 6, true) then exit;
 
   //Предотвращение повторных выстрелов из РПГ
   //!!!Ломает возможность многозарядных гранатометов!!!

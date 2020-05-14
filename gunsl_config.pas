@@ -181,6 +181,11 @@ function GetLefthandedTorchTreasureDist():single; stdcall;
 function GetLightPalevoDist():single; stdcall;
 function GetLightSeeDist():single; stdcall;
 
+function GetBurerSuperstaminahitDist():single; stdcall;
+function GetBurerSuperstaminahitValue():single; stdcall;
+function GetBurerForceantiaimDist():single; stdcall;
+function GetBurerForceshieldDist():single; stdcall;
+
 var
   g_pickup_distance:single;
 
@@ -250,6 +255,12 @@ var
   _lefthanded_torch_treasure_dist:single;
   _light_palevo_dist:single;
   _light_see_dist:single;
+
+  _burer_superstaminahit_dist:single;
+  _burer_superstaminahit_value:single;
+  _burer_forceantiaim_dist:single;
+  _burer_forceshield_dist:single;
+
 
 //данные консольных команд
 //булевские флаги
@@ -804,6 +815,11 @@ begin
   _light_palevo_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'light_palevo_dist', 20);
   _light_see_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'light_see_dist', 60);
 
+  _burer_superstaminahit_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_dist', 15);
+  _burer_superstaminahit_value:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_value', 1000);
+  _burer_forceantiaim_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceantiaim_dist', 7);
+  _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
+
   result:=true;
 end;
 
@@ -1043,6 +1059,26 @@ end;
 function GetLightSeeDist():single; stdcall;
 begin
   result:=_light_see_dist
+end;
+
+function GetBurerSuperstaminahitDist():single; stdcall;
+begin
+  result:=_burer_superstaminahit_dist;
+end;
+
+function GetBurerSuperstaminahitValue():single; stdcall;
+begin
+  result:=_burer_superstaminahit_value;
+end;
+
+function GetBurerForceantiaimDist():single; stdcall;
+begin
+  result:=_burer_forceantiaim_dist;
+end;
+
+function GetBurerForceshieldDist():single; stdcall;
+begin
+  result:=_burer_forceshield_dist;
 end;
 
 end.

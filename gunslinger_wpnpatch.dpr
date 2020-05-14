@@ -52,7 +52,8 @@ uses
   xr_strings in 'xr_strings.pas',
   DynamicWallmarks in 'DynamicWallmarks.pas',
   HqGeometryFix in 'HqGeometryFix.pas',
-  savedgames in 'savedgames.pas';
+  savedgames in 'savedgames.pas',
+  burer in 'burer.pas';
 
 {$R *.res}
 
@@ -101,6 +102,7 @@ begin
   DynamicWallmarks.Init();
   HqGeometryFix.Init();
   savedgames.Init();
+  burer.Init();
 
 //  AutoUpdater.Init();
 //

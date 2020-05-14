@@ -129,7 +129,6 @@ begin
     result:=pp.rq;
 end;
 
-
 function Init():boolean;
 begin
 

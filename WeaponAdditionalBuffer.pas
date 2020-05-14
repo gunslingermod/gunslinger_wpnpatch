@@ -140,6 +140,7 @@ type
 
 
     _last_recharge_time:single;
+    _last_shot_attempt_time:cardinal;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
@@ -262,6 +263,9 @@ type
     function GetCollimatorProblemsLevel():single;
     function GetLaserProblemsLevel():single;
     function GetMisfireProblemsLevel():single;
+
+    procedure RegisterShotAttempt();
+    function GetLastShotTimeDelta():cardinal;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -424,6 +428,8 @@ begin
   last_shot_time:=0;
 
   _last_recharge_time:=0;
+
+  _last_shot_attempt_time:=GetGameTickCount();
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
@@ -1789,6 +1795,16 @@ begin
       SetAlterZoomDirectSwitchMixupFactor(GetAlterZoomDirectSwitchMixupFactor() - speed);
     end;
   end;
+end;
+
+procedure WpnBuf.RegisterShotAttempt;
+begin
+  _last_shot_attempt_time:=GetGameTickCount();
+end;
+
+function WpnBuf.GetLastShotTimeDelta: cardinal;
+begin
+  result:=GetTimeDeltaSafe(_last_shot_attempt_time);
 end;
 
 end.
