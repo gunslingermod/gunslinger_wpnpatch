@@ -283,10 +283,24 @@ end;
 procedure PerformDrop(act:pointer); stdcall;
 asm
   pushad
+    mov eax, act
+    add eax, $2c8
+    mov eax, [eax+$1c]
+    push $02 // CMD_STOP
+    push $27 // kDROP
+    mov ecx, eax
+    mov ebx, xrgame_addr
+    add ebx, $2a9640
+    call ebx // CInventory::Action
+    test al, al
+    jne @finish
+
     mov ecx, act
     mov edx, [ecx]
     mov eax, [edx+$28C]
     call eax
+
+    @finish:
   popad
 end;
 
@@ -3620,6 +3634,9 @@ var
   source, dest:pointer;
   boar, act:pointer;
   stamina:psingle;
+  itm:pointer;
+  sect:PAnsiChar;
+  slot:cardinal;
 begin
   dest:=GetObjectById(h.DestID);
   act:=GetActor();
@@ -3631,8 +3648,17 @@ begin
       if stamina^ > h.power then begin
         stamina^:=stamina^-h.power;
       end else begin
-        stamina^:=0;
-        PerformDrop(act);
+        itm:=GetActorActiveItem();
+        if itm <> nil then begin
+          sect:=GetSection(itm);
+          slot:=game_ini_r_int_def(sect, 'slot', 2);
+          if slot<>1 then begin
+            PerformDrop(act);
+          end else if random < (h.power - stamina^) then begin
+            PerformDrop(act);
+          end;
+          stamina^:=0;
+        end;
       end;
     end;
   end;
