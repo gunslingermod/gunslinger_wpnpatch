@@ -142,7 +142,7 @@ procedure set_pp_effector_factor(id:integer; f:single; f_sp:single); stdcall;
 procedure remove_pp_effector(id:integer); stdcall;
 
 function GetActorHealthPtr(act:pointer):pSingle;
-function GetActorBleedingPtr(act:pointer):pSingle;
+function GetActorStaminaPtr(act:pointer):pSingle;
 
 function GetCameraManager():pointer; stdcall;
 function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
@@ -825,13 +825,13 @@ asm
   popad
 end;
 
-function GetActorBleedingPtr(act:pointer):pSingle;
+function GetActorStaminaPtr(act:pointer):pSingle;
 asm
   mov @result, 0
   pushad
     mov eax, act
     mov eax, [eax+$26C]
-    lea eax, [eax+$4]
+    lea eax, [eax+$54]
     mov @result, eax
   popad
 end;
@@ -1590,6 +1590,7 @@ begin
   end;
 
   if (GetMaxJitterHealth()> GetActorHealthPtr(act)^ ) then begin
+  log('SetHandsJitterTime!!!');
     SetHandsJitterTime(GetShockTime());
   end;
 
@@ -3613,6 +3614,44 @@ asm
   mov edx,[ebx+$254]
 end;
 
+
+procedure OnMonsterHit(h:pSHit); stdcall;
+var
+  source, dest:pointer;
+  boar, act:pointer;
+  stamina:psingle;
+begin
+  dest:=GetObjectById(h.DestID);
+  act:=GetActor();
+  if (dest<>nil) and (dest = act) then begin
+    source:=GetObjectById(h.whoId);
+    boar:=dynamic_cast(source, 0, RTTI_CObject, RTTI_CAI_Boar, false);
+    if boar<>nil then begin
+      stamina:=GetActorStaminaPtr(act);
+      if stamina^ > h.power then begin
+        stamina^:=stamina^-h.power;
+      end else begin
+        stamina^:=0;
+        PerformDrop(act);
+      end;
+    end;
+  end;
+end;
+
+procedure CBaseMonster__HitEntity_WeaponDrop_Patch();stdcall;
+asm
+  //original
+  movss [esp+$78+4], xmm0
+  mov [esp+$7c+4], eax
+
+  pushad
+    push ecx //SHit*
+    call OnMonsterHit
+  popad
+
+  ret
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -3783,6 +3822,10 @@ begin
   //аналогично - из CAI_Stalker(xrgame+1616b0)
   jmp_addr:=xrGame_addr+$161963;
   if not WriteJump(jmp_addr, cardinal(@CAI_Stalker__shedule_Update_Patch), 6, true) then exit;
+
+  //в CBaseMonster::HitEntity заставляем актора сбрасывать оружие при ударе монстра
+  jmp_addr:=xrGame_addr+$c96e5;
+  if not WriteJump(jmp_addr, cardinal(@CBaseMonster__HitEntity_WeaponDrop_Patch), 10, true) then exit;
 
 
   result:=true;
