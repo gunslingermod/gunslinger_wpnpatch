@@ -95,7 +95,7 @@ procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 
 function IsElectronicsProblemsDecreasing():boolean; stdcall;
 
-function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; disable_backsee:boolean):boolean; stdcall;
+function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
 
 implementation
 uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows, raypick;
@@ -1097,7 +1097,7 @@ asm
   mov edx, [esp+$24]
 end;
 
-function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; disable_backsee:boolean):boolean; stdcall;
+function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
 var
   vdiff, object_point, object_dir:FVector3;
   o_dist, o_cos:single;
@@ -1113,7 +1113,7 @@ begin
   o_dist:=v_length(@vdiff); //расстояние от объекта до  проверяемой точки
   v_normalize(@vdiff);
 
-  if not disable_backsee then begin
+  if not can_backsee then begin
     // Объект не должен видеть то, что у него в "задней полусфере"
     o_cos:=GetAngleCos(@object_dir, @vdiff);
     if o_cos < 0 then exit;
@@ -1122,6 +1122,37 @@ begin
   if (o_dist<=unconditional_vision_dist) or ((TraceAsView(@object_point, @vdiff, o)*1.01) >= o_dist) then begin
     result:=true;
   end;
+end;
+
+procedure SetWeaponPhysicMass(wpn:pointer; mass:single); stdcall;
+asm
+  pushad
+  mov esi, wpn
+  mov ecx, [esi+$2d4]
+  test ecx, ecx
+  je @finish
+  mov edx, [ecx]
+  mov eax, [edx+$4c]
+  push mass
+  call eax
+  @finish:
+  popad
+end;
+
+function GetWeaponPhysicMass(wpn:pointer):single; stdcall;
+asm
+  mov result, $BF800000 //-1
+  pushad
+  mov esi, wpn
+  mov ecx, [esi+$2d4]
+  test ecx, ecx
+  je @finish
+  mov edx, [ecx]
+  mov eax, [edx+$54]
+  call eax
+  fstp [result]
+  @finish:
+  popad
 end;
 
 function Init():boolean;stdcall;

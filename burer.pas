@@ -7,16 +7,19 @@ function Init():boolean; stdcall;
 implementation
 uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer;
 
+var
+  _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
+
+const
+  ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
+  BURER_HEAD_CORRECTION_HEIGHT:single = 1;
+  UNCONDITIONAL_VISIBLE_DIST:single=2; //чтобы не фейлитс€, когда актор вплотную
 
 function IsActorTooClose(burer:pointer; close_dist:single):boolean; stdcall;
 var
   act:pointer;
   act_pos, dist:FVector3;
   len:single;
-const
-  ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
-  BURER_HEAD_CORRECTION_HEIGHT:single = 1;
-  UNCONDITIONAL_VISIBLE_DIST:single=2; //чтобы не фейлитс€, когда актор вплотную
 begin
   result:=false;
   act:=GetActor();
@@ -40,7 +43,7 @@ begin
   look_v:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   v_sub(@burer_v, @look_v);
   look_v:=FVector3_copyfromengine(CRenderDevice__GetCamdir());
-  result:=GetAngleCos(@burer_v, @look_v) < 0;  
+  result:=GetAngleCos(@burer_v, @look_v) < 0;
 end;
 
 function IsWeaponDangerous(itm:pointer; burer:pointer):boolean; stdcall;
@@ -89,7 +92,6 @@ begin
 
     if result then begin
       buf:=GetBuffer(itm);
-      log('GetLastShotTimeDelta '+inttostr(buf.GetLastShotTimeDelta()));
       if (buf<>nil) and (GetCurrentAmmoCount(itm) = 0) and (buf.GetLastShotTimeDelta() > SHOT_SAFETY_TIME_DELTA) then begin
         result:=false;
       end;
@@ -131,13 +133,13 @@ procedure CorrectBurerAttackReadyStatuses(burer:pointer; pshieldcondition:pboole
 var
   actor_close, actor_very_close:boolean;
   itm:pointer;
-  force_antiaim, force_shield, force_tele:boolean;
+  force_antiaim, force_shield, force_tele, force_gravi:boolean;
   weapon_for_big_boom:boolean;
 begin
   force_antiaim:=false;
   force_shield:=false;
   force_tele:=false;
-
+  force_gravi:=false;
 
   itm:=GetActorActiveItem();
   weapon_for_big_boom:=IsWeaponReadyForBigBoom(itm);
@@ -145,7 +147,7 @@ begin
 
   if NeedMandatoryShield(burer) and (pshield_ready^) then begin
     force_shield:=true;
-  end else if (itm<>nil) and IsThrowable(itm) and ptele_ready^ then begin
+  end else if (itm<>nil) and IsThrowable(itm) and ptele_ready^  and (random < 0.9) then begin
     force_tele:=true;
   end else if weapon_for_big_boom then begin
     if IsBurerUnderAim(burer) and (pshield_ready^) then begin
@@ -153,17 +155,29 @@ begin
     end else if panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if (pshield_ready^) then begin
-      force_shield:=true;    
+      force_shield:=true;
     end
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
+    end else if IsActorLookTurnedAway(burer) and (pgravi_ready^) then begin
+      if (_gren_count>0) and (ptele_ready^) and (random < 0.8)  then begin
+        force_tele:=true;
+      end else begin
+        force_gravi:=true;
+      end;
     end else if (itm<>nil) and IsKnife(itm) and (pshield_ready^) then begin
       force_shield:=true;
     end;
   end else if IsBurerUnderAim(burer) then begin
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
+    end;
+  end else if (_gren_count>0) and (random < 0.6) then begin
+    if (ptele_ready^) then begin
+      force_tele:=true;
+    end else if pshield_ready^ then begin
+      force_shield:=true;
     end;
   end;
 
@@ -180,6 +194,10 @@ begin
     pgravi_ready^:=false;
     pshield_ready^:=false;
     panti_aim_ready^:=false;
+  end else if force_gravi and (pgravi_ready^) then begin
+    pshield_ready^:=false;
+    panti_aim_ready^:=false;
+    ptele_ready^:=false;
   end;
 end;
 
@@ -226,23 +244,35 @@ end;
 
 procedure OverrideBurerStaminaHit(burer:pointer; phit:psingle); stdcall;
 var
-  itm:pointer;
+  itm, wpn, act:pointer;
+  wpn_aim_now, burer_see_actor:boolean;
+  campos:FVector3;
 begin
+  wpn_aim_now:=false;
   itm:=GetActorActiveItem();
+
   if itm<>nil then begin
     if IsKnife(itm) or IsThrowable(itm) then begin
       ActivateActorSlot__CInventory(0, true);
     end;
+
+    wpn:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
+    if wpn<>nil then begin
+      wpn_aim_now:=IsAimNow(wpn);
+    end;
   end;
 
-  if IsActorTooClose(burer, GetBurerSuperstaminahitDist()) then begin
+  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
+
+  if (burer_see_actor and (IsActorTooClose(burer, GetBurerSuperstaminahitDist()) or IsWeaponReadyForBigBoom(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
     phit^:=GetBurerSuperstaminahitValue;
   end;
 end;
 
 procedure CBurer__StaminaHit_Patch(); stdcall;
 asm
-  //original  
+  //original
   movss [esp+$3c], xmm0
 
   lea eax, [esp+$3c]
@@ -281,6 +311,8 @@ var
   itm:pointer;
 begin
   itm:=GetActorActiveItem();
+
+  //TODO: не снимаем щит, если р€дом грены
   result:=NeedMandatoryShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm) and not IsActorLookTurnedAway(burer) and (GetCurrentState(itm) <> EWeaponStates__eReload) );
 end;
 
@@ -302,8 +334,6 @@ asm
 end;
 
 /////////////////////////////////// “елекинез гранатами ////////////////////////////////////////////////
-var
-  _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
 
 procedure CStateBurerAttackTele__CheckTeleStart_BeforeObjectsSearch_Patch(); stdcall;
 asm
@@ -347,48 +377,94 @@ asm
   @finish:
   ret
 end;
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-function CanIgnoreMinMassForObject(o:pointer):boolean; stdcall;
-var
-  wpn:pointer;
-  sect:PAnsiChar;
-begin
-  result:=false;
-  wpn:=dynamic_cast(o, 0, RTTI_CObject, RTTI_CWeapon, false);
-  if wpn<>nil then begin
-    sect:=GetSection(wpn);
-    if game_ini_r_bool_def(sect, 'quest_item', false) or game_ini_r_bool_def(sect, 'not_for_telekinesis', false) then begin
-      result:=false;
-    end else begin
-      result:=true;
-    end;
-  end;
-end;
-    
-procedure CStateBurerAttackTele__FindFreeObjects_OverrideMinMassRestriction_Patch(); stdcall;
-asm
-  pushad
-  push esi
-  call CanIgnoreMinMassForObject
-  cmp al, 1
-  popad
-  je @finish
 
-  // original
-  @check_mass:
-  mov eax, [edx+$54]
-  call eax
+function NeedStopTeleAttack(burer:pointer):boolean; stdcall;
+begin
+  result:=NeedMandatoryShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(GetActorActiveItem()) and not IsActorLookTurnedAway(burer));
+end;
+
+procedure CStateBurerAttackTele__check_completion_ForceCompletion_Patch(); stdcall;
+asm
+  //original
+  mov eax, [edx+$28]
+  cmp eax, [ecx+$5c]
+  ja @finish //прыгаем, если уже решили закончить
+
+  pushad
+  push [ecx+$10]
+  call NeedStopTeleAttack
+  cmp al, 0
+  popad
 
   @finish:
   ret
 end;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+procedure GetOverriddenBoneWeightForVisual(visual:PAnsiChar; weight:psingle); stdcall;
+var
+  new_mass:single;
+begin
+  new_mass:=GetOverriddenBoneMassForVisual(visual, weight^);
+  if new_mass > 0 then begin
+    weight^:=new_mass;
+  end;
+end;
+
+procedure CKinematics__Load_Patch(); stdcall;
+asm
+  pushad
+  mov ebx, [esp+$578+$20]
+  lea eax, [edi+$18c]
+  push eax
+  push ebx
+  call GetOverriddenBoneWeightForVisual
+  popad
+
+  //original
+  add edi, $190
+end;
+
+procedure CStateAbstract__select_state_Patch(); stdcall;
+asm
+  //original
+  mov edi, [esp+$10+4]
+  cmp eax, edi
+  jne @finish
+
+  //вызываем get_state(current_substate)->check_completion()
+  //в eax - current_substate
+  cmp eax, -1
+  je @finish
+
+  mov [esp+$10+4], eax
+  lea eax, [esp+$10+4]
+  push eax
+  lea ecx, [esp+$0c+4]
+  push ecx
+  lea ecx, [esi+$18]
+  mov eax, xrgame_addr
+  add eax, $d29e0
+  call eax //get_state
+  mov edx, [esp+$8+4]
+  mov ecx, [edx+$14]
+  mov eax, [ecx]
+  mov edx, [eax+$20]
+  call edx    //check_completion
+  test al, al
+
+  @finish:
+  mov eax, [esi+4] // restore current_substate in eax
+  ret
+end;
+
 
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
 begin
   result:=false;
-  
+
   //в CBurer::StaminaHit (xrgame+102730) - увеличивает урон стамине, если актор слишком близко
   jmp_addr:=xrGame_addr+$1027a2;
   if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_Patch), 6, true) then exit;
@@ -417,16 +493,39 @@ begin
   jmp_addr:=xrGame_addr+$10989b;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_Patch), 5, true) then exit;
 
-  // в CStateBurerAttackTele<Object>::FindFreeObjects (xrgame+1097e0) - несмотр€ на то, что лежащее оружие не очень т€желое, оно вполне пойдет дл€ телекинеза ;)
-  jmp_addr:=xrGame_addr+$1098f9;
-  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FindFreeObjects_OverrideMinMassRestriction_Patch), 5, true) then exit;
+  //ѕринудительный выход из телекинеза в CStateBurerAttackTele<Object>::check_completion (xrgame+1046b0) (например, в случае, если актор близко или достал –ѕ√)
+  jmp_addr:=xrGame_addr+$104724;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__check_completion_ForceCompletion_Patch), 6, true) then exit;
 
-  // ¬ыходим из телекинеза в случае, если актор близко или достал –ѕ√
+  //физический хит приходит из CActor::g_Physics через gcontact_HealthLost. В него попадает в CPHMovementControl::UpdateCollisionDamage(xrgame.dll+4feddc)
+  //¬ли€ет на величину хита масса кости в модели (которой ударило актора?). ѕропишем дл€ костей выбранных моделей —¬ќё массу там, где модель грузитс€ (в CKinematics::Load). Ёто позволит бюреру использовать визуалы дл€ атаки телекинезом
+  if xrRender_R1_addr<>0 then begin
+    jmp_addr:=xrRender_R1_addr+$74822;
+    if not WriteJump(jmp_addr, cardinal(@CKinematics__Load_Patch), 6, true) then exit;
+  end else if xrRender_R2_addr<>0 then begin
+    jmp_addr:=xrRender_R2_addr+$9cbe2;
+    if not WriteJump(jmp_addr, cardinal(@CKinematics__Load_Patch), 6, true) then exit;
+  end else if xrRender_R3_addr<>0 then begin
+    jmp_addr:=xrRender_R3_addr+$a9610;
+    if not WriteJump(jmp_addr, cardinal(@CKinematics__Load_Patch), 6, true) then exit;
+  end else if xrRender_R4_addr<>0 then begin
+    jmp_addr:=xrRender_R4_addr+$b3810;
+    if not WriteJump(jmp_addr, cardinal(@CKinematics__Load_Patch), 6, true) then exit;
+  end;
+
+  // [bug] ¬ CStateAbstract::select_state - если мы захотим войти в тот же стейт, что бы раньше (после его окончани€), то сделать этого мы не сможем
+  // ƒл€ исправлени€ добавим проверку на get_state(current_substate)->check_completion()
+  jmp_addr:=xrGame_addr+$11e098;
+  if not WriteJump(jmp_addr, cardinal(@CStateAbstract__select_state_Patch), 6, true) then exit;
+
+  // ¬ CStateBurerAttack<Object>::execute перед get_state_current()->check_completion() вызовем get_state(eStateBurerAttack_Tele)->check_start_conditions() дл€ обновлени€ счетчика гранат (чтобы не снимать щит, когда они р€дом)
 
 
+  //Ќа будущее:
+  //todo:включаем грави только когда опасность минимальна (чтобы актор не успел подстрелить нас, пока мы кастуемс€)
   //TODO: при попадании в щит - продлеваем защиту
 
-
+  //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
 
   result:=true;
 end;

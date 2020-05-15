@@ -154,7 +154,7 @@ type
     last_frame_rocket_loaded:cardinal; //для РПГ
     rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
 
-    last_shot_time:cardinal;
+    last_shot_time:cardinal;  //TODO: вероятно, стоит удалить и использовать вместо него _last_shot_attempt_time
 
 
     constructor Create(wpn:pointer);

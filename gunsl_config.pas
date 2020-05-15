@@ -85,6 +85,7 @@ const
   gd_veteran:cardinal=2;
   gd_master:cardinal=3;
   GUNSL_BASE_SECTION:PChar='gunslinger_base';
+  GUNSL_BONE_OVERRIDES_SECTION='gunslinger_visual_bone_mass_overrides';
 
 
 //------------------------------Общие функции работы с игровыми конфигами---------------------------------
@@ -185,6 +186,8 @@ function GetBurerSuperstaminahitDist():single; stdcall;
 function GetBurerSuperstaminahitValue():single; stdcall;
 function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
+
+function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single;
 
 var
   g_pickup_distance:single;
@@ -1079,6 +1082,11 @@ end;
 function GetBurerForceshieldDist():single; stdcall;
 begin
   result:=_burer_forceshield_dist;
+end;
+
+function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single;
+begin
+  result:=game_ini_r_single_def(GUNSL_BONE_OVERRIDES_SECTION, visual, -1);
 end;
 
 end.
