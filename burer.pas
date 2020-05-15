@@ -134,7 +134,7 @@ var
   actor_close, actor_very_close:boolean;
   itm:pointer;
   force_antiaim, force_shield, force_tele, force_gravi:boolean;
-  weapon_for_big_boom:boolean;
+  weapon_for_big_boom, eatable_with_hud:boolean;
 begin
   force_antiaim:=false;
   force_shield:=false;
@@ -144,11 +144,14 @@ begin
   itm:=GetActorActiveItem();
   weapon_for_big_boom:=IsWeaponReadyForBigBoom(itm);
 
+  eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
 
   if NeedMandatoryShield(burer) and (pshield_ready^) then begin
     force_shield:=true;
   end else if (itm<>nil) and IsThrowable(itm) and ptele_ready^  and (random < 0.9) then begin
     force_tele:=true;
+  end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
+    force_antiaim:=true;
   end else if weapon_for_big_boom then begin
     if IsBurerUnderAim(burer) and (pshield_ready^) then begin
       force_shield:=true;
@@ -245,11 +248,12 @@ end;
 procedure OverrideBurerStaminaHit(burer:pointer; phit:psingle); stdcall;
 var
   itm, wpn, act:pointer;
-  wpn_aim_now, burer_see_actor:boolean;
+  wpn_aim_now, burer_see_actor, eatable_with_hud:boolean;
   campos:FVector3;
 begin
   wpn_aim_now:=false;
   itm:=GetActorActiveItem();
+  eatable_with_hud:=game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
 
   if itm<>nil then begin
     if IsKnife(itm) or IsThrowable(itm) then begin
@@ -265,7 +269,7 @@ begin
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
 
-  if (burer_see_actor and (IsActorTooClose(burer, GetBurerSuperstaminahitDist()) or IsWeaponReadyForBigBoom(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
+  if (burer_see_actor and (IsActorTooClose(burer, GetBurerSuperstaminahitDist()) or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
     phit^:=GetBurerSuperstaminahitValue;
   end;
 end;
@@ -314,6 +318,11 @@ begin
 
   //TODO: не снимаем щит, если рядом грены
   result:=NeedMandatoryShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm) and not IsActorLookTurnedAway(burer) and (GetCurrentState(itm) <> EWeaponStates__eReload) );
+
+  if result then begin
+    //TODO: не снимать щит без проверки возможности anti-aim
+    result:= random > GetBurerShieldedRiskyFactor();
+  end;
 end;
 
 procedure CStateBurerShield__check_completion_Patch(); stdcall;
@@ -379,8 +388,13 @@ asm
 end;
 
 function NeedStopTeleAttack(burer:pointer):boolean; stdcall;
+var
+  itm:pointer;
+  eatable_with_hud:boolean;
 begin
-  result:=NeedMandatoryShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(GetActorActiveItem()) and not IsActorLookTurnedAway(burer));
+  itm:=GetActorActiveItem();
+  eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
+  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedMandatoryShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm) and not IsActorLookTurnedAway(burer));
 end;
 
 procedure CStateBurerAttackTele__check_completion_ForceCompletion_Patch(); stdcall;

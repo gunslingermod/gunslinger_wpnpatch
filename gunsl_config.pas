@@ -186,8 +186,9 @@ function GetBurerSuperstaminahitDist():single; stdcall;
 function GetBurerSuperstaminahitValue():single; stdcall;
 function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
+function GetBurerShieldedRiskyFactor():single; stdcall
 
-function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single;
+function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
 var
   g_pickup_distance:single;
@@ -263,6 +264,7 @@ var
   _burer_superstaminahit_value:single;
   _burer_forceantiaim_dist:single;
   _burer_forceshield_dist:single;
+  _burer_shielded_risky_factor:single;
 
 
 //данные консольных команд
@@ -822,6 +824,7 @@ begin
   _burer_superstaminahit_value:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_value', 1000);
   _burer_forceantiaim_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceantiaim_dist', 7);
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
+  _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0);
 
   result:=true;
 end;
@@ -1084,7 +1087,12 @@ begin
   result:=_burer_forceshield_dist;
 end;
 
-function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single;
+function GetBurerShieldedRiskyFactor():single; stdcall
+begin
+  result:=_burer_shielded_risky_factor;
+end;
+
+function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 begin
   result:=game_ini_r_single_def(GUNSL_BONE_OVERRIDES_SECTION, visual, -1);
 end;
