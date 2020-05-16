@@ -12,7 +12,7 @@ end;
 function Init:boolean;
 function WriteJump(var write_addr:cardinal; dest_addr:cardinal; addbytescount:cardinal=0; writecall:boolean=false):boolean;
 function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
-function GetGameTickCount:cardinal;
+function GetGameTickCount:cardinal; //полный аналог игровой current_time()
 function GetCurrentFrame:cardinal;
 function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
 function GetTimeDeltaSafe(starttime:cardinal; endtime:cardinal):cardinal; overload;

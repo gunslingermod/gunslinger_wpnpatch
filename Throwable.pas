@@ -14,6 +14,7 @@ procedure PrepareGrenadeForSuicideThrow(CMissile:pointer; force:single); stdcall
 procedure SetImmediateThrowStatus(CMissile:pointer; status:boolean); stdcall;
 procedure SetConstPowerStatus(CMissile:pointer; status:boolean); stdcall;
 function IsMissileInSuicideState(CMissile:pointer):boolean; stdcall;
+function IsGrenadeDeactivated(CGrenade:pointer):boolean; stdcall;
 
 procedure CMissile__SetDestroyTimeMax(CMissile:pointer; time:cardinal); stdcall;
 function CMissile__GetDestroyTimeMax(CMissile:pointer):cardinal; stdcall;
@@ -866,6 +867,11 @@ asm
   pop ebx
   add esp, $0c
   ret 8
+end;
+
+function IsGrenadeDeactivated(CGrenade:pointer):boolean; stdcall;
+begin
+  result:=CMissile__GetDestroyTime(CGrenade)=CMISSILE_NOT_ACTIVATED;
 end;
 
 ////////////////////////////////////////////////////////

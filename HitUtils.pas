@@ -41,7 +41,11 @@ const
     EHitType__eHitTypeLightBurn:cardinal = 10;
     EHitType__eHitTypeMax:cardinal = 11;
 
+procedure SendHit(h:pSHit); stdcall;
+function MakeDefaultHitForActor():SHit;
+
 implementation
+uses Misc, BaseGameData;
 
 function SHit__GetHitType(this:pointer):cardinal; stdcall;
 asm
@@ -62,6 +66,57 @@ asm
   mov eax, this
   mov eax, [eax+$30]
   mov @result, eax
+end;
+
+procedure GenHitPacketHeader(h:pShit; packetype:cardinal; game_id:cardinal); stdcall;
+asm
+  pushad
+  push game_id
+  push packetype
+  mov ecx, h
+  mov eax, xrgame_addr
+  add eax, $4e93a0
+  call eax
+  popad
+end;
+
+procedure DumpHitToPacket(h:pShit; p:pNET_Packet); stdcall;
+asm
+  pushad
+  mov ecx, h
+  push p
+  mov eax, [xrgame_addr]
+  add eax, $4e9570
+  call eax
+  popad
+end;
+
+procedure SendHit(h:pSHit); stdcall;
+var
+  p:NET_Packet;
+begin
+  ClearNetPacket(@p);
+  GenHitPacketHeader(h, h.PACKET_TYPE, h.whoId);
+  DumpHitToPacket(h, @p);
+  SendNetPacket(@p);
+end;
+
+function MakeDefaultHitForActor():SHit;
+begin
+  result.PACKET_TYPE:=GE_HIT;
+  result.DestID:=0;
+  result.whoId:=0;
+  result.weaponID:=0;
+  result.boneID:=0;
+  result.dir.x:=0;
+  result.dir.y:=1;
+  result.dir.z:=0;
+  result.power:=1.0;
+  result.p_in_bone_space.x:=0;
+  result.p_in_bone_space.y:=0;
+  result.p_in_bone_space.z:=0;
+  result.impulse:=10;
+  result.hit_type:=0;
 end;
 
 end.

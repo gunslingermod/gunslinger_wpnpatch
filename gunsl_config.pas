@@ -77,6 +77,14 @@ type controller_feel_params = record
   max_dist:single;
 end;
 
+type burer_superstamina_hit_params = record
+  distance:single;
+  stamina_decrease:single;
+  power:single;
+  impulse:single;
+  hit_type:cardinal;
+end;
+
 function Init:boolean;
 
 const
@@ -182,8 +190,7 @@ function GetLefthandedTorchTreasureDist():single; stdcall;
 function GetLightPalevoDist():single; stdcall;
 function GetLightSeeDist():single; stdcall;
 
-function GetBurerSuperstaminahitDist():single; stdcall;
-function GetBurerSuperstaminahitValue():single; stdcall;
+function GetBurerSuperstaminaHitParams():burer_superstamina_hit_params;
 function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
 function GetBurerShieldedRiskyFactor():single; stdcall
@@ -260,12 +267,11 @@ var
   _light_palevo_dist:single;
   _light_see_dist:single;
 
-  _burer_superstaminahit_dist:single;
-  _burer_superstaminahit_value:single;
   _burer_forceantiaim_dist:single;
   _burer_forceshield_dist:single;
   _burer_shielded_risky_factor:single;
 
+  _burer_superstaminahit_params:burer_superstamina_hit_params;
 
 //данные консольных команд
 //булевские флаги
@@ -820,8 +826,12 @@ begin
   _light_palevo_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'light_palevo_dist', 20);
   _light_see_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'light_see_dist', 60);
 
-  _burer_superstaminahit_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_dist', 15);
-  _burer_superstaminahit_value:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_value', 1000);
+  _burer_superstaminahit_params.distance:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_dist', 15);
+  _burer_superstaminahit_params.stamina_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_value', 1000);
+  _burer_superstaminahit_params.power:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_power', -1);
+  _burer_superstaminahit_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_impulse', 10);
+  _burer_superstaminahit_params.hit_type:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_type', 5);
+
   _burer_forceantiaim_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceantiaim_dist', 7);
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
   _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0);
@@ -1067,14 +1077,9 @@ begin
   result:=_light_see_dist
 end;
 
-function GetBurerSuperstaminahitDist():single; stdcall;
+function GetBurerSuperstaminaHitParams():burer_superstamina_hit_params;
 begin
-  result:=_burer_superstaminahit_dist;
-end;
-
-function GetBurerSuperstaminahitValue():single; stdcall;
-begin
-  result:=_burer_superstaminahit_value;
+  result:=_burer_superstaminahit_params;
 end;
 
 function GetBurerForceantiaimDist():single; stdcall;

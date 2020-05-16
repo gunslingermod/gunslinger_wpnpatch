@@ -35,7 +35,27 @@ type xr_list_entry_base = packed record
   //Next should be item of template type T. Use derived records for it emulation.
 end;
 
+NET_Buffer = packed record
+  data: array[0..16383] of Byte;
+  count:cardinal;
+end;
+pNET_Buffer=^NET_Buffer;
+
+NET_Packet = packed record
+  inistream:pointer;         //0x0
+  B:NET_Buffer;              //0x4
+  r_pos:cardinal;            //0x4008
+  timeReceive:cardinal;      //0x400C
+  w_allow:boolean;           //0x4010
+  _unused1:byte;
+  _unused2:word;    
+end;
+pNET_Packet = ^NET_Packet;
+
 pxr_list_entry_base = ^xr_list_entry_base;
+
+const
+  GE_HIT:word = 5;
 
 function Init():boolean;stdcall;
 function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;
@@ -63,7 +83,10 @@ procedure DrawSphere(parent: pFMatrix4x4; center:pFVector3; radius:single; clr_s
 
 function IsMainMenuActive():boolean; stdcall;
 
-procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
+procedure ClearNetPacket(packet:pNET_Packet); stdcall;
+procedure WriteToPacket(packet:pNET_Packet; data:pointer; bytes_count:cardinal); stdcall;
+procedure SendNetPacket(packet:pNET_Packet); stdcall;
+
 procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
 function ReaderLength(IReader:pointer):cardinal; stdcall;
 function ReaderElapsed(IReader:pointer):cardinal; stdcall;
@@ -95,10 +118,11 @@ procedure UpdateElectronicsProblemsCnt(dt:cardinal); stdcall;
 
 function IsElectronicsProblemsDecreasing():boolean; stdcall;
 
-function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
+function IsObjectSeePoint(CObject:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
+procedure DropItemAndTeleport(CObject:pointer; pos:pFVector3); stdcall;
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows, raypick;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows, raypick, level;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -536,7 +560,16 @@ asm
 end;
 
 //-----------------------------------------------------------------------------------------------------------
-procedure WriteToPacket(packet:pointer; data:pointer; bytes_count:cardinal); stdcall;
+procedure ClearNetPacket(packet:pNET_Packet); stdcall;
+begin
+  packet^.inistream:=nil;
+  packet^.B.count:=0;
+  packet^.r_pos:=0;
+  packet^.timeReceive:=0;
+  packet^.w_allow:=true;
+end;
+
+procedure WriteToPacket(packet:pNET_Packet; data:pointer; bytes_count:cardinal); stdcall;
 asm
   pushad
     mov eax, xrgame_addr
@@ -550,6 +583,19 @@ asm
   popad
 end;
 
+procedure SendNetPacket(packet:pNET_Packet); stdcall;
+asm
+  pushad
+  call GetLevel
+  push 0
+  push 8
+  push packet
+  mov edx,[eax+$40110]
+  mov edx,[edx+$10]
+  lea ecx,[eax+$40110]
+  call edx
+  popad
+end;
 
 procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
 asm
@@ -1097,15 +1143,15 @@ asm
   mov edx, [esp+$24]
 end;
 
-function IsObjectSeePoint(o:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
+function IsObjectSeePoint(CObject:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
 var
   vdiff, object_point, object_dir:FVector3;
   o_dist, o_cos:single;
 begin
   result:=false;
 
-  object_point:=FVector3_copyfromengine(GetEntityPosition(o));
-  object_dir:=FVector3_copyfromengine(GetEntityDirection(o));
+  object_point:=FVector3_copyfromengine(GetEntityPosition(CObject));
+  object_dir:=FVector3_copyfromengine(GetEntityDirection(CObject));
   object_point.y:=object_point.y+object_y_correction_value; //Коррекция на высоту глаз
 
   vdiff:=point;
@@ -1119,9 +1165,30 @@ begin
     if o_cos < 0 then exit;
   end;
 
-  if (o_dist<=unconditional_vision_dist) or ((TraceAsView(@object_point, @vdiff, o)*1.01) >= o_dist) then begin
+  if (o_dist<=unconditional_vision_dist) or ((TraceAsView(@object_point, @vdiff, CObject)*1.01) >= o_dist) then begin
     result:=true;
   end;
+end;
+
+procedure DropItemAndTeleport(CObject:pointer; pos:pFVector3); stdcall;
+asm
+  pushad
+
+  push CObject
+  call game_object_GetScriptGameObject
+  mov ecx, eax
+
+  mov eax, pos
+  push [eax+FVector3.z]
+  push [eax+FVector3.y]
+  push [eax+FVector3.x]
+  push ecx
+
+  mov edx, xrgame_addr
+  add edx, $1c7520
+  call edx
+
+  popad
 end;
 
 procedure SetWeaponPhysicMass(wpn:pointer; mass:single); stdcall;
