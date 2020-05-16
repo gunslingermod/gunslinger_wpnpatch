@@ -2150,6 +2150,18 @@ asm
   ret
 end;
 
+procedure FixNullParent_Patch(); stdcall;
+asm
+  cmp eax, 0
+  je @zeroid
+  movzx eax, word ptr [eax+$a4] // parent id
+  ret
+
+  @zeroid:
+  mov eax, $FFFF
+  ret
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -2348,6 +2360,16 @@ begin
   // Регистрируем выстрел в   CWeaponMagazinedWGrenade::LaunchGrenade
   jmp_addr:=xrGame_addr+$2d2cc7;
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__LaunchGrenade_RegisterShot_Patch), 6, true) then exit;
+
+  // [bug] баг в CWeaponMagazinedWGrenade::LaunchGrenade - при установке ИД родителя гранаты не проверяется валидность H_Parent(). Если оружие было выброшено (например, из-за бюрера) - жди проблем
+  jmp_addr:=xrGame_addr+$2d3185;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  //аналогично в CWeaponRPG7::switch2_Fire
+  jmp_addr:=xrGame_addr+$2d9d18;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  // аналогично в CWeaponRG6::FireStart
+  jmp_addr:=xrGame_addr+$2dfb5d;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
 
   //Предотвращение повторных выстрелов из РПГ
   //!!!Ломает возможность многозарядных гранатометов!!!
