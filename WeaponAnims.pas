@@ -1990,7 +1990,7 @@ begin
   jump_addr:=xrGame_addr+$2BED9B;
   if not WriteJump(jump_addr, cardinal(@AimOutLockFix), 12, true) then exit;
 
-  //для выстрелов
+  //для выстрелов (CWeaponMagazined:FireStart)
   jump_addr:=xrGame_addr+$2CFE9A;
   if not WriteJump(jump_addr, cardinal(@ShootAnimLockFix), 5, true) then exit;
 

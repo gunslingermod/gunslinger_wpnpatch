@@ -19,6 +19,9 @@ function IsGrenadeDeactivated(CGrenade:pointer):boolean; stdcall;
 procedure CMissile__SetDestroyTimeMax(CMissile:pointer; time:cardinal); stdcall;
 function CMissile__GetDestroyTimeMax(CMissile:pointer):cardinal; stdcall;
 
+function CMissile__GetDestroyTime(CMissile:pointer):cardinal; stdcall;
+function virtual_CGrenade_DropGrenade(CGrenade:pointer):boolean; stdcall;
+
 const
 		EMissileStates__eThrowStart:cardinal = 5;
 		EMissileStates__eReady:cardinal = 6;
@@ -872,6 +875,17 @@ end;
 function IsGrenadeDeactivated(CGrenade:pointer):boolean; stdcall;
 begin
   result:=CMissile__GetDestroyTime(CGrenade)=CMISSILE_NOT_ACTIVATED;
+end;
+
+function virtual_CGrenade_DropGrenade(CGrenade:pointer):boolean; stdcall;
+asm
+  pushad
+  mov ecx, [CGrenade]
+  mov edx, [eax]
+  mov eax, [edx+$150]
+  call eax
+  mov @result, al
+  popad
 end;
 
 ////////////////////////////////////////////////////////

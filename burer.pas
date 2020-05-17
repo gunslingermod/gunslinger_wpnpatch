@@ -5,10 +5,11 @@ interface
 function Init():boolean; stdcall;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
+  _gren_timer:cardinal;
 
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
@@ -73,7 +74,7 @@ begin
   end;
 end;
 
-function IsWeaponReadyForBigBoom(itm:pointer):boolean; stdcall;
+function IsWeaponReadyForBigBoom(itm:pointer; was_shot:pboolean):boolean; stdcall;
 var
   gl_status:cardinal;
   buf:WpnBuf;
@@ -81,6 +82,10 @@ const
   SHOT_SAFETY_TIME_DELTA:cardinal=2000;
 begin
   result:=false;
+  if was_shot<>nil then begin
+    was_shot^:=false;
+  end;
+
   if itm<>nil then begin
     result:=(dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponRG6, false)<>nil) or (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponRPG7, false)<>nil);
     if not result and WpnCanShoot(itm) then begin
@@ -92,8 +97,14 @@ begin
 
     if result then begin
       buf:=GetBuffer(itm);
-      if (buf<>nil) and (GetCurrentAmmoCount(itm) = 0) and (buf.GetLastShotTimeDelta() > SHOT_SAFETY_TIME_DELTA) then begin
-        result:=false;
+      if (buf <> nil) then begin
+        if (buf.GetLastShotTimeDelta() > SHOT_SAFETY_TIME_DELTA) then begin
+          if (GetCurrentAmmoCount(itm) = 0) then begin
+            result:=false;
+          end;
+        end else begin
+          was_shot^:=true;
+        end;
       end;
     end;
   end;
@@ -134,7 +145,7 @@ var
   actor_close, actor_very_close:boolean;
   itm:pointer;
   force_antiaim, force_shield, force_tele, force_gravi:boolean;
-  weapon_for_big_boom, eatable_with_hud:boolean;
+  weapon_for_big_boom, big_boom_shooted, eatable_with_hud:boolean;
 const
   eStateBurerAttack_Tele:byte=6;
   eStateBurerAttack_AntiAim:byte=12;
@@ -147,7 +158,7 @@ begin
   force_gravi:=false;
 
   itm:=GetActorActiveItem();
-  weapon_for_big_boom:=IsWeaponReadyForBigBoom(itm);
+  weapon_for_big_boom:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
 
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
 
@@ -166,20 +177,14 @@ begin
     end else begin
       force_shield:=true;
     end;
-  end else if (itm<>nil) and IsThrowable(itm) and (random < 0.9) then begin
-    if (_gren_count>0) and (pshield_ready^) then begin
-      force_shield:=true;
-    end else if ptele_ready^ then begin
-      force_tele:=true;
-    end;
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
     force_antiaim:=true;
-  end else if weapon_for_big_boom then begin
-    if (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
+  end else if weapon_for_big_boom or big_boom_shooted then begin
+    if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
       force_antiaim:=true;
-    end else if IsBurerUnderAim(burer) and (pshield_ready^) then begin
+    end else if (IsBurerUnderAim(burer) or ((panti_aim_ready^) and (random < 0.4))) and (pshield_ready^) then begin
       force_shield:=true;
-    end else if panti_aim_ready^ then begin
+    end else if (not big_boom_shooted or not pshield_ready^) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if (pshield_ready^) then begin
       force_shield:=true;
@@ -188,10 +193,20 @@ begin
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if IsActorLookTurnedAway(burer) and (pgravi_ready^) then begin
-      if (_gren_count>0) and (ptele_ready^) and (random < 0.8)  then begin
+      if (_gren_count>0) and (_gren_timer > GetBurerMinGrenTimer()) and (ptele_ready^) and (random < 0.8) then begin
         force_tele:=true;
+      end else if (_gren_count>0) and (_gren_timer <= GetBurerMinGrenTimer()) and (pshield_ready^) then begin
+        force_shield:=true;
       end else begin
         force_gravi:=true;
+      end;
+    end else if (_gren_count>0) and (pshield_ready^) then begin
+      force_shield:=true;
+    end else if (itm<>nil) and IsThrowable(itm) and (_gren_count=0) then begin
+      pshield_ready^:=false;
+      if (GetCurrentState(itm) <> EHudStates__eIdle) then begin
+        pgravi_ready^:=false;
+       //TODO:Принудительный спуск гранаты, если актор удерживает ее на изготовке
       end;
     end else if (itm<>nil) and IsKnife(itm) and (pshield_ready^) then begin
       force_shield:=true;
@@ -202,11 +217,19 @@ begin
     end else if (previous_state^ <> eStateBurerAttack_Shield) and pshield_ready^ then begin
       force_shield:=true;
     end;
-  end else if (_gren_count>0) and (random < 0.8)then begin
-    if pshield_ready^ and (not (ptele_ready^) or (random < 0.9)) then begin
+  end else if (_gren_count>0) and (random < 0.9) then begin
+    if pshield_ready^ and (not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer())or (random < 0.9)) then begin
       force_shield:=true;
     end else if (ptele_ready^) then begin
       force_tele:=true;
+    end;
+  end else if (itm<>nil) and IsThrowable(itm) then begin
+    //Актор достал гранату, скоро может прилететь. Запрещаем вход в щит до броска или смена оружия
+    pshield_ready^:=false;
+    //на всякий - отключаем и грави, если актор что-то делает с греной
+    if (GetCurrentState(itm) <> EHudStates__eIdle) then begin
+      pgravi_ready^:=false;
+      //TODO:Принудительный спуск гранаты, если актор удерживает ее на изготовке
     end;
   end;
 
@@ -280,48 +303,29 @@ end;
 
 procedure OverrideBurerStaminaHit(burer:pointer; phit:psingle); stdcall;
 var
-  itm, wpn, act, dropitm:pointer;
-  wpn_aim_now, burer_see_actor, eatable_with_hud, is_knife:boolean;
-  campos, burerpos, dist:FVector3;
-  tmp:single;
-  hp:psingle;
-  hit:SHit;
-
+  itm, wpn:pointer;
+  burer_see_actor, eatable_with_hud, wpn_aim_now:boolean;
+  campos:FVector3;
   ss_params:burer_superstamina_hit_params;
 begin
-  wpn_aim_now:=false;
-  is_knife:=false;
   itm:=GetActorActiveItem();
-  eatable_with_hud:=game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
-  ss_params:=GetBurerSuperstaminaHitParams();
+  eatable_with_hud:=false;
+  wpn_aim_now:=false;
 
-  if itm<>nil then begin
-    is_knife:=IsKnife(itm);
-    if is_knife or IsThrowable(itm) then begin
-      ActivateActorSlot__CInventory(0, true);
-    end;
-
+  if (itm<>nil) then begin
+    eatable_with_hud:= game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
     wpn:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
     if wpn<>nil then begin
       wpn_aim_now:=IsAimNow(wpn);
     end;
   end;
 
+  ss_params:=GetBurerSuperstaminaHitParams();
+
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
 
-  if is_knife and burer_see_actor and IsActorTooClose(burer, GetBurerForceshieldDist()) then begin
-    tmp:=ss_params.power;
-    if tmp > 0 then begin
-      hit:=MakeDefaultHitForActor();
-      hit.power:=ss_params.power;
-      hit.impulse:=ss_params.impulse;
-      hit.hit_type:=ss_params.hit_type;
-      SendHit(@hit);
-    end;
-  end;
-
-  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
+  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
     phit^:=ss_params.stamina_decrease;
   end;
 end;
@@ -338,6 +342,61 @@ asm
   call OverrideBurerStaminaHit
   popad
   ret
+end;
+
+
+procedure StaminaHit_ActionsInBeginning(burer:pointer); stdcall;
+var
+  itm:pointer;
+  ss_params:burer_superstamina_hit_params;
+  campos:FVector3;
+  burer_see_actor:boolean;
+  hit:SHit;
+  state:cardinal;
+  CGrenade:pointer;
+begin
+  itm:=GetActorActiveItem();
+  ss_params:=GetBurerSuperstaminaHitParams();
+  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
+
+  if itm<>nil then begin
+    if IsKnife(itm) then begin
+      if ss_params.force_hide_items_prob < random then begin
+        ActivateActorSlot__CInventory(0, true);
+      end;
+    end else if IsThrowable(itm) then begin
+      state:=GetCurrentState(itm);
+      CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
+      {if (CGrenade<>nil) and (virtual_CGrenade_DropGrenade(CGrenade)) then begin  //наличие активного стейта бросания virtual_CGrenade_DropGrenade проверит сама
+        log('Drop');
+        ActivateActorSlot__CInventory(0, true);
+      end else} if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer) then begin
+        virtual_Action(itm, kWPN_ZOOM, kActRelease);
+      end else if (state=EHudStates__eIdle) or (state=EHudStates__eShowing) then begin //showing - проверить с быстрым броском грены
+        ActivateActorSlot__CInventory(0, true);
+      end;
+    end;
+  end;
+
+  if (itm<>nil) and IsActorTooClose(burer, GetBurerForceshieldDist()) and (ss_params.power>0) and burer_see_actor then begin
+    hit:=MakeDefaultHitForActor();
+    hit.power:=ss_params.power;
+    hit.impulse:=ss_params.impulse;
+    hit.hit_type:=ss_params.hit_type;
+    SendHit(@hit);
+  end;
+end;
+
+procedure CBurer__StaminaHit_ParseThrowableInBeginning_Patch(); stdcall;
+asm
+  lea ecx, [esp+$28+$8]
+  pushad
+  push [ecx]
+  call StaminaHit_ActionsInBeginning
+  popad
+
+  add eax, $2c8;
 end;
 
 function CStateBurerShield__check_start_conditions_MayIgnoreCooldown(burer:pointer):boolean; stdcall;
@@ -365,6 +424,7 @@ end;
 function CStateBurerShield__check_completion_MayIgnoreShieldTime(burer:pointer; last_shield_started:pcardinal):boolean; stdcall;
 var
   itm:pointer;
+  big_boom_ready, big_boom_shooted:boolean;
 begin
   //вообще не снимаем щит, если рядом грены.
   //более того, после взрыва грены щит может сняться слишком рано, и бюрер успеет получить урон. Чтобы этого не происходило, продлеваем действие щита
@@ -374,10 +434,16 @@ begin
     exit;
   end;
 
-  itm:=GetActorActiveItem();  
-  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm) and not IsActorLookTurnedAway(burer) and (GetCurrentState(itm) <> EWeaponStates__eReload) );
+  big_boom_ready:=false;
+  big_boom_shooted:=false;
+  itm:=GetActorActiveItem();
+  if itm<>nil then begin
+    big_boom_ready:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
+  end;
 
-  if result then begin
+  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
+
+  if result and not big_boom_shooted then begin
     //TODO: не снимать щит без проверки возможности anti-aim
     result:= random > GetBurerShieldedRiskyFactor();
   end;
@@ -437,6 +503,7 @@ end;
 procedure CStateBurerAttackTele__CheckTeleStart_BeforeObjectsSearch_Patch(); stdcall;
 asm
   mov _gren_count, 0
+  mov _gren_timer, $FFFFFFFF
   //original
   add ecx, $9b0
   ret
@@ -449,19 +516,44 @@ begin
   end;
 end;
 
+procedure CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_ParseDestroyTime(CGrenade:pointer); stdcall;
+var
+  destroy_time, expl_timer, curr_time:cardinal;
+begin
+  destroy_time:=CMissile__GetDestroyTime(CGrenade);
+  curr_time:=GetGameTickCount();
+
+  if destroy_time<=curr_time then begin
+    _gren_timer:=0;
+  end else begin
+    expl_timer:=destroy_time - curr_time;
+    if expl_timer < _gren_timer then begin
+      _gren_timer:=expl_timer;
+    end;
+  end;
+end;
+
 procedure CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_Patch(); stdcall;
 asm
   test eax, eax
   je @not_grenade
 
-  //проверям, опасна ли граната, или уже нет
+  //проверяем, опасна ли граната, или уже нет
   pushad
+  push eax
+
   push eax
   call IsGrenadeSafe
   test al, al
   jne @safe
   add _gren_count, 1
+
+  //Опасна, смотрим на время до взрыва
+  push [esp]
+  call CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_ParseDestroyTime
+
   @safe:
+  pop eax
   popad
 
   @not_grenade:
@@ -470,14 +562,6 @@ asm
   add esp, $14
   test eax, eax
   jmp edx
-end;
-
-function NeedForceBurerTele():boolean; stdcall;
-var
-  itm:pointer;
-begin
-  itm:=GetActorActiveItem();
-  result:= (_gren_count > 0) or ((itm<>nil) and IsThrowable(itm) and (GetCurrentState(itm) <> EHudStates__eIdle));
 end;
 
 procedure CStateBurerAttackTele__CheckTeleStart_AfterObjectsSearch_Patch(); stdcall;
@@ -499,8 +583,15 @@ var
   eatable_with_hud:boolean;
 begin
   itm:=GetActorActiveItem();
+
+  //если у нас есть граната, готовая вот-вот взорваться - срочно прекращаем телекинез и уходим в щит!
+  if _gren_timer < GetBurerMinGrenTimer() / 3 then begin
+    result:=true;
+    exit;
+  end;
+
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
-  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm) and not IsActorLookTurnedAway(burer));
+  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer));
 end;
 
 procedure CStateBurerAttackTele__check_completion_ForceCompletion_Patch(); stdcall;
@@ -578,6 +669,32 @@ asm
   ret
 end;
 
+function IsWeaponAllowAntiAim(itm:pointer):boolean; stdcall;
+var
+ curitm:pointer;
+begin
+  result:=false;
+  //чтобы не гадать над типом itm - лучше возьмем сами
+  curitm:=GetActorActiveItem();
+  if curitm = nil then exit;
+
+  result:= (dynamic_cast(curitm, 0, RTTI_CHudItemObject, RTTI_CWeapon, false)<>nil) or (dynamic_cast(curitm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false)<>nil)
+end;
+
+procedure anti_aim_ability__check_update_condition_allowgrenades_Patch(); stdcall;
+asm
+  // вернуть в eax 0, если антиаим запрещен, и 1 иначе
+  pushad
+  push eax
+  call IsWeaponAllowAntiAim
+  test eax, eax
+  popad
+  mov eax, 0
+  je @finish
+  inc eax
+  @finish:
+  ret
+end;
 
 function Init():boolean; stdcall;
 var
@@ -642,6 +759,26 @@ begin
   // Нужно для обновления счетчика гранат  перед проверками на возможность завершения действия в check_completion() (надо в первую очередь чтобы не снимался щит, когда они у нас вокруг грены)
   jmp_addr:=xrGame_addr+$10abf6;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttack__execute_RefreshGrenCount_Patch), 5, true) then exit;
+
+  // в CStateBurerAttackTele<Object>::HandleGrenades увеличиваем частоту сканирования на гранаты
+  nop_code(xrgame_addr+$10502e, 1, chr($64));
+  nop_code(xrgame_addr+$10502f, 1, chr($00));
+  // и уменьшаем максимальное время левитирования гранат  
+  nop_code(xrgame_addr+$10512b, 1, chr($88));
+  nop_code(xrgame_addr+$10512c, 1, chr($13));
+
+  // [bug] anti_aim_ability::check_update_condition (xrgame+cf750) не позволяет использовать анти-аим с гранатами из-за явного каста к CWeapon. Переделываем.
+  jmp_addr:=xrGame_addr+$cf7c1;
+  if not WriteJump(jmp_addr, cardinal(@anti_aim_ability__check_update_condition_allowgrenades_Patch), 5, true) then exit;
+
+  //еще одна подстава с анти-аимом  для гранат в CBurer::StaminaHit (xrgame+102730) - не хитует с гранатами в руках
+  jmp_addr:=xrGame_addr+$102745;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_ParseThrowableInBeginning_Patch), 5, true) then exit;
+
+
+
+
+  //TODO:старт телекинеза только для InventoryItem, находящихся в зоне прямой видимости
 
 
   //На будущее:

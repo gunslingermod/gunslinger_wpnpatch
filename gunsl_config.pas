@@ -83,6 +83,7 @@ type burer_superstamina_hit_params = record
   power:single;
   impulse:single;
   hit_type:cardinal;
+  force_hide_items_prob:single
 end;
 
 function Init:boolean;
@@ -194,6 +195,7 @@ function GetBurerSuperstaminaHitParams():burer_superstamina_hit_params;
 function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
 function GetBurerShieldedRiskyFactor():single; stdcall
+function GetBurerMinGrenTimer():cardinal; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -270,6 +272,7 @@ var
   _burer_forceantiaim_dist:single;
   _burer_forceshield_dist:single;
   _burer_shielded_risky_factor:single;
+  _burer_min_gren_timer:cardinal;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
 
@@ -831,10 +834,12 @@ begin
   _burer_superstaminahit_params.power:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_power', -1);
   _burer_superstaminahit_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_impulse', 10);
   _burer_superstaminahit_params.hit_type:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_type', 5);
+  _burer_superstaminahit_params.force_hide_items_prob:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_forceitemshideprob', 1.0);
 
   _burer_forceantiaim_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceantiaim_dist', 7);
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
-  _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0);
+  _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0.02);
+  _burer_min_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_min_gren_timer', 1000);
 
   result:=true;
 end;
@@ -1095,6 +1100,11 @@ end;
 function GetBurerShieldedRiskyFactor():single; stdcall
 begin
   result:=_burer_shielded_risky_factor;
+end;
+
+function GetBurerMinGrenTimer():cardinal; stdcall;
+begin
+  result:=_burer_min_gren_timer;
 end;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
