@@ -93,9 +93,12 @@ function ReaderElapsed(IReader:pointer):cardinal; stdcall;
 procedure IWriter__w_u32(this:pointer; value:cardinal); stdcall;
 procedure IWriter__w_stringZ(this:pointer; value:PAnsiChar); stdcall;
 
+function CastHudItemToCObject(wpn:pointer):pointer; stdcall;
 function GetCObjectID(CObject:pointer):word; stdcall;
 function GetCObjectXForm(CObject:pointer):pFMatrix4x4; stdcall;
 function GetCObjectVisual(CObject:pointer):pointer; stdcall;
+procedure CObject__processing_activate(o:pointer); stdcall;
+procedure CObject__processing_deactivate(o:pointer); stdcall;
 
 function GetAngleByLegs(x,y:single):single;
 
@@ -697,6 +700,13 @@ asm
   mov @result, eax
 end;
 
+function CastHudItemToCObject(wpn:pointer):pointer; stdcall;
+asm
+  mov eax, [wpn]
+  add eax, $e8 //nonportable - cast to CObject
+  mov [result], eax
+end;
+
 //-----------------------------------------------------------------------------------------------------------
 
 procedure CHW__CreateDevice_VSync_R1_R2; stdcall;
@@ -1219,6 +1229,26 @@ asm
   call eax
   fstp [result]
   @finish:
+  popad
+end;
+
+procedure CObject__processing_activate(o:pointer); stdcall;
+asm
+  pushad
+  mov ecx, o
+  mov eax, xrgame_addr
+  mov eax, [eax+$512d7c]
+  call eax 
+  popad
+end;
+
+procedure CObject__processing_deactivate(o:pointer); stdcall;
+asm
+  pushad
+  mov ecx, o
+  mov eax, xrgame_addr
+  mov eax, [eax+$512c44]
+  call eax 
   popad
 end;
 

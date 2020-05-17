@@ -2211,4 +2211,16 @@ asm
   @finish:
 end;
 
+procedure virtual_FireTrace(wpn:pointer; p:pFVector3; d:pFVector3); stdcall;
+asm
+  pushad
+  push d
+  push p
+  mov ecx, wpn
+  mov eax, [ecx]
+  mov eax, [eax+$180]
+  call eax
+  popad
+end;
+
 end.

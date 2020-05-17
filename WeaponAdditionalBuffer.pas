@@ -430,6 +430,7 @@ begin
   _last_recharge_time:=0;
 
   _last_shot_attempt_time:=GetGameTickCount();
+  CObject__processing_activate(CastHudItemToCObject(_my_wpn));
 
 //  log('dir = '+floattostr(_lens_offset.dir));
 end;
@@ -446,6 +447,8 @@ begin
   setlength(self._laserdot_dist_multipliers_switch, 0);
   setlength(ammos, 0);
   _SetWpnBufPtr(_my_wpn, nil);
+  CObject__processing_deactivate(CastHudItemToCObject(_my_wpn));
+
   inherited;
 end;
 

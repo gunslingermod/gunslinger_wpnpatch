@@ -834,7 +834,7 @@ begin
   _burer_superstaminahit_params.power:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_power', -1);
   _burer_superstaminahit_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_impulse', 10);
   _burer_superstaminahit_params.hit_type:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_type', 5);
-  _burer_superstaminahit_params.force_hide_items_prob:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_forceitemshideprob', 1.0);
+  _burer_superstaminahit_params.force_hide_items_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_forceitemshideprob', 1.0);
 
   _burer_forceantiaim_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceantiaim_dist', 7);
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);

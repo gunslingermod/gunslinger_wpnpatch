@@ -2162,6 +2162,21 @@ asm
   ret
 end;
 
+procedure CWeapon__AddShotEffector_replace_Patch(); stdcall;
+asm
+  mov eax, ecx
+  mov ecx, [eax+$8c]
+  test ecx, ecx
+  je @finish;
+  mov ecx, [ecx+$48]
+  mov edx, [ecx]
+  push eax
+  mov eax, [edx+$d0]
+  call eax
+  @finish:
+  ret
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -2370,6 +2385,43 @@ begin
   // аналогично в CWeaponRG6::FireStart
   jmp_addr:=xrGame_addr+$2dfb5d;
   if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  //todo: аналогично в CGrenade::Throw
+  jmp_addr:=xrGame_addr+$2c6409;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+
+////////////////////////////////////////////////////////////////////////////////////
+  //Правки на возможность стрельбы из оружия, не принадлежащего никому
+  //В CWeapon::FireTrace в вызове FireBullet дописываем проверку на то, что H_Parent может быть нулевым
+  jmp_addr:=xrGame_addr+$2c328b;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+
+  //Отключаем ассерт на наличие H_Parent в CWeaponMagazined::FireStart
+  if not nop_code(xrgame_addr+$2cfec6, 1, chr($eb)) then exit;
+
+  //в CWeaponMagazined::state_Fire разрешаем стрельбу при отсутствии владельца - отправляем je с xrgame.dll+2d0403 на xrgame.dll+2d0588 (условие на заполнение m_vStartPos и m_vStartDir) в обход проверок
+  if not nop_code(xrgame_addr+$2d0405, 1, chr($7f)) then exit;
+  if not nop_code(xrgame_addr+$2d0406, 1, chr($01)) then exit;
+  if not nop_code(xrgame_addr+$2d0407, 1, chr($00)) then exit;
+  if not nop_code(xrgame_addr+$2d0408, 1, chr($00)) then exit;
+
+  // CWeapon::AddShotEffector (xrGame.dll+2c2ae0) - добавляем проверку на то, что inventory_owner существует, подменяя функцию
+  jmp_addr:=xrGame_addr+$2c2ae0;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__AddShotEffector_replace_Patch), 8, false) then exit;
+
+  // CWeapon::SwitchState (xrGame.dll+2bc3e0) - разрешаем кидать сообщения при m_pInventory = nil
+  if not nop_code(xrgame_addr+$2bc432, 6) then exit;
+
+  //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
+  //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).
+  //По логике pending должен сброситься в CWeaponMagazined::switch2_Hidden, но до его вызова дело не доходит, так как оружие выброшено и сообщения не проходят (фиксятся предыдущей правкой)
+
+  //Некоторые полезные адреса на будущее:
+  //CWeaponMagazined::state_Fire - xrgame.dll+2d0350
+  //CWeaponMagazined::OnStateSwitch - xrgame.dll+2d01b0 -> CWeaponMagazined::switch2_Fire (xrgame.dll+2d0720)
+  //CWeaponMagazined::Action - xrgame.dll+2ce7a0; CWeapon::Action - xrGame.dll+2bec70
+  //CWeaponMagazined::OnShot - xrgame.dll+2ccc40
+////////////////////////////////////////////////////////////////////////////////////
+
 
   //Предотвращение повторных выстрелов из РПГ
   //!!!Ломает возможность многозарядных гранатометов!!!
