@@ -140,7 +140,7 @@ type
 
 
     _last_recharge_time:single;
-    _last_shot_attempt_time:cardinal;
+    _last_shot_time:cardinal;
 
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
@@ -153,9 +153,6 @@ type
     loaded_gl_state:boolean;
     last_frame_rocket_loaded:cardinal; //для РПГ
     rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
-
-    last_shot_time:cardinal;  //TODO: вероятно, стоит удалить и использовать вместо него _last_shot_attempt_time
-
 
     constructor Create(wpn:pointer);
     destructor Destroy; override;
@@ -264,7 +261,7 @@ type
     function GetLaserProblemsLevel():single;
     function GetMisfireProblemsLevel():single;
 
-    procedure RegisterShotAttempt();
+    procedure RegisterShot();
     function GetLastShotTimeDelta():cardinal;
   end;
 
@@ -425,11 +422,10 @@ begin
 
   _autoaim_valid_time:=0;
 
-  last_shot_time:=0;
+  _last_shot_time:=0;
 
   _last_recharge_time:=0;
 
-  _last_shot_attempt_time:=GetGameTickCount();
   CObject__processing_activate(CastHudItemToCObject(_my_wpn));
 
 //  log('dir = '+floattostr(_lens_offset.dir));
@@ -915,7 +911,7 @@ begin
     if (buf<>nil) then begin
       recharge_time:=(game_ini_r_single_def(GetSection(wpn), 'recharge_time',0));
       recharge_time:=ModifyFloatUpgradedValue(wpn, 'recharge_time',recharge_time);
-      if (recharge_time>0) and (GetTimeDeltaSafe(buf.last_shot_time)<floor(recharge_time*1000)) then begin
+      if (recharge_time>0) and (buf.GetLastShotTimeDelta()<floor(recharge_time*1000)) then begin
         result:=false;
         exit;
       end;
@@ -1800,14 +1796,14 @@ begin
   end;
 end;
 
-procedure WpnBuf.RegisterShotAttempt;
+procedure WpnBuf.RegisterShot;
 begin
-  _last_shot_attempt_time:=GetGameTickCount();
+  _last_shot_time:=GetGameTickCount();
 end;
 
 function WpnBuf.GetLastShotTimeDelta: cardinal;
 begin
-  result:=GetTimeDeltaSafe(_last_shot_attempt_time);
+  result:=GetTimeDeltaSafe(_last_shot_time);
 end;
 
 end.

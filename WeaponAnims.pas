@@ -860,7 +860,7 @@ begin
   SpawnShells(wpn);
   buf:=GetBuffer(wpn);
   if buf<>nil then begin
-    buf.last_shot_time:=GetGameTickCount();
+    buf.RegisterShot();
   end;
 
   ProcessAmmo(wpn, true);
@@ -1201,7 +1201,7 @@ var
   buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
-  if (buf<>nil) and (GetTimeDeltaSafe(buf.last_shot_time)<floor(buf.GetLastRechargeTime()*1000)) then begin
+  if (buf<>nil) and (buf.GetLastShotTimeDelta()<floor(buf.GetLastRechargeTime()*1000)) then begin
     result:=false;
   end else begin
     result:=Weapon_SetKeyRepeatFlagIfNeeded(wpn, kfRELOAD);

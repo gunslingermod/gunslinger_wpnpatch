@@ -1350,10 +1350,6 @@ begin
       exit;  
   end;
 
-  if (buf<>nil) and (id=kWPN_FIRE) then begin
-    buf.RegisterShotAttempt();
-  end;
-
   if (id=kLASER) and (flags=kActPress) then begin
     OnLaserButton(wpn);
   end else if (id=kTACTICALTORCH) and (flags=kActPress) then begin
@@ -2134,7 +2130,7 @@ var
 begin
   buf:=GetBuffer(wpn);
   if buf <> nil then begin
-    buf.RegisterShotAttempt();
+    buf.RegisterShot();
   end;
 end;
 

@@ -141,7 +141,7 @@ begin
     buf:=GetBuffer(wpn);
     if buf<>nil then begin
       reload_time:=floor(buf.GetLastRechargeTime() * 1000);
-      now_time:= GetTimeDeltaSafe(buf.last_shot_time);
+      now_time:= buf.GetLastShotTimeDelta();
       actor_wpn_loading := now_time / reload_time;
       if actor_wpn_loading>1 then actor_wpn_loading:=1;
     end else begin
