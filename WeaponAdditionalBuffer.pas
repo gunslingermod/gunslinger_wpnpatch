@@ -142,6 +142,10 @@ type
     _last_recharge_time:single;
     _last_shot_time:cardinal;
 
+    _is_shooting_without_parent:boolean;
+    _shooting_without_parent_start_time:cardinal;
+    _shooting_without_parent_period:cardinal;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -263,6 +267,10 @@ type
 
     procedure RegisterShot();
     function GetLastShotTimeDelta():cardinal;
+
+    function StartShootingWithoutParent(time:cardinal):boolean;
+    function StopShootingWithoutParent():boolean;
+    function IsShootingWithoutParent():boolean;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -289,9 +297,8 @@ type
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
   function GetAnimForceReassignStatus(wpn:pointer):boolean;stdcall;
 
-
 implementation
-uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster, misc, UIUtils, xr_strings;
+uses gunsl_config, windows, sysutils, BaseGameData, WeaponAnims, ActorUtils, HudItemUtils, math, strutils, DetectorUtils, ActorDOF, xr_BoneUtils, Messenger, ControllerMonster, ConsoleUtils, WeaponEvents, dynamic_caster, misc, UIUtils, xr_strings, KeyUtils;
 
 { WpnBuf }
 
@@ -426,9 +433,10 @@ begin
 
   _last_recharge_time:=0;
 
-  CObject__processing_activate(CastHudItemToCObject(_my_wpn));
+  _shooting_without_parent_start_time:=0;
+  _shooting_without_parent_period:=0;
+  _is_shooting_without_parent:=false;
 
-//  log('dir = '+floattostr(_lens_offset.dir));
 end;
 
 destructor WpnBuf.Destroy;
@@ -443,7 +451,6 @@ begin
   setlength(self._laserdot_dist_multipliers_switch, 0);
   setlength(ammos, 0);
   _SetWpnBufPtr(_my_wpn, nil);
-  CObject__processing_deactivate(CastHudItemToCObject(_my_wpn));
 
   inherited;
 end;
@@ -733,6 +740,10 @@ begin
 
   UpdateLensFactor(delta);
   UpdateAlterZoomDirectSwitchMixupFactor(delta);
+
+  if IsShootingWithoutParent() and ((GetOwner(_my_wpn) <> nil) or (GetCurrentAmmoCount(_my_wpn)<=0) or IsWeaponJammed(_my_wpn) or (GetTimeDeltaSafe(_shooting_without_parent_start_time)>_shooting_without_parent_period)) then begin
+    StopShootingWithoutParent();
+  end; 
 
   _last_update_time:=GetGameTickCount();
   result:=true;
@@ -1804,6 +1815,41 @@ end;
 function WpnBuf.GetLastShotTimeDelta: cardinal;
 begin
   result:=GetTimeDeltaSafe(_last_shot_time);
+end;
+
+function WpnBuf.IsShootingWithoutParent: boolean;
+begin
+  result:=_is_shooting_without_parent;
+end;
+
+function WpnBuf.StartShootingWithoutParent(time: cardinal): boolean;
+begin
+  result:=false;
+  if IsShootingWithoutParent() then exit;
+  if GetOwner(_my_wpn) <> nil then exit;
+  if GetCurrentAmmoCount(_my_wpn) <= 0 then exit;
+
+  //"зажимаем" клавишу стрельбы
+  CObject__processing_activate(CastHudItemToCObject(_my_wpn));
+  virtual_Action(_my_wpn, kWPN_FIRE, kActPress);
+
+  _shooting_without_parent_start_time:=GetGameTickCount();
+  _shooting_without_parent_period:=time;
+  _is_shooting_without_parent:=true;
+  result:=true;
+end;
+
+function WpnBuf.StopShootingWithoutParent: boolean;
+begin
+  result:=false;
+  if not IsShootingWithoutParent() then exit;
+
+  // "отжимаем" клавишу стрельбы
+  virtual_Action(_my_wpn, kWPN_FIRE, kActRelease);
+
+  CObject__processing_deactivate(CastHudItemToCObject(_my_wpn));
+  _is_shooting_without_parent:=false;
+  result:=true;
 end;
 
 end.
