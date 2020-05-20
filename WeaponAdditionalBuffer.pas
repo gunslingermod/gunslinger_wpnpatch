@@ -684,6 +684,8 @@ function WpnBuf.Update():boolean;
 var
   delta:cardinal;
   val,len,recharge_time, shot_time:single;
+  queue_sz:integer;
+  queue_fired:boolean;
 
 const
   EPS:single = 0.00001;  
@@ -741,7 +743,11 @@ begin
   UpdateLensFactor(delta);
   UpdateAlterZoomDirectSwitchMixupFactor(delta);
 
-  if IsShootingWithoutParent() and ((GetOwner(_my_wpn) <> nil) or (GetCurrentAmmoCount(_my_wpn)<=0) or IsWeaponJammed(_my_wpn) or (GetTimeDeltaSafe(_shooting_without_parent_start_time)>_shooting_without_parent_period)) then begin
+
+  queue_sz:=CurrentQueueSize(_my_wpn);
+  queue_fired:=(queue_sz > 0) and (queue_sz<=QueueFiredCount(_my_wpn));
+
+  if IsShootingWithoutParent() and ((GetOwner(_my_wpn) <> nil) or queue_fired or (GetCurrentAmmoCount(_my_wpn)<=0) or IsWeaponJammed(_my_wpn) or (GetTimeDeltaSafe(_shooting_without_parent_start_time)>_shooting_without_parent_period)) then begin
     StopShootingWithoutParent();
   end; 
 

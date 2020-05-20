@@ -179,6 +179,8 @@ begin
     end;
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
     force_antiaim:=true;
+  end else if (itm<>nil) and IsKnife(itm) and pgravi_ready^ then begin
+    force_gravi:=true;
   end else if weapon_for_big_boom or big_boom_shooted then begin
     if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
       force_antiaim:=true;
@@ -696,6 +698,83 @@ asm
   ret
 end;
 
+procedure TelekineticObjectUpdate(cpsh:pointer); stdcall;
+var
+  wpn, act:pointer;
+  buf:WpnBuf;
+  act_pos, target_dir, fp, fp_local, fp_inv, fd, vdiff, wpn_pos, v_shoulder, mass_center:FVector3;
+  ang_cos:single;
+const
+  ALLOWED_ANGLE:single=0.52;
+  IMPULSE:single=20;
+begin
+  wpn:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CWeaponMagazined, false);
+  act:=GetActor();
+  if (wpn<>nil) and (act<>nil) then begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) then begin
+      //Вычисляем вектор от оружия на актора
+      fp:=GetLastFP(wpn);
+      act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
+      target_dir:=act_pos;
+      v_sub(@target_dir, @fp);
+
+      //Если угол меньше порогового - стреляем
+      fd:=GetLastFD(wpn);
+      ang_cos:=GetAngleCos(@target_dir, @fd);
+
+      if (ang_cos > cos(ALLOWED_ANGLE)) and not buf.IsShootingWithoutParent() then begin
+        buf.StartShootingWithoutParent(100);
+      end else begin
+        //Точка центра масс
+        mass_center:=FVector3_copyfromengine(GetPosition(wpn));
+        //плечо силы от центра масс до точки приложения fp
+        v_shoulder:=fp; v_sub(@v_shoulder, @mass_center);
+        //Вторая точка приложения - противосилы
+        fp_inv:=mass_center;
+        v_sub(@fp_inv, @v_shoulder);
+
+        vdiff.x:=random*2-1;
+        vdiff.y:=random*2-1;
+        vdiff.z:=random*2-1;
+        v_normalize(@vdiff);
+        
+        ApplyImpulseTrace(cpsh, @fp, @vdiff, IMPULSE);
+        v_mul(@vdiff, -1);
+        ApplyImpulseTrace(cpsh, @fp_inv, @vdiff, IMPULSE);
+
+        if random < 0.5 then begin
+          buf.StartShootingWithoutParent(30);
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure CTelekineticObject__keep_update_Patch(); stdcall;
+asm
+  pushad
+  mov eax, [ecx+8]
+  push eax
+  call TelekineticObjectUpdate
+  popad
+  ret
+end;
+
+procedure TelekineticObjectPhUpdate (CPhysicsElement:pointer); stdcall;
+begin
+end;
+
+procedure CTelekineticObject__keep_Patch(); stdcall;
+asm
+  pushad
+  push eax
+  call TelekineticObjectPhUpdate
+  popad
+  mov ecx, [eax]
+  lea edx, [esp+$14]
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -775,10 +854,20 @@ begin
   jmp_addr:=xrGame_addr+$102745;
   if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_ParseThrowableInBeginning_Patch), 5, true) then exit;
 
+  //в CTelekineticObject::keep_update(xrgame.dll+da5f0) добавляем в самый конец включение стрельбы из оружия
+  jmp_addr:=xrGame_addr+$da608;
+  if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__keep_update_Patch), 5, false) then exit;
 
+  jmp_addr:=xrGame_addr+$dae09;
+  if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__keep_Patch), 6, true) then exit;
+
+
+
+  //останавливаем стрельбу при броске
 
 
   //TODO:старт телекинеза только для InventoryItem, находящихся в зоне прямой видимости
+  //todo:задержка взрыва у гранаты в телекинезе
 
 
   //На будущее:
@@ -787,6 +876,16 @@ begin
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
+
+  //CTelekineticObject::keep - xrgame.dll+dac50
+  //CTelekinesis::PhDataUpdate - xrgame.dll+d9dd0
+  //CTelekineticObject::release - xrgame.dll+da4f0
+  //CTelekineticObject::switch_state - xrgame.dll+da4b0
+  //CTelekineticObject::init - xrgame.dll+da3c0
+  //CTelekineticObject::fire_t - xrgame.dll+da770
+  //CTelekineticObject::raise_update - xrgame.dll+da720
+  //CTelekineticObject::update_state - xrgame.dll+da480
+  //CTelekinesis::schedule_update - xrgame.dll+da0f0
 
   result:=true;
 end;

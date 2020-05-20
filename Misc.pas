@@ -123,6 +123,9 @@ function IsElectronicsProblemsDecreasing():boolean; stdcall;
 
 function IsObjectSeePoint(CObject:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
 procedure DropItemAndTeleport(CObject:pointer; pos:pFVector3); stdcall;
+procedure ApplyImpulseTrace(CPhysicsShellHolder:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
+function GetPhysicsElementMassCenter(CPhysicsElement:pointer):pFVector3; stdcall;
+procedure ApplyElementImpulseTrace(CPhysicsElement:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
 
 implementation
 uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows, raypick, level;
@@ -1248,7 +1251,56 @@ asm
   mov ecx, o
   mov eax, xrgame_addr
   mov eax, [eax+$512c44]
-  call eax 
+  call eax
+  popad
+end;
+
+procedure ApplyImpulseTrace(CPhysicsShellHolder:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
+asm
+  pushad
+  mov ecx, CPhysicsShellHolder
+  mov ecx, [ecx+$1ec] //m_pPhysicsShell
+  test ecx, ecx
+  je @finish
+
+  push val
+  push dir
+  push pos
+
+  mov edx, [ecx] //vtable
+  mov edx, [edx+$148] //ptr to xrPhysics + 3dba0
+  call edx   //applyImpulseTrace
+
+  @finish:
+  popad
+end;
+
+procedure ApplyElementImpulseTrace(CPhysicsElement:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
+asm
+  pushad
+  mov ecx, CPhysicsElement
+
+  push 0
+  push val
+  push dir
+  push pos
+
+  mov edx, [ecx] //vtable
+  mov edx, [edx+$124] //ptr to xrPhysics + 2eff0
+  call edx   //applyImpulseTrace
+
+  popad
+end;
+
+function GetPhysicsElementMassCenter(CPhysicsElement:pointer):pFVector3; stdcall;
+asm
+  pushad
+  mov esi, CPhysicsElement
+  mov eax, [esi+$44]
+  mov edx, [eax+$10]
+  lea ecx, [esi+$44]
+  call edx //mass_Center
+  mov result, eax
   popad
 end;
 

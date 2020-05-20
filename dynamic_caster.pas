@@ -44,6 +44,7 @@ const
   RTTI_CWeaponRPG7:cardinal = $637538;
   RTTI_CEatableItem:cardinal = $627498;
   RTTI_CAI_Boar:cardinal = $61F6F4;
+  RTTI_CPhysicsShellHolder:cardinal = $61d4f4;
 
 
 implementation
