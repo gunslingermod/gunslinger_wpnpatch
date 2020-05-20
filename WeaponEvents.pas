@@ -2154,7 +2154,7 @@ asm
   ret
 
   @zeroid:
-  mov eax, $FFFF
+  xor eax, eax
   ret
 end;
 
