@@ -86,6 +86,14 @@ type burer_superstamina_hit_params = record
   force_hide_items_prob:single
 end;
 
+type burer_teleweapon_params = record
+  impulse:single;
+  allowed_angle:single;
+  min_shoot_time:integer;
+  max_shoot_time:integer;
+  shot_probability:single;
+end;
+
 function Init:boolean;
 
 const
@@ -196,6 +204,7 @@ function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
 function GetBurerShieldedRiskyFactor():single; stdcall
 function GetBurerMinGrenTimer():cardinal; stdcall;
+function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -275,6 +284,7 @@ var
   _burer_min_gren_timer:cardinal;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
+  _burer_teleweapon_params:burer_teleweapon_params;
 
 //данные консольных команд
 //булевские флаги
@@ -841,6 +851,12 @@ begin
   _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0.02);
   _burer_min_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_min_gren_timer', 1000);
 
+  _burer_teleweapon_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_impulse', 0.1);
+  _burer_teleweapon_params.allowed_angle:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_angle', 0.26);
+  _burer_teleweapon_params.min_shoot_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_min_shot_time', 20);
+  _burer_teleweapon_params.max_shoot_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_max_shot_time', 400);
+  _burer_teleweapon_params.shot_probability:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_shot_probability', 0.4);
+
   result:=true;
 end;
 
@@ -1110,6 +1126,11 @@ end;
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 begin
   result:=game_ini_r_single_def(GUNSL_BONE_OVERRIDES_SECTION, visual, -1);
+end;
+
+function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
+begin
+  result:=_burer_teleweapon_params;
 end;
 
 end.

@@ -5,7 +5,7 @@ interface
 function Init():boolean; stdcall;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
@@ -702,30 +702,36 @@ procedure TelekineticObjectUpdate(cpsh:pointer); stdcall;
 var
   wpn, act:pointer;
   buf:WpnBuf;
-  act_pos, target_dir, fp, fp_local, fp_inv, fd, vdiff, wpn_pos, v_shoulder, mass_center:FVector3;
+  act_pos, fp, fp_inv, fd, target_dir, mass_center, v_shoulder, vdiff:FVector3;
   ang_cos:single;
-const
-  ALLOWED_ANGLE:single=0.52;
-  IMPULSE:single=20;
+  teleparams:burer_teleweapon_params;
+  queue_time:cardinal;
 begin
   wpn:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CWeaponMagazined, false);
   act:=GetActor();
   if (wpn<>nil) and (act<>nil) then begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
+      teleparams:=GetBurerTeleweaponShotParams();
+      queue_time:=floor(random*(teleparams.max_shoot_time-teleparams.min_shoot_time) + teleparams.min_shoot_time);
+
       //Вычисляем вектор от оружия на актора
       fp:=GetLastFP(wpn);
       act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
       target_dir:=act_pos;
       v_sub(@target_dir, @fp);
 
-      //Если угол меньше порогового - стреляем
       fd:=GetLastFD(wpn);
       ang_cos:=GetAngleCos(@target_dir, @fd);
 
-      if (ang_cos > cos(ALLOWED_ANGLE)) and not buf.IsShootingWithoutParent() then begin
-        buf.StartShootingWithoutParent(100);
+      if (ang_cos > cos(teleparams.allowed_angle)) and (teleparams.shot_probability>0) then begin
+        //Если угол меньше порогового - стреляем
+        if not buf.IsShootingWithoutParent() then begin
+          buf.StartShootingWithoutParent(queue_time);
+        end;
       end else begin
+        //Иначе - вращаем
+
         //Точка центра масс
         mass_center:=FVector3_copyfromengine(GetPosition(wpn));
         //плечо силы от центра масс до точки приложения fp
@@ -734,17 +740,18 @@ begin
         fp_inv:=mass_center;
         v_sub(@fp_inv, @v_shoulder);
 
+        //Направление перемещения fp
         vdiff.x:=random*2-1;
         vdiff.y:=random*2-1;
         vdiff.z:=random*2-1;
         v_normalize(@vdiff);
         
-        ApplyImpulseTrace(cpsh, @fp, @vdiff, IMPULSE);
+        ApplyImpulseTrace(cpsh, @fp, @vdiff, teleparams.impulse);
         v_mul(@vdiff, -1);
-        ApplyImpulseTrace(cpsh, @fp_inv, @vdiff, IMPULSE);
+        ApplyImpulseTrace(cpsh, @fp_inv, @vdiff, teleparams.impulse);
 
-        if random < 0.5 then begin
-          buf.StartShootingWithoutParent(30);
+        if (random < teleparams.shot_probability) and not buf.IsShootingWithoutParent() then begin
+          buf.StartShootingWithoutParent(queue_time);
         end;
       end;
     end;
