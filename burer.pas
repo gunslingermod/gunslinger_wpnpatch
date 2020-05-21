@@ -536,8 +536,15 @@ begin
   end;
 end;
 
+function IsObjectForbiddenForTele(burer:pointer; cpsh:pointer):boolean; stdcall;
+begin
+  result:=false;
+end;
+
 procedure CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_Patch(); stdcall;
 asm
+  mov ecx, [esp+$1c]
+  mov ecx, [ecx+$10]
   test eax, eax
   je @not_grenade
 
@@ -560,9 +567,21 @@ asm
   popad
 
   @not_grenade:
-  //perform cut actions
   pop edx //ret addr
-  add esp, $14
+  add esp, $14 //cut action
+
+  pushad
+  push esi
+  push ecx
+  call IsObjectForbiddenForTele
+  cmp al, 0
+  popad
+  je @original
+  jmp edx
+
+
+  @original:
+  //perform cut action
   test eax, eax
   jmp edx
 end;
@@ -890,7 +909,7 @@ var
   campos:FVector3;
 begin
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  if IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false) then begin
+  if IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true) then begin
     script_call('gunsl_burer.on_gravi_attack_when_burer_see_actor', '', GetCObjectID(burer));
   end;
 end;
