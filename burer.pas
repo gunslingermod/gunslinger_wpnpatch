@@ -5,7 +5,7 @@ interface
 function Init():boolean; stdcall;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
@@ -742,6 +742,7 @@ begin
         end;
       end;
 
+      ang_cos:=GetAngleCos(@target_dir, @fd);
       if (ang_cos > cos(teleparams.allowed_angle)) and (teleparams.shot_probability>0) then begin
         //Если угол меньше порогового - стреляем
         if not buf.IsShootingWithoutParent() and not block_shoot then begin
@@ -853,6 +854,62 @@ asm
   ret
 end;
 
+function ForceFireGraviNow(burer:pointer):boolean; stdcall;
+var
+  itm:pointer;
+begin
+  result:=false;
+  itm:=GetActorActiveItem();
+  if IsBurerUnderAim(burer) or ((itm<>nil) and IsWeaponReadyForBigBoom(itm, nil)) then begin
+    result:=true;
+  end;
+end;
+
+procedure CStateBurerAttackGravi__ExecuteGraviContinue_delay_Patch(); stdcall;
+asm
+  fldcw [esp]
+  pushad
+  mov eax, [ecx+$10]
+  push eax
+  call ForceFireGraviNow
+  cmp al, 1
+  popad
+  je @force
+  cmp edx, [eax+$28]
+  ret
+
+  @force:
+  xor eax, eax
+  cmp al, 2 //to fail jae
+  ret
+end;
+
+
+procedure OnGraviAttackFire(burer:pointer); stdcall;
+var
+  campos:FVector3;
+begin
+  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  if IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false) then begin
+    script_call('gunsl_burer.on_gravi_attack_when_burer_see_actor', '', GetCObjectID(burer));
+  end;
+end;
+
+procedure CStateBurerAttackGravi__ExecuteGraviFire_Patch(); stdcall;
+asm
+  pushad
+  mov ecx, [esi+$10]
+  push ecx
+  call OnGraviAttackFire
+  popad
+  pop edi
+  pop esi
+  pop ebp
+  pop ebx
+  add esp, $1c
+  ret
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -948,10 +1005,19 @@ begin
   jmp_addr:=xrGame_addr+$dae09;
   if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__keep_Patch), 6, true) then exit;
 
-  //TODO: останавливаем стрельбу при броске в CTelekineticObject::fire_t
+  //в CStateBurerAttackGravi::ExecuteGraviContinue добавляем возможность досрочного старта грави-волны
+  jmp_addr:=xrGame_addr+$1057E6;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__ExecuteGraviContinue_delay_Patch), 6, true) then exit;
+
+  //Колбэк на грави-волну в CStateBurerAttackGravi<Object>::ExecuteGraviFire
+  jmp_addr:=xrGame_addr+$105666;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__ExecuteGraviFire_Patch), 8, false) then exit;
+
+
 
   //TODO:старт телекинеза только для InventoryItem, находящихся в зоне прямой видимости
 
+  //TODO:эффектор камеры для грави-атаки
 
   //На будущее:
   //Принудительный выход из грави-атаки в CStateBurerAttackGravi<Object>::check_completion (например, в случае, если актор близко или достал РПГ)
@@ -969,6 +1035,7 @@ begin
   //CTelekineticObject::raise_update - xrgame.dll+da720
   //CTelekineticObject::update_state - xrgame.dll+da480
   //CTelekinesis::schedule_update - xrgame.dll+da0f0
+  //CStateBurerAttackGravi::execute - xrgame.dll+105800
 
   result:=true;
 end;
