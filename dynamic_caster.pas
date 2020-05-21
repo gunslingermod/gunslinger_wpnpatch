@@ -45,6 +45,8 @@ const
   RTTI_CEatableItem:cardinal = $627498;
   RTTI_CAI_Boar:cardinal = $61F6F4;
   RTTI_CPhysicsShellHolder:cardinal = $61d4f4;
+  RTTI_CTelekinesis:cardinal = $61dbec;
+  RTTI_CBurer:cardinal = $620238;
 
 
 implementation

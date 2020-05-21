@@ -20,6 +20,7 @@ procedure CMissile__SetDestroyTimeMax(CMissile:pointer; time:cardinal); stdcall;
 function CMissile__GetDestroyTimeMax(CMissile:pointer):cardinal; stdcall;
 
 function CMissile__GetDestroyTime(CMissile:pointer):cardinal; stdcall;
+procedure CMissile__SetDestroyTime(CMissile:pointer; time_moment:cardinal); stdcall;
 function virtual_CGrenade_DropGrenade(CGrenade:pointer):boolean; stdcall;
 
 const
@@ -27,6 +28,8 @@ const
 		EMissileStates__eReady:cardinal = 6;
 		EMissileStates__eThrow:cardinal = 7;
 		EMissileStates__eThrowEnd:cardinal = 8;
+
+    CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
 
 implementation
 uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster, WeaponEvents;
@@ -36,7 +39,6 @@ var
   _quick_throw_forced:boolean;
 
 const
-  CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
   GRENADE_KEY_HOLD_TIME_DELTA:cardinal = 350; //период времени, нажатость клавиши в течение которого означает ее удержание в нажатом состоянии
 
 function CMissile__GetFakeMissile(CMissile:pointer):pointer; stdcall;

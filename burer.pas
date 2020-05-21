@@ -103,7 +103,9 @@ begin
             result:=false;
           end;
         end else begin
-          was_shot^:=true;
+          if was_shot<>nil then begin
+            was_shot^:=true;
+          end;
         end;
       end;
     end;
@@ -195,7 +197,7 @@ begin
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if IsActorLookTurnedAway(burer) and (pgravi_ready^) then begin
-      if (_gren_count>0) and (_gren_timer > GetBurerMinGrenTimer()) and (ptele_ready^) and (random < 0.8) then begin
+      if (_gren_count>0) and (_gren_timer > GetBurerMinGrenTimer()) and (ptele_ready^) and (random < 0.75) then begin
         force_tele:=true;
       end else if (_gren_count>0) and (_gren_timer <= GetBurerMinGrenTimer()) and (pshield_ready^) then begin
         force_shield:=true;
@@ -220,7 +222,7 @@ begin
       force_shield:=true;
     end;
   end else if (_gren_count>0) and (random < 0.9) then begin
-    if pshield_ready^ and (not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer())or (random < 0.9)) then begin
+    if pshield_ready^ and (not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.7)) then begin
       force_shield:=true;
     end else if (ptele_ready^) then begin
       force_tele:=true;
@@ -231,7 +233,6 @@ begin
     //на всякий - отключаем и грави, если актор что-то делает с греной
     if (GetCurrentState(itm) <> EHudStates__eIdle) then begin
       pgravi_ready^:=false;
-      //TODO:Принудительный спуск гранаты, если актор удерживает ее на изготовке
     end;
   end;
 
@@ -587,7 +588,7 @@ begin
   itm:=GetActorActiveItem();
 
   //если у нас есть граната, готовая вот-вот взорваться - срочно прекращаем телекинез и уходим в щит!
-  if _gren_timer < GetBurerMinGrenTimer() / 3 then begin
+  if _gren_timer < GetBurerMinGrenTimer() / 2 then begin
     result:=true;
     exit;
   end;
@@ -698,17 +699,24 @@ asm
   ret
 end;
 
-procedure TelekineticObjectUpdate(cpsh:pointer); stdcall;
+procedure TelekineticObjectKeepUpdate(CTelekinesis:pointer; cpsh:pointer); stdcall;
 var
-  wpn, act:pointer;
+  wpn, act, grenade, burer:pointer;
   buf:WpnBuf;
-  act_pos, fp, fp_inv, fd, target_dir, mass_center, v_shoulder, vdiff:FVector3;
+  burer_pos, act_pos, fp, fp_inv, fd, target_dir, mass_center, v_shoulder, vdiff:FVector3;
   ang_cos:single;
   teleparams:burer_teleweapon_params;
   queue_time:cardinal;
+  block_shoot:boolean;
+const
+  BURER_TREASURE_ANGLE_COS:single = 0.26;
 begin
   wpn:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CWeaponMagazined, false);
+  grenade:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
   act:=GetActor();
+  block_shoot:=false;
+
+
   if (wpn<>nil) and (act<>nil) then begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
@@ -717,16 +725,26 @@ begin
 
       //Вычисляем вектор от оружия на актора
       fp:=GetLastFP(wpn);
+      fd:=GetLastFD(wpn);
       act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
       target_dir:=act_pos;
       v_sub(@target_dir, @fp);
 
-      fd:=GetLastFD(wpn);
-      ang_cos:=GetAngleCos(@target_dir, @fd);
+      //Смотрим, куда стреляем, и блокируем стрельбу по самому бюреру
+      burer:=dynamic_cast(CTelekinesis, 0, RTTI_CTelekinesis, RTTI_CBurer, false);
+      if (burer<>nil) then begin
+        burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
+        vdiff:=burer_pos;
+        v_sub(@vdiff, @fp);
+        ang_cos:=GetAngleCos(@vdiff, @fd);
+        if ang_cos > BURER_TREASURE_ANGLE_COS then begin
+          block_shoot:=true;
+        end;
+      end;
 
       if (ang_cos > cos(teleparams.allowed_angle)) and (teleparams.shot_probability>0) then begin
         //Если угол меньше порогового - стреляем
-        if not buf.IsShootingWithoutParent() then begin
+        if not buf.IsShootingWithoutParent() and not block_shoot then begin
           buf.StartShootingWithoutParent(queue_time);
         end;
       end else begin
@@ -750,10 +768,14 @@ begin
         v_mul(@vdiff, -1);
         ApplyImpulseTrace(cpsh, @fp_inv, @vdiff, teleparams.impulse);
 
-        if (random < teleparams.shot_probability) and not buf.IsShootingWithoutParent() then begin
+        if not block_shoot and (random < teleparams.shot_probability) and not buf.IsShootingWithoutParent() then begin
           buf.StartShootingWithoutParent(queue_time);
         end;
       end;
+    end;
+  end else if grenade<>nil then begin
+    if CMissile__GetDestroyTime(grenade)<>CMISSILE_NOT_ACTIVATED then begin
+      CMissile__SetDestroyTime(grenade, GetGameTickCount()+2000);
     end;
   end;
 end;
@@ -763,8 +785,56 @@ asm
   pushad
   mov eax, [ecx+8]
   push eax
-  call TelekineticObjectUpdate
+  push ecx
+  call TelekineticObjectKeepUpdate
   popad
+  ret
+end;
+
+procedure TelekineticObjectRaise(cpsh:pointer); stdcall;
+var
+  grenade:pointer;
+begin
+  grenade:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
+  if grenade<>nil then begin
+    if CMissile__GetDestroyTime(grenade)<>CMISSILE_NOT_ACTIVATED then begin
+      CMissile__SetDestroyTime(grenade, GetGameTickCount()+2000);
+    end;
+  end;
+end;
+
+procedure CTelekineticObject__raise_update_Patch(); stdcall;
+asm
+  mov esi, ecx
+  mov eax, [esi+8]
+  pushad
+  push eax
+  call TelekineticObjectRaise
+  popad
+end;
+
+procedure TelekineticObjectFire(cpsh:pointer); stdcall;
+var
+  wpn:pointer;
+  buf:WpnBuf;
+begin
+  wpn:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CWeaponMagazined, false);
+  if wpn<>nil then begin
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) and buf.IsShootingWithoutParent() then begin
+      buf.StopShootingWithoutParent();
+    end;
+  end;
+end;
+
+procedure CTelekineticObject__fire_update_Patch(); stdcall;
+asm
+  pushad
+  mov eax, [ecx+8]
+  push eax
+  call TelekineticObjectFire
+  popad
+  add eax, $BB8
   ret
 end;
 
@@ -780,6 +850,7 @@ asm
   popad
   mov ecx, [eax]
   lea edx, [esp+$14]
+  ret
 end;
 
 function Init():boolean; stdcall;
@@ -865,16 +936,21 @@ begin
   jmp_addr:=xrGame_addr+$da608;
   if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__keep_update_Patch), 5, false) then exit;
 
+  //в начало CTelekineticObject::raise_update(xrgame.dll+da720) добавляем наш обработчик
+  jmp_addr:=xrGame_addr+$da721;
+  if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__raise_update_Patch), 5, true) then exit;
+
+  //в начало CTelekineticObject::fire_update(xrgame.dll+da610) добавляем наш обработчик
+  jmp_addr:=xrGame_addr+$da619;
+  if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__fire_update_Patch), 5, true) then exit;
+
+  //Обработчик физического апдейта во время удержания левитирующего предмета
   jmp_addr:=xrGame_addr+$dae09;
   if not WriteJump(jmp_addr, cardinal(@CTelekineticObject__keep_Patch), 6, true) then exit;
 
-
-
-  //останавливаем стрельбу при броске
-
+  //TODO: останавливаем стрельбу при броске в CTelekineticObject::fire_t
 
   //TODO:старт телекинеза только для InventoryItem, находящихся в зоне прямой видимости
-  //todo:задержка взрыва у гранаты в телекинезе
 
 
   //На будущее:
