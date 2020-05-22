@@ -382,7 +382,7 @@ begin
       if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer) then begin
         PrepareGrenadeForSuicideThrow(CGrenade, 5);
         virtual_Action(itm, kWPN_ZOOM, kActRelease);
-      end else if (CGrenade<>nil) and ((state=EHudStates__eIdle) or (state=EHudStates__eShowing)) then begin //showing - проверить с быстрым броском грены
+      end else if (CGrenade<>nil) and (state=EHudStates__eIdle) then begin
         ActivateActorSlot__CInventory(0, false);
         DropItem(GetActor(), itm);
       end;
