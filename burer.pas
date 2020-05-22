@@ -3,6 +3,7 @@ unit burer;
 interface
 
 function Init():boolean; stdcall;
+function GetLastSuperStaminaHitTime():cardinal; stdcall;
 
 implementation
 uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors;
@@ -10,11 +11,17 @@ uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItem
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
   _gren_timer:cardinal;
+  _last_superstamina_hit_time:cardinal;
 
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
   BURER_HEAD_CORRECTION_HEIGHT:single = 1;
   UNCONDITIONAL_VISIBLE_DIST:single=2; //чтобы не фейлитс€, когда актор вплотную
+
+function GetLastSuperStaminaHitTime():cardinal; stdcall;
+begin
+  result:=_last_superstamina_hit_time;
+end;
 
 function IsActorTooClose(burer:pointer; close_dist:single):boolean; stdcall;
 var
@@ -362,6 +369,7 @@ begin
   ss_params:=GetBurerSuperstaminaHitParams();
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
+  _last_superstamina_hit_time:=GetGameTickCount();
 
   if itm<>nil then begin
     if IsKnife(itm) then begin
@@ -371,13 +379,12 @@ begin
     end else if IsThrowable(itm) then begin
       state:=GetCurrentState(itm);
       CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
-      {if (CGrenade<>nil) and (virtual_CGrenade_DropGrenade(CGrenade)) then begin  //наличие активного стейта бросани€ virtual_CGrenade_DropGrenade проверит сама
-        log('Drop');
-        ActivateActorSlot__CInventory(0, true);
-      end else} if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer) then begin
+      if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer) then begin
+        PrepareGrenadeForSuicideThrow(CGrenade, 5);
         virtual_Action(itm, kWPN_ZOOM, kActRelease);
-      end else if (state=EHudStates__eIdle) or (state=EHudStates__eShowing) then begin //showing - проверить с быстрым броском грены
-        ActivateActorSlot__CInventory(0, true);
+      end else if (CGrenade<>nil) and ((state=EHudStates__eIdle) or (state=EHudStates__eShowing)) then begin //showing - проверить с быстрым броском грены
+        ActivateActorSlot__CInventory(0, false);
+        DropItem(GetActor(), itm);
       end;
     end;
   end;
@@ -906,10 +913,12 @@ end;
 
 procedure OnGraviAttackFire(burer:pointer); stdcall;
 var
-  campos:FVector3;
+  actpos:FVector3;
 begin
-  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  if IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true) then begin
+  if GetActor()=nil then exit;
+
+  actpos:=FVector3_copyfromengine(GetEntityPosition(GetActor()));
+  if IsObjectSeePoint(burer, actpos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true) then begin
     script_call('gunsl_burer.on_gravi_attack_when_burer_see_actor', '', GetCObjectID(burer));
   end;
 end;
@@ -1032,11 +1041,6 @@ begin
   jmp_addr:=xrGame_addr+$105666;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__ExecuteGraviFire_Patch), 8, false) then exit;
 
-
-
-  //TODO:старт телекинеза только дл€ InventoryItem, наход€щихс€ в зоне пр€мой видимости
-
-  //TODO:эффектор камеры дл€ грави-атаки
 
   //Ќа будущее:
   //ѕринудительный выход из грави-атаки в CStateBurerAttackGravi<Object>::check_completion (например, в случае, если актор близко или достал –ѕ√)

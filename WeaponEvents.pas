@@ -15,7 +15,7 @@ function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 procedure TryShootGLFix(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -1932,6 +1932,7 @@ var
   anm_name:string;
 const
   ANIMATOR_SLOT:cardinal =11;
+  SUPERSTAMINA_HIT_PERIOD:cardinal=1000;
 begin
   //TODO:учет МП, как в оригинале?
   value^:=1;
@@ -1941,9 +1942,13 @@ begin
   if wpn=nil then exit;
 
   anm_name:=get_string_value(name);
-  if (leftstr(anm_name, length('anm_hide'))='anm_hide') and (GetForcedQuickthrow() or (GetActorTargetSlot()=ANIMATOR_SLOT)) then begin
-    value^:=game_ini_r_single_def(GetHUDSection(wpn), 'hide_factor_common', 1.8);
-    value^:=game_ini_r_single_def(GetHUDSection(wpn), PChar('hide_factor_'+anm_name), value^);
+  if (leftstr(anm_name, length('anm_hide'))='anm_hide') then begin
+    if GetForcedQuickthrow() or (GetActorTargetSlot()=ANIMATOR_SLOT) then begin
+      value^:=game_ini_r_single_def(GetHUDSection(wpn), 'hide_factor_common', 1.8);
+      value^:=game_ini_r_single_def(GetHUDSection(wpn), PChar('hide_factor_'+anm_name), value^);
+    end else if (GetTimeDeltaSafe(GetLastSuperStaminaHitTime()) < SUPERSTAMINA_HIT_PERIOD ) then begin
+      value^:=100;
+    end;
   end;
 end;
 

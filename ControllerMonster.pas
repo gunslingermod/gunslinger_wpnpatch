@@ -23,7 +23,7 @@ procedure NotifySuicideStopCallbackIfNeeded();
 procedure NotifySuicideShotCallbackIfNeeded();
 
 implementation
-uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc, WeaponEvents, Throwable, dynamic_caster;
+uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc, WeaponEvents, Throwable, dynamic_caster, KeyUtils;
 
 var
   _controlled_time_remains:cardinal;
@@ -327,6 +327,7 @@ begin
         //делать нечего - придется кидать... Но кидаем под ноги и временем дестроя не манипулируем
         virtual_CHudItem_SwitchState(wpn, EMissileStates__eThrow);
         PrepareGrenadeForSuicideThrow(wpn, game_ini_r_single_def(GetSection(wpn), 'suicide_ready_force', 8));
+        virtual_Action(wpn, kWPN_ZOOM, kActRelease);
       end else if (GetCurrentState(wpn) = EMissileStates__eThrowStart) then begin
         //Здесь может быть либо начало обычного броска, либо суицидного.
         //Если суицид - на всякий обновляем статусы для гарантированного срабатывания броска (хотя они и должны обновиться нами в OnAnimationEnd перед самим броском)
@@ -334,7 +335,8 @@ begin
           SetConstPowerStatus(wpn, true);
           SetImmediateThrowStatus(wpn, true);
         end else begin
-          PrepareGrenadeForSuicideThrow(wpn, game_ini_r_single_def(GetSection(wpn), 'suicide_ready_force', 8));        
+          PrepareGrenadeForSuicideThrow(wpn, game_ini_r_single_def(GetSection(wpn), 'suicide_ready_force', 8));
+          virtual_Action(wpn, kWPN_ZOOM, kActRelease);
         end;
       end else if (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CGrenade, false)<>nil) and  (DistToContr()>game_ini_r_single_def(GetHUDSection(wpn), 'controller_g_attack_min_dist', 10)) and (GetCurrentState(wpn) = EHudStates__eIdle) and (not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false)) then begin
         //атакуем игрока его же греной

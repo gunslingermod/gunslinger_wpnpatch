@@ -160,14 +160,10 @@ asm
     mov ecx, CMissile
     lea eax, [force]
     mov eax, [eax]
-    mov [ecx+$398], eax
-    mov [ecx+$39c], eax
-    mov [ecx+$3a0], eax
-    mov [ecx+$3ac], eax
-
-    mov eax, 1
-    mov [ecx+$33C], eax
-    mov [ecx+$3a8], eax
+    xor ebx, ebx
+    mov [ecx+$398], ebx // m_fMinForce
+    mov [ecx+$3ac], eax // m_fThrowForce
+    mov [ecx+$39c], eax // m_fConstForce
   popad
 end;
 
@@ -374,6 +370,7 @@ begin
               result:='anm_suicide_throw';
               CMissile__SetDestroyTimeMax(CMissile, game_ini_r_int_def(GetSection(CMissile), 'suicide_success_destroy_time', CMissile__GetDestroyTimeMax(CMissile)));
               PrepareGrenadeForSuicideThrow(CMissile, game_ini_r_single_def(GetSection(CMissile), 'suicide_success_force', 20));
+              virtual_Action(CMissile, kWPN_ZOOM, kActRelease);
                             
               CHudItem_Play_Snd(CMissile, 'sndSuicideThrow');
               StartCompanionAnimIfNeeded('suicide_throw', CMissile, true);
@@ -386,6 +383,7 @@ begin
               result:='anm_suicide_stop';
               CMissile__SetDestroyTimeMax(CMissile, game_ini_r_int_def(GetSection(CMissile), 'suicide_fail_destroy_time', CMissile__GetDestroyTimeMax(CMissile)));              
               PrepareGrenadeForSuicideThrow(CMissile, game_ini_r_single_def(GetSection(CMissile), 'suicide_fail_force', 20));
+              virtual_Action(CMissile, kWPN_ZOOM, kActRelease);
 
               CHudItem_Play_Snd(CMissile, 'sndSuicideStop');
               StartCompanionAnimIfNeeded('suicide_stop', CMissile, true);
@@ -927,6 +925,8 @@ begin
   if not WriteJump(jump_addr, cardinal(@CMissile__ExitContactCallback_Patch), 5) then exit;
   jump_addr:=xrGame_addr+$2C5B5C;
   if not WriteJump(jump_addr, cardinal(@CMissile__OnHit_CanExplode_Patch), 31, true) then exit;
+
+  //CMissile::Throw - xrgame.dll+2c8cb0 
 
   jump_addr:=xrGame_addr+$267BBE;
   if not WriteJump(jump_addr, cardinal(@NeedDrawGrenMark_Patch), 5, true) then exit;
