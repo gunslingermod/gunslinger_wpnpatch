@@ -405,6 +405,29 @@ begin
   end;
 end;
 
+function GetFiremodeSuffix(wpn:pointer):string; stdcall;
+var
+  firemode:integer;
+begin
+  firemode:=CurrentQueueSize(wpn);
+  if firemode<0 then begin
+    result:='_a';
+  end else begin
+    result:='_'+inttostr(firemode);
+  end;
+end;
+
+procedure ProcessFiremode(wpn:pointer); stdcall;
+var
+  hud_sect:PAnsiChar;
+  firemode_mark:string;
+begin
+  hud_sect:=GetHUDSection(wpn);
+  if game_ini_line_exist(hud_sect, 'firemode_bones_total') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(hud_sect, 'firemode_bones_total'), false);
+  firemode_mark:='firemode_bones'+GetFiremodeSuffix(wpn);
+  if game_ini_line_exist(hud_sect, PAnsiChar(firemode_mark)) then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(hud_sect, PAnsiChar(firemode_mark)), true);
+end;
+
 procedure ProcessUpgrade(wpn:pointer); stdcall;
 var all_upgrades:string;
     section:PChar;
@@ -572,7 +595,7 @@ begin
       SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(PChar(tmp), 'no_scope_overriding_show_bones'), true);
     end;
   end;
-end;   
+end;
 
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 var
@@ -580,7 +603,6 @@ var
   anm:string;
   rest_anm:string;
   state:cardinal;
-  firemode:integer;
   bmixin:boolean;
 begin
 
@@ -626,12 +648,7 @@ begin
   end;
 
   rest_anm:=anm;
-  firemode:=CurrentQueueSize(wpn);
-  if firemode<0 then begin
-    anm:=anm+'_a';
-  end else begin
-    anm:=anm+'_'+inttostr(firemode);
-  end;
+  anm:=anm+GetFiremodeSuffix(wpn);
 
   if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
     anm:=rest_anm;
@@ -864,6 +881,8 @@ begin
     ProcessAmmoGL(wpn);
     //анимы от 3-го лица
     ReassignWorldAnims(wpn);
+    //Визуализация режима огня
+    ProcessFiremode(wpn);
 
     if (buf<>nil) then begin
       ProcessLaserDot(wpn);
