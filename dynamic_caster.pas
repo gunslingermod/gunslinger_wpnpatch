@@ -47,6 +47,7 @@ const
   RTTI_CPhysicsShellHolder:cardinal = $61d4f4;
   RTTI_CTelekinesis:cardinal = $61dbec;
   RTTI_CBurer:cardinal = $620238;
+  RTTI_CBaseMonster:cardinal = $61d7f0;
 
 
 implementation

@@ -811,6 +811,7 @@ procedure CTelekineticObject__keep_update_Patch(); stdcall;
 asm
   pushad
   mov eax, [ecx+8]
+  mov ecx, [ecx+$c]
   push eax
   push ecx
   call TelekineticObjectKeepUpdate
@@ -918,6 +919,7 @@ begin
   if GetActor()=nil then exit;
 
   actpos:=FVector3_copyfromengine(GetEntityPosition(GetActor()));
+  actpos.y:=actpos.y+ACTOR_HEAD_CORRECTION_HEIGHT;
   if IsObjectSeePoint(burer, actpos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true) then begin
     script_call('gunsl_burer.on_gravi_attack_when_burer_see_actor', '', GetCObjectID(burer));
   end;
@@ -936,6 +938,55 @@ asm
   pop ebx
   add esp, $1c
   ret
+end;
+
+
+procedure CBurer__StopTeleObjectParticle(burer:pointer; CGameObject:pointer); stdcall;
+asm
+  pushad
+  mov eax, xrgame_addr
+  add eax, $1029b0
+  mov ecx, burer
+  push CGameObject
+  call eax
+  popad
+end;
+
+procedure OnRemoveObjectFromTelekinesis(CTelekinesis:pointer; cpsh:pointer); stdcall;
+var
+  cgameobject, burer:pointer;
+begin
+  if (CTelekinesis=nil) or (cpsh=nil) then exit;
+  burer:=dynamic_cast(CTelekinesis, 0, RTTI_CTelekinesis, RTTI_CBurer, false);
+  cgameobject:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CGameObject, false);
+  if (burer<>nil) and (cgameobject<>nil) then begin
+    CBurer__StopTeleObjectParticle(burer, cgameobject);
+  end;
+end;
+
+procedure RemovePred_Patch(); stdcall;
+asm
+  mov eax, [esp+8] //CTelekineticObject* tele_object
+  pushad
+  mov ecx, [eax+$c] // CTelekinesis*
+  mov ebx, [eax+8] //CPhysicsShellHolder *object
+  push ebx
+  push ecx
+  call OnRemoveObjectFromTelekinesis
+  popad
+  mov eax, 1
+  ret
+end;
+
+procedure CTelekinesis__init_savetelekinesis_Patch(); stdcall;
+asm
+
+  mov eax, [esp+$10]  //CTelekinesis* tele
+  mov [esi+$c], eax   //telekinesis = tele;
+
+  //original
+  mov eax, [esi]
+  mov edx, [eax+$24]
 end;
 
 function Init():boolean; stdcall;
@@ -1041,6 +1092,19 @@ begin
   jmp_addr:=xrGame_addr+$105666;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__ExecuteGraviFire_Patch), 8, false) then exit;
 
+  //[bug] баг - в CTelekineticObject есть указатель на бюрера (член telekinesis), но в конструкторе инициализируется нулём и не используется больше нигде (включая CTelekineticObject::init)
+  //Присвоим в CTelekineticObject::init (xrgame+da3c0), благо, туда он передается
+  jmp_addr:=xrGame_addr+$da3c8;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__init_savetelekinesis_Patch), 5, true) then exit;
+
+  //[bug] баг - если схватить парящий предмет в полете, то партикл телекинеза не сбрасывается
+  //из вектора телекинетический объект удаляется в CTelekinesis::clear_notrelevant (xrgame.dll+da240)
+  //Правим RemovePred (xrgame.dll+d9cc6) - вызываем telekinesis->StopTeleObjectParticle(object);
+  jmp_addr:=xrGame_addr+$d9cc6;
+  if not WriteJump(jmp_addr, cardinal(@RemovePred_Patch), 5, true) then exit;
+
+  //TODO: параметр в конфиге оружия, заставляющий бюреров уходить в защиту
+
 
   //На будущее:
   //Принудительный выход из грави-атаки в CStateBurerAttackGravi<Object>::check_completion (например, в случае, если актор близко или достал РПГ)
@@ -1059,6 +1123,15 @@ begin
   //CTelekineticObject::update_state - xrgame.dll+da480
   //CTelekinesis::schedule_update - xrgame.dll+da0f0
   //CStateBurerAttackGravi::execute - xrgame.dll+105800
+  //CStateBurerAttackTele::critical_finalize - xrgame.dll+1092a0
+  //CStateBurerAttackTele::deactivate - xrgame.dll+1083f0
+  //CStateBurerAttackTele::initialize - xrgame.dll+10a40b
+  //CStateBurerAttackTele::SelectObjects - xrgame.dll+109b50
+  //CTelekinesis::activate - xrgame.dll+da250
+  //CTelekinesis::alloc_tele_object - xrgame.dll+da050
+  //CBurer::StartTeleObjectParticle - xrgame.dll+1028f0
+  //CBurer::StopTeleObjectParticle - xrgame.dll+1029b0
+  //CTelekineticObject::init - xrgame.dll+da3c0
 
   result:=true;
 end;
