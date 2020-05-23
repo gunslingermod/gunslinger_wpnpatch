@@ -737,6 +737,9 @@ var
 const
   BURER_TREASURE_ANGLE_COS:single = 0.26;
 begin
+  burer:=dynamic_cast(CTelekinesis, 0, RTTI_CTelekinesis, RTTI_CBurer, false);
+  if burer=nil then exit; //не даем стрелять полтергейстам и прочим
+
   wpn:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CWeaponMagazined, false);
   grenade:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
   act:=GetActor();
@@ -757,7 +760,6 @@ begin
       v_sub(@target_dir, @fp);
 
       //Смотрим, куда стреляем, и блокируем стрельбу по самому бюреру
-      burer:=dynamic_cast(CTelekinesis, 0, RTTI_CTelekinesis, RTTI_CBurer, false);
       if (burer<>nil) then begin
         burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
         vdiff:=burer_pos;
