@@ -2153,13 +2153,17 @@ end;
 
 procedure FixNullParent_Patch(); stdcall;
 asm
-  cmp eax, 0
-  je @zeroid
-  movzx eax, word ptr [eax+$a4] // parent id
-  ret
+  push ecx
+  mov eax, xrgame_addr
+  add eax, $512be0
+  call [eax]    //CObject::H_Parent
+  pop ecx
 
-  @zeroid:
-  xor eax, eax
+  cmp eax, 0
+  jne @finish
+  mov eax, ecx
+
+  @finish:
   ret
 end;
 
@@ -2378,23 +2382,23 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazinedWGrenade__LaunchGrenade_RegisterShot_Patch), 6, true) then exit;
 
   // [bug] баг в CWeaponMagazinedWGrenade::LaunchGrenade - при установке ИД родителя гранаты не проверяется валидность H_Parent(). Если оружие было выброшено (например, из-за бюрера) - жди проблем
-  jmp_addr:=xrGame_addr+$2d3185;
-  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2d317f;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 6, true) then exit;
   //аналогично в CWeaponRPG7::switch2_Fire
-  jmp_addr:=xrGame_addr+$2d9d18;
-  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2d9d12;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 6, true) then exit;
   // аналогично в CWeaponRG6::FireStart
-  jmp_addr:=xrGame_addr+$2dfb5d;
-  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2dfb57;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 6, true) then exit;
   //todo: аналогично в CGrenade::Throw
-  jmp_addr:=xrGame_addr+$2c6409;
-  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2c6403;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 6, true) then exit;
 
 ////////////////////////////////////////////////////////////////////////////////////
   //Правки на возможность стрельбы из оружия, не принадлежащего никому
   //В CWeapon::FireTrace в вызове FireBullet дописываем проверку на то, что H_Parent может быть нулевым
-  jmp_addr:=xrGame_addr+$2c328b;
-  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2c3281;
+  if not WriteJump(jmp_addr, cardinal(@FixNullParent_Patch), 6, true) then exit;
 
   //Отключаем ассерт на наличие H_Parent в CWeaponMagazined::FireStart
   if not nop_code(xrgame_addr+$2cfec6, 1, chr($eb)) then exit;
