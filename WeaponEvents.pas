@@ -2416,6 +2416,9 @@ begin
   // CWeapon::SwitchState (xrGame.dll+2bc3e0) - разрешаем кидать сообщения при m_pInventory = nil
   if not nop_code(xrgame_addr+$2bc432, 6) then exit;
 
+  // CWeapon::ParentMayHaveAimBullet (xrGame.dll+2c1070) - добавляем возможность parent'a быть нулевым
+  if not nop_code(xrgame_addr+$2c1080, 2, chr($c3)) then exit;
+
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
   //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).
   //По логике pending должен сброситься в CWeaponMagazined::switch2_Hidden, но до его вызова дело не доходит, так как оружие выброшено и сообщения не проходят (фиксятся предыдущей правкой)
