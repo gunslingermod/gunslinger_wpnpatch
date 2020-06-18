@@ -208,6 +208,8 @@ function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
+function GetHudSoundVolume():single;
+
 var
   g_pickup_distance:single;
 
@@ -296,6 +298,7 @@ var
   _jitter:jitter_params;
   _lens_render_factor:cardinal;
   _lens_enabled:boolean;
+  _hud_sound_volume:single;
 
 //Сами консольные команды
   CCC_dyndof:CCC_Mask;
@@ -328,6 +331,7 @@ var
 
   CCC_rs_disable_objects_as_crows:CCC_Mask;
   CCC_fov:CCC_Float;
+  CCC_snd_hud_volume:CCC_Float;
 
   CCC_upgrades_log:CCC_Integer;
 
@@ -691,9 +695,13 @@ begin
 
   CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
   CConsole__AddCommand(@(CCC_fov.base));
+
+  CCC_Float__CCC_Float(@CCC_snd_hud_volume, 'snd_volume_hudweapon', @_hud_sound_volume, 0.3, 1.0);
+  CConsole__AddCommand(@(CCC_snd_hud_volume.base));
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
   hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);
+  _hud_sound_volume:=1.0;
 
   def_zoom_dof.x:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_near', 0.5);
   def_zoom_dof.y:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_focus', 0.8);
@@ -1131,6 +1139,11 @@ end;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 begin
   result:=_burer_teleweapon_params;
+end;
+
+function GetHudSoundVolume():single;
+begin
+  result:=_hud_sound_volume;
 end;
 
 end.

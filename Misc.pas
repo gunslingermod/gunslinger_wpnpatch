@@ -1373,4 +1373,7 @@ begin
 end;
 
 
+// CInventory::Update - xrgame.dll+2a83a0
+
+
 end.

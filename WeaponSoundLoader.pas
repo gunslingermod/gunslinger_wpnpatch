@@ -395,12 +395,14 @@ end;
 procedure DecideHowToPlaySnd(snd:pHUD_SOUND_ITEM; O:pointer; pos:pFVector3; flags:cardinal); stdcall;
 const
   sm_Looped:cardinal = $1;
+  sm_2D:cardinal = $2;
   EPS:single=0.001;
 var
   params:pCSound_params;
-  freq:single;
+  freq, volume:single;
   need_freq_variation, sound_unlocked:boolean;
   freq_deviation, new_freq, delta:single;
+  hud_mode:boolean;
 begin
   freq_deviation:=abs(snd.m_activeSnd.volume);
   need_freq_variation := (freq_deviation - 1.0 > EPS);
@@ -419,18 +421,24 @@ begin
     // Log('Freq = '+floattostr(freq)+', unlock = '+booltostr(sound_unlocked, true));
   end;
 
+  volume:=1;
+  hud_mode:=((flags and sm_2D)<>0);
+  if hud_mode then begin
+    volume:=GetHudSoundVolume();
+  end;
 
   if (not sound_unlocked) or ((snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0))  then begin
     ref_sound__play_at_pos(@snd.m_activeSnd.snd, O, pos, flags, snd.m_activeSnd.delay);
+    params:=ref_sound__get_params(@snd.m_activeSnd.snd);
+    params.volume:=volume;
     if need_freq_variation then begin
-      params:=ref_sound__get_params(@snd.m_activeSnd.snd);
       params.freq:=freq;
     end;
   end else begin
     if need_freq_variation then begin
-      ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos, nil, @freq, nil);
+      ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos, @volume, @freq, nil);
     end else begin
-      ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos, nil, nil, nil);
+      ref_sound__play_no_feedback(@snd.m_activeSnd.snd, O, flags, snd.m_activeSnd.delay, pos, @volume, nil, nil);
     end;
   end;
 end;
@@ -477,7 +485,10 @@ begin
     if not WriteJump(addr, cardinal(@HUD_SOUND_ITEM__PlaySound_Patch), 5, true) then exit;
 
     //в HUD_SOUND_ITEM::PlaySound  в вызове snd.set_volume отказываемс€ от использовани€ hud_snd.m_activeSnd->volume в качестве множител€ - все равно не работает
-    nop_code(xrGame_addr+$2fa663, 5); 
+    nop_code(xrGame_addr+$2fa663, 5);
+
+    //в HUD_SOUND_ITEM::PlaySound отключаем вызов snd.set_volume - более не нужен, так как все настройки выполн€ютс€ нами в DecideHowToPlaySnd
+    nop_code(xrGame_addr+$2fa69d, 1, chr($eb));
 
     //переводим в эксклюзивный режим все звуки типа доставани€, убирани€ и т.д.
     nop_code(xrGame_addr+$2CFA6B, 1, chr(1));
