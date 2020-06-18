@@ -972,7 +972,7 @@ begin
 
     act:=GetActor;
     det := GetActiveDetector(act);
-    if (det<>nil) and (cardinal(GetCurrentState(det))=CHUDState__eShowing) then result:=false;
+    if (det<>nil) and (cardinal(GetCurrentState(det))=EHudStates__eShowing) then result:=false;
   end;
 end;
 

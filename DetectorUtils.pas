@@ -60,7 +60,7 @@ var
   ahi_d:pointer; //attachable_hud_item for detector
   ahi_c:pointer; //attachable_hud_item for companion
 begin
-  if (det=nil) or (GetCurrentState(det)<>CHUDState__eIdle) then exit;
+  if (det=nil) or (GetCurrentState(det)<>EHudStates__eIdle) then exit;
 
 
   //проверяем, в руках ли этот детектор сейчас

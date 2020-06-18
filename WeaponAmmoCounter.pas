@@ -131,7 +131,7 @@ begin
     cnt:=GetAmmoInGLCount(wpn);
     if cnt > 0 then begin
       for i:=0 to cnt - 1 do begin
-        if GetGrenadeCartridgeFromGLVector(wpn, i).m_local_ammotype <> GetAmmoTypeIndex(wpn) then begin
+        if GetCartridgeType(GetGrenadeCartridgeFromGLVector(wpn, i)) <> GetAmmoTypeIndex(wpn) then begin
           need_unload:=true;
           break;
         end;
@@ -141,7 +141,7 @@ begin
     cnt:=GetAmmoInMagCount(wpn);
     if cnt > 0 then begin
       for i:=0 to cnt - 1 do begin
-        if GetCartridgeFromMagVector(wpn, i).m_local_ammotype <> GetAmmoTypeIndex(wpn) then begin
+        if GetCartridgeType(GetCartridgeFromMagVector(wpn, i)) <> GetAmmoTypeIndex(wpn) then begin
           need_unload:=true;
           break;
         end;

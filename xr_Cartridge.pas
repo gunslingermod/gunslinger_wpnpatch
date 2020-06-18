@@ -54,6 +54,7 @@ function GetCartridgeSection(c:pCCartridge):PChar; stdcall;
 function GetGLAmmoTypesCount(wpn:pointer):cardinal; stdcall;
 function GetGLCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 procedure SetAmmoTypeIndex(wpn:pointer; index:byte; second:boolean); stdcall;
+function GetCartridgeType(c:pCCartridge):byte;
 
 procedure InitCartridge(c:pCCartridge); stdcall;
 
@@ -330,6 +331,11 @@ function GetCartridgeSection(c:pCCartridge):PChar;
 begin
   result:=get_string_value(@c.m_ammo_sect);
   if length(result)=0 then result:=nil;
+end;
+
+function GetCartridgeType(c:pCCartridge):byte;
+begin
+  result:=c.m_local_ammotype;
 end;
 
 procedure InitCartridge(c:pCCartridge); stdcall;

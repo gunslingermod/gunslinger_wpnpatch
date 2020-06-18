@@ -508,7 +508,7 @@ begin
     exit;
   end;
 
-  if ((state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick')) then begin
+  if ((state=EHudStates__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick')) then begin
     //не дадим прервать быстрый бросок грены
     //Но если вдруг он начался на базе или когда взятие оружия в руки заблокировано - отменять надо!
     result:=(GetActorSlotBlockedCounter(4)>0);
@@ -704,7 +704,7 @@ begin
   end;
 
   act:=GetActor();
-  if (state=CHUDState__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick') then begin
+  if (state=EHudStates__eShowing) and (GetActualCurrentAnim(CMissile)='anm_throw_quick') then begin
     virtual_CHudItem_SwitchState(CMissile, EMissileStates__eThrowEnd);
     result:=false;
   end else if (act<>nil) and (act=GetOwner(CMissile)) and {(leftstr(GetActualCurrentAnim(CMissile), length('anm_idle'))='anm_idle')} (GetCurrentState(CMissile)=EHudStates__eIdle) then begin

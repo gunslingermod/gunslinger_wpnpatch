@@ -534,7 +534,7 @@ begin
   end;
 
   //вычислим целевое смещение от равновесия
-  if (cardinal(GetCurrentState(itm))=CHUDState__eHiding) or ((det<>nil) and (cardinal(GetCurrentState(det))=CHUDState__eHiding)) then begin
+  if (cardinal(GetCurrentState(itm))=EHudStates__eHiding) or ((det<>nil) and (cardinal(GetCurrentState(det))=EHudStates__eHiding)) then begin
     v_zero(@targetpos);
     v_zero(@targetrot);
     factor:=game_ini_r_single_def(section, 'hud_move_weaponhide_factor', 1.0);

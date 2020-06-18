@@ -173,7 +173,7 @@ function GetOrdinalAmmotype(wpn:pointer):byte; stdcall;
 begin
   if game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
     //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
-    result:=GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype;
+    result:=GetCartridgeType(GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1));
   end else begin
     result:=GetAmmoTypeIndex(wpn, IsGrenadeMode(wpn));
   end;
@@ -756,13 +756,13 @@ begin
     if (rl<>nil) then begin
       rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher, false);
       if GetRocketsCount(rl)>0 then begin
-        CWeaponMagazinedWGrenade__LaunchGrenade(wpn);
+        CWeaponMagazinedWGrenade__LaunchGrenade(rl);
       end;
 
       //[bug] баг - отсутствует выставление a_elapsed_grenades в апдейт-пакете, из-за чего грены прогружаются некорректно. По-хорошему, надо править не так топорно, а модифицированием методов экспорта и импорта нетпакетов
       gl_ammocnt:=GetAmmoInGLCount(wpn);
       if gl_ammocnt>0 then begin
-        gl_ammotype:=GetGrenadeCartridgeFromGLVector(wpn, gl_ammocnt-1).m_local_ammotype;
+        gl_ammotype:=GetCartridgeType(GetGrenadeCartridgeFromGLVector(wpn, gl_ammocnt-1));
       end else begin
         gl_ammotype:=GetAmmoTypeIndex(wpn, not IsGrenadeMode(wpn))
       end;
@@ -774,10 +774,10 @@ begin
       end;
     end;
 
-    if game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
+    if game_ini_r_bool_def(sect, 'action_animator', false) then begin
         if (wpn=GetActorActiveItem()) then begin
           if (GetCurrentState(wpn)=EHudStates__eShowing) then begin
-            if (GetActorTargetSlot()=GetActorActiveSlot()) and not game_ini_r_bool_def(GetSection(wpn), 'disable_autochange_slot', false) then begin
+            if (GetActorTargetSlot()=GetActorActiveSlot()) and not game_ini_r_bool_def(sect, 'disable_autochange_slot', false) then begin
               prevslot:=GetActorPreviousSlot();
 //              log ('activating '+inttostr(prevslot)+', state='+inttostr(GetCurrentState(wpn)));
               if (prevslot>=0) and (prevslot<>GetActorActiveSlot()) and (ItemInSlot(GetActor, prevslot)<>nil) then
@@ -787,7 +787,7 @@ begin
             end;
           end else begin
 //            log(inttostr(GetCurrentState(wpn)));
-            if (GetActorTargetSlot()=GetActorActiveSlot()) and IsActorActionAnimatorAutoshow() and ((@GetActorActionCallback()<>nil) or not game_ini_r_bool_def(GetSection(wpn), 'disable_autochange_slot', false)) then begin
+            if (GetActorTargetSlot()=GetActorActiveSlot()) and IsActorActionAnimatorAutoshow() and ((@GetActorActionCallback()<>nil) or not game_ini_r_bool_def(sect, 'disable_autochange_slot', false)) then begin
               virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
             end;
           end;
@@ -795,7 +795,7 @@ begin
           if (GetActor=nil) or (GetOwner(wpn)<>GetActor()) then begin
             alife_release(get_server_object_by_id(GetID(wpn)));
           end else begin
-            slot:=game_ini_r_int_def(GetSection(wpn), 'slot', 0)+1;
+            slot:=game_ini_r_int_def(sect, 'slot', 0)+1;
 //            log('release candidate');
             if (GetActorTargetSlot() <> slot) then begin
 //              log('released');
@@ -830,10 +830,10 @@ begin
         buf.InstallTorch(sect)
       end;
 
-      if (game_ini_line_exist(GetSection(wpn), 'collimator_sights_bones')) then begin
+      if (game_ini_line_exist(sect, 'collimator_sights_bones')) then begin
         bp:=buf.GetCollimatorBreakingParams();
-        if ((GetAimFactor(wpn)>0) and (buf.IsLastZoomAlter() or (buf.GetAlterZoomDirectSwitchMixupFactor() > EPS)) and game_ini_r_bool_def(GetSection(wpn),'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
-          SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), false);
+        if ((GetAimFactor(wpn)>0) and (buf.IsLastZoomAlter() or (buf.GetAlterZoomDirectSwitchMixupFactor() > EPS)) and game_ini_r_bool_def(sect,'hide_collimator_sights_in_alter_zoom', true)) or (GetCurrentCondition(wpn)<bp.end_condition) then begin
+          SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(sect, 'collimator_sights_bones'), false);
         end else if (GetCurrentCondition(wpn)<bp.start_condition) or ( CurrentElectronicsProblemsCnt() > 0 ) then begin
           if (bp.start_condition=bp.end_condition) then begin
             probability := bp.end_condition;
@@ -855,12 +855,12 @@ begin
 
           SetWeaponMultipleBonesStatus(
                                         wpn,
-                                        game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'),
+                                        game_ini_read_string(sect, 'collimator_sights_bones'),
                                         not (random<probability)
                                       );
 
         end else begin
-          SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(GetSection(wpn), 'collimator_sights_bones'), true);
+          SetWeaponMultipleBonesStatus(wpn,game_ini_read_string(sect, 'collimator_sights_bones'), true);
         end;
       end;
     end;

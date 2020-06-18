@@ -211,14 +211,6 @@ const
   EMissileStates__eThrow:cardinal = $7;
   EMissileStates__eThrowEnd:cardinal = $8;
 
-  CHUDState__eIdle:cardinal = 0;
-	CHUDState__eShowing:cardinal = 1;
-	CHUDState__eHiding:cardinal = 2;
-	CHUDState__eHidden:cardinal = 3;
-	CHUDState__eBore:cardinal = 4;
-	CHUDState__eLastBaseState:cardinal = 4;
-
-
   EWeaponSubStates__eSubStateReloadBegin:byte = $0;
   EWeaponSubStates__eSubStateReloadInProcess:byte = $1;
   EWeaponSubStates__eSubStateReloadEnd:byte = $2;

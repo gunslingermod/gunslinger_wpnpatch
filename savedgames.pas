@@ -43,7 +43,7 @@ begin
     mov ecx, xrgame_addr
     add ecx, $512834
     mov ecx, [ecx]  //xr_FS
-    mov ecx, [ecx] 
+    mov ecx, [ecx]
 
     mov eax, xrgame_addr
     add eax, $512600
@@ -52,7 +52,7 @@ begin
     mov h, edx
     popad
   end;
-  
+
   phigh^:=h;
   plow^:=l;
 end;
@@ -130,23 +130,26 @@ begin
   result:=true;
 end;
 //-------------------------
-
-function CSavedGameWrapper__valid_saved_game_override(reader:pointer):cardinal; stdcall;
+function CSavedGameWrapper__valid_saved_game_override_internal(reader:pointer; var version:string; var addon_name:string; var save_ver:string; var d1:cardinal; var d2:cardinal):cardinal; stdcall;
 var
   ver_hdr:cardinal;
   alife_ver:cardinal;
   data_id:word;
-  d1, d2:cardinal;
-  version, addon_name, save_ver:string;
-
 const
   CURRENT_ALIFE_VERSION:cardinal=6;
 begin
-  result:=GUNS_UNCOMPATIBLE_SAVE;
   ver_hdr:=0;
   alife_ver:=0;
+  data_id:=0;
+  
+  version:='';
+  save_ver:='';
+  addon_name:='';
+  d1:=0;
+  d2:=0;
+  
+  result:=GUNS_UNCOMPATIBLE_SAVE;
 
-  try
   if ReaderLength(reader) < 8 then exit;
 
   ReadFromReader(reader, @ver_hdr, sizeof(ver_hdr));
@@ -180,14 +183,21 @@ begin
       result:=GUNS_UNCOMPATIBLE_SAVE;
     end;
   end;
-  finally
-    Log('Saved game status: '+inttostr(result));
-    if (result = GUNS_FULLY_COMPATIBLE_SAVE) or (result = GUNS_ANOTHER_MOD_SAVE) then begin
-      Log('Info: '+addon_name+'('+GetAddonName()+')'+', '+
-          version+'('+GetModVer()+')'+', '+
-          save_ver+'('+GetSaveVer()+')'+', '+
-          inttohex(d2, 8)+inttohex(d1, 8));
-    end;
+end;
+
+function CSavedGameWrapper__valid_saved_game_override(reader:pointer):cardinal; stdcall;
+var
+  version, addon_name, save_ver:string;
+  d1, d2:cardinal;
+begin
+  result:=CSavedGameWrapper__valid_saved_game_override_internal(reader, version, addon_name, save_ver, d1, d2);
+
+  Log('Saved game status: '+inttostr(result));
+  if (result = GUNS_FULLY_COMPATIBLE_SAVE) or (result = GUNS_ANOTHER_MOD_SAVE) then begin
+    Log('Info: '+addon_name+'('+GetAddonName()+')'+', '+
+        version+'('+GetModVer()+')'+', '+
+        save_ver+'('+GetSaveVer()+')'+', '+
+        inttohex(d2, 8)+inttohex(d1, 8));
   end;
 end;
 
@@ -215,7 +225,7 @@ var
   h, l:cardinal;
 begin
   GetAuthVal(@h, @l);
-  
+
   //Сначала - наш хидер вместо вырезанного (-1)
   IWriter__w_u32(packet, GetTransformedGunsSaveVer());
 

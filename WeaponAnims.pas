@@ -812,7 +812,7 @@ var
 begin
   buf:=GetBuffer(wpn);
   if (buf=nil) or not buf.IsShellsNeeded() then exit;
-  ammo_sect:=GetMainCartridgeSectionByType(wpn, GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype);
+  ammo_sect:=GetMainCartridgeSectionByType(wpn, GetCartridgeType(GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1)));
   if not game_ini_line_exist(ammo_sect, 'shell_sect') then exit;
   ammo_sect:=game_ini_read_string(ammo_sect, 'shell_sect');
 
@@ -1677,7 +1677,7 @@ end;
 //----------------------------Общий фикс многократного сокрытия при беспорядочной смене слотов-------------------------
 function MultiHideFix_IsHidingNow(wpn:pointer): boolean; stdcall;
 begin
-  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and (cardinal(GetCurrentState(wpn))=CHUDState__eHiding) and (GetAnimTimeState(wpn, ANM_TIME_CUR)<GetAnimTimeState(wpn, ANM_TIME_END))  and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
+  if (GetActor()<>nil) and (GetActor()=GetOwner(wpn)) and (cardinal(GetCurrentState(wpn))=EHudStates__eHiding) and (GetAnimTimeState(wpn, ANM_TIME_CUR)<GetAnimTimeState(wpn, ANM_TIME_END))  and (leftstr(GetActualCurrentAnim(wpn), length('anm_hide')) = 'anm_hide') then
     result:=true
   else
     result:=false;

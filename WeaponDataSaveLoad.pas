@@ -45,7 +45,7 @@ begin
 
 
   lens_params:=buf.GetLensParams();
-  ReadFromReader(packet, @lens_params.target_position, sizeof(tmp_single));
+  ReadFromReader(packet, @lens_params.target_position, sizeof(lens_params.target_position));
   lens_params.real_position:=lens_params.target_position;
   buf.SetLensParams(lens_params);
 
@@ -117,16 +117,15 @@ begin
     max_in_mag:=max_in_mag-1;
     c:=GetCartridgeFromMagVector(wpn, 0);
     cnt:=1;
-    ammotype:=c^.m_local_ammotype;
+    ammotype:=GetCartridgeType(c);
 
     for i:=1 to max_in_mag do begin
       c:=GetCartridgeFromMagVector(wpn, i);
-      //if wpn = GetActorActiveItem() then log(inttostr(c^.m_local_ammotype));
-      if ammotype<>c^.m_local_ammotype then begin
+      if ammotype<>GetCartridgeType(c) then begin
         WriteToPacket(packet, @cnt, sizeof(cnt));
         WriteToPacket(packet, @ammotype, sizeof(ammotype));
 
-        ammotype:=c^.m_local_ammotype;
+        ammotype:=GetCartridgeType(c);
         cnt:=1;
       end else begin
         cnt:=cnt+1;
@@ -218,7 +217,7 @@ begin
     //[bug] баг - отсутствует выставление a_elapsed_grenades в серверном объекте после удаления, из-за чего грены прогружаются некорректно. По-хорошему, надо править не так топорно, а модифицированием методов экспорта и импорта нетпакетов
     gl_ammocnt:=GetAmmoInGLCount(wpn_gl);
     if gl_ammocnt>0 then begin
-      gl_ammotype:=GetGrenadeCartridgeFromGLVector(wpn_gl, gl_ammocnt-1).m_local_ammotype;
+      gl_ammotype:=GetCartridgeType(GetGrenadeCartridgeFromGLVector(wpn_gl, gl_ammocnt-1));
     end else begin
       gl_ammotype:=GetAmmoTypeIndex(wpn_gl, not IsGrenadeMode(wpn_gl))
     end;

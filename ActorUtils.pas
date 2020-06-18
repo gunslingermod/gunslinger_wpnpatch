@@ -528,7 +528,7 @@ begin
 
   wpn:=GetActorActiveItem();
   det:=GetActiveDetector(act);
-  if (det<>nil) and (GetCurrentState(det)<>CHUDState__eIdle) then begin
+  if (det<>nil) and (GetCurrentState(det)<>EHudStates__eIdle) then begin
     exit;
   end;
 
@@ -1228,7 +1228,7 @@ begin
         action:=0;
         
       if action>0 then begin
-        if cardinal(GetCurrentState(det))<>CHUDState__eShowing then begin
+        if cardinal(GetCurrentState(det))<>EHudStates__eShowing then begin
           virtual_Action(wpn, action, kActPress);
           if (action=kWPN_ZOOM) and not IsActionKeyPressedInGame(kWPN_ZOOM) then virtual_Action(wpn, action, kActRelease);
           SetActorKeyRepeatFlag(kfFIRE, false);
@@ -1585,7 +1585,7 @@ begin
     SetActorActionState(act, actShowDetectorNow, false);
   end;
 
-
+//TODO: разобраться, что вынести в game для МП
   ProcessKeys(act);
   ProcessChangedGrenade(act);
   UpdateFOV(act);
@@ -1619,7 +1619,7 @@ begin
 
   //если в руках аниматор действия или премет без буфера с играющейся анимой действия - запускаем калбэк вручную
   if (@_action_animator_callback<>nil) then begin
-    if (itm<>nil) and (game_ini_r_bool_def(GetSection(itm), 'action_animator', false) or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=CHUDState__eIdle))) then begin
+    if (itm<>nil) and (game_ini_r_bool_def(GetSection(itm), 'action_animator', false) or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=EHudStates__eIdle))) then begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
       treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);
@@ -1803,7 +1803,7 @@ begin
       assign_string(@ss, nil);
     end else if (_slot_to_restore_after_outfit_change < 0) then begin
       canshoot:= (itm<>nil) and WpnCanShoot(itm);
-      if (itm=nil) or (canshoot and CanStartAction(itm)) or (not canshoot and (GetCurrentState(itm) = CHUDState__eIdle)) then begin
+      if (itm=nil) or (canshoot and CanStartAction(itm)) or (not canshoot and (GetCurrentState(itm) = EHudStates__eIdle)) then begin
         //Log('Hide slots for hud section change');
         ChangeSlotsBlockStatus(true);
         slot:=GetActorActiveSlot();
@@ -1993,7 +1993,7 @@ begin
   end else if ((dik=kWPN_FIRE) or (dik=kWPN_ZOOM)) then begin
     if (det<>nil) and (wpn<>nil) then begin
       if (IsKnife(wpn) or IsThrowable(wpn)) then begin
-        if (GetCurrentState(det)=CHUDState__eShowing) then begin
+        if (GetCurrentState(det)=EHudStates__eShowing) then begin
           result:=false;
           if dik=kWPN_FIRE then SetActorKeyRepeatFlag(kfFIRE, true) else SetActorKeyRepeatFlag(kfZOOM, true);
         end else if GetActorActionState(act, actModDetectorSprintStarted) then begin
@@ -2101,6 +2101,7 @@ end;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 procedure CActor__netSpawn(CActor:pointer); stdcall;
 begin
+  //TODO: Разобраться, что вынести в game для мп
   ResetCamHeight();
   ResetWpnOffset();
   ResetActorControl();
