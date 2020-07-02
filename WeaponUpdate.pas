@@ -169,7 +169,7 @@ begin
   end;
 end;
 
-function GetOrdinalAmmotype(wpn:pointer):byte; stdcall;
+function GetOrdinalAmmoType(wpn:pointer):byte; stdcall;
 begin
   if game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
     //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
@@ -202,10 +202,6 @@ begin
   end;
 
   cnt:=GetAmmoInMagCount(wpn);
-  if
-    (IsWeaponJammed(wpn) and game_ini_line_exist(bones_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(bones_sect, 'additional_ammo_bone_when_jammed'))
-  then
-    cnt:=cnt+1;
 
   if g_b then begin
     //Оружие в режиме стрельбы подстволом
@@ -250,6 +246,9 @@ begin
   end;
 
   if bones_sect<>nil then begin
+    if (IsWeaponJammed(wpn) and game_ini_line_exist(bones_sect, 'additional_ammo_bone_when_jammed') and game_ini_r_bool(bones_sect, 'additional_ammo_bone_when_jammed')) then
+      cnt:=cnt+1;
+
     //скрываем все
     bones:= game_ini_read_string(bones_sect, 'all_bones');
     SetWeaponMultipleBonesStatus(wpn, bones, false);
@@ -270,7 +269,7 @@ var
   g_m:boolean;
 begin
 
-  if (GetGLStatus(wpn)=0) then exit; 
+  if (GetGLStatus(wpn)=0) then exit;
 
   g_m:=IsGrenadeMode(wpn);
   hud_sect:=GetHUDSection(wpn);
@@ -283,7 +282,7 @@ begin
        cnt:=1;
     end else begin
       //Очевидно, смена типа - а в случае, когда граната вытаскивается визуально, в начале смены типа необходимо показывать старый тип
-      ammotype:=GetGlAmmoType(wpn);    
+      ammotype:=GetGlAmmoType(wpn);
     end;
   end else begin
     ammotype:=GetGlAmmoType(wpn);
@@ -303,11 +302,11 @@ begin
     SetWeaponMultipleBonesStatus(wpn, bones, false);
 
     //отображаем нужные
-    if game_ini_line_exist(bones_sect, PChar('configuration_'+inttostr(cnt))) then begin      
+    if game_ini_line_exist(bones_sect, PChar('configuration_'+inttostr(cnt))) then begin
       bones:= game_ini_read_string(bones_sect, PChar('configuration_'+inttostr(cnt)));
       SetWeaponMultipleBonesStatus(wpn, bones, true);
     end;
-  end;    
+  end;
 end;
 
 
@@ -326,26 +325,10 @@ begin
   if not game_ini_r_bool_def(hud_sect, 'use_ammo_bones', false) then exit;
   prefix:= game_ini_read_string(hud_sect, 'ammo_bones_prefix');
 
-  if game_ini_line_exist(hud_sect, 'ammo_hide_bones_prefix') then
-    prefix_hide:= game_ini_read_string(hud_sect, 'ammo_hide_bones_prefix')
-  else
-    prefix_hide:='';
-
-  if game_ini_line_exist(hud_sect, 'ammo_var_bones_prefix') then
-    prefix_var:= game_ini_read_string(hud_sect, 'ammo_var_bones_prefix')
-  else
-    prefix_var:='';
-
-
-  if game_ini_line_exist(hud_sect, 'start_ammo_bone_index') then
-    start_index:= strtoint(game_ini_read_string(hud_sect, 'start_ammo_bone_index'))
-  else
-    start_index:=0;
-
-  if game_ini_line_exist(hud_sect, 'end_ammo_bone_index') then
-    limitator:= strtoint(game_ini_read_string(hud_sect, 'end_ammo_bone_index'))
-  else
-    limitator:=0;
+  prefix_hide:=game_ini_read_string_def(hud_sect, 'ammo_hide_bones_prefix', '');
+  prefix_var:=game_ini_read_string_def(hud_sect, 'ammo_var_bones_prefix', '');
+  start_index:=game_ini_r_int_def(hud_sect, 'start_ammo_bone_index', 0);
+  limitator:=game_ini_r_int_def(hud_sect, 'end_ammo_bone_index', 0);
 
   finish_index:=start_index+GetAmmoInMagCount(wpn)-1;
 
@@ -353,30 +336,30 @@ begin
     finish_index:=finish_index+1;
 
   if game_ini_line_exist(hud_sect, 'ammo_divisor_up') then
-    finish_index:=ceil(finish_index/strtoint(game_ini_read_string(hud_sect, 'ammo_divisor_up')))
+    finish_index:=ceil(finish_index/game_ini_r_int_def(hud_sect, 'ammo_divisor_up', 1))
   else if game_ini_line_exist(hud_sect, 'ammo_divisor_down') then
-    finish_index:=floor(finish_index/strtoint(game_ini_read_string(hud_sect, 'ammo_divisor_down')));
+    finish_index:=floor(finish_index/game_ini_r_int_def(hud_sect, 'ammo_divisor_down', 1));
 
   if finish_index>limitator then finish_index:=limitator;
 
 //  if wpn=GetActorActiveItem() then SendMessage(PChar(inttostr(start_index)+' '+PChar(inttostr(finish_index))+' '+PChar(inttostr(limitator))));
 
   for i:=start_index to finish_index do begin
-    SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), true);
-    if prefix_hide<>'' then begin
-      SetWeaponMultipleBonesStatus(wpn, PChar(prefix_hide+inttostr(i)), false);
+    SetWeaponModelBoneStatus(wpn, PChar(prefix+inttostr(i)), true);
+    if length(prefix_hide) > 0 then begin
+      SetWeaponModelBoneStatus(wpn, PChar(prefix_hide+inttostr(i)), false);
     end;
   end;
   for i:= finish_index+1 to limitator do begin
-    SetWeaponMultipleBonesStatus(wpn, PChar(prefix+inttostr(i)), false);
-    if prefix_hide<>'' then begin
-      SetWeaponMultipleBonesStatus(wpn, PChar(prefix_hide+inttostr(i)), true);
+    SetWeaponModelBoneStatus(wpn, PChar(prefix+inttostr(i)), false);
+    if length(prefix_hide) > 0 then begin
+      SetWeaponModelBoneStatus(wpn, PChar(prefix_hide+inttostr(i)), true);
     end;
   end;
 
-  if prefix_var<>'' then begin
+  if (length(prefix_var) > 0) then begin
     for i:= start_index-1 to limitator do begin
-      SetWeaponMultipleBonesStatus(wpn, PChar(prefix_var+inttostr(i)), i=finish_index);
+      SetWeaponModelBoneStatus(wpn, PChar(prefix_var+inttostr(i)), i=finish_index);
     end;
   end;
 end;
@@ -389,7 +372,7 @@ var
   all_subelements, element:string;
 begin
   all_subelements:=game_ini_read_string(up_gr_section, 'elements');
-  
+
   while (GetNextSubStr(all_subelements, element, ',')) do begin
     //Обработаем ветки, которые открывает данный апгрейд
     if game_ini_line_exist(PChar(element), 'effects') then begin
@@ -469,10 +452,10 @@ begin
         end else if game_ini_r_bool_def(section, 'hud_when_gl_is_attached', false) and IsGLAttached(wpn) then begin
           SetHUDSection(wpn, game_ini_read_string(section, 'hud_gl'));
         end else if game_ini_r_bool_def(section, 'hud_when_scope_is_attached', false) and IsScopeAttached(wpn) then begin
-          SetHUDSection(wpn, game_ini_read_string(section, 'hud_scope'));        
+          SetHUDSection(wpn, game_ini_read_string(section, 'hud_scope'));
         end else begin
           SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
-        end;          
+        end;
       end;
       if game_ini_line_exist(section, 'visual') then begin
         SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
@@ -548,7 +531,7 @@ begin
   if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn)) ) then begin
     if game_ini_line_exist(section, 'def_hide_bones_override_when_gl_attached') then begin
       SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'def_hide_bones_override_when_gl_attached'), false);
-    end;      
+    end;
   end;
 
 end;
@@ -597,11 +580,20 @@ begin
   end;
 end;
 
+procedure AddSuffixIfStringExist(sect:PChar; suffix:PChar, var anm:string);
+var
+  newanm:string;
+begin
+  newanm = anm + suffix;
+  if (length(game_ini_read_string_def(sect, PChar(newanm), '')) > 0) then begin
+    anm = newanm;
+  end;
+end;
+
 procedure ReassignWorldAnims(wpn:pointer); stdcall;
 var
   sect:PChar;
   anm:string;
-  rest_anm:string;
   state:cardinal;
   bmixin:boolean;
 begin
@@ -609,7 +601,7 @@ begin
   state:=cardinal(GetNextState(wpn));
   if (not GetAnimForceReassignStatus(wpn)) then exit;
   sect:=GetSection(wpn);
-  if not game_ini_line_exist(sect, 'use_world_anims') or not game_ini_r_bool(sect, 'use_world_anims') then exit;
+  if not game_ini_r_bool_def(sect, 'use_world_anims', false) then exit;
 
   bmixin:=true;
   if state=EHudStates__eIdle then begin
@@ -621,11 +613,7 @@ begin
   end else if state=EWeaponStates__eFire then begin
     anm:='wanm_shoot';
     if GetAmmoInMagCount(wpn)<=0 then begin
-      rest_anm:=anm;
-      anm:=anm+'_last';
-      if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
-        anm:=rest_anm;
-      end;
+	  AddSuffixIfStringExist(sect, '_last', anm);
     end;
   end else if state=EWeaponStates__eReload then begin
     anm:='wanm_reload';
@@ -633,37 +621,23 @@ begin
     anm:='wanm_idle';
   end;
 
-  if not game_ini_line_exist(sect, PChar(anm)) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
+  if (length(game_ini_read_string_def(sect, PChar(anm), '')) = 0) then begin
     anm:='wanm_idle';
   end;
 
-  rest_anm:=anm;
   if IsWeaponJammed(wpn) then begin
-    anm:=anm+'_jammed';
+	AddSuffixIfStringExist(sect, '_jammed', anm);
   end else if (GetAmmoInMagCount(wpn)<=0) and (state<>EWeaponStates__eFire) then begin
-    anm:=anm+'_empty';
-  end;
-  if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
-    anm:=rest_anm;
+    AddSuffixIfStringExist(sect, '_empty', anm);
   end;
 
-  rest_anm:=anm;
-  anm:=anm+GetFiremodeSuffix(wpn);
+  AddSuffixIfStringExist(sect,PChar(GetFiremodeSuffix(wpn)), anm);
 
-  if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
-    anm:=rest_anm;
-  end;
-
-  rest_anm:=anm;
   if IsGrenadeMode(wpn) then begin
-    anm:=anm+'_g';
+	AddSuffixIfStringExist(sect, '_g', anm);
   end else if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
-      anm:=anm+'_w_gl';
+	AddSuffixIfStringExist(sect, '_w_gl', anm);
   end;
-
-  if not(game_ini_line_exist(sect, PChar(anm))) or (trim(game_ini_read_string(sect,PChar(anm)))='') then begin
-    anm:=rest_anm;
-  end;  
 
   PlayCycle(wpn, game_ini_read_string(sect,PChar(anm)), bmixin);
 
@@ -736,7 +710,7 @@ var
 
   probability, probability2:single;
   collim_problems_cnt:single;
-  
+
   bp:conditional_breaking_params;
   last_rec_time:cardinal;
   lens_recoil:FVector3;
