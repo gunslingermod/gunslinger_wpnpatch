@@ -376,6 +376,11 @@ function IsPDAWindowVisible():boolean; stdcall;
 var
   pda:pCUIPdaWnd;
 begin
+  if GetLevel() = nil then begin
+    result:=false;
+    exit;
+  end;
+
   pda:=GetPDA();
   if pda<>nil then begin
     result:=pda.base_CUIDialogWnd.base_CUIWindow.base_CUISimpleWindow.m_bShowMe<>0;
@@ -989,21 +994,6 @@ asm
   popad
 end;
 
-procedure CUICursor__UpdateCursorPosition_Patch();
-asm
-  mov esi, ecx
-  cmp byte ptr [esi+$19], 0
-  je @finish  //уже не используем виндовый курсор
-
-  pushad
-    call IsInputExclusive
-    cmp al, 1
-  popad
-
-
-  @finish:
-end;
-
 function ReadFloatUiParameter(uiXml:pointer; path:PAnsiChar; attrib_name:PAnsiChar; def_val:single):single; stdcall;
 asm
   pushad
@@ -1205,10 +1195,6 @@ begin
 
   //правим CUIPdaWnd::Show, чтобы всегда при доставании пда отрисовывалась карта
   if not nop_code(xrgame_addr+$442b23, 2) then exit;
-
-  //фикс позиции курсора - чтобы не скакал при переключениях режима мыши в ПДА
-  jmp_addr:=xrGame_addr+$4D9834;
-  if not WriteJump(jmp_addr, cardinal(@CUICursor__UpdateCursorPosition_Patch), 6, true) then exit;
 
   //Фикс позиции заглушек слотов для артефактов (CUIActorMenu::Construct)
   //Отключено в связи с невозможностью выстроить сами слоты не то, что в сложной конфигурации, а даже просто вертикально

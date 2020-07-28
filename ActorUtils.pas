@@ -209,6 +209,8 @@ var
   _hud_update_sect:string;
   _slot_to_restore_after_outfit_change:integer;
 
+   _last_mouse_coord:MouseCoord;
+
 //-------------------------------------------------------------------------------------------------------------
 procedure player_hud__load_fixpatched(); stdcall;
 asm
@@ -1684,6 +1686,7 @@ begin
         _pda_cursor_state.last_click_time:=GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime;
         _pda_cursor_state.dir_accumulator.x:=0;
         _pda_cursor_state.dir_accumulator.y:=0;
+        _last_mouse_coord:=GetSysMousePoint();
       end;
     end else begin
       //пда уже был включен и заспавнен. Убеждаемся, что до сих пор в слоте
@@ -2043,8 +2046,6 @@ asm
   @ignore:
 end;
 
-
-
 function CUIGameSP__IR_OnKeyboardPress_process_key(dik:cardinal):boolean; stdcall;
 var
   itm, act:pointer;
@@ -2053,13 +2054,22 @@ begin
     //если в руках аниматор и мы нажали клавишу зума - передаем команду аниматору
     itm:=GetActorActiveItem;
     if (itm<>nil) and not IsPending(itm) and (GetSection(itm)=GetPDAShowAnimator()) then begin
+      // Манипуляции с координатой мыши нужны для того, чтобы курсор ПДА не скакал взад-вперед при переключениях в режим обзора и обратно (см. реализацию CUICursor::UpdateCursorPosition в движке)
       if IsAimNow(itm) then begin
+        _last_mouse_coord:=GetSysMousePoint();
         if IsAimToggle() then virtual_Action(itm, kWPN_ZOOM, kActPress) else virtual_Action(itm, kWPN_ZOOM, kActRelease);
       end else begin
+        SetSysMousePoint(_last_mouse_coord);
         virtual_Action(itm, kWPN_ZOOM, kActPress);
       end;
     end;
   end else if ((dik=get_action_dik(kWPN_ZOOM_ALTER,0)) or (dik=get_action_dik(kWPN_ZOOM_ALTER,1))) and IsPDAWindowVisible() then begin
+    if not _is_pda_lookout_mode then begin
+      _last_mouse_coord:=GetSysMousePoint();
+    end else begin
+      SetSysMousePoint(_last_mouse_coord);
+    end;
+    
     _is_pda_lookout_mode:=not _is_pda_lookout_mode;
 //  end else if ((dik=get_action_dik(kCROUCH,0)) or (dik=get_action_dik(kCROUCH,1))) and IsPDAWindowVisible() then begin
 //    CActor__OnKeyboardPress_initiate(kCROUCH);

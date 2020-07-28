@@ -580,13 +580,13 @@ begin
   end;
 end;
 
-procedure AddSuffixIfStringExist(sect:PChar; suffix:PChar, var anm:string);
+procedure AddSuffixIfStringExist(sect:PChar; suffix:PChar; var anm:string);
 var
   newanm:string;
 begin
-  newanm = anm + suffix;
+  newanm := anm + suffix;
   if (length(game_ini_read_string_def(sect, PChar(newanm), '')) > 0) then begin
-    anm = newanm;
+    anm := newanm;
   end;
 end;
 

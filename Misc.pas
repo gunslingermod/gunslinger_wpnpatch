@@ -1,7 +1,7 @@
 unit Misc;
 
 interface
-uses MatVectors;
+uses MatVectors, windows;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
 type CSE_Abstract = packed record
@@ -127,8 +127,12 @@ procedure ApplyImpulseTrace(CPhysicsShellHolder:pointer; pos:pFVector3; dir:pFVe
 function GetPhysicsElementMassCenter(CPhysicsElement:pointer):pFVector3; stdcall;
 procedure ApplyElementImpulseTrace(CPhysicsElement:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
 
+type MouseCoord = TPoint;
+function GetSysMousePoint():MouseCoord;
+procedure SetSysMousePoint(c:MouseCoord);
+
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, windows, raypick, level;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -1302,6 +1306,19 @@ asm
   call edx //mass_Center
   mov result, eax
   popad
+end;
+
+function GetSysMousePoint():MouseCoord;
+begin
+  if not GetCursorPos(result) then begin
+    result.x:=0;
+    result.Y:=0;
+  end;
+end;
+
+procedure SetSysMousePoint(c:MouseCoord);
+begin
+  SetCursorPos(c.X, c.Y);
 end;
 
 function Init():boolean;stdcall;
