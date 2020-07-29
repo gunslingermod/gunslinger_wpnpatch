@@ -12,6 +12,7 @@ var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
   _gren_timer:cardinal;
   _last_superstamina_hit_time:cardinal;
+  _last_state_select_time:cardinal;
 
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
@@ -274,6 +275,7 @@ begin
     ptele_ready^:=false;
     phealthloss^:=false;
   end;
+  _last_state_select_time:=GetGameTickCount();
 end;
 
 procedure CStateBurerAttack__execute_Patch(); stdcall;
@@ -626,6 +628,11 @@ begin
   //если у нас есть граната, готовая вот-вот взорваться - срочно прекращаем телекинез и уходим в щит!
   if _gren_timer < GetBurerMinGrenTimer() / 2 then begin
     result:=true;
+    exit;
+  end;
+
+  if GetTimeDeltaSafe(_last_state_select_time) < GetBurerForceTeleFireMinDelta() then begin
+    result:=false;
     exit;
   end;
 

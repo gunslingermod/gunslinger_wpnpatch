@@ -205,6 +205,7 @@ function GetBurerForceshieldDist():single; stdcall;
 function GetBurerShieldedRiskyFactor():single; stdcall
 function GetBurerMinGrenTimer():cardinal; stdcall;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
+function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -284,6 +285,7 @@ var
   _burer_forceshield_dist:single;
   _burer_shielded_risky_factor:single;
   _burer_min_gren_timer:cardinal;
+  _burer_forcetelefire_min_delta:cardinal;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
@@ -858,6 +860,7 @@ begin
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
   _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0.02);
   _burer_min_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_min_gren_timer', 1000);
+  _burer_forcetelefire_min_delta:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_forcetelefire_min_delta', 1000);
 
   _burer_teleweapon_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_impulse', 0.1);
   _burer_teleweapon_params.allowed_angle:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_angle', 0.26);
@@ -1139,6 +1142,11 @@ end;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 begin
   result:=_burer_teleweapon_params;
+end;
+
+function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
+begin
+  result:=_burer_forcetelefire_min_delta;
 end;
 
 function GetHudSoundVolume():single;
