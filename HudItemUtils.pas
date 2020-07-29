@@ -82,6 +82,7 @@ function GetShootLockTime(wpn:pointer):single;stdcall;
 function GetOneShotTime(wpn:pointer):single;stdcall;
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
 function GetCurrentCondition(wpn:pointer):single; stdcall;
+procedure SetCondition(wpn:pointer; cond:single); stdcall;
 function GetPosition(wpn:pointer):pointer; stdcall;
 function GetOrientation(wpn:pointer):pointer; stdcall;
 function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
@@ -1253,6 +1254,15 @@ asm
 
     movss xmm0, [esp]
     add esp, 4
+end;
+
+procedure SetCondition(wpn:pointer; cond:single); stdcall;
+asm
+  pushad
+  mov eax, wpn
+  mov ebx, cond
+  mov [eax+$AC], ebx
+  popad
 end;
 
 function GetLevelVertexID(wpn:pointer):cardinal; stdcall

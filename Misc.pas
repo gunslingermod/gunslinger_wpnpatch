@@ -1321,6 +1321,57 @@ begin
   SetCursorPos(c.X, c.Y);
 end;
 
+procedure ProcessPhysicsContact(IPhysicsShellHolder1:pointer; IPhysicsShellHolder2:pointer; vel:single); stdcall;
+var
+  wpns:array[0..1] of pointer;
+  params:weapon_physics_damage_params;
+  i:cardinal;
+  factor, cond:single;  
+begin
+  params:=GetWeaponPhysicsDamageParams();
+  if vel < params.treshold then exit; 
+
+  wpns[0]:=dynamic_cast(IPhysicsShellHolder1, 0, RTTI_IPhysicsShellHolder, RTTI_CWeapon, false);
+  wpns[1]:=dynamic_cast(IPhysicsShellHolder2, 0, RTTI_IPhysicsShellHolder, RTTI_CWeapon, false);
+
+  for i:=0 to length(wpns) do begin
+    if wpns[i] = nil then continue;
+    factor:= (vel - params.treshold)*params.speed;
+    cond:=GetCurrentCondition(wpns[i]);
+    if cond > factor then begin
+      SetCondition(wpns[i], cond-factor);
+    end else begin
+      SetCondition(wpns[i], 0);
+    end;
+  end;
+end;
+
+procedure CPHSimpleCharacter__UpdateDynamicDamage_Patch(); stdcall;
+asm
+  mov esi, [esp+$74] //c_vel
+
+  pushad
+  push esi
+
+  mov esi, [ebp+$54]  // c->geom.g1
+  mov eax, xrphysics_addr
+  add eax, $227f0
+  call eax // retrieveRefObject
+  push eax
+
+  mov esi, [ebp+$50]  // c->geom.g2
+  mov eax, xrphysics_addr
+  add eax, $227f0
+  call eax // retrieveRefObject
+  push eax
+
+  call ProcessPhysicsContact
+
+  popad
+  //original
+  cmp byte ptr [esp+$74], 0
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -1385,6 +1436,10 @@ begin
   set_scope_idx_ptr:=@set_scope_idx_adapter;
   jmp_addr:=xrgame_addr+$1d813d;
   if not WriteJump(jmp_addr, cardinal(@script_register_game_object1_patch), 8, true) then exit;
+
+  // в CPHSimpleCharacter::UpdateDynamicDamage (xrPhysics+22980) добавляем повреждение оружия от ударов
+  jmp_addr:=xrphysics_addr+$22b57;
+  if not WriteJump(jmp_addr, cardinal(@CPHSimpleCharacter__UpdateDynamicDamage_Patch), 5, true) then exit;
 
   result:=true;
 end;

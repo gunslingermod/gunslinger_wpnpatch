@@ -94,6 +94,11 @@ type burer_teleweapon_params = record
   shot_probability:single;
 end;
 
+type weapon_physics_damage_params = packed record
+  treshold:single;
+  speed:single;
+end;
+
 function Init:boolean;
 
 const
@@ -206,6 +211,7 @@ function GetBurerShieldedRiskyFactor():single; stdcall
 function GetBurerMinGrenTimer():cardinal; stdcall;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
+function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -289,6 +295,7 @@ var
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
+  _weapon_physics_damage_params:weapon_physics_damage_params;
 
 //данные консольных команд
 //булевские флаги
@@ -868,6 +875,9 @@ begin
   _burer_teleweapon_params.max_shoot_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_max_shot_time', 400);
   _burer_teleweapon_params.shot_probability:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_shot_probability', 0.4);
 
+  _weapon_physics_damage_params.treshold:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_physics_damage_treshold', 15);
+  _weapon_physics_damage_params.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_physics_damage_speed', 0.03);
+
   result:=true;
 end;
 
@@ -1147,6 +1157,11 @@ end;
 function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
 begin
   result:=_burer_forcetelefire_min_delta;
+end;
+
+function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
+begin
+  result:=_weapon_physics_damage_params;
 end;
 
 function GetHudSoundVolume():single;
