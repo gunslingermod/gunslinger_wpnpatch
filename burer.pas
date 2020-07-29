@@ -176,7 +176,13 @@ begin
     ptele_ready^:=false;
   end;
 
+  // Если в руках у актора нет ничего, равно как рядом нет ничего опасного - смысла в щите тоже нет.
+  if (GetActorActiveItem()=nil) and (_gren_count = 0) and not big_boom_shooted then begin
+    pshield_ready^:=false;
+  end;
+
   if NeedCloseProtectionShield(burer) and (pshield_ready^) then begin
+    // Актор слишком близко, оружие готово к выстрелу
     if eatable_with_hud and (panti_aim_ready^) then begin
       force_antiaim:=true;
     end else if phealthloss^ then begin
@@ -187,6 +193,7 @@ begin
       force_shield:=true;
     end;
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
+    // Попытка отхилиться - предотвращаем
     force_antiaim:=true;
   end else if (itm<>nil) and IsKnife(itm) and pgravi_ready^ then begin
     force_gravi:=true;
@@ -201,6 +208,7 @@ begin
       force_shield:=true;
     end
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
+    // Актор недалеко, но не слишком близко пока
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if IsActorLookTurnedAway(burer) and (pgravi_ready^) then begin
@@ -223,12 +231,14 @@ begin
       force_shield:=true;
     end;
   end else if IsBurerUnderAim(burer) then begin
+    // Бюрер под прицелом, оружие может стрелять
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if (previous_state^ <> eStateBurerAttack_Shield) and pshield_ready^ then begin
       force_shield:=true;
     end;
   end else if (_gren_count>0) and (random < 0.9) then begin
+    // Где-то валяется взведенная граната
     if pshield_ready^ and (not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.7)) then begin
       force_shield:=true;
     end else if (ptele_ready^) then begin
