@@ -223,12 +223,13 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors;
 
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr:pointer;
   ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, valid_saved_game_int_ptr:pointer;
+  CUIInventoryUpgradeWnd__m_btn_disassemble:pCUI3tButton;
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -468,6 +469,25 @@ asm
 
     mov eax, [ecx]
     mov eax, [eax+$60]
+    call eax
+
+    @finish:
+  popad
+end;
+
+procedure virtual_CUIWindow__Enable(window:pCUIWindow; status:boolean); stdcall;
+asm
+  pushad
+    mov ecx, window
+    cmp ecx, 0
+    je @finish
+
+    mov eax, [ecx]
+    mov eax, [eax+$54]
+
+    xor edx, edx
+    mov dl, status
+    push edx
     call eax
 
     @finish:
@@ -1121,6 +1141,278 @@ asm
   @finish:
 end;
 
+
+procedure CUIInventoryUpgradeWnd__Init_Patch(); stdcall;
+const
+  disassemble_str:PChar='disassemble_button';
+asm
+  mov [esi+$54], eax   //original - store created repair button
+
+  mov edx, [esp+4] // get uiXml from arguments of previous call
+
+  pushad
+  push esi
+  push disassemble_str;
+  push edx
+  mov eax, xrgame_addr
+  add eax, $464a00
+  call eax // UIHelper::Create3tButton
+
+  mov CUIInventoryUpgradeWnd__m_btn_disassemble, eax
+  add esp, $c
+  popad
+
+  pop edx //ret addr
+  add esp, $1c  //original
+  jmp edx
+end;
+
+
+function TryDisassembleItem(str_buffer:pshared_str; piitem:pointer):boolean; stdcall;
+var
+  question, section:pchar;
+  mechanic_str:string;
+  condition:single;
+  can_disassemble:boolean;
+begin
+  //извлекаем имя техника из буферного аргумента
+  mechanic_str:=get_string_value(str_buffer);
+
+  condition:=GetCurrentCondition(piitem);
+  section:=GetSection(piitem);
+  can_disassemble:=script_bool_call('inventory_upgrades.gunsl_can_disassemble_item', section, condition, PChar(mechanic_str));
+  question:=script_pchar_call('inventory_upgrades.gunsl_question_disassemble_item', section, condition, can_disassemble, PChar(mechanic_str));
+
+  //Буферный аргумент работает и на выход - забиваем туда строку с сообщением
+  assign_string(str_buffer, question);
+
+  //false в результате означает, что вывести messagebox с ошибкой из str_buffer, true - вывести messagebox с подтверждением
+  result:=can_disassemble;
+end;
+
+procedure ButtonDisassembleCb(CUIActorMenu:pointer; w:pointer; d:pointer); stdcall;
+asm
+  pushad
+  xor eax, eax
+  push eax //buffer for shared_str
+
+  mov ecx, CUIActorMenu
+  mov eax, xrgame_addr
+  add eax, $46f6f0
+  call eax // CUIActorMenu::get_upgrade_item
+  test eax, eax
+  je @finish
+
+  push eax
+
+  mov esi, CUIActorMenu
+  mov eax, [esi+$15c] // CUIActorMenu::m_pPartnerInvOwner
+  mov ecx, [eax+$40]  // inlined CharacterInfo()
+  lea eax, [esp+4]
+  push eax //ptr to buffer
+  mov eax, xrgame_addr
+  add eax, $2b3510
+  call eax // Profile()
+  push eax
+  call TryDisassembleItem
+  test eax, eax
+  je @errorbox
+
+  mov ecx, CUIActorMenu
+  mov [ecx+$1d8], 2 // CUIActorMenu::m_repair_mode
+  push esp
+  call get_string_value
+  push eax
+  mov ecx, CUIActorMenu
+  mov eax, xrgame_addr
+  add eax, $467080
+  call eax // CUIActorMenu::CallMessageBoxYesNo
+  jmp @finish
+
+  @errorbox:
+  push esp
+  call get_string_value
+  push eax
+  mov ecx, CUIActorMenu
+  mov eax, xrgame_addr
+  add eax, $466b80
+  call eax // CUIActorMenu::CallMessageBoxOK
+
+  @finish:
+  //reset shared_str
+  push 0
+  lea eax, [esp+4]
+  push eax
+  call assign_string
+  
+  add esp, 4 //clear place of shared_str
+  popad
+end;
+
+var
+  ButtonDisassembleCb_ptr:pointer;
+
+procedure CUIActorMenu__InitCallbacks_Patch(); stdcall;
+asm
+  pushad
+  lea ecx, [esi+$5c]
+  mov eax, CUIInventoryUpgradeWnd__m_btn_disassemble
+  push eax
+  mov eax, xrgame_addr
+  add eax, $4709e0
+  call eax //Register
+  popad
+
+  pushad
+  sub esp, 8
+  
+  lea edx, [esp]
+  push edx
+  mov edx, ButtonDisassembleCb_ptr
+  mov [esp+8], edx
+  mov [esp+4], esi
+  mov ecx, CUIInventoryUpgradeWnd__m_btn_disassemble
+  push $11
+  push ecx
+  mov ecx, edi
+  mov eax, xrgame_addr
+  add eax, $470ad0
+  call eax //AddCallback
+
+  add esp, 8
+  popad
+
+  pop eax //ret addr
+
+  pop edi //original
+  pop esi //original
+  add esp, $08 //original
+
+  jmp eax
+end;
+
+procedure PerformDisassemble(mechanic:pshared_str; PIItem:pointer); stdcall;
+var
+  mech_str:string;
+  o:pointer;
+begin
+  o:=dynamic_cast(PIItem, 0, RTTI_CInventoryItem, RTTI_CObject, false);
+  if (o<>nil) then begin
+    mech_str:=get_string_value(mechanic);
+    script_bool_call('inventory_upgrades.gunsl_effect_disassemble', GetSection(PIItem), GetCurrentCondition(PIItem), PChar(mech_str));
+    alife_release(get_server_object_by_id(GetCObjectID(o)));
+  end;
+end;
+
+procedure CUIActorMenu__OnMesBoxYes_Patch(); stdcall;
+asm
+  cmp byte ptr [esi+$1D8],02
+  jne @orig
+
+  pushad
+  xor eax, eax
+  push eax // buffer for shared_str
+
+  mov ecx, esi
+  mov eax, xrgame_addr
+  add eax, $46f6f0
+  call eax // CUIActorMenu::get_upgrade_item
+  push eax
+
+  mov eax, [esi+$15c] // CUIActorMenu::m_pPartnerInvOwner
+  mov ecx, [eax+$40]  // inlined CharacterInfo()
+  lea eax, [esp+4]
+  push eax //ptr to buffer
+  mov eax, xrgame_addr
+  add eax, $2b3510
+  call eax // Profile()
+  push eax
+
+  call PerformDisassemble
+
+  //reset buffer for shared_str
+  push 0
+  lea eax, [esp+4]
+  push eax
+  call assign_string
+  add esp, 4 // delete buffer for shared str
+
+  popad
+  mov byte ptr [esi+$1D8],00  // m_repair_mode = 0
+
+  pushad
+  //сбросим выбранный предмет апгрейда
+  mov ecx, esi
+  push 0
+  mov eax, xrgame_addr
+  add eax, $467ea0
+  call eax // CUIActorMenu::SetCurrentItem
+  popad
+
+
+  pop esi //ret addr
+  pop esi
+  ret $c
+
+  @orig:
+  //original
+  cmp byte ptr [esi+$1D8],00
+end;
+
+procedure CUIInventoryUpgradeWnd__InitInventory_Patch(); stdcall;
+asm
+  pushad
+  push 0
+  push CUIInventoryUpgradeWnd__m_btn_disassemble
+  call virtual_CUIWindow__Enable
+  popad
+
+  //original
+  mov eax, [ecx]
+  mov edx, [eax+$54]
+end;
+
+procedure CUIActorMenu__DeInitUpgradeMode_Patch(); stdcall;
+asm
+  pushad
+  push 0
+  push CUIInventoryUpgradeWnd__m_btn_disassemble
+  call virtual_CUIWindow__Enable
+  popad
+
+  //original
+  mov ecx, [eax+$54]
+  mov edx, [ecx]
+end;
+
+function CheckEnableDisassembleButton(piitem:pointer):boolean; stdcall;
+var
+  condition:single;
+  section:PChar;
+begin
+  condition:=GetCurrentCondition(piitem);
+  section:=GetSection(piitem);
+  result:=script_bool_call('inventory_upgrades.gunsl_need_disassemble_button', section, condition, '');
+end;
+
+procedure CUIInventoryUpgradeWnd__install_item_Patch(); stdcall;
+asm
+  mov eax, [esp+$20]
+  pushad
+  push eax
+  call CheckEnableDisassembleButton
+  test al, al
+  je @finish
+  push 1
+  push CUIInventoryUpgradeWnd__m_btn_disassemble
+  call virtual_CUIWindow__Enable
+  @finish:
+  popad
+  //original
+  mov eax, [ecx]
+  mov edx, [eax+$24]
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1140,6 +1432,8 @@ begin
   GetParameterUpgraded_int_ptr:=@GetParameterUpgraded_int;
   valid_saved_game_int_ptr:=@valid_saved_game_int;
   IsActorControlled_adapter_ptr:=@IsActorControlled_adapter;
+
+  ButtonDisassembleCb_ptr:=@ButtonDisassembleCb;
 
   //экспорт в скрипты
   if not WriteJump(jmp_addr, cardinal(@register_level_isuishown), 6, false) then exit;
@@ -1208,6 +1502,32 @@ begin
   //в CUITalkWnd::SwitchToUpgrade нет проверки на то, что у нас разрешено грейдиться (как в CUITalkWnd::SwitchToTrade) - из-за этого возможен грейд у Дядьки Яра при нажатии спринта. Точнее, есть закомменченная и с вызовом метода IsInvUpgradeEnabled, который... не очень актуален. Скопируем проверку.
   jmp_addr:=xrGame_addr+$456a13;
   if not WriteJump(jmp_addr, cardinal(@CUITalkWnd__SwitchToUpgrade_Patch), 5, true) then exit;
+
+
+  //в CUIInventoryUpgradeWnd::Init добавляем создание кнопки разборки
+  jmp_addr:=xrGame_addr+$43f088;
+  if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__Init_Patch), 6, true) then exit;
+
+  //в CUIActorMenu::InitCallbacks (xrgame.dll+46a140) добавляем колбэк на кнопку разбора
+  jmp_addr:=xrGame_addr+$46a26a;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__InitCallbacks_Patch), 5, true) then exit;
+
+  // в CUIActorMenu::OnMesBoxYes(xrgame.dll+468500) добавляем разборку предмета (когда m_repair_mode = 2)
+  jmp_addr:=xrGame_addr+$468514;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__OnMesBoxYes_Patch), 7, true) then exit;
+
+  //в CUIInventoryUpgradeWnd::InitInventory(xrgame.dll+43f6b0) по умолчанию отключаем кнопку разбора
+  jmp_addr:=xrGame_addr+$43f8ba;
+  if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__InitInventory_Patch), 5, true) then exit;
+
+  //в CUIInventoryUpgradeWnd::install_item(xrgame.dll+43f210) включаем кнопку разбора при необходимости
+  jmp_addr:=xrGame_addr+$43f227;
+  if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__install_item_Patch), 5, true) then exit;
+
+  //в CUIActorMenu::DeInitUpgradeMode (xrgame.dll+46f8d0) отключаем кнопку разбора
+  jmp_addr:=xrGame_addr+$46f904;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__DeInitUpgradeMode_Patch), 5, true) then exit;
+
 
   result:=true;
 end;
