@@ -1413,6 +1413,113 @@ asm
   mov edx, [eax+$24]
 end;
 
+
+function Upgrade_type__GetGroup(upgrade:pointer):pshared_str;
+asm
+  mov @result, 0
+  pushad
+  mov ebx, upgrade
+  test ebx, ebx
+  je @finish
+  mov ebx, [ebx+$18] // Group* m_parent_group
+  lea ebx, [ebx+$4] // shared_str* Group::m_id
+  mov @result, ebx
+
+  @finish:
+  popad
+end;
+
+function OverrideFreeButtonState(my_upgrade:pointer; active_upgrade:pointer; new_state:pcardinal):boolean; stdcall;
+var
+  active_group, my_group:pshared_str;
+const
+  STATE_DISABLED_GROUP:cardinal = 6;
+begin
+  // Вызывается для апов, на которые сейчас не наведен курсор
+  // Для переопределения записать новый стейт в new_state и вернуть true
+
+  result:=false;
+
+  active_group:=Upgrade_type__GetGroup(active_upgrade);
+  my_group:=Upgrade_type__GetGroup(my_upgrade);
+  if (active_group<>nil) and (my_group<>nil) and (my_upgrade<>active_upgrade) and (get_string_value(active_group) = get_string_value(my_group)) then begin
+    result:=true;
+    new_state^:=STATE_DISABLED_GROUP;
+  end;
+end;
+
+procedure UIUpgrade__update_upgrade_state_Patch(); stdcall;
+asm
+  push 0 //out_buffer
+  mov eax, esp
+
+  // Получим текущий активный апгрейд
+  pushad
+  mov edx, [esi+$5c] // CUIInventoryUpgradeWnd* UIUpgrade::m_parent_wnd
+  mov ecx, [edx+$2c] // CUIWindow* CUIInventoryUpgradeWnd::m_pParentWnd
+  push eax // save ptr to out_buffer
+
+  push 0
+  push RTTI_CUIActorMenu
+  push RTTI_CUIWindow
+  push 0
+  push ecx
+  call dynamic_cast
+  pop ebx // restore ptr to out_buffer
+  test eax, eax
+  je @end
+
+  mov ecx, [eax+$14c] // UIInvUpgradeInfo* CUIActorMenu::m_upgrade_info
+  cmp ecx, 0
+  je @end
+  mov ecx, [ecx+$54] // Upgrade_type* UIInvUpgradeInfo::m_upgrade
+  mov [ebx], ecx // save Upgrade_type* to buffer
+
+  @end:
+  popad
+
+
+  // Вызовем функцию, которая и решит, отрисовывать нам наш ап как активный, или нет
+  pushad
+  push eax // arg 3 - ptr to out_buffer
+  push [eax] // arg2 - UIUpgrade::Upgrade_type* active_upgrade
+  mov ecx, esi
+  mov ebx, xrgame_addr
+  add ebx, $440600
+  call ebx // UIUpgrade::get_upgrade
+  push eax // arg1 - UIUpgrade::Upgrade_type* my own upgrade
+
+  call OverrideFreeButtonState
+  test al, al
+  popad
+  pop eax
+  je @orig
+  mov [esi+$78], eax // m_state = out_buffer
+
+  pop esi //ret addr
+
+  pop esi //orig
+  ret
+
+  @orig:
+  // original
+  mov eax, [esi+$78]
+  test eax, eax
+end;
+
+procedure UIUpgrade__update_upgrade_state_change_unavailable_focused(); stdcall;
+asm
+  cmp eax, 01 // original - compare with STATE_FOCUSED
+  je @finish
+  mov [esi+$78], 6 // m_state := STATE_DISABLED_GROUP
+
+  pop esi //ret addr
+  pop esi //original
+  ret // from caller
+
+  @finish:
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1527,6 +1634,27 @@ begin
   //в CUIActorMenu::DeInitUpgradeMode (xrgame.dll+46f8d0) отключаем кнопку разбора
   jmp_addr:=xrGame_addr+$46f904;
   if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__DeInitUpgradeMode_Patch), 5, true) then exit;
+
+  // в UIUpgrade::update_upgrade_state (xrgame.dll+440cd0) делаем подсветку группы, когда на один из ее элементов наведен курсор:
+  // в блоке "case BUTTON_FREE:" добавляем: если есть выбранный апгрейд (CUIActorMenu::m_upgrade_info::m_upgrade!=nullptr) и его группа совпадает с группой нашего (получаем наш вызовом UIUpgrade::get_upgrade) - ставим STATE_DISABLED_GROUP
+  jmp_addr:=xrGame_addr+$440d21;
+  if not WriteJump(jmp_addr, cardinal(@UIUpgrade__update_upgrade_state_Patch), 5, true) then exit;
+
+  // В UIUpgrade::update_upgrade_state (xrgame.dll+440cd0) заставляем подсвечиваться недоступный для уствновки ап, на который навели курсор(где m_button_state == BUTTON_FOCUSED возвращаем не STATE_DISABLED_FOCUSED)
+  jmp_addr:=xrGame_addr+$440d46;
+  if not WriteJump(jmp_addr, cardinal(@UIUpgrade__update_upgrade_state_change_unavailable_focused), 5, true) then exit;
+
+  // UIUpgrade::set_texture - xrgame.dll+440470
+  // UIUpgrade::OnMouseAction - xrgame.dll+440f40
+  // CUIInventoryUpgradeWnd::HighlightHierarchy - xrgame.dll+af830
+  /// Root::highlight_hierarchy - xrgame.dll+b1800
+  // Upgrade::highlight_down - xrgame.dll+b07a0
+  // Group::highlight_down - xrgame.dll+b0260
+  // UIUpgrade::update_upgrade_state - xrgame.dll+440cd0
+  // CUIInventoryUpgradeWnd::set_info_cur_upgrade - xrgame.dll+43fa60
+  // CUIActorMenu::SetInfoCurUpgrade - xrgame.dll+46f7f0
+  // UIInvUpgradeInfo::init_upgrade - xrgame.dll+441470
+  // UIUpgrade::Update - xrgame.dll+440f00
 
 
   result:=true;

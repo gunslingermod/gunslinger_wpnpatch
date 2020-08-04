@@ -37,7 +37,7 @@ const
   RTTI_CShootingObject:cardinal = $62C4E8;
   RTTI_CMapSpot:cardinal = $63EFA0;
   RTTI_CUIWindow:cardinal = $62D6E8;
-  RTTI_CEntity:cardinal = $61D4DC;  
+  RTTI_CEntity:cardinal = $61D4DC;
   RTTI_CEntityAlive:cardinal = $6196FC;
   RTTI_CAI_Crow:cardinal = $620204;
   RTTI_CAI_Bloodsucker:cardinal = $61E9AC;
@@ -48,6 +48,8 @@ const
   RTTI_CTelekinesis:cardinal = $61dbec;
   RTTI_CBurer:cardinal = $620238;
   RTTI_CBaseMonster:cardinal = $61d7f0;
+  RTTI_CUIActorMenu = $63ee68;
+
 
 
 implementation
