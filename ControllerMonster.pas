@@ -37,6 +37,18 @@ var
   IsPsiBlocked_adapter_ptr:pointer;
   _active_controllers:array of pointer;
 
+  _psi_block_failed:boolean;
+
+procedure UpdatePsiBlockFailedState();
+begin
+  _psi_block_failed:=random < GetControllerPsiBlockBreakProb();
+end;
+
+function IsPsiBlockFailed():boolean;
+begin
+  result:=_psi_block_failed;
+end;
+
 function IsPsiBlocked(act:pointer):boolean; stdcall;
 asm
   mov @result, 0
@@ -436,7 +448,7 @@ end;
 procedure OnSuicideAnimEnd(wpn:pointer; param:integer);stdcall;
 begin
   if (wpn<>GetActorActiveItem()) then exit;
-  if not IsPsiBlocked(GetActor()) and (_suicide_now or _planning_suicide) and CheckActorVisibilityForController() then begin
+  if (not IsPsiBlocked(GetActor()) or IsPsiBlockFailed()) and (_suicide_now or _planning_suicide) and CheckActorVisibilityForController() then begin
     DoSuicideShot();
   end else begin
     _suicide_now:=false;
@@ -467,7 +479,7 @@ begin
   act:=GetActor();
   if act=nil then exit;
 
-  psi_blocked:=IsPsiBlocked(act);
+  psi_blocked:=IsPsiBlocked(act) and not IsPsiBlockFailed();
   not_seen:= not IsControllerSeeActor(monster_controller, act);
   dist:=DistToSelectedContr(monster_controller);
   contr_feel:=GetControllerFeelParams();
@@ -764,9 +776,13 @@ end;
 
 procedure OnPsyHitActivate(monster_controller:pointer); stdcall;
 begin
+  if (_controlled_time_remains = 0) then begin
+    UpdatePsiBlockFailedState();
+  end;
+
   _controller_preparing_starttime:=GetGameTickCount();
   script_call('gunsl_controller.on_psi_attack_prepare', '', GetCObjectID(monster_controller));
-  if not IsPsiBlocked(GetActor()) and (_controlled_time_remains>0) then begin
+  if (not IsPsiBlocked(GetActor()) or IsPsiBlockFailed()) and (_controlled_time_remains>0) then begin
     _controlled_time_remains:=GetControllerPrepareTime();
   end;
 end;
@@ -782,7 +798,7 @@ end;
 
 function IsControllerPreparing():boolean; stdcall;
 begin
-  if IsPsiBlocked(GetActor()) then
+  if IsPsiBlocked(GetActor()) and (not IsPsiBlockFailed()) then
     result:=false
   else
     result:=(GetTimeDeltaSafe(_controller_preparing_starttime)<GetControllerPrepareTime+1000);
