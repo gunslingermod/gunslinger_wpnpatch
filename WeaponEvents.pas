@@ -1305,8 +1305,8 @@ begin
         // В момент отпускания клавиши было активно альтернативное прицеливание. Оставляем его.
         result:=true;
       end else begin
-        // В момент отпускания клавиши было активно обычное прицеливание. Если зажата кнопка альтернативного, то переходим в него, иначе -  выходим из прицеливания
-        if IsActionKeyPressedInGame(kWPN_ZOOM_ALTER) then begin
+        // В момент отпускания клавиши было активно обычное прицеливание. Если зажата кнопка альтернативного, и альтернативное поддерживается оружием, то переходим в него, иначе -  выходим из прицеливания
+        if IsActionKeyPressedInGame(kWPN_ZOOM_ALTER) and CanUseAlterScope(wpn) then begin
           buf.SetLastZoomAlter(true);
           buf.SetAlterZoomMode(true);
           buf.StartAlterZoomDirectSwitchMixup();
