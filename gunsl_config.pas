@@ -218,6 +218,8 @@ function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; st
 
 function GetHudSoundVolume():single;
 
+function GetUpgradeMenuPointOffsetX(need_16x9:boolean):integer;
+
 var
   g_pickup_distance:single;
 
@@ -298,6 +300,9 @@ var
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
   _weapon_physics_damage_params:weapon_physics_damage_params;
+
+  _upgrade_menu_points_offset_x:integer;
+  _upgrade_menu_points_offset_x_16x9:integer;
 
 //данные консольных команд
 //булевские флаги
@@ -881,6 +886,9 @@ begin
   _weapon_physics_damage_params.treshold:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_physics_damage_treshold', 15);
   _weapon_physics_damage_params.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_physics_damage_speed', 0.03);
 
+  _upgrade_menu_points_offset_x:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'upgrade_menu_points_offset_x', 0);
+  _upgrade_menu_points_offset_x_16x9:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'upgrade_menu_points_offset_x_16x9', 0);
+
   result:=true;
 end;
 
@@ -1175,6 +1183,15 @@ end;
 function GetHudSoundVolume():single;
 begin
   result:=_hud_sound_volume;
+end;
+
+function GetUpgradeMenuPointOffsetX(need_16x9:boolean):integer;
+begin
+  if need_16x9 then begin
+    result:=_upgrade_menu_points_offset_x_16x9;
+  end else begin
+    result:=_upgrade_menu_points_offset_x;
+  end;
 end;
 
 end.

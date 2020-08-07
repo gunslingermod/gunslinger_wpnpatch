@@ -1539,6 +1539,24 @@ ret
 
 end;
 
+procedure correct_upgrade_point(x:psingle); stdcall;
+begin
+  x^:=x^+GetUpgradeMenuPointOffsetX(Is16x9());
+end;
+
+procedure CUIUpgradePoint__load_from_xml_Patch(); stdcall;
+asm
+  // original
+  lea eax, [esp+$10]
+  movss [eax],xmm0
+
+  pushad
+  push eax
+  call correct_upgrade_point
+  popad
+
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1666,6 +1684,10 @@ begin
   // В CUIZoneMap::Update отключаем отображение числа контактов на сложности выше новичка
   jmp_addr:=xrGame_addr+$45d65f;
   if not WriteJump(jmp_addr, cardinal(@CUIZoneMap__Update_Counter_Patch), 15, true) then exit;
+
+  // в CUIUpgradePoint::load_from_xml добавляем смещение точки по оси x при режиме 16x9
+  jmp_addr:=xrGame_addr+$4409f2;
+  if not WriteJump(jmp_addr, cardinal(@CUIUpgradePoint__load_from_xml_Patch), 6, true) then exit;
 
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
