@@ -39,9 +39,58 @@ var
 
   _psi_block_failed:boolean;
 
-procedure UpdatePsiBlockFailedState();
+function DistToSelectedContr(controller_monster:pointer):single; stdcall;
+var
+  a_pos, c_pos:pFVector3;
+  c_pos_cp:FVector3;
+  act:pointer;
 begin
-  _psi_block_failed:=random < GetControllerPsiBlockBreakProb();
+  result:=1000;
+  act:=GetActor();
+  if act=nil then exit;
+
+  a_pos:=GetEntityPosition(act);
+  c_pos:=GetEntityPosition(controller_monster);
+  c_pos_cp:=c_pos^;
+  v_sub(@c_pos_cp, a_pos);
+  result:=v_length(@c_pos_cp);
+end;
+
+function DistToContr():single; stdcall;
+var
+  dist:single;
+
+  i:integer;
+begin
+  result:=1000;
+
+  for i:=0 to length(_active_controllers)-1 do begin
+    dist:=DistToSelectedContr(_active_controllers[i]);
+    if dist < result then begin
+      dist:=result;
+    end;
+  end;
+end;
+
+procedure UpdatePsiBlockFailedState(monster_controller:pointer);
+var
+  dist, prob:single;
+  params:controller_psiunblock_params;
+begin
+  dist:=DistToSelectedContr(monster_controller);
+  params:=GetControllerPsiUnblockProb();
+
+  if dist <= params.min_dist then begin
+    prob:=params.min_dist_prob;
+  end else if dist >= params.max_dist then begin
+    prob:=params.max_dist_prob;
+  end else begin
+    prob:= 1 - (dist-params.min_dist) / (params.max_dist - params.min_dist);
+    prob:= prob * (params.min_dist_prob - params.max_dist_prob) + params.max_dist_prob; 
+  end;
+
+  _psi_block_failed:=random < prob;
+    Log('psi unblock prob '+floattostr(prob)+', dist '+floattostr(dist)+', state '+booltostr(_psi_block_failed, true));
 end;
 
 function IsPsiBlockFailed():boolean;
@@ -233,39 +282,6 @@ begin
       result:= (GetAmmoInMagCount(wpn) > 0) and not IsWeaponJammed(wpn)
     end else begin
       result:=true;
-    end;
-  end;
-end;
-
-function DistToSelectedContr(controller_monster:pointer):single; stdcall;
-var
-  a_pos, c_pos:pFVector3;
-  c_pos_cp:FVector3;
-  act:pointer;
-begin
-  result:=1000;
-  act:=GetActor();
-  if act=nil then exit;
-
-  a_pos:=GetEntityPosition(act);
-  c_pos:=GetEntityPosition(controller_monster);
-  c_pos_cp:=c_pos^;
-  v_sub(@c_pos_cp, a_pos);
-  result:=v_length(@c_pos_cp);
-end;
-
-function DistToContr():single; stdcall;
-var
-  dist:single;
-
-  i:integer;
-begin
-  result:=1000;
-
-  for i:=0 to length(_active_controllers)-1 do begin
-    dist:=DistToSelectedContr(_active_controllers[i]);
-    if dist < result then begin
-      dist:=result;
     end;
   end;
 end;
@@ -777,7 +793,7 @@ end;
 procedure OnPsyHitActivate(monster_controller:pointer); stdcall;
 begin
   if (_controlled_time_remains = 0) then begin
-    UpdatePsiBlockFailedState();
+    UpdatePsiBlockFailedState(monster_controller);
   end;
 
   _controller_preparing_starttime:=GetGameTickCount();

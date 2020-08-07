@@ -77,6 +77,13 @@ type controller_feel_params = record
   max_dist:single;
 end;
 
+type controller_psiunblock_params = record
+  min_dist:single;
+  min_dist_prob:single;
+  max_dist:single;
+  max_dist_prob:single;
+end;
+
 type burer_superstamina_hit_params = record
   distance:single;
   stamina_decrease:single;
@@ -157,7 +164,7 @@ function GetShockTime():cardinal; stdcall;
 function GetMaxJitterHealth():single; stdcall;
 function GetControllerFeelParams():controller_feel_params; stdcall;
 function GetControllerQueueStopProb():single; stdcall;
-function GetControllerPsiBlockBreakProb():single; stdcall;
+function GetControllerPsiUnblockProb():controller_psiunblock_params; stdcall;
 
 function GetControlledActorSpeedKoef():single; stdcall;
 
@@ -245,7 +252,7 @@ var
   _controller_prepare_time:cardinal;
   _controller_blocked_time:cardinal;
   _controller_queue_stop_prob:single;
-  _controller_psi_break_prob:single;
+  _controller_psiunblock_params:controller_psiunblock_params;
   _controller_phantoms:phantoms_params;
   _controller_feel:controller_feel_params;
 
@@ -789,7 +796,11 @@ begin
   _controller_feel.min_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_min_feel_dist', 10.0);
   _controller_feel.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_max_feel_dist', 30.0);
   _controller_queue_stop_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_queue_stop_prob', 0.95);
-  _controller_psi_break_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psi_block_prob', 0.5);
+
+  _controller_psiunblock_params.min_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psi_unblock_mindist', 7.0);
+  _controller_psiunblock_params.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psi_unblock_maxdist', 60.0);
+  _controller_psiunblock_params.min_dist_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psi_unblock_mindist_prob', 0.95);
+  _controller_psiunblock_params.max_dist_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'controller_psi_unblock_maxdist_prob', 0.1);
 
   _max_jitter_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_jitter_health', 0.3);
   _actor_max_breath_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'max_breath_health', 0.15);
@@ -989,9 +1000,9 @@ begin
   result:=_controller_queue_stop_prob;
 end;
 
-function GetControllerPsiBlockBreakProb():single; stdcall;
+function GetControllerPsiUnblockProb():controller_psiunblock_params; stdcall;
 begin
-  result:=_controller_psi_break_prob;
+  result:=_controller_psiunblock_params;
 end;
 
 function GetHeadlampEnableAnimator():PChar;
