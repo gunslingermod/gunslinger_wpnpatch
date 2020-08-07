@@ -1520,6 +1520,25 @@ asm
   @finish:
 end;
 
+procedure CUIZoneMap__Update_Counter_Patch(); stdcall;
+asm
+push eax
+call GetCurrentDifficulty
+cmp eax, gd_stalker
+pop eax
+jb @original
+
+xor ecx, ecx
+ret
+
+@original:
+mov ecx,[eax+$310]
+sub ecx,[eax+$30C]
+sar ecx,02
+ret
+
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1643,6 +1662,10 @@ begin
   // В UIUpgrade::update_upgrade_state (xrgame.dll+440cd0) заставляем подсвечиваться недоступный для уствновки ап, на который навели курсор(где m_button_state == BUTTON_FOCUSED возвращаем не STATE_DISABLED_FOCUSED)
   jmp_addr:=xrGame_addr+$440d46;
   if not WriteJump(jmp_addr, cardinal(@UIUpgrade__update_upgrade_state_change_unavailable_focused), 5, true) then exit;
+
+  // В CUIZoneMap::Update отключаем отображение числа контактов на сложности выше новичка
+  jmp_addr:=xrGame_addr+$45d65f;
+  if not WriteJump(jmp_addr, cardinal(@CUIZoneMap__Update_Counter_Patch), 15, true) then exit;
 
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
