@@ -3226,10 +3226,18 @@ asm
   @finish:
 end;
 
-procedure CActor__IR_OnMouseMove_CorrectMouseSense(sense:pSingle); stdcall;
+procedure CActor__IR_OnMouseMove_CorrectMouseSense(p_dx:pinteger; p_dy:pinteger; sense:pSingle); stdcall;
 var
   wpn:pointer;
   sect:PChar;
+  dx, dy:single;
+  rot_ang, sense_scale_x, sense_scale_y:single;
+  controller_correction:controller_input_correction_params;
+  controller_offset:controller_input_random_offset;
+
+const
+  ROTATE_SCALER:single = 10;
+  EPS:single=0.01;
 begin
   wpn:=GetActorActiveItem();
   if (wpn<>nil) and (IsAimNow(wpn)) then begin
@@ -3244,6 +3252,31 @@ begin
     else
       sense^:=sense^*game_ini_r_single_def(sect, 'zoom_gl_mouse_sense_koef', 1.0);
   end;
+
+  controller_offset:=GetControllerInputRandomOffset();
+  p_dx^:=p_dx^ + controller_offset.offset_x;
+  p_dy^:=p_dy^ + controller_offset.offset_y;
+
+  controller_correction:=GetCurrentControllerInputCorrectionParams();
+  rot_ang:=controller_correction.rotate_angle;
+  sense_scale_x:=controller_correction.sense_scaler_x;
+  sense_scale_y:=controller_correction.sense_scaler_y;
+
+  if (abs(rot_ang) > EPS) or (abs(sense_scale_x-1) > EPS) or (abs(sense_scale_y-1) > EPS) then begin
+    //так как dx и dy интовые и маленькие - увеличим их за счет уменьшения сенсы
+    sense^:=sense^ / ROTATE_SCALER;
+    dx:=ROTATE_SCALER * p_dx^ * sense_scale_x;
+    dy:=ROTATE_SCALER * p_dy^ * sense_scale_y;
+
+    if (abs(rot_ang) > EPS) then begin
+      //Довернем вектор (dx, dy) на угол rotate_angle
+      p_dx^:=floor(dx*cos(rot_ang)+dy*sin(rot_ang));
+      p_dy^:=floor(dy*cos(rot_ang)-dx*sin(rot_ang));
+    end else begin
+      p_dx^:=floor(dx);
+      p_dy^:=floor(dy);
+    end;
+  end;
 end;
 
 procedure CActor__IR_OnMouseMove_CorrectMouseSense_Patch(); stdcall;
@@ -3257,12 +3290,18 @@ asm
 
   lea ebp, [esp+$10]
   pushad
-  push ebp
+  push ebp // sense
+  add ebp, $18
+  push ebp //ptr to dy
+  sub ebp, 4
+  push ebp //ptr to dx
   call CActor__IR_OnMouseMove_CorrectMouseSense
   popad
   pop ebp
 
-  test eax, eax //original
+  //original
+  mov eax,[esp+$20] // dx --> eax
+  test eax, eax
 end;
 
 procedure OnStep(id:cardinal); stdcall;
@@ -3808,8 +3847,8 @@ begin
   jmp_addr:= xrgame_addr+$45CA70;
   if not WriteJump(jmp_addr, cardinal(@CUIMotionIcon__Update_Patch), 8, true) then exit;
 
-  jmp_addr:= xrgame_addr+$277CC7;
-  if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnMouseMove_CorrectMouseSense_Patch), 12, true) then exit;
+  jmp_addr:= xrgame_addr+$277CC3;
+  if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnMouseMove_CorrectMouseSense_Patch), 16, true) then exit;
 
   //[bug] не совсем баг, но нелогично - что-то пищит при подходе к аномалиям, даже когда детектора нет ни в слоте, ни в инвентаре. Исправлено.
   jmp_addr:= xrgame_addr+$458393;

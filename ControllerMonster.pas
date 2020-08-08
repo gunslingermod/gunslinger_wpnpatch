@@ -22,6 +22,20 @@ function CheckActorVisibilityForController():boolean; stdcall;
 procedure NotifySuicideStopCallbackIfNeeded();
 procedure NotifySuicideShotCallbackIfNeeded();
 
+
+type controller_input_correction_params = packed record
+  rotate_angle:single;
+  sense_scaler_x:single;
+  sense_scaler_y:single;
+end;
+function GetCurrentControllerInputCorrectionParams():controller_input_correction_params;
+
+type controller_input_random_offset = packed record
+  offset_x:integer;
+  offset_y:integer;
+end;
+function GetControllerInputRandomOffset():controller_input_random_offset;
+
 implementation
 uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc, WeaponEvents, Throwable, dynamic_caster, KeyUtils;
 
@@ -38,6 +52,7 @@ var
   _active_controllers:array of pointer;
 
   _psi_block_failed:boolean;
+  _input_correction:controller_input_correction_params;
 
 function DistToSelectedContr(controller_monster:pointer):single; stdcall;
 var
@@ -90,7 +105,7 @@ begin
   end;
 
   _psi_block_failed:=random < prob;
-    Log('psi unblock prob '+floattostr(prob)+', dist '+floattostr(dist)+', state '+booltostr(_psi_block_failed, true));
+  // Log('psi unblock prob '+floattostr(prob)+', dist '+floattostr(dist)+', state '+booltostr(_psi_block_failed, true));
 end;
 
 function IsPsiBlockFailed():boolean;
@@ -177,6 +192,56 @@ asm
   mov ecx, [esp+$54]
 
   jmp edx
+end;
+
+procedure ChangeInputRotateAngle();
+const
+  MIN_ANGLE:single = 70/180*pi;
+  MAX_ANGLE:single = 290/180*pi;
+
+  MIN_SENSE:single = 0.1;
+  MAX_SENSE:single = 0.5;
+begin
+  _input_correction.rotate_angle:=random * (MAX_ANGLE-MIN_ANGLE) + MIN_ANGLE;
+  _input_correction.sense_scaler_x:=random * (MAX_SENSE - MIN_SENSE) + MIN_SENSE;
+  _input_correction.sense_scaler_y:=random * (MAX_SENSE - MIN_SENSE) + MIN_SENSE;
+end;
+
+function GetCurrentControllerInputCorrectionParams():controller_input_correction_params;
+var
+  suicide_anm:boolean;
+  itm:pointer;
+begin
+  itm:=GetActorActiveItem();
+  suicide_anm := (itm<>nil) and IsSuicideAnimPlaying(itm);
+
+  if IsActorPlanningSuicide() or IsActorSuicideNow() or suicide_anm then begin
+    result:=_input_correction;
+  end else begin
+    result.rotate_angle:=0;
+    result.sense_scaler_x:=1;
+    result.sense_scaler_y:=1;
+  end;
+end;
+
+function GetControllerInputRandomOffset():controller_input_random_offset;
+var
+  suicide_anm:boolean;
+  itm:pointer;
+const
+  MIN_OFS:single=-5;
+  MAX_OFS:single=5;
+begin
+  itm:=GetActorActiveItem();
+  suicide_anm := (itm<>nil) and IsSuicideAnimPlaying(itm);
+
+  if IsActorSuicideNow() or suicide_anm or (not IsPsiBlocked(GetActor) and ( IsActorControlled() or IsActorPlanningSuicide() or IsControllerPreparing())) then begin
+    result.offset_x:=floor(random*(MAX_OFS-MIN_OFS)+MIN_OFS);
+    result.offset_y:=floor(random*(MAX_OFS-MIN_OFS)+MIN_OFS);
+  end else begin
+    result.offset_x:=0;
+    result.offset_y:=0;
+  end;
 end;
 
 function GetCurrentSuicideWalkKoef():single;
@@ -794,6 +859,7 @@ procedure OnPsyHitActivate(monster_controller:pointer); stdcall;
 begin
   if (_controlled_time_remains = 0) then begin
     UpdatePsiBlockFailedState(monster_controller);
+    ChangeInputRotateAngle();
   end;
 
   _controller_preparing_starttime:=GetGameTickCount();
