@@ -2090,6 +2090,11 @@ var
 begin
   //осечки было быть не должно. Ќо все еще можно изменить! ¬ернуть true, если не стрел€ть
   result:=false;
+
+  if (GetOwner(wpn) = GetActor()) and (GetActor()<>nil) and not game_ini_r_bool_def(GetSection(wpn), 'actor_can_shoot', true) then begin
+    result:=true;
+  end;
+
   buf:=GetBuffer(wpn);
   problems_lvl:=buf.GetMisfireProblemsLevel();
   if (buf<>nil) and (problems_lvl>0) and (CurrentElectronicsProblemsCnt()>=problems_lvl) then begin
