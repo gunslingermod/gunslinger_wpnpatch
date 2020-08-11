@@ -730,7 +730,7 @@ begin
     if (rl<>nil) then begin
       rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CRocketLauncher, false);
       if GetRocketsCount(rl)>0 then begin
-        CWeaponMagazinedWGrenade__LaunchGrenade(rl);
+        CWeaponMagazinedWGrenade__LaunchGrenade(wpn); // не rl - функция ждет CWeaponMagazinedWGrenade!
       end;
 
       //[bug] баг - отсутствует выставление a_elapsed_grenades в апдейт-пакете, из-за чего грены прогружаются некорректно. По-хорошему, надо править не так топорно, а модифицированием методов экспорта и импорта нетпакетов
