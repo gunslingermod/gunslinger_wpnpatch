@@ -637,7 +637,7 @@ begin
   end;
 
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
-  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer));
+  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer)) or ((itm<>nil) and IsThrowable(itm) and (GetCurrentState(itm) <> EHudStates__eIdle));
 end;
 
 procedure CStateBurerAttackTele__check_completion_ForceCompletion_Patch(); stdcall;
