@@ -719,7 +719,7 @@ begin
   CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
   CConsole__AddCommand(@(CCC_fov.base));
 
-  CCC_Float__CCC_Float(@CCC_snd_hud_volume, 'snd_volume_hudweapon', @_hud_sound_volume, 0.3, 1.0);
+  CCC_Float__CCC_Float(@CCC_snd_hud_volume, 'snd_volume_hudweapon', @_hud_sound_volume, 0.1, 1.0);
   CConsole__AddCommand(@(CCC_snd_hud_volume.base));
 //-----------------------------------------------------------------------------------------------------------------
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
