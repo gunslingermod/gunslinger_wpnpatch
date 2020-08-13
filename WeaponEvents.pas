@@ -380,6 +380,13 @@ begin
       WpnBuf.Create(wpn);
     end;
   end;
+
+  //перенести в область движкового кода после вычитки m_flagsAddOnState
+  if IsScopeAttached(wpn) and (GetCurrentScopeIndex(wpn) >= GetScopesCount(wpn)) then begin
+    //Проблема - прицел не существует! Сбрасываем флаг
+    Log('Invalid scope ID '+inttostr(GetCurrentScopeIndex(wpn))+' for '+GetSection(wpn)+', reset ID', true);
+    SetCurrentScopeType(wpn, 0);
+  end;
 end;
 
 procedure OnCWeaponNetSpawn_end(wpn:pointer);stdcall;
@@ -390,8 +397,25 @@ var
   sect, scope_sect:PChar;
   slot:integer;
 
+  visual:pchar;
+  banned_visuals, banned_item:string;
 begin
 
+  banned_visuals:=game_ini_read_string_def(GetSection(wpn), 'banned_visuals', '');
+  visual:=GetWeaponVisualName(wpn);
+  if (visual<>nil) and (length(banned_visuals) > 0) then begin
+    banned_visuals:=banned_visuals;
+    while (GetNextSubStr(banned_visuals, banned_item, ',')) do begin
+      if visual = banned_item then begin
+        log('Found banned visual "'+visual+' for '+GetSection(wpn)+', reset it');
+        visual:=game_ini_read_string_def(GetSection(wpn), 'visual', '');
+        if length(visual) > 0 then begin
+          SetWpnVisual(wpn, visual);
+        end;
+        break;
+      end;
+    end;
+  end;
 
   //выставим сохраненные типы патронов
   if WpnCanShoot(wpn) then begin
@@ -2134,6 +2158,56 @@ asm
   jmp esi
 end;
 
+
+function IsUpgradeBanned(item:pointer; upgrade_id:pshared_str; loading:boolean):boolean; stdcall;
+var
+  wpn:pointer;
+  banned_ups, mask:string;
+  sect:PAnsiChar;
+const
+  BANNED_UPGRADES:PAnsiChar='banned_upgrades';
+begin
+  result:=false;
+  sect:=GetSection(item);
+  if game_ini_line_exist(sect, BANNED_UPGRADES) then begin
+    banned_ups:=game_ini_read_string(sect, BANNED_UPGRADES)+',';
+    while GetNextSubStr(banned_ups, mask, ',') do begin
+      if leftstr(get_string_value(upgrade_id), length(mask)) = mask then begin
+        Log('Found banned upgrade "'+get_string_value(upgrade_id)+'" for item '+sect);
+        result:=true;
+        break;
+      end;
+    end;
+  end;
+end;
+
+procedure Manager__upgrade_install_checkbanned_Patch(); stdcall;
+asm
+
+  mov eax, esp
+
+  pushad
+  movzx ebx, byte ptr [eax+$10]
+  push ebx
+  push [eax+$C] //pshared_str upgrade_id
+  push [eax+$8] //CInventoryItem* item
+  call IsUpgradeBanned
+  test al, al
+  popad
+  je @orig
+
+
+  pop eax //ret addr
+  xor eax, eax
+  ret $0c
+@orig:
+  pop eax //ret addr
+  sub esp, $18 //original
+  push ebx
+  push ebp
+  jmp eax
+end;
+
 procedure RegisterGrenadeShot(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
@@ -2381,6 +2455,9 @@ begin
   jmp_addr:=xrGame_addr+$af4e1;
   if not WriteJump(jmp_addr, cardinal(@Manager__upgrade_install_Patch), 8, false) then exit;
 
+  // В самом начале Manager::upgrade_install отсекаем невалидные апгрейды, оставшиеся от заглушек
+  jmp_addr:=xrGame_addr+$af4d0;
+  if not WriteJump(jmp_addr, cardinal(@Manager__upgrade_install_checkbanned_Patch), 5, true) then exit;
 
   // Регистрируем выстрел в   CWeaponMagazinedWGrenade::LaunchGrenade
   jmp_addr:=xrGame_addr+$2d2cc7;

@@ -46,6 +46,7 @@ function FindIntValueInUpgradesDef(wpn:pointer; key:PChar; def:integer):integer;
 function ModifyFloatUpgradedValue(wpn:pointer; key:PChar; def:single):single; stdcall;
 function GetSection(wpn:pointer):PChar; stdcall;
 function GetID(wpn:pointer):word; stdcall;
+function GetWeaponVisualName(wpn:pointer):pchar; stdcall;
 function GetHUDSection(wpn:pointer):PChar; stdcall;
 function GetScopeStatus(wpn:pointer):cardinal; stdcall;
 function GetSilencerStatus(wpn:pointer):cardinal; stdcall;
@@ -720,6 +721,17 @@ asm
   mov eax, [wpn]
   movzx eax, word ptr [eax+$18c]
   mov @result, ax
+end;
+
+function GetWeaponVisualName(wpn:pointer):pchar; stdcall;
+asm
+  mov eax, [wpn]
+  mov eax, dword ptr [eax+$198] // NameVisual from CObject parent class
+  test eax, eax
+  je @finish
+  add eax, $10
+  @finish:
+  mov @result, eax
 end;
 
 function GetHUDSection(wpn:pointer):PChar; stdcall;
