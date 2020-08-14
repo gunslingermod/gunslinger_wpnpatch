@@ -63,7 +63,7 @@ begin
   result:=false;
   if itm=nil then begin
     exit;
-  end else if IsKnife(itm) and IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
+  end else if (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
     result:=true;
   end else if IsBino(itm) then begin
     result:=false;
@@ -189,14 +189,24 @@ begin
     end else if phealthloss^ then begin
       force_shield:=true;
     end else if (panti_aim_ready^) and (previous_state^=eStateBurerAttack_Shield) then begin
-      force_antiaim:=true;
+      if (itm<>nil) and (GetKickAnimator() = GetSection(itm)) then begin
+        if pgravi_ready^ then begin //TODO: почему-то всегда фейлится, т.е. к грави-атаке бюрер не готов в этих условиях
+          force_gravi:=true
+        end else begin
+          force_shield:=true;
+        end
+      end else begin
+        force_antiaim:=true;
+      end;
     end else begin
       force_shield:=true;
     end;
+  end else if NeedCloseProtectionShield(burer) and (itm<>nil) and (GetKickAnimator() = GetSection(itm)) and pgravi_ready^ then begin
+    force_gravi:=true
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
     // Попытка отхилиться - предотвращаем
     force_antiaim:=true;
-  end else if (itm<>nil) and IsKnife(itm) and pgravi_ready^ then begin
+  end else if (itm<>nil) and (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and pgravi_ready^ then begin
     force_gravi:=true;
   end else if weapon_for_big_boom or big_boom_shooted then begin
     if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
@@ -228,7 +238,7 @@ begin
         pgravi_ready^:=false;
        //TODO:Принудительный спуск гранаты, если актор удерживает ее на изготовке
       end;
-    end else if (itm<>nil) and IsKnife(itm) and (pshield_ready^) then begin
+    end else if (itm<>nil) and (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and (pshield_ready^) then begin
       force_shield:=true;
     end;
   end else if IsBurerUnderAim(burer) then begin
@@ -384,7 +394,7 @@ begin
   _last_superstamina_hit_time:=GetGameTickCount();
 
   if itm<>nil then begin
-    if IsKnife(itm) then begin
+    if IsKnife(itm) or (GetKickAnimator() = GetSection(itm)) then begin
       if ss_params.force_hide_items_prob < random then begin
         ActivateActorSlot__CInventory(0, true);
       end;
