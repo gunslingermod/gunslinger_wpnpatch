@@ -1536,6 +1536,20 @@ begin
   end;
 end;
 
+
+procedure virtual_CActor__IR_OnMouseMove(act:pointer; mouse_dx:integer; mouse_dy:integer); stdcall;
+asm
+  pushad
+    mov ecx, act
+    add ecx, $298 // cast CActor to input receiver
+    mov edx, [ecx]
+    mov eax, [edx+$18] // IR_OnMouseMove
+    push mouse_dy
+    push mouse_dx
+    call eax
+  popad
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -1553,6 +1567,7 @@ var
 
   blowout_level:single;
   is_nv_enabled:boolean;
+  contr_k:controller_mouse_control_params;
 
   ss:shared_str;
   canshoot:boolean;
@@ -1831,6 +1846,18 @@ begin
     _slot_to_restore_after_outfit_change:=-1;    
   end;
 
+  if GetCurrentControllerInputCorrectionParams().active then begin
+    contr_k:=GetControllerMouseControlParams();
+    if GetActorActionState(act, actMovingLeft, mState_REAL) then begin
+      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.min_offset), floor(contr_k.keyboard_move_k*contr_k.max_offset));
+    end else if GetActorActionState(act, actMovingRight, mState_REAL) then begin
+      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.max_offset), floor(contr_k.keyboard_move_k*contr_k.max_offset));
+    end else if GetActorActionState(act, actMovingForward, mState_REAL) then begin
+      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.min_offset), floor(contr_k.keyboard_move_k*contr_k.max_offset));
+    end else if GetActorActionState(act, actMovingBack, mState_REAL) then begin
+      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.min_offset), floor(contr_k.keyboard_move_k*contr_k.min_offset));
+    end;
+  end;
 end;
 
 procedure ActorUpdate_Patch(); stdcall
@@ -3253,11 +3280,11 @@ begin
       sense^:=sense^*game_ini_r_single_def(sect, 'zoom_gl_mouse_sense_koef', 1.0);
   end;
 
-  controller_offset:=GetControllerInputRandomOffset();
-  p_dx^:=p_dx^ + controller_offset.offset_x;
-  p_dy^:=p_dy^ + controller_offset.offset_y;
-
   controller_correction:=GetCurrentControllerInputCorrectionParams();
+  if controller_correction.reverse_axis_y then begin
+    p_dy^:=(-1) * p_dy^;
+  end;
+
   rot_ang:=controller_correction.rotate_angle;
   sense_scale_x:=controller_correction.sense_scaler_x;
   sense_scale_y:=controller_correction.sense_scaler_y;
@@ -3276,6 +3303,15 @@ begin
       p_dx^:=floor(dx);
       p_dy^:=floor(dy);
     end;
+
+    // “р€ску нужно примен€ть после того, как применили sense_scale, чтобы она не масштабировалась, также учитываем наши манипул€ции с ROTATE_SCALER
+    controller_offset:=GetControllerInputRandomOffset();
+    p_dx^:=p_dx^ + floor(controller_offset.offset_x * ROTATE_SCALER);
+    p_dy^:=p_dy^ + floor(controller_offset.offset_y * ROTATE_SCALER);
+  end else begin
+    controller_offset:=GetControllerInputRandomOffset();
+    p_dx^:=p_dx^ + controller_offset.offset_x;
+    p_dy^:=p_dy^ + controller_offset.offset_y;
   end;
 end;
 

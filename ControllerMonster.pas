@@ -24,9 +24,11 @@ procedure NotifySuicideShotCallbackIfNeeded();
 
 
 type controller_input_correction_params = packed record
+  active:boolean;
   rotate_angle:single;
   sense_scaler_x:single;
   sense_scaler_y:single;
+  reverse_axis_y:boolean;
 end;
 function GetCurrentControllerInputCorrectionParams():controller_input_correction_params;
 
@@ -199,12 +201,16 @@ const
   MIN_ANGLE:single = 70/180*pi;
   MAX_ANGLE:single = 290/180*pi;
 
-  MIN_SENSE:single = 0.1;
-  MAX_SENSE:single = 0.5;
+var
+  min_sense, max_sense:single;
 begin
+  min_sense:=GetControllerMouseControlParams().min_sense_scale;
+  max_sense:=GetControllerMouseControlParams().max_sense_scale;
+
   _input_correction.rotate_angle:=random * (MAX_ANGLE-MIN_ANGLE) + MIN_ANGLE;
-  _input_correction.sense_scaler_x:=random * (MAX_SENSE - MIN_SENSE) + MIN_SENSE;
-  _input_correction.sense_scaler_y:=random * (MAX_SENSE - MIN_SENSE) + MIN_SENSE;
+  _input_correction.sense_scaler_x:=random * (max_sense - min_sense) + min_sense;
+  _input_correction.sense_scaler_y:=random * (max_sense - min_sense) + min_sense;
+  _input_correction.reverse_axis_y:=random < 0.5;
 end;
 
 function GetCurrentControllerInputCorrectionParams():controller_input_correction_params;
@@ -215,12 +221,15 @@ begin
   itm:=GetActorActiveItem();
   suicide_anm := (itm<>nil) and IsSuicideAnimPlaying(itm);
 
-  if IsActorPlanningSuicide() or IsActorSuicideNow() or suicide_anm then begin
+  if (IsActorPlanningSuicide() and not IsPsiBlocked(GetActor()) and (GetCurrentDifficulty() >= gd_master) ) or IsActorSuicideNow() or suicide_anm then begin
     result:=_input_correction;
+    result.active:=true;
   end else begin
+    result.active:=false;
     result.rotate_angle:=0;
     result.sense_scaler_x:=1;
     result.sense_scaler_y:=1;
+    result.reverse_axis_y:=false;
   end;
 end;
 
@@ -228,16 +237,18 @@ function GetControllerInputRandomOffset():controller_input_random_offset;
 var
   suicide_anm:boolean;
   itm:pointer;
-const
-  MIN_OFS:single=-5;
-  MAX_OFS:single=5;
+  min_offset:single;
+  max_offset:single;
 begin
   itm:=GetActorActiveItem();
   suicide_anm := (itm<>nil) and IsSuicideAnimPlaying(itm);
 
+  min_offset:=GetControllerMouseControlParams().min_offset;
+  max_offset:=GetControllerMouseControlParams().max_offset;
+
   if IsActorSuicideNow() or suicide_anm or (not IsPsiBlocked(GetActor) and ( IsActorControlled() or IsActorPlanningSuicide() or IsControllerPreparing())) then begin
-    result.offset_x:=floor(random*(MAX_OFS-MIN_OFS)+MIN_OFS);
-    result.offset_y:=floor(random*(MAX_OFS-MIN_OFS)+MIN_OFS);
+    result.offset_x:=floor(random*(max_offset-min_offset)+min_offset);
+    result.offset_y:=floor(random*(max_offset-min_offset)+min_offset);
   end else begin
     result.offset_x:=0;
     result.offset_y:=0;
