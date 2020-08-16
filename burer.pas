@@ -17,7 +17,7 @@ var
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
   BURER_HEAD_CORRECTION_HEIGHT:single = 1;
-  UNCONDITIONAL_VISIBLE_DIST:single=2; //чтобы не фейлится, когда актор вплотную
+  UNCONDITIONAL_VISIBLE_DIST:single=3; //чтобы не фейлится, когда актор вплотную
 
 function GetLastSuperStaminaHitTime():cardinal; stdcall;
 begin
@@ -475,7 +475,7 @@ begin
 
   result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
 
-  if result and not big_boom_shooted then begin
+  if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
     result:= random > GetBurerShieldedRiskyFactor();
   end;
