@@ -421,9 +421,21 @@ var all_upgrades:string;
     t_dt:single;
     gl_status:cardinal;
     gl_enabled:boolean;
+const
+  UPDATE_PERIOD:cardinal=10;
 begin
   section:=GetSection(wpn);
   buf:=GetBuffer(wpn);
+
+  // Оптимизация - разгружаем апдейт от пересчета апгрейдов на каждом кадре
+  if (buf=nil) or ((buf.last_upgrades_update_frame+2*UPDATE_PERIOD >= GetCurrentFrame()) and (buf.last_upgrades_update_installed_count = GetInstalledUpgradesCount(wpn))) then begin
+    if (GetId(wpn) mod UPDATE_PERIOD) <> (GetCurrentFrame() mod UPDATE_PERIOD) then exit;
+  end;
+
+  if buf<>nil then begin
+    buf.last_upgrades_update_frame:=GetCurrentFrame();
+    buf.last_upgrades_update_installed_count:=GetInstalledUpgradesCount(wpn);
+  end;
 
   gl_status:=GetGLStatus(wpn);
   gl_enabled:=(gl_status>0) and IsGrenadeMode(wpn);
