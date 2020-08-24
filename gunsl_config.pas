@@ -199,6 +199,7 @@ function GetLensRenderFactor():cardinal;  stdcall;
 function IsLensEnabled():boolean;
 function IsForcedLens:boolean;  stdcall;
 function IsSndUnlock:boolean; stdcall;
+function IsDynamicUpdrate():boolean; stdcall;
 
 function GetModVer():PChar; stdcall;
 function GetSaveVer():PChar; stdcall;
@@ -344,6 +345,7 @@ var
   CCC_lens_enabled:CCC_Mask;
   CCC_force_lense:CCC_Mask;
   CCC_unlock_snd:CCC_Mask;
+  CCC_dynamic_updrate:CCC_Mask;
 
 //вырезанные движковые консольные команды
   CCC_mt_sound:CCC_Mask;
@@ -378,6 +380,7 @@ const
   _mask_forcelense:cardinal=$20;
   _mask_unlocksnd:cardinal=$40;
   _mask_lens_enabled:cardinal=$80;
+  _mask_dynupdrate:cardinal=$100;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -725,6 +728,8 @@ begin
   CConsole__AddCommand(@(CCC_unlock_snd.base));
   CCC_Mask__CCC_Mask(@CCC_lens_enabled, 'lens_enabled', @_console_bool_flags, _mask_lens_enabled);
   CConsole__AddCommand(@(CCC_lens_enabled.base));
+  CCC_Mask__CCC_Mask(@CCC_dynamic_updrate, 'dynamic_updrate', @_console_bool_flags, _mask_dynupdrate);
+  CConsole__AddCommand(@(CCC_dynamic_updrate.base));
 
   CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
   CConsole__AddCommand(@(CCC_fov.base));
@@ -1099,6 +1104,11 @@ end;
 function IsSndUnlock:boolean; stdcall;
 begin
   result:=((_console_bool_flags and _mask_unlocksnd)>0);
+end;
+
+function IsDynamicUpdrate():boolean; stdcall;
+begin
+  result:=((_console_bool_flags and _mask_dynupdrate)>0);
 end;
 
 function GetQuickUseScriptFunctorName():PChar; stdcall;

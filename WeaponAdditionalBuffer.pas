@@ -157,8 +157,8 @@ type
     loaded_gl_state:boolean;
     last_frame_rocket_loaded:cardinal; //для РПГ
     rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
-    last_upgrades_update_frame:cardinal;
-    last_upgrades_update_installed_count:integer;
+
+    last_bones_update_frame:cardinal;
 
     constructor Create(wpn:pointer);
     destructor Destroy; override;
@@ -1167,8 +1167,6 @@ begin
   _laser_problems_level := game_ini_r_single_def(params_section, 'laser_problems_level', 0);
 
   self._laser_installed:=true;
-  self.last_upgrades_update_frame:=0;
-  last_upgrades_update_installed_count:=-1;
 end;
 
 function WpnBuf.GetLaserDotData: laserdot_params;

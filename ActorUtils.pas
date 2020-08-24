@@ -1621,7 +1621,6 @@ begin
   end;
 
   if (GetMaxJitterHealth()> GetActorHealthPtr(act)^ ) then begin
-  log('SetHandsJitterTime!!!');
     SetHandsJitterTime(GetShockTime());
   end;
 

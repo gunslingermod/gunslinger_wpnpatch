@@ -12,6 +12,30 @@ uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysuti
 var patch_addr:cardinal;
   tst_light:pointer;
 
+function OptimizationCheck(wpn:pointer; last_update_frame:cardinal; additional_skip_allowed_condition:boolean; update_period_factor:single=1.0; update_split_count_factor:single=1.0):boolean; stdcall;
+var
+  buf:WpnBuf;
+  update_period, update_split_count:cardinal;
+const
+  DEF_UPDATE_FRAMES_PERIOD:cardinal=20;
+  DEF_UPDATE_SPLIT_FACTOR:cardinal=10;
+begin
+  // Оптимизация - разгружаем апдейт от пересчета апгрейдов на каждом кадре
+  if (GetActor<>nil) and (GetActorActiveItem()=wpn) then begin
+    result:=true;
+    exit;
+  end;
+
+  result:=false;
+
+  update_period:=floor(update_period_factor*DEF_UPDATE_FRAMES_PERIOD);
+  update_split_count:=floor(update_period_factor*DEF_UPDATE_SPLIT_FACTOR);
+  if (last_update_frame+update_period >= GetCurrentFrame()) and additional_skip_allowed_condition then begin
+    if (GetId(wpn) mod update_split_count) <> (GetCurrentFrame() mod update_split_count) then exit;
+  end;
+  result:=true;
+end;
+
 procedure ProcessLaserdot(wpn:pointer);
 var
   buf:WpnBuf;
@@ -421,21 +445,9 @@ var all_upgrades:string;
     t_dt:single;
     gl_status:cardinal;
     gl_enabled:boolean;
-const
-  UPDATE_PERIOD:cardinal=10;
 begin
   section:=GetSection(wpn);
   buf:=GetBuffer(wpn);
-
-  // Оптимизация - разгружаем апдейт от пересчета апгрейдов на каждом кадре
-  if (buf=nil) or ((buf.last_upgrades_update_frame+2*UPDATE_PERIOD >= GetCurrentFrame()) and (buf.last_upgrades_update_installed_count = GetInstalledUpgradesCount(wpn))) then begin
-    if (GetId(wpn) mod UPDATE_PERIOD) <> (GetCurrentFrame() mod UPDATE_PERIOD) then exit;
-  end;
-
-  if buf<>nil then begin
-    buf.last_upgrades_update_frame:=GetCurrentFrame();
-    buf.last_upgrades_update_installed_count:=GetInstalledUpgradesCount(wpn);
-  end;
 
   gl_status:=GetGLStatus(wpn);
   gl_enabled:=(gl_status>0) and IsGrenadeMode(wpn);
@@ -549,20 +561,17 @@ begin
 end;
 
 procedure ProcessScope(wpn:pointer); stdcall;
-var //section:PChar;
-
+var
     tmp:string;
     status:boolean;
     cur_index, i:integer;
     total_scope_cnt:cardinal;
 begin
-
   if IsScopeAttached(wpn) and (GetScopeStatus(wpn)=2) then cur_index:=GetCurrentScopeIndex(wpn) else cur_index:=-1;
   total_scope_cnt:=GetScopesCount(wpn);
 
   for i:=0 to total_scope_cnt-1 do begin
     tmp:=GetScopeSection(wpn, i);
-//    if wpn=GetActorActiveItem() then log('scp: '+tmp);
     if i=cur_index then status:=true else status:=false;
 
     if game_ini_line_exist(PChar(tmp), 'bones') then begin;
@@ -731,6 +740,8 @@ var
 
   gl_ammocnt, gl_ammotype:byte;
   so:pointer;
+  need_bones_recheck:boolean;
+  k:single;
 const
   EPS:single = 0.0001;
 begin
@@ -858,17 +869,35 @@ begin
       if leftstr(GetCurAnim(wpn), length('anm_attach_sil'))='anm_attach_sil' then DetachAddon(wpn, 4);
     end;
 
-    //Обработаем установленные апгрейды
-    ProcessUpgrade(wpn);
-    //Теперь отобразим установленный прицел
-    ProcessScope(wpn);
-    //Разберемся с визуализацией патронов
-    ProcessAmmo(wpn);
-    ProcessAmmoGL(wpn);
-    //анимы от 3-го лица
-    ReassignWorldAnims(wpn);
-    //Визуализация режима огня
-    ProcessFiremode(wpn);
+
+    if (GetOwner(wpn)=nil) or (dynamic_cast(GetOwner(wpn), 0, RTTI_CObject, RTTI_CEntityAlive, false) <> nil) then begin
+      // Оптимизация - выполняем или не выполняем все действия пачкой, чтобы не получилось рассинхрона.
+      if IsHardUpdates() then begin
+        k:=2;
+      end else begin
+        k:=1;
+      end;
+
+      if buf<>nil then begin
+        need_bones_recheck:=OptimizationCheck(wpn, buf.last_bones_update_frame, true, k);
+        buf.last_bones_update_frame:=GetCurrentFrame();
+      end else begin
+        need_bones_recheck:=OptimizationCheck(wpn, GetCurrentFrame(), true, k);
+      end;
+      if need_bones_recheck then begin
+        //Обработаем установленные апгрейды
+        ProcessUpgrade(wpn);
+        //Теперь отобразим установленный прицел
+        ProcessScope(wpn);
+        //Разберемся с визуализацией патронов
+        ProcessAmmo(wpn);
+        ProcessAmmoGL(wpn);
+        //Визуализация режима огня
+        ProcessFiremode(wpn);
+      end;
+      //анимы от 3-го лица
+      ReassignWorldAnims(wpn);
+    end;
 
     if (buf<>nil) then begin
       ProcessLaserDot(wpn);
