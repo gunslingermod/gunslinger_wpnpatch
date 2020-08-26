@@ -210,6 +210,7 @@ var
   _slot_to_restore_after_outfit_change:integer;
 
    _last_mouse_coord:MouseCoord;
+   _need_pda_zoom:boolean;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure player_hud__load_fixpatched(); stdcall;
@@ -1701,6 +1702,7 @@ begin
         _pda_cursor_state.dir_accumulator.x:=0;
         _pda_cursor_state.dir_accumulator.y:=0;
         _last_mouse_coord:=GetSysMousePoint();
+        _need_pda_zoom:=IsFastPdaZoom();
       end;
     end else begin
       //пда уже был включен и заспавнен. Убеждаемся, что до сих пор в слоте
@@ -1709,6 +1711,10 @@ begin
         HidePDAMenu();
         _was_pda_animator_spawned:=false;
       end else begin
+        if _need_pda_zoom and (GetCurrentState(GetActorActiveItem()) = EHudStates__eIdle) then begin
+          virtual_Action(GetActorActiveItem(), kWPN_ZOOM, kActPress);
+          _need_pda_zoom:=false;
+        end;
         if GetTimeDeltaSafe(_pda_cursor_state.last_moving_time)>GetPDAUpdatePeriod() then begin
           //Пришло время обновить аниму курсора
           if (_pda_cursor_state.last_click_time<>GetPDA().base_CUIDialogWnd.base_CUIWindow.m_dwLastClickTime) and (game_ini_r_bool_def(GetPDAShowAnimator(), 'use_clicks', true)) then begin
