@@ -1651,6 +1651,24 @@ var
   buf:WpnBuf;
   scope_sect:PChar;
 begin
+  if IsGLAttached(wpn) and IsGLEnabled(wpn) then begin
+    scope_sect:=GetSection(wpn);
+    if game_ini_line_exist(scope_sect, 'gl_zoom_factor') then begin
+      SetZoomFactor(wpn, game_ini_r_single(scope_sect, 'gl_zoom_factor'));
+    end;
+
+    if IsScopeAttached(wpn) then begin
+      scope_sect:=GetCurrentScopeSection(wpn);
+      if game_ini_line_exist(scope_sect, 'gl_zoom_factor') then begin
+        SetZoomFactor(wpn, game_ini_r_single(scope_sect, 'gl_zoom_factor'));
+      end;
+    end;
+  end else if not IsScopeAttached(wpn) then begin
+    if game_ini_line_exist(GetSection(wpn), 'nonscoped_zoom_factor') then begin
+      SetZoomFactor(wpn, game_ini_r_single(GetSection(wpn), 'nonscoped_zoom_factor'));
+    end;
+  end;
+
   buf:=GetBuffer(wpn);
   if (buf<>nil) then begin
     buf.SetLastZoomAlter(buf.IsAlterZoomMode());

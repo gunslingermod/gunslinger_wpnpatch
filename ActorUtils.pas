@@ -2265,7 +2265,7 @@ end;
 procedure ZoomFOV_Patch(); stdcall;
 asm
   pushad
-    push [esi+$498]
+    push [esi+$498] //m_fCurrentZoomFactor
     call RecalcZoomFOV
   popad
 
@@ -2276,7 +2276,11 @@ end;
 
 procedure ResetZoomFov_Patch(); stdcall;
 asm
-  mov [esi+$498], $3F800000; //m_zoom_params.m_fCurrentZoomFactor = 1.0
+  pushad
+  push $3F800000
+  push esi
+  call SetZoomFactor
+  popad
 end;
 
 
