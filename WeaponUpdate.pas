@@ -879,10 +879,10 @@ begin
       end;
 
       if buf<>nil then begin
-        need_bones_recheck:=OptimizationCheck(wpn, buf.last_bones_update_frame, true, k);
+        need_bones_recheck:=OptimizationCheck(wpn, buf.last_bones_update_frame, true, k, k);
         buf.last_bones_update_frame:=GetCurrentFrame();
       end else begin
-        need_bones_recheck:=OptimizationCheck(wpn, GetCurrentFrame(), true, k);
+        need_bones_recheck:=OptimizationCheck(wpn, GetCurrentFrame(), true, k, k);
       end;
       if need_bones_recheck then begin
         //Обработаем установленные апгрейды

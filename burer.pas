@@ -339,6 +339,7 @@ var
   burer_see_actor, eatable_with_hud, wpn_aim_now:boolean;
   campos:FVector3;
   ss_params:burer_superstamina_hit_params;
+  cond_dec:single;
 begin
   itm:=GetActorActiveItem();
   eatable_with_hud:=false;
@@ -359,6 +360,12 @@ begin
 
   if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
     phit^:=ss_params.stamina_decrease;
+    if (itm<>nil) and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
+      cond_dec:=ss_params.condition_dec_min + random * (ss_params.condition_dec_max - ss_params.condition_dec_min);
+      cond_dec:=GetCurrentCondition(wpn)-cond_dec;
+      if cond_dec < 0 then cond_dec:=0;
+      SetCondition(wpn, cond_dec);
+    end;
   end;
 end;
 

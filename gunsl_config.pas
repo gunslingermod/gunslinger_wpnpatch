@@ -98,7 +98,9 @@ type burer_superstamina_hit_params = record
   power:single;
   impulse:single;
   hit_type:cardinal;
-  force_hide_items_prob:single
+  force_hide_items_prob:single;
+  condition_dec_min:single;
+  condition_dec_max:single;
 end;
 
 type burer_teleweapon_params = record
@@ -908,6 +910,8 @@ begin
   _burer_superstaminahit_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_impulse', 10);
   _burer_superstaminahit_params.hit_type:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_type', 5);
   _burer_superstaminahit_params.force_hide_items_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_forceitemshideprob', 1.0);
+  _burer_superstaminahit_params.condition_dec_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_conditiondecmin', 0.05);
+  _burer_superstaminahit_params.condition_dec_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_conditiondecmax', 0.1);
 
   _burer_forceantiaim_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceantiaim_dist', 7);
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
