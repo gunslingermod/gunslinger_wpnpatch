@@ -1554,7 +1554,43 @@ asm
   push eax
   call correct_upgrade_point
   popad
+end;
 
+
+function IsTaskStaticDisabled():boolean; stdcall;
+var
+  itm:pointer;
+begin
+  result:=false;
+  itm:=GetActorActiveItem();
+  if (itm<>nil) and (IsAimNow(itm) or IsHolderInAimState(itm)) then begin
+    result:=true;
+  end;
+end;
+
+procedure CUIGameSP__IR_UIOnKeyboardPress_disabletask_Patch(); stdcall;
+asm
+  jne @finish //orig
+  pushad
+  call IsTaskStaticDisabled
+  test al, al
+  popad
+  @finish:
+end;
+
+procedure CUIGameSP__OnFrame_disabletask_Patch(); stdcall;
+asm
+  pop ecx //ret addr
+  add esp, 8  //orig
+  pushad
+  call IsTaskStaticDisabled
+  test al, al
+  popad
+  je @finish
+  mov bl, 1  //b_remove = true
+  @finish:
+  test bl, bl //orig
+  jmp ecx
 end;
 
 function Init():boolean;stdcall;
@@ -1688,6 +1724,14 @@ begin
   // в CUIUpgradePoint::load_from_xml добавляем смещение точки по оси x при режиме 16x9
   jmp_addr:=xrGame_addr+$4409f2;
   if not WriteJump(jmp_addr, cardinal(@CUIUpgradePoint__load_from_xml_Patch), 6, true) then exit;
+
+  // [bug] в CUIGameSP::IR_UIOnKeyboardPress отключаем отображение активного задания в режиме прицеливания, чтобы избежать рисования на сетке 2го рендера (актуально для гаусса с его рамками)
+  jmp_addr:=xrGame_addr+$4b620f;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameSP__IR_UIOnKeyboardPress_disabletask_Patch), 7, true) then exit;
+
+  // [bug] в CUIGameSP::OnFrame удаляем отображение активного задания, если мы вошли в прицеливание
+  jmp_addr:=xrGame_addr+$4b5983;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameSP__OnFrame_disabletask_Patch), 5, true) then exit;
 
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
