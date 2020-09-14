@@ -159,6 +159,8 @@ procedure SetChangedGrenade(itm:pointer);
 function GetEntityDirection(e:pointer):pFVector3; stdcall;
 function GetEntityPosition(e:pointer):pFVector3; stdcall;
 
+function NeedPDAZoom():boolean;
+
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
 
@@ -1549,6 +1551,11 @@ asm
     push mouse_dx
     call eax
   popad
+end;
+
+function NeedPDAZoom():boolean;
+begin
+  result:=_need_pda_zoom;
 end;
 
 procedure ActorUpdate(act:pointer); stdcall;

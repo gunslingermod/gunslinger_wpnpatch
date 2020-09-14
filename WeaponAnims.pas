@@ -129,6 +129,9 @@ begin
         ModifierMoving(wpn, actor, anim_name, 'enable_directions_'+anim_name);
       end else begin
         anim_name:=anim_name+'_start';
+        if (GetSection(wpn) = GetPDAShowAnimator()) and NeedPDAZoom() then begin
+          anim_name:=anim_name+'_fastzoom';
+        end;
         if canshoot then snd_label:='sndAimStart';
         SetActorActionState(actor, actAimStarted, true);
       end;
@@ -349,6 +352,10 @@ begin
     ResetItmHudOffset(wpn);
     if not game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and not game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object') and not game_ini_r_bool_def(GetSection(wpn), 'action_animator', false) then begin
       ForgetDetectorAutoHide();
+    end;
+
+    if (GetSection(wpn) = GetPDAShowAnimator()) and NeedPDAZoom() then begin
+      anm_show:='anm_show_fastzoom';
     end;
   end;
 
