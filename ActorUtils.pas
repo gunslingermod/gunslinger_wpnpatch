@@ -159,7 +159,7 @@ procedure SetChangedGrenade(itm:pointer);
 function GetEntityDirection(e:pointer):pFVector3; stdcall;
 function GetEntityPosition(e:pointer):pFVector3; stdcall;
 
-function NeedPDAZoom():boolean;
+function IsPDAShowToZoomNow():boolean;
 
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
@@ -211,8 +211,9 @@ var
   _hud_update_sect:string;
   _slot_to_restore_after_outfit_change:integer;
 
-   _last_mouse_coord:MouseCoord;
-   _need_pda_zoom:boolean;
+  _last_mouse_coord:MouseCoord;
+  _need_pda_zoom:boolean;
+  _last_pda_zoom_state:boolean;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure player_hud__load_fixpatched(); stdcall;
@@ -1553,9 +1554,18 @@ asm
   popad
 end;
 
-function NeedPDAZoom():boolean;
+function IsPDAShowToZoomNow():boolean;
 begin
   result:=_need_pda_zoom;
+end;
+
+function NeedFastPdaZoom():boolean;
+begin
+  if IsSavePdaZoomState() then begin
+    result:=_last_pda_zoom_state;
+  end else begin
+    result:=IsFastPdaZoom();
+  end;
 end;
 
 procedure ActorUpdate(act:pointer); stdcall;
@@ -1709,7 +1719,7 @@ begin
         _pda_cursor_state.dir_accumulator.x:=0;
         _pda_cursor_state.dir_accumulator.y:=0;
         _last_mouse_coord:=GetSysMousePoint();
-        _need_pda_zoom:=IsFastPdaZoom();
+        _need_pda_zoom:=NeedFastPdaZoom();
       end;
     end else begin
       //пда уже был включен и заспавнен. Убеждаемся, что до сих пор в слоте
@@ -1718,7 +1728,8 @@ begin
         HidePDAMenu();
         _was_pda_animator_spawned:=false;
       end else begin
-        if _need_pda_zoom and (GetCurrentState(GetActorActiveItem()) = EHudStates__eIdle) then begin
+        _last_pda_zoom_state:=_need_pda_zoom or ((GetActorActiveItem()<>nil) and IsAimNow(GetActorActiveItem()));
+        if _need_pda_zoom and (GetActorActiveItem()<>nil) and (GetCurrentState(GetActorActiveItem()) = EHudStates__eIdle) then begin
           virtual_Action(GetActorActiveItem(), kWPN_ZOOM, kActPress);
           _need_pda_zoom:=false;
         end;
@@ -2183,6 +2194,9 @@ begin
   _slot_to_restore_after_outfit_change:=-1;
 
   ForgetDetectorAutoHide();
+
+  _last_pda_zoom_state:=IsFastPdaZoom();
+  _is_pda_lookout_mode:=false;
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;

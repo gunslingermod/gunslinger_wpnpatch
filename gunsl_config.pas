@@ -197,6 +197,7 @@ function GetPDAShowAnimator():PChar;
 function GetPDAScreen_kx():single; stdcall;
 function GetPDAUpdatePeriod():cardinal; stdcall;
 function IsFastPdaZoom():boolean; stdcall;
+function IsSavePdaZoomState():boolean; stdcall;
 
 function GetLensRenderFactor():cardinal;  stdcall;
 function IsLensEnabled():boolean;
@@ -374,6 +375,7 @@ var
   CCC_upgrades_log:CCC_Integer;
 
   CCC_pdaautozoom:CCC_Mask;
+  CCC_savezoomstate:CCC_Mask;
 
 //маски для флагов
 const
@@ -387,6 +389,7 @@ const
   _mask_lens_enabled:cardinal=$80;
   _mask_dynupdrate:cardinal=$100;
   _mask_pdaautozoom:cardinal=$200;
+  _mask_pdasavezoomstate:cardinal=$400;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -738,6 +741,8 @@ begin
   CConsole__AddCommand(@(CCC_dynamic_updrate.base));
   CCC_Mask__CCC_Mask(@CCC_pdaautozoom, 'pda_autozoom', @_console_bool_flags, _mask_pdaautozoom);
   CConsole__AddCommand(@(CCC_pdaautozoom.base));
+  CCC_Mask__CCC_Mask(@CCC_savezoomstate, 'pda_savezoomstate', @_console_bool_flags, _mask_pdasavezoomstate);
+  CConsole__AddCommand(@(CCC_savezoomstate.base));
 
   CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
   CConsole__AddCommand(@(CCC_fov.base));
@@ -1160,6 +1165,11 @@ end;
 function IsFastPdaZoom():boolean; stdcall;
 begin
   result:=_console_bool_flags and _mask_pdaautozoom <> 0
+end;
+
+function IsSavePdaZoomState():boolean; stdcall;
+begin
+  result:=_console_bool_flags and _mask_pdasavezoomstate <> 0
 end;
 
 function GetBaseLookoutParams():lookout_params; stdcall;
