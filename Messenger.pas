@@ -1,4 +1,5 @@
 unit Messenger;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 //вывод инфы актору на экран через кастомстатик
 
 interface

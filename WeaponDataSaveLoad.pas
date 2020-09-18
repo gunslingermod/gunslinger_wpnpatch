@@ -1,4 +1,5 @@
 unit WeaponDataSaveLoad;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init:boolean;

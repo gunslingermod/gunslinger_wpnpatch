@@ -1,4 +1,5 @@
 unit WeaponUpdate;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init:boolean;

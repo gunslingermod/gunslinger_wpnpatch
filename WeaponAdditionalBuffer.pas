@@ -1,4 +1,5 @@
 unit WeaponAdditionalBuffer;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors, LightUtils;

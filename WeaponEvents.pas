@@ -1,4 +1,5 @@
 unit WeaponEvents;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init:boolean;
@@ -750,7 +751,7 @@ end;
 
 //--------------Отображение сообщения о клине----------------------------------
 
-procedure OnJammedHintShow(); stdcall
+procedure OnJammedHintShow(); stdcall;
 //var
 //  wpn:pointer;
 begin
@@ -761,7 +762,7 @@ begin
 //  end;
 end;
 
-procedure OnJammedHintShow_Patch(); stdcall
+procedure OnJammedHintShow_Patch(); stdcall;
 asm
   pushad
     call OnJammedHintShow

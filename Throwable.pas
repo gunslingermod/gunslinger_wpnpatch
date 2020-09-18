@@ -1,4 +1,5 @@
 unit Throwable;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 //содержит основную часть правок на болты и грены.
 
@@ -259,7 +260,7 @@ procedure CMissile__Load_Patch();stdcall;
 asm
   fstp[esi+$398]//вырезанное
   pushad
-    lea edx, esi+$324
+    lea edx, [esi+$324]
     push edx        // HUD_SOUND_COLLECTION
     push edi        //char* section
     push esi        //this

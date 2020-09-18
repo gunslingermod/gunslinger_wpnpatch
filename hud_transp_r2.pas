@@ -1,4 +1,5 @@
 unit hud_transp_r2;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init():boolean; stdcall;

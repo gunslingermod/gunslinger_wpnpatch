@@ -1,4 +1,5 @@
 unit BallisticsCorrection;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors;

@@ -1,4 +1,5 @@
 unit BaseGameData;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

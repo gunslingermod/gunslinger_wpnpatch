@@ -1,4 +1,5 @@
 unit WeaponSoundLoader;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses xr_strings, MatVectors;

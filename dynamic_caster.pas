@@ -1,4 +1,5 @@
 unit dynamic_caster;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

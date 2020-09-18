@@ -1,4 +1,5 @@
 unit gunsl_config;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors;
@@ -229,7 +230,7 @@ function GetLightSeeDist():single; stdcall;
 function GetBurerSuperstaminaHitParams():burer_superstamina_hit_params;
 function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
-function GetBurerShieldedRiskyFactor():single; stdcall
+function GetBurerShieldedRiskyFactor():single; stdcall;
 function GetBurerMinGrenTimer():cardinal; stdcall;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
@@ -1217,7 +1218,7 @@ begin
   result:=_burer_forceshield_dist;
 end;
 
-function GetBurerShieldedRiskyFactor():single; stdcall
+function GetBurerShieldedRiskyFactor():single; stdcall;
 begin
   result:=_burer_shielded_risky_factor;
 end;

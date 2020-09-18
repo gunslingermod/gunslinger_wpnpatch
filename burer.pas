@@ -1,4 +1,5 @@
 unit burer;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

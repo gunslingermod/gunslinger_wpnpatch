@@ -1,4 +1,6 @@
 library gunslinger_wpnpatch;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
+
 uses
   sysutils,
   windows,

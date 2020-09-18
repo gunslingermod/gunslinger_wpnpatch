@@ -1,4 +1,5 @@
 unit WeaponAnims;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 //Не уверен - не лезь. Sin!
 

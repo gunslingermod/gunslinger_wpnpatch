@@ -1,4 +1,5 @@
 unit LightUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

@@ -1,4 +1,5 @@
 unit MatVectors;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

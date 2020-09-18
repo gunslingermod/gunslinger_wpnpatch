@@ -1,11 +1,12 @@
 unit DetectorUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 
 function Init:boolean;
 procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
-function GetDetectorForceUnhideStatus(det:pointer):boolean; stdcall
-function GetDetectorFastMode(det:pointer):boolean; stdcall
+function GetDetectorForceUnhideStatus(det:pointer):boolean; stdcall;
+function GetDetectorFastMode(det:pointer):boolean; stdcall;
 function GetActiveDetector(act:pointer):pointer; stdcall;
 function CanUseDetectorWithItem(wpn:pointer):boolean; stdcall;
 function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
@@ -248,7 +249,7 @@ end;
 procedure UnHideDetectorInUpdateOnActionPatch; stdcall;
 asm
   //делаем вырезанное
-  cmp[esi+$2e4], 3
+  cmp dword ptr [esi+$2e4], 3
   //если игра не решилась показать детектор - то не будем мешать
   jne @finish
   
@@ -260,7 +261,7 @@ asm
   @finish:
 end;
 
-procedure OnDetectorPrepared(wpn:pointer; p:integer); stdcall
+procedure OnDetectorPrepared(wpn:pointer; p:integer); stdcall;
 var
   act:pointer;
   itm, det:pointer;
@@ -290,7 +291,7 @@ begin
 
 end;
 
-procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall
+procedure SetDetectorForceUnhide(det:pointer; status:boolean); stdcall;
 asm
   cmp det, 0
   je @finish
@@ -302,7 +303,7 @@ asm
   @finish:
 end;
 
-procedure SetDetectorActiveStatus(det:pointer; status:boolean); stdcall
+procedure SetDetectorActiveStatus(det:pointer; status:boolean); stdcall;
 asm
   cmp det, 0
   je @finish
@@ -314,7 +315,7 @@ asm
   @finish:
 end;
 
-function GetDetectorForceUnhideStatus(det:pointer):boolean; stdcall
+function GetDetectorForceUnhideStatus(det:pointer):boolean; stdcall;
 asm
   mov @result, 0
   cmp det, 0
@@ -327,7 +328,7 @@ asm
   @finish:
 end;
 
-function GetDetectorFastMode(det:pointer):boolean; stdcall
+function GetDetectorFastMode(det:pointer):boolean; stdcall;
 asm
   mov @result, 0
   cmp det, 0
@@ -340,7 +341,7 @@ asm
   @finish:
 end;
 
-function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall
+function GetDetectorActiveStatus(CCustomDetector:pointer):boolean; stdcall;
 asm
   mov @result, 0
   cmp CCustomDetector, 0
@@ -634,7 +635,7 @@ end;
 
 
 
-function GetActiveDetector(act:pointer):pointer; stdcall
+function GetActiveDetector(act:pointer):pointer; stdcall;
 asm
   pushad
     push act
@@ -728,7 +729,7 @@ asm
   ret
 end;
 
-function WasLastDetectorHiddenManually():boolean; stdcall
+function WasLastDetectorHiddenManually():boolean; stdcall;
 begin
   result:=_was_detector_hidden_manually;
 end;

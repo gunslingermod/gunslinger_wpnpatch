@@ -1,4 +1,5 @@
 unit HqGeometryFix;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

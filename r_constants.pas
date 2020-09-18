@@ -1,4 +1,5 @@
 unit r_constants;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 //добавляет экспорт новых параметров в шейдеры
 //смотреть CBlender_Compile__SetMapping, остальное не трогать

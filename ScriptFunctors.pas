@@ -1,4 +1,5 @@
 unit ScriptFunctors;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

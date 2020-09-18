@@ -1,4 +1,5 @@
 unit Misc;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors, windows;
@@ -624,7 +625,7 @@ asm
   popad
 end;
 
-function ReaderLength(IReader:pointer):cardinal; stdcall
+function ReaderLength(IReader:pointer):cardinal; stdcall;
 asm
   pushad
     mov eax, xrgame_addr
@@ -777,7 +778,7 @@ begin
 end;
 
 
-procedure CGameObject_x_axis(v:pFVector3); stdcall
+procedure CGameObject_x_axis(v:pFVector3); stdcall;
 asm
   pushad
 
@@ -800,7 +801,7 @@ asm
   mov eax, v
 end;
 
-procedure CGameObject_y_axis(v:pFVector3); stdcall
+procedure CGameObject_y_axis(v:pFVector3); stdcall;
 asm
   pushad
 
@@ -823,7 +824,7 @@ asm
   mov eax, v
 end;
 
-procedure CGameObject_z_axis(v:pFVector3); stdcall
+procedure CGameObject_z_axis(v:pFVector3); stdcall;
 asm
   pushad
 
@@ -868,7 +869,7 @@ asm
   push get_x
   mov ecx, eax
 
-  lea edx, dword ptr CGameObject_x_axis
+  lea edx, dword ptr [CGameObject_x_axis]
   mov [esp+$30], edx
 
   mov edx, xrgame_addr
@@ -892,7 +893,7 @@ asm
   push get_y
   mov ecx, eax
 
-  lea edx, dword ptr CGameObject_y_axis
+  lea edx, dword ptr [CGameObject_y_axis]
   mov [esp+$30], edx
 
   mov edx, xrgame_addr
@@ -915,7 +916,7 @@ asm
   push get_z
   mov ecx, eax
 
-  lea edx, dword ptr CGameObject_z_axis
+  lea edx, dword ptr [CGameObject_z_axis]
   mov [esp+$30], edx
 
   mov edx, xrgame_addr
@@ -1057,7 +1058,7 @@ asm
   popad
 end;
 
-procedure set_addons_state_adapter(state:cardinal); stdcall
+procedure set_addons_state_adapter(state:cardinal); stdcall;
 asm
   pushad
   mov eax, [ecx+4] //CScriptGameObject.m_game_object
@@ -1080,7 +1081,7 @@ asm
   popad
 end;
 
-procedure set_scope_idx_adapter(state:cardinal); stdcall
+procedure set_scope_idx_adapter(state:cardinal); stdcall;
 asm
   pushad
   mov eax, [ecx+4] //CScriptGameObject.m_game_object
@@ -1553,7 +1554,8 @@ asm
 
   @continue:
   //original
-  push ebp mov ebp, esp
+  push ebp
+  mov ebp, esp
   sub esp, $c
 
   jmp eax

@@ -1,4 +1,5 @@
 unit KeyUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

@@ -1,4 +1,5 @@
 unit CRT;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 //тут создаем новые рендертаргеты
 //править процедуры CreateNewRTs и RemoveNewRTs
@@ -70,7 +71,7 @@ asm
 end;
 
 
-procedure DelRT(addr:pointer); stdcall
+procedure DelRT(addr:pointer); stdcall;
 asm
   pushad
     //проверяем, есть ли что удалять
@@ -118,7 +119,7 @@ begin
 end;
 
 //R1 specific///////////////////////////////////////////////////////////////
-procedure R1_CRenderTarget__Constructor_Patch(); stdcall
+procedure R1_CRenderTarget__Constructor_Patch(); stdcall;
 asm
   pushad
     push $16
@@ -155,7 +156,7 @@ asm
   mov ecx,[edi+$08]
 end;
 
-procedure R1_CRenderTarget__Destructor_Patch(); stdcall
+procedure R1_CRenderTarget__Destructor_Patch(); stdcall;
 asm
   pushad
     call RemoveNewRTs
@@ -166,7 +167,7 @@ asm
 end;
 
 //R2 specific///////////////////////////////////////////////////////////////
-procedure R2_CRenderTarget__Constructor_Patch(); stdcall
+procedure R2_CRenderTarget__Constructor_Patch(); stdcall;
 asm
   pushad
     push $15
@@ -178,7 +179,7 @@ asm
   mov ecx, $15
 end;
 
-procedure R2_CRenderTarget__Destructor_Patch(); stdcall
+procedure R2_CRenderTarget__Destructor_Patch(); stdcall;
 asm
   pushad
     call RemoveNewRTs
@@ -215,7 +216,7 @@ asm
   ret
 end;
 
-procedure R3_CRenderTarget__Constructor_Patch(); stdcall
+procedure R3_CRenderTarget__Constructor_Patch(); stdcall;
 asm
   pushad
     push $15
@@ -227,7 +228,7 @@ asm
   mov eax, [ecx+$364]
 end;
 
-procedure R3_CRenderTarget__Destructor_Patch(); stdcall
+procedure R3_CRenderTarget__Destructor_Patch(); stdcall;
 asm
   pushad
     call RemoveNewRTs
@@ -264,7 +265,7 @@ asm
 end;
 
 
-procedure R4_CRenderTarget__Constructor_Patch(); stdcall
+procedure R4_CRenderTarget__Constructor_Patch(); stdcall;
 asm
   pushad
     push $15
@@ -276,7 +277,7 @@ asm
   mov eax, [eax+$364]
 end;
 
-procedure R4_CRenderTarget__Destructor_Patch(); stdcall
+procedure R4_CRenderTarget__Destructor_Patch(); stdcall;
 asm
   pushad
     call RemoveNewRTs

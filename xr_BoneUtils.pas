@@ -1,4 +1,5 @@
 unit xr_BoneUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

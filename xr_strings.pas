@@ -1,5 +1,7 @@
 unit xr_strings;
 
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
+
 interface
 
 
@@ -34,7 +36,7 @@ procedure assign_string(str:pshared_str; text:PChar); stdcall;
 procedure assign_string_noaddref(str:pshared_str; text:PChar); stdcall; //'Hacky' version, try don't use
 function get_string_value(str:pshared_str):PAnsiChar; stdcall;
 function Init():boolean; stdcall;
-function str_container_dock(str:PChar):pstr_value; stdcall
+function str_container_dock(str:PChar):pstr_value; stdcall;
 
 implementation
 uses basegamedata;
@@ -87,7 +89,7 @@ asm
   mov @result, eax
 end;
 
-function str_container_dock(str:PChar):pstr_value; stdcall
+function str_container_dock(str:PChar):pstr_value; stdcall;
 asm
     pushad
     pushfd

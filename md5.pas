@@ -1,4 +1,5 @@
 unit md5;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
  
 interface
  

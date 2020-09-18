@@ -1,4 +1,5 @@
 unit WeaponInertion;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init():boolean;
@@ -787,7 +788,7 @@ begin
 
 end;
 
-procedure LookoutFunctionReplace_Patch; stdcall
+procedure LookoutFunctionReplace_Patch; stdcall;
 asm
   mov eax, esp
   pushad

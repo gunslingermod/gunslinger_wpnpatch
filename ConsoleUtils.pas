@@ -1,4 +1,5 @@
 unit ConsoleUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

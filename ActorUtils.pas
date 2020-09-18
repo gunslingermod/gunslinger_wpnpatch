@@ -1,4 +1,5 @@
 unit ActorUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 
 //xrgame+4e212a - менять условия для включения коллизии
@@ -1898,7 +1899,7 @@ begin
   end;
 end;
 
-procedure ActorUpdate_Patch(); stdcall
+procedure ActorUpdate_Patch(); stdcall;
 asm
   pushad
     push ecx

@@ -1,4 +1,5 @@
 unit ControllerMonster;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 

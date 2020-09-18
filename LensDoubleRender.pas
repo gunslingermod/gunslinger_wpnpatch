@@ -1,4 +1,5 @@
 unit LensDoubleRender;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses CRT;
@@ -387,7 +388,7 @@ begin
   end;
 end;
 
-procedure CLevel__OnRender_Before_Patch(); stdcall
+procedure CLevel__OnRender_Before_Patch(); stdcall;
 asm
     pushad
     call BeginSecondVP
@@ -397,7 +398,7 @@ asm
     call [eax+$512f30]
 end;
 
-procedure CLevel__OnRender_After_Patch(); stdcall
+procedure CLevel__OnRender_After_Patch(); stdcall;
 asm
    pushad
    call EndSecondVP
@@ -407,7 +408,7 @@ asm
    mov ecx, [ecx+$512D30]
 end;
 
-procedure CLevel__OnUIRender_Patch(); stdcall
+procedure CLevel__OnUIRender_Patch(); stdcall;
 asm
    pushad
    call EndSecondVP_OnUIRender
@@ -488,7 +489,7 @@ end;
 //Функции организации невывода кадра линзы на экран для каждого из рендеров////////////////////////////////////
 // R2 -> Эта функция отвечает за вызов ->Present(), который обновляет картинку на экране
 // Она есть в каждом рендере.
-procedure dxRenderDeviceRender__End__R1_R2(); stdcall
+procedure dxRenderDeviceRender__End__R1_R2(); stdcall;
 label original;
 asm
     // Проверяем, идёт ли сейчас рендер второго кадра
@@ -509,7 +510,7 @@ asm
     call edx
 end;
 
-procedure dxRenderDeviceRender__End__R3_R4(); stdcall
+procedure dxRenderDeviceRender__End__R3_R4(); stdcall;
 label original;
 asm
     // Проверяем, идёт ли сейчас рендер второго кадра

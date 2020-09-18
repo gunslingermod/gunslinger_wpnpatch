@@ -1,4 +1,5 @@
 unit savedgames;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init():boolean; stdcall;

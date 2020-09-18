@@ -1,4 +1,5 @@
 unit xr_RocketLauncher;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors;

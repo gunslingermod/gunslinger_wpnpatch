@@ -1,4 +1,5 @@
 unit xr_ScriptParticles;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors;

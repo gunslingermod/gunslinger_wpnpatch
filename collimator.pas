@@ -1,4 +1,5 @@
 unit collimator;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 
 interface

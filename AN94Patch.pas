@@ -1,5 +1,6 @@
 unit AN94Patch;
 //Реализация увеличенного темпа стрельбы для первых выстрелов
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 function Init:boolean;

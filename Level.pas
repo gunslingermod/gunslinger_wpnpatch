@@ -1,4 +1,5 @@
 unit Level;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors, xr_Cartridge, Misc;

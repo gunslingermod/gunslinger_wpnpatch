@@ -1,4 +1,5 @@
 unit UIUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors, xr_strings;

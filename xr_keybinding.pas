@@ -1,4 +1,5 @@
 unit xr_keybinding;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 {//$define DISABLE_UNUSED_COMMANDS}
 

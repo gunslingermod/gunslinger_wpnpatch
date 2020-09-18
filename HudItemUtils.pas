@@ -1,4 +1,5 @@
 unit HudItemUtils;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses MatVectors, WeaponSoundLoader, UIUtils;
@@ -73,8 +74,8 @@ function IsTriStateReload(wpn:pointer):boolean; stdcall;
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
 procedure CHudItem_StopAllSounds(itm:pointer); stdcall;
-function GetLevelVertexID(wpn:pointer):cardinal; stdcall
-function GetGameVertexID(wpn:pointer):cardinal; stdcall
+function GetLevelVertexID(wpn:pointer):cardinal; stdcall;
+function GetGameVertexID(wpn:pointer):cardinal; stdcall;
 function GetSilencerSection(wpn:pointer):PChar; stdcall;
 procedure DetachAddon(wpn:pointer; addon_type:integer);stdcall;
 function GetGLSection(wpn:pointer):PChar; stdcall;
@@ -1277,7 +1278,7 @@ asm
   popad
 end;
 
-function GetLevelVertexID(wpn:pointer):cardinal; stdcall
+function GetLevelVertexID(wpn:pointer):cardinal; stdcall;
 asm
   mov eax, wpn
   mov eax, [eax+$208]
@@ -1285,7 +1286,7 @@ asm
   mov @result, eax
 end;
 
-function GetGameVertexID(wpn:pointer):cardinal; stdcall
+function GetGameVertexID(wpn:pointer):cardinal; stdcall;
 asm
   mov eax, wpn
   mov eax, [eax+$208]
@@ -1508,7 +1509,7 @@ asm
   pushad
     call GetPlayerHud
     mov ebx, index
-    mov eax, [eax+$94+4*ebx]
+    mov eax, [eax+4*ebx+$94]
     mov @result, eax
   popad
 end;

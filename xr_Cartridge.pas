@@ -1,4 +1,5 @@
 unit xr_Cartridge;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses xr_strings;
