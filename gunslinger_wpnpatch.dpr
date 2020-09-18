@@ -43,7 +43,6 @@ uses
   CrosshairInertion in 'CrosshairInertion.pas',
   WeaponInertion in 'WeaponInertion.pas',
   ControllerMonster in 'ControllerMonster.pas',
-  AutoUpdater in 'AutoUpdater.pas',
   ScriptFunctors in 'ScriptFunctors.pas',
   CRT in 'CRT.pas',
   r_constants in 'r_constants.pas',
@@ -104,8 +103,6 @@ begin
   savedgames.Init();
   burer.Init();
 
-//  AutoUpdater.Init();
-//
 //  Messenger.Init;
 
   Log('Dll Injected!')
