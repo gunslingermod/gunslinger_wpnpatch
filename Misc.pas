@@ -135,7 +135,7 @@ function GetSysMousePoint():MouseCoord;
 procedure SetSysMousePoint(c:MouseCoord);
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level;
+uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -1531,6 +1531,34 @@ asm
   @finish:
 end;
 
+function CanSkipUpdate():boolean; stdcall;
+begin
+{$ifdef EXPERIMENTAL_UPDRATE}
+  result:=IsLensFrameNow() or (IsDynamicUpdrate() and IsHardUpdates() and (GetCurrentFrame() mod 2 = 1));
+{$else}
+  result:=IsLensFrameNow();
+{$endif}
+end;
+
+procedure CObjectList__Update_SkipUpdate_Patch(); stdcall;
+asm
+  pop eax //ret addr
+
+  pushad
+  call CanSkipUpdate
+  test al, al
+  popad
+  je @continue
+  ret 4;
+
+  @continue:
+  //original
+  push ebp mov ebp, esp
+  sub esp, $c
+
+  jmp eax
+end;
+
 
 function Init():boolean;stdcall;
 var
@@ -1622,6 +1650,10 @@ begin
   //в CObjectList::Update после вызова CStatTimer::End добавляем наш код, обрабатывающий время апдейта
   jmp_addr:=xrEngine_addr+$1b5f5;
   if not WriteJump(jmp_addr, cardinal(@CObjectList__Update_UpdateTimeCounter_Patch), 6, true) then exit;
+
+  // в CObjectList::Update отключаем апдейт для кадра линзы
+  jmp_addr:=xrEngine_addr+$1b3c0;
+  if not WriteJump(jmp_addr, cardinal(@CObjectList__Update_SkipUpdate_Patch), 6, true) then exit;
 
   result:=true;
 end;
