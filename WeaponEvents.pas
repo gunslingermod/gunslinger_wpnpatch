@@ -1444,8 +1444,6 @@ procedure CWeapon__OnAnimationEnd(wpn:pointer); stdcall;
 var
   act:pointer;
   anm:PChar;
-
-  blowout_level:single;
 begin
   act:=GetActor();
   //пофиксим рассинхрон аним ствола и детектора в беге
@@ -1465,13 +1463,6 @@ begin
     SetActorKeyRepeatFlag(kfQUICKKICK, false);
     virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
     SetActorActionCallback(@KickCallback);
-  end;
-
-  if (GetActorActiveItem()=wpn) and (GetPDAShowAnimator()=GetSection(wpn)) and (leftstr(GetActualCurrentAnim(wpn), length('anm_show'))='anm_show') and game_ini_r_bool_def(GetHUDSection(wpn), 'play_blowout_anim', false) then begin
-    blowout_level:=ModifyFloatUpgradedValue(wpn, 'blowout_anim_level', game_ini_r_single_def(GetSection(wpn), 'blowout_anim_level', 1000));
-    if ( blowout_level<=CurrentElectronicsProblemsCnt()) then begin
-      SetActorActionState(GetActor(), actModNeedBlowoutAnim, true)
-    end;
   end;
 end;
 

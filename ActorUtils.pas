@@ -214,6 +214,7 @@ var
   _last_mouse_coord:MouseCoord;
   _need_pda_zoom:boolean;
   _last_pda_zoom_state:boolean;
+  _pda_blowout_anim_started:boolean;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure player_hud__load_fixpatched(); stdcall;
@@ -1568,6 +1569,14 @@ begin
   end;
 end;
 
+function BlowoutAnimCondition(wpn:pointer):boolean; stdcall;
+var
+  blowout_level:single;
+begin
+  blowout_level:=ModifyFloatUpgradedValue(wpn, 'blowout_anim_level', game_ini_r_single_def(GetSection(wpn), 'blowout_anim_level', 1000));
+  result:=(blowout_level<=CurrentElectronicsProblemsCnt());
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -1583,7 +1592,6 @@ var
   dir:TCursorDirection;
   angle:single;
 
-  blowout_level:single;
   is_nv_enabled:boolean;
   contr_k:controller_mouse_control_params;
 
@@ -1720,6 +1728,7 @@ begin
         _pda_cursor_state.dir_accumulator.y:=0;
         _last_mouse_coord:=GetSysMousePoint();
         _need_pda_zoom:=NeedFastPdaZoom();
+        _pda_blowout_anim_started:=false;
       end;
     end else begin
       //пда уже был включен и заспавнен. Убеждаемся, что до сих пор в слоте
@@ -1784,23 +1793,27 @@ begin
   end;
 
   if (itm<>nil) and game_ini_r_bool_def(GetHUDSection(itm), 'play_blowout_anim', false) then begin
-    if (CurrentElectronicsProblemsCnt()<>PreviousElectronicsProblemsCnt()) then begin
-      blowout_level:=ModifyFloatUpgradedValue(itm, 'blowout_anim_level', game_ini_r_single_def(GetSection(itm), 'blowout_anim_level', 1000));
-      if ( blowout_level<=CurrentElectronicsProblemsCnt()) and ( blowout_level>PreviousElectronicsProblemsCnt()) then begin
-        SetActorActionState(act, actModNeedBlowoutAnim, true)
-      end else if (blowout_level>CurrentElectronicsProblemsCnt) and (leftstr(GetActualCurrentAnim(itm), length('anm_blowout')) = 'anm_blowout') then begin
+    if (leftstr(GetActualCurrentAnim(itm), length('anm_blowout')) = 'anm_blowout') then begin
+      if not BlowoutAnimCondition(itm) then begin
         virtual_CHudItem_SwitchState(itm, EHudStates__eIdle);
         CHudItem_StopAllSounds(itm);
+      end;
+    end else begin
+      if BlowoutAnimCondition(itm) and not _pda_blowout_anim_started then begin
+        SetActorActionState(act, actModNeedBlowoutAnim, true)
       end;
     end;
   end;
 
   if GetActorActionState(act, actModNeedBlowoutAnim) then begin
-    if ((GetBuffer(itm)<>nil) and CanStartAction(itm)) or ((GetBuffer(itm)=nil) and (GetCurrentState(itm)=0) ) then begin
+    if ((GetBuffer(itm)<>nil) and CanStartAction(itm)) or ((GetBuffer(itm)=nil) and (GetCurrentState(itm)=EHudStates__eIdle) ) then begin
       if not IsAimNow(itm) and (pos('_aim', GetActualCurrentAnim(itm))=0) then begin
         virtual_CHudItem_SwitchState(itm, EHudStates__eBore);
+        _pda_blowout_anim_started:=true;
       end else begin
-        if IsAimToggle() then virtual_Action(itm, kWPN_ZOOM, kActPress) else virtual_Action(itm, kWPN_ZOOM, kActRelease);
+        if pos('_fastzoom', GetActualCurrentAnim(itm))=0 then begin
+          if IsAimToggle() then virtual_Action(itm, kWPN_ZOOM, kActPress) else virtual_Action(itm, kWPN_ZOOM, kActRelease);
+        end;
       end;
     end;
   end;
@@ -2197,6 +2210,7 @@ begin
 
   _last_pda_zoom_state:=IsFastPdaZoom();
   _is_pda_lookout_mode:=false;
+  _pda_blowout_anim_started:=false;
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
