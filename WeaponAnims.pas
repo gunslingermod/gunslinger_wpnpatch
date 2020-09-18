@@ -1292,7 +1292,7 @@ procedure CWeaponMagazined__Action_Patch; stdcall;
 asm
     pushad
       push esi
-      call WeaponEvents.CanSwitchGL
+      call CanSwitchGL
       cmp al, 0
     popad
     je @finish
