@@ -1598,6 +1598,7 @@ var
   ss:shared_str;
   canshoot:boolean;
   slot:cardinal;
+  act_anm:boolean;
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1661,11 +1662,12 @@ begin
 
   //если в руках аниматор действия или премет без буфера с играющейся анимой действия - запускаем калбэк вручную
   if (@_action_animator_callback<>nil) then begin
-    if (itm<>nil) and (game_ini_r_bool_def(GetSection(itm), 'action_animator', false) or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=EHudStates__eIdle))) then begin
+    act_anm:=(itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'action_animator', false);
+    if (itm<>nil) and (act_anm or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=EHudStates__eIdle))) then begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
       treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);
-      if (treasure_time<anim_time) then begin
+      if (treasure_time<anim_time) or (act_anm and (GetCurrentState(itm)=EHudStates__eIdle)) then begin
         _action_animator_callback(itm, _action_animator_param);
         _action_animator_callback:=nil;
         _action_animator_param:=0;
