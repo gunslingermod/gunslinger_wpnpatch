@@ -142,8 +142,8 @@ procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
 procedure set_pp_effector_factor(id:integer; f:single; f_sp:single); stdcall;
 procedure remove_pp_effector(id:integer); stdcall;
 
-function GetActorHealthPtr(act:pointer):pSingle;
-function GetActorStaminaPtr(act:pointer):pSingle;
+function GetActorHealthPtr(act:pointer):pSingle; stdcall;
+function GetActorStaminaPtr(act:pointer):pSingle; stdcall;
 
 function GetCameraManager():pointer; stdcall;
 function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
@@ -827,16 +827,14 @@ asm
 end;
 
 function GetActor():pointer; stdcall;
-begin
-  asm
+asm
     mov eax, xrgame_addr
     add eax, $64e2c0;
     mov eax, [eax]
     mov @result, eax
-  end;
 end;
 
-function GetActorHealthPtr(act:pointer):pSingle;
+function GetActorHealthPtr(act:pointer):pSingle; stdcall;
 asm
   mov @result, 0
   pushad
@@ -847,7 +845,7 @@ asm
   popad
 end;
 
-function GetActorStaminaPtr(act:pointer):pSingle;
+function GetActorStaminaPtr(act:pointer):pSingle; stdcall;
 asm
   mov @result, 0
   pushad
@@ -921,12 +919,10 @@ asm
 end;
 
 function IsActorAim(stalker:pointer):boolean; stdcall;
-begin
-  asm
+asm
     mov eax, stalker
     mov al, [eax+$5D4]
     mov @result, al
-  end;
 end;
 
 procedure CreateObjectToActor(section:PChar); stdcall;

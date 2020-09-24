@@ -515,9 +515,8 @@ end;
 
 
 //---------------Действия при покупке какого-то апгрейда у механика-------------
-procedure Upgrade_Weapon_Patch();
-begin
-  asm
+procedure Upgrade_Weapon_Patch(); stdcall;
+asm
     pushad
     pushfd
     //push ebx
@@ -528,7 +527,6 @@ begin
     push ecx
     lea edx, [esp+$1c]
     jmp upgrade_weapon_addr
-  end;
 end;
 
 //-----------------------------------------Переключение режимов огня------------------------
@@ -811,15 +809,13 @@ begin
 end;
 
 procedure EmptyClick_Patch; stdcall;
-begin
-  asm
+asm
     pushad
     sub ecx, $2e0
     push ecx
     call OnEmptyClick
     popad
     ret
-  end;
 end;
 //------------------------------------------------------------------------------
 

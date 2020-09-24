@@ -14,8 +14,7 @@ const
   singleshoots_time_delta:PChar='singleshoots_time_delta';
 
 procedure AN94_RPM_Patch; stdcall;
-begin
-  asm
+asm
     //делаем вырезанное
     movss xmm0, [esi+$35c]
     //начинаем шаманства
@@ -74,7 +73,6 @@ begin
     popfd
     popad
     jmp rpm_loading_patch_addr
-  end;
 end;
 
 function Init:boolean;

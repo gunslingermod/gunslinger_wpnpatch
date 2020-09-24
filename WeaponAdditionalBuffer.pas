@@ -759,8 +759,7 @@ begin
 end;
 
 class procedure WpnBuf._SetWpnBufPtr(wpn: pointer; what_write: pointer);
-begin
-  asm
+asm
     push eax
     push ebx
 
@@ -772,7 +771,6 @@ begin
 
     pop ebx
     pop eax
-  end;
 end;
 
 function CanHideWeaponNow(wpn:pointer):boolean;stdcall;

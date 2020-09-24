@@ -1004,12 +1004,10 @@ asm
 end;
 
 function GetNextState(wpn:pointer):integer; stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov eax, [eax+$2E8]
     mov @result, eax
-  end
 end;
 
 procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
@@ -1148,8 +1146,7 @@ end;
 ////////////////////////////////////////////////////////////////////////////////
 
 function GetSilencerSection(wpn:pointer):PChar; stdcall;
-begin
-  asm
+asm
     push eax
 
     mov @result, 0
@@ -1162,13 +1159,11 @@ begin
     
     @finish:
     pop eax
-  end;
 end;
 
 
 function GetGLSection(wpn:pointer):PChar; stdcall;
-begin
-  asm
+asm
     push eax
 
     mov @result, 0
@@ -1181,7 +1176,6 @@ begin
                                
     @finish:
     pop eax
-  end;
 end;
 
 procedure SetShootLockTime(wpn:pointer; time:single);stdcall;
@@ -1207,8 +1201,7 @@ begin
 end;
 
 procedure SetCurrentScopeType(wpn:pointer; scope_type:byte); stdcall;
-begin
-  asm
+asm
     push eax
     push ecx
 
@@ -1218,12 +1211,10 @@ begin
 
     pop ecx
     pop eax
-  end;
 end;
 
 function GetShootLockTime(wpn:pointer):single;stdcall;
-begin
-  asm
+asm
     push eax
     push eax
     movss [esp], xmm0
@@ -1235,13 +1226,11 @@ begin
     movss xmm0, [esp]
     add esp, 4
     pop eax
-  end;
 end;
 
 
 function GetOneShotTime(wpn:pointer):single;stdcall;
-begin
-  asm
+asm
     push eax
     push eax
     movss [esp], xmm0
@@ -1253,7 +1242,6 @@ begin
     movss xmm0, [esp]
     add esp, 4
     pop eax
-  end;
 end;
 
 function GetCurrentCondition(wpn:pointer):single; stdcall;
@@ -1447,11 +1435,9 @@ asm
 end;
 
 procedure ForceWpnHudBriefUpdate(wpn:pointer); stdcall;
-begin
-  asm
+asm
     mov eax, wpn
     mov [eax+$69c], 0
-  end;
 end;
 
 function virtual_Action(wpn:pointer; cmd:cardinal; flags:cardinal):boolean; stdcall;
@@ -1694,8 +1680,7 @@ asm
 end;
 
 procedure virtual_CWeaponMagazined__UnloadMagazine(wpn:pointer; spawn_ammo:boolean);stdcall;
-begin
-  asm
+asm
     pushad
     pushfd
 
@@ -1710,7 +1695,6 @@ begin
 
     popfd
     popad
-  end;
 end;
 
 procedure virtual_CWeaponMagazined__ReloadMagazine(wpn:pointer);stdcall;

@@ -50,7 +50,7 @@ var
 implementation
 uses BaseGameData, Misc, sysutils, gunsl_config, ScriptFunctors, ActorUtils, math, RayPick, ConsoleUtils, LensDoubleRender;
 
-function GetCrowHealthPtr(crow:pCAI_Crow):pSingle;
+function GetCrowHealthPtr(crow:pCAI_Crow):pSingle; stdcall;
 asm
   mov @result, 0
   pushad

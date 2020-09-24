@@ -234,8 +234,7 @@ end;
 
 
 procedure anm_idle_std_patch();stdcall;
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -247,13 +246,10 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 procedure anm_idle_sub_patch();stdcall;
-begin
-  asm
-
+asm
     sub esi, $2E0
     call anm_idle_std_patch
     add esi, $2E0
@@ -266,8 +262,6 @@ begin
     mov [esp+$c], eax
     pop ebx
     pop eax
-
-  end;
 end;
 
 function ModifierAlterSprint(wpn:pointer; base_anim:string):string;stdcall;
@@ -388,8 +382,7 @@ begin
 end;
 
 procedure anm_show_std_patch();stdcall;
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
 
     pushad
@@ -410,12 +403,10 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 procedure anm_show_sub_patch();stdcall;
-begin
-  asm
+asm
 
     sub esi, $2E0
     call anm_show_std_patch
@@ -429,14 +420,11 @@ begin
     mov [esp+$c], eax
     pop ebx
     pop eax
-
-  end;
 end;
 
 procedure anm_hide_std_patch();stdcall;
 const anm_hide:PChar = 'anm_hide';
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
 
     pushad
@@ -455,12 +443,10 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 procedure anm_hide_sub_patch();stdcall;
-begin
-  asm
+asm
 
     sub esi, $2E0
     call anm_hide_std_patch
@@ -474,14 +460,11 @@ begin
     mov [esp+$c], eax
     pop ebx
     pop eax
-
-  end;
 end;
 
 procedure anm_bore_edi_patch();stdcall;
 const anm_bore:PChar = 'anm_bore';
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -495,13 +478,11 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 procedure anm_bore_std_patch();stdcall;
 const anm_bore:PChar = 'anm_bore';
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -514,12 +495,10 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 procedure anm_bore_sub_patch();stdcall;
-begin
-  asm
+asm
 
     sub esi, $2E0
     call anm_bore_std_patch
@@ -534,13 +513,11 @@ begin
     pop ebx
     pop eax
 
-  end;
 end;
 
 procedure anm_switch_sub_patch();stdcall;
 const anm_switch:PChar = 'anm_switch';
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -554,7 +531,6 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 function anm_shoot_g_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
@@ -580,8 +556,7 @@ end;
 
 procedure anm_shoot_g_std_patch();stdcall;
 const anm_shoot_g:PChar = 'anm_shoot';
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -594,7 +569,6 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 function anm_close_selector(wpn:pointer):pchar; stdcall;
@@ -635,11 +609,8 @@ begin
   end;
 end;
 
-
-
 procedure anm_close_std_patch();stdcall;
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -651,8 +622,8 @@ begin
     popfd
     popad
     ret
-  end;
 end;
+
 //------------------------------------------------------------add_cartridge-----------------------------------------
 procedure OnAddCartridge(wpn:pointer; param:integer);stdcall;
 var
@@ -793,8 +764,7 @@ begin
 end;
 
 procedure anm_open_std_patch();stdcall;
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -806,7 +776,6 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 //----------------------------------------------------------anm_shots------------------------------------------------
@@ -1131,8 +1100,7 @@ end;
 
 
 procedure anm_reload_std_patch();stdcall;
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -1144,14 +1112,12 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 
 
 procedure anm_reload_g_std_patch();stdcall;
 const anm_reload_g:PChar = 'anm_reload';
-begin
-  asm
+asm
     push 0                  //забиваем место под название анимы
     pushad
     pushfd
@@ -1165,7 +1131,6 @@ begin
     popfd
     popad
     ret
-  end;
 end;
 //--------------------------------------------Фикс для перехода анимаций подствола------------------------------
 procedure GrenadeLauncherBugFix(); stdcall;
@@ -1380,8 +1345,7 @@ begin
 end;
 
 procedure IdleSlowFixPatch(); stdcall;
-begin
-  asm
+asm
     //делаем вырезанное сравнение
     and eax, $0F
     cmp [esp+$2C], eax
@@ -1417,12 +1381,10 @@ begin
     
     @finish:
     ret
-  end;
 end;
 //-------------------------------Не даем назначить bore-------------------------------------
 procedure BoreAnimLockFix; stdcall;
-begin
-  asm
+asm
     pushad
       sub esi, $2e0
       push esi
@@ -1441,12 +1403,10 @@ begin
     not edx
     test dl, 01
     ret;
-  end;
 end;
 //---------------------------------Не даем прятать оружие при активном локе у него------------------------------------
 procedure HideAnimLockFix; stdcall;
-begin
-  asm
+asm
     lea ecx, [esi-$2e0]
     pushad
       push ecx
@@ -1460,7 +1420,6 @@ begin
     @no_lock:
     call eax
     ret;
-  end;
 end;
 
 
@@ -1505,8 +1464,7 @@ asm
 end;
 //------------------------------------------Отключаем стрельбу с подствола при локе-----------------------------------
 procedure ShootGLAnimLockFix; stdcall;  //OLD - now rewritten the whole block (see WeaponEvents)
-begin
-  asm
+asm
     pushad
       push esi
       call WeaponAdditionalBuffer.OnShoot_CanShootNow
@@ -1523,7 +1481,6 @@ begin
     @nolock:
     cmp [esi+$690], 0
     ret
-  end;
 end;
 
 //---------------------------------------Не даем прицелиться при локе-------------------------------------------------
@@ -1569,9 +1526,8 @@ asm
 end;
 //---------------------------------------Не даем стрелять при локе-------------------------------------------------
 procedure ShootAnimLockFix; stdcall;
-begin
-  //выставить ZF = 1, если нельзя стрелять
-  asm
+//выставить ZF = 1, если нельзя стрелять
+asm
     pushad
       sub esi, $338
       push esi
@@ -1582,7 +1538,6 @@ begin
     cmp [esi+$358], eax
     @finish:
     ret
-  end;
 end;
 //---------------------------------------Отучим перезаряжаться (и не только) на бегу-------------------------------------------------
 function ProcessAllowSprintRequest(wpn:pointer):boolean;
