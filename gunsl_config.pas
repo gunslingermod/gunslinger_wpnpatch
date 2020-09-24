@@ -394,11 +394,13 @@ const
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
+begin
 asm
   mov eax, xrgame_addr
   mov eax, [eax+$5127E8]
   mov eax, [eax]
   mov @result, eax
+end;
 end;
 
 function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
@@ -576,10 +578,12 @@ end;
 
 
 function GetCurrentDifficulty():cardinal; stdcall;
+begin
 asm
   mov eax, xrgame_addr
   mov eax, [eax+$63bc54]
   mov @result, eax
+end;
 end;
 
 function IsDynamicDOF():boolean; stdcall;

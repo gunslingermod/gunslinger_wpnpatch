@@ -40,8 +40,6 @@ function str_container_dock(str:PChar):pstr_value; stdcall;
 
 implementation
 uses basegamedata;
-var
-  g_pStringContainer:ppstr_container;
 
 procedure assign_string_noaddref(str:pshared_str; text:PChar); stdcall;
 begin
@@ -82,11 +80,13 @@ begin
 end;   
 
 function GetStrContainer():pointer;stdcall;
+begin
 asm
   mov eax, xrgame_addr
   mov eax, [eax+$512814]
   mov eax, [eax]
   mov @result, eax
+end;
 end;
 
 function str_container_dock(str:PChar):pstr_value; stdcall;
@@ -97,7 +97,7 @@ asm
     push str
 
     call GetStrContainer
-    mov eax, ecx
+    mov ecx, eax
 
     mov eax, xrcore_addr
     add eax, $20690

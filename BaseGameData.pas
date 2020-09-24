@@ -126,19 +126,23 @@ begin
 end;
 
 function GetGameTickCount:cardinal;
+begin
 asm
   mov eax, xrengine_addr
   add eax, $92ed8 //xrEngine.Device
   mov eax, [eax+$28];
   mov @result, eax
 end;
+end;
 
 function GetCurrentFrame:cardinal;
+begin
 asm
   mov eax, xrengine_addr
   add eax, $92ed8 //xrEngine.Device
   mov eax, [eax+$18];
   mov @result, eax
+end;
 end;
 
 function GetTimeDeltaSafe(starttime:cardinal):cardinal; overload;
@@ -242,6 +246,7 @@ begin
 end;
 
 function Is16x9():boolean;stdcall;
+begin
 asm
     pushad
     pushfd
@@ -254,6 +259,7 @@ asm
 
     popfd
     popad
+end;
 end;
 
 
@@ -280,6 +286,7 @@ end;
 
 
 function get_device_timedelta():single; stdcall;
+begin
 asm
   push eax
   movss [esp], xmm0
@@ -295,6 +302,7 @@ asm
 
   movss xmm0, [esp]
   add esp, 4
+end;
 end;
 
 function Clamp(val:single; low:single; high:single):single; stdcall;

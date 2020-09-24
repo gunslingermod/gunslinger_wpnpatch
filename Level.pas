@@ -16,10 +16,12 @@ implementation
 uses BaseGameData, gunsl_config, HudItemUtils, HitUtils, math, sysutils, xr_strings;
 
 function GetLevel():pointer; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92d2c]
   mov @result, eax
+end;
 end;
 
 function Level_to_CObjectSpace(l:pointer):pointer; stdcall;

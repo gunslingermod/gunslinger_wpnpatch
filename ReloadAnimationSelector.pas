@@ -13,8 +13,7 @@ var
   reload_withgl_patch_addr:cardinal;
 
 function PistolAssaultAnimationSelector(weapon_addr:cardinal):PChar; stdcall;
-begin
-  asm
+asm
     pushad
     pushf
 
@@ -100,12 +99,10 @@ begin
 
     popf
     popad
-  end;
 end;
 
 procedure AK74ReloadNoGLAnimationSelector;
-begin
-  asm
+asm
     push ecx
     push esi
     call PistolAssaultAnimationSelector
@@ -113,12 +110,10 @@ begin
     push eax
 
     jmp reload_nogl_patch_addr
-  end;
 end;
 
 procedure AK74ReloadWithGLAnimationSelector;
-begin
-  asm
+asm
     push ecx
     push esi
     call PistolAssaultAnimationSelector
@@ -126,12 +121,10 @@ begin
     push eax
 
     jmp reload_withgl_patch_addr
-  end;
 end;
 
 procedure PistolReloadAnimationSelector;
-begin
-  asm
+asm
     push ecx
     push esi
     call PistolAssaultAnimationSelector
@@ -139,7 +132,6 @@ begin
     push eax
     
     jmp reload_pistols_patch_addr
-  end;
 end;
 
 function Init:boolean;

@@ -329,6 +329,7 @@ end;
 
 
 function alife():pointer;
+begin
 asm
   pushad
   pushfd
@@ -340,6 +341,7 @@ asm
   
   popfd
   popad
+end;
 end;
 
 function alife_create(section:PChar; pos:pointer; lvid:cardinal; gvid:cardinal):pCSE_Abstract; stdcall;
@@ -520,21 +522,26 @@ asm
 end;
 
 function GetDevicedwFrame():cardinal; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92EF0]
   mov @result, eax
 end;
+end;
 
 procedure DecDevicedwFrame(); stdcall;
+begin
 asm
   push eax
   mov eax, xrEngine_addr
   dec [eax+$92EF0]
   pop eax
 end;
+end;
 
 function IsMainMenuActive():boolean; stdcall;
+begin
 asm
   pushad
     mov @result, 0
@@ -551,26 +558,33 @@ asm
     @finish:
   popad
 end;
+end;
 
 function GetDeviceView():pFMatrix4x4; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ED8+$60]
   mov @result, eax
 end;
+end;
 
 function GetDeviceProjection():pFMatrix4x4; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ED8+$A0]
   mov @result, eax
 end;
+end;
 
 function GetDeviceFullTransform():pFMatrix4x4; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ED8+$E0]
   mov @result, eax
+end;
 end;
 
 //-----------------------------------------------------------------------------------------------------------
@@ -670,24 +684,30 @@ asm
 end;
 
 function GetDeviceTimeDelta():single; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92ED8+$1C]
   mov @result, eax
 end;
+end;
 
 function GetDeviceWidth():cardinal; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92ED8+$04]
   mov @result, eax
 end;
+end;
 
 function GetDeviceHeight():cardinal; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   mov eax, [eax+$92ED8+$08]
   mov @result, eax
+end;
 end;
 
 function GetCObjectID(CObject:pointer):word; stdcall;
@@ -757,11 +777,13 @@ asm
 end;
 
 function IsInputExclusive:boolean; stdcall;
+begin
 asm
   mov eax, xrengine_addr
   add eax, $9032B
   mov al, byte ptr [eax]
   mov @result, al
+end;
 end;
 
 function GetAngleByLegs(x,y:single):single;
@@ -1036,6 +1058,7 @@ asm
 end;
 
 function get_addons_state_adapter():cardinal;
+begin
 asm
   pushad
   mov eax, [ecx+4] //CScriptGameObject.m_game_object
@@ -1056,6 +1079,7 @@ asm
 
   @finish:
   popad
+end;
 end;
 
 procedure set_addons_state_adapter(state:cardinal); stdcall;

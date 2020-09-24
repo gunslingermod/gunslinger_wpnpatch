@@ -518,8 +518,6 @@ begin
 end;
 
 procedure CGrenade__SendHiddenItem_Patch();stdcall;
-var
-  act:pointer;
 asm
   pushad
     sub esi, $2e0

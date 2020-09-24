@@ -1454,10 +1454,12 @@ asm
 end;
 
 function IsAimToggle():boolean; stdcall;
+begin
 asm
   mov eax, xrgame_addr
   add eax, $64ec5c
   movzx eax, byte ptr [eax]
+end;
 end;
 
 procedure PlayAnimIdle(wpn: pointer); stdcall;
@@ -1482,12 +1484,14 @@ asm
 end;
 
 function GetPlayerHud():pointer; stdcall;
+begin
 asm
   pushad
     mov eax, xrgame_addr
     mov eax, [eax+$64f0e4]
     mov @result, eax
   popad
+end;
 end;
 
 function GetAttachableHudItem(index:cardinal):pointer; stdcall;

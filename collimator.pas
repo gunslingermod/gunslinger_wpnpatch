@@ -467,12 +467,14 @@ begin
 end;
 
 function CWeapon__render_item_ui_query_reimpl_patch():boolean; stdcall;
+begin
 asm
   pushad
   push ecx
   call CWeapon__render_item_ui_query_reimpl
   mov @result, al
   popad
+end;
 end;
 
 function IsForceHideZoomTexture(wpn:pointer):boolean; stdcall;

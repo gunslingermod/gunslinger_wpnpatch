@@ -22,7 +22,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="gunslinger_wpnpatch"/>
+            <Filename Value="G:\stalker\stcop\gunslinger_build\bin\gunslinger_wpnpatch.dll"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -61,7 +61,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="gunslinger_wpnpatch"/>
+            <Filename Value="G:\stalker\stcop\gunslinger_build\bin\gunslinger_wpnpatch.dll"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -313,7 +313,7 @@
     <Version Value="11"/>
     <PathDelim Value="\"/>
     <Target>
-      <Filename Value="gunslinger_wpnpatch"/>
+      <Filename Value="G:\stalker\stcop\gunslinger_build\bin\gunslinger_wpnpatch.dll"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
@@ -321,6 +321,9 @@
     </SearchPaths>
     <CodeGeneration>
       <RelocatableUnit Value="True"/>
+      <Optimizations>
+        <OptimizationLevel Value="0"/>
+      </Optimizations>
     </CodeGeneration>
     <Linking>
       <Options>

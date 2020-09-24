@@ -83,12 +83,14 @@ asm
 end;
 
 function IsPickableDofEffectorActive():boolean;
+begin
 asm
   pushad
   call GetGamePersistent
   mov al, byte ptr [eax+$4e1] //m_bPickableDOF
   mov result, al
   popad
+end;
 end;
 
 function RefreshZoomDOF(wpn:pointer):boolean; stdcall;
@@ -146,11 +148,13 @@ end;
 
 
 function GetGamePersistent():pointer; stdcall;
+begin
 asm
   mov eax, xrgame_addr
   mov eax, [eax+$512c28]
   mov eax, [eax]
   mov @result, eax
+end;
 end;
 
 procedure SetDofSpeedfactor(speed:single); stdcall;  //default=5

@@ -247,6 +247,7 @@ asm
 end;
 
 function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
+begin
 asm
   pushad
     mov eax, xrgame_addr
@@ -254,6 +255,7 @@ asm
     call eax
     mov @result, eax
   popad
+end;
 end;
 
 function AddCustomStatic(cuigamecustom_this: pointer; id:PChar; bSingleInstance: boolean): {SDrawStaticStruct*} pointer; stdcall;
@@ -311,6 +313,7 @@ asm
 end;
 
 function CDialogHolder__TopInputReceiver(): pCUIDialogWnd; stdcall;
+begin
 asm
   pushad
     call CurrentGameUI
@@ -322,12 +325,15 @@ asm
     mov @result, eax 
   popad
 end;
+end;
 
 function g_hud():{CCustomHUD*}pointer; stdcall;
+begin
 asm
   mov eax, xrengine_addr
   mov eax, [eax+$92d3c]
   mov @result, eax
+end;
 end;
 
 procedure ShowPDAMenu(); stdcall;
@@ -392,6 +398,7 @@ begin
 end;
 
 function GetPDA():pCUIPDAWnd; stdcall;
+begin
 asm
   mov @result, 0
   pushad
@@ -404,8 +411,10 @@ asm
     @finish:
   popad
 end;
+end;
 
 function IsInventoryShown():boolean; stdcall;
+begin
 asm
   mov @result, 0
   pushad
@@ -418,22 +427,27 @@ asm
     @finish:
   popad
 end;
+end;
 
 function IsInventoryShown_adapter():boolean; stdcall;
+begin
 asm
   pushad
     call IsInventoryShown
     mov @result, al
   popad
 end;
+end;
 
 function IsUIShown():boolean; stdcall;
+begin
 asm
   pushad
     call CurrentGameUI
     movzx eax, byte ptr [eax+$58]
     mov @result, al
   popad
+end;
 end;
 
 function IndicatorsShown():boolean; stdcall;
@@ -535,6 +549,7 @@ asm
 end;
 
 function GetUICursor():pCUICursor; stdcall;
+begin
 asm
   pushad
     mov eax, xrgame_addr
@@ -542,6 +557,7 @@ asm
     call eax
     mov @result, eax
   popad
+end;
 end;
 
 procedure virtual_CUICursor__OnRender(cursor:pCUICursor); stdcall;
@@ -560,43 +576,53 @@ asm
 end;
 
 function IndicatorsShown_adapter():boolean; stdcall;
+begin
 asm
   pushad
     call IndicatorsShown
     mov @result, al
   popad
 end;
+end;
 
 function ElectronicProblemsBegin():boolean; stdcall;
+begin
 asm
   pushad
     call ElectronicsProblemsInc
     mov @result, al
   popad
 end;
+end;
 
 function ElectronicProblemsReset():boolean; stdcall;
+begin
 asm
   pushad
     call ResetElectronicsProblems
     mov @result, 1
   popad
 end;
+end;
 
 function ElectronicProblemsApply():boolean; stdcall;
+begin
 asm
   pushad
     call ElectronicsProblemsImmediateApply
     mov @result, 1
   popad
 end;
+end;
 
 function ElectronicProblemsEnd():boolean; stdcall;
+begin
 asm
   pushad
     call ElectronicsProblemsDec
     mov @result, al
   popad
+end;
 end;
 
 function GetParameterUpgraded_int(objid:word; param_name:PAnsiChar):word; cdecl;
@@ -625,6 +651,7 @@ asm
 end;
 
 function IsActorControlled_adapter():boolean;
+begin
 asm
   pushad
     call IsActorSuicideNow
@@ -651,6 +678,7 @@ asm
   popad
 
   @finish:
+end;
 end;
 
 procedure register_level_isuishown(); stdcall;

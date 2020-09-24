@@ -73,23 +73,30 @@ var
   console:pointer;
 
 function IsDemoRecord():boolean; stdcall;
+begin
 asm
   mov eax, xrEngine_addr;
   add eax, $92d7c
   mov al, [eax]
+  mov @result, al
+end;
 end;
 
 
 function IsConsoleShown():boolean;stdcall;
+begin
 asm
   mov eax, console
   cmp eax, 0
   je @finish
   mov al, [eax+$ac]
+  mov @result, al
   @finish:
+end;
 end;
 
 function GetConsole():pointer; stdcall;
+begin
 asm
   mov eax, xrengine_addr
   cmp eax, 0
@@ -99,6 +106,7 @@ asm
   mov eax, [eax] //получаем консоль
 
   @finish:
+end;
 end;
 
 

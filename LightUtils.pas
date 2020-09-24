@@ -67,6 +67,7 @@ var
 
 
 function light__create():pointer;stdcall;
+begin
 asm
   pushad
   mov eax, xrgame_addr
@@ -87,8 +88,10 @@ asm
   call ebx
   popad
 end;
+end;
 
 function glow__create():pointer;stdcall;
+begin
 asm
   pushad
   mov eax, xrgame_addr
@@ -108,6 +111,7 @@ asm
   lea ecx, @result
   call ebx
   popad
+end;
 end;
 
 procedure light__destroy(light:pointer);stdcall;

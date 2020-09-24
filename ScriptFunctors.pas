@@ -64,6 +64,7 @@ end;
 
 
 function Get_script_engine():pointer; stdcall;
+begin
 asm
   pushad
     mov eax, xrgame_addr
@@ -84,6 +85,7 @@ asm
     
     @finish:
   popad
+end;
 end;
 
 procedure luabind_detail_unref(p:cardinal; id:cardinal); stdcall;

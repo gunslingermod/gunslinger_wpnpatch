@@ -827,11 +827,13 @@ asm
 end;
 
 function GetActor():pointer; stdcall;
+begin
 asm
     mov eax, xrgame_addr
     add eax, $64e2c0;
     mov eax, [eax]
     mov @result, eax
+end;
 end;
 
 function GetActorHealthPtr(act:pointer):pSingle; stdcall;
@@ -919,10 +921,12 @@ asm
 end;
 
 function IsActorAim(stalker:pointer):boolean; stdcall;
-asm
+begin
+  asm
     mov eax, stalker
     mov al, [eax+$5D4]
     mov @result, al
+  end;
 end;
 
 procedure CreateObjectToActor(section:PChar); stdcall;
@@ -1052,6 +1056,7 @@ end;
 end; }
 
 function GetActorActiveSlot():integer; stdcall;
+begin
 asm
   mov @result, -1;
   pushfd
@@ -1071,6 +1076,7 @@ asm
 
   @finish:
   popfd
+end;
 end;
 
 function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
@@ -1175,6 +1181,7 @@ begin
 end;
 
 function GetActorTargetSlot():integer; stdcall;
+begin
 asm
   mov @result, -1;
   pushfd
@@ -1194,6 +1201,7 @@ asm
 
   @finish:
   popfd
+end;
 end;
 
 procedure ResetActorFlags(act:pointer);
@@ -2400,11 +2408,13 @@ asm
 end;
 
 function GetFOV():single; stdcall;
+begin
 asm
   mov eax, xrgame_addr
   add eax, $635C44
   mov eax, [eax]
   mov @result, eax
+end;
 end;
 
 procedure SetHudFOV(fov:single); stdcall;
@@ -2455,31 +2465,39 @@ asm
 end;
 
 function CRenderDevice__GetCamPos():pointer; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$30]
   mov @result, eax
 end;
+end;
 
 function CRenderDevice__GetCamDir():pointer; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$3C]
   mov @result, eax
 end;
+end;
 
 function CRenderDevice__GetCamTop():pointer; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$48]
   mov @result, eax
 end;
+end;
 
 function CRenderDevice__GetCamRight():pointer; stdcall;
+begin
 asm
   mov eax, xrEngine_addr
   lea eax, [eax+$92ed8+$54]
   mov @result, eax
+end;
 end;
 
 
@@ -2535,6 +2553,7 @@ begin
 end;
 
 function GetTargetDist():single; stdcall;
+begin
 asm
   pushad
   mov @result, 0
@@ -2553,6 +2572,7 @@ asm
 
   @finish:
   popad
+end;
 end;
 
 
@@ -3425,6 +3445,7 @@ asm
 end;
 
 function GetCameraManager():pointer; stdcall;
+begin
 asm
   pushad
     call GetLevel
@@ -3432,6 +3453,7 @@ asm
     mov ecx, [edi+$544]
     mov @result, ecx
   popad
+end;
 end;
 
 function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
