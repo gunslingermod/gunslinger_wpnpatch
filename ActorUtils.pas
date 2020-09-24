@@ -1059,6 +1059,7 @@ function GetActorActiveSlot():integer; stdcall;
 begin
 asm
   mov @result, -1;
+  pushad
   pushfd
 
   call GetActor        //получаем актора
@@ -1076,6 +1077,7 @@ asm
 
   @finish:
   popfd
+  popad
 end;
 end;
 
@@ -1083,6 +1085,7 @@ function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
 asm
   mov @result, 0;
   pushfd
+  pushad
   sub slot, 1
   cmp slot, 12
   jge @finish
@@ -1102,11 +1105,13 @@ asm
   mov @result, eax
 
   @finish:
+  popad
   popfd
 end;
 
 procedure SetActorSlotBlockedCounter(slot:cardinal; cnt:byte); stdcall;
 asm
+  pushad
   pushfd
   sub slot, 1
   cmp slot, 12
@@ -1129,6 +1134,7 @@ asm
 
   @finish:
   popfd
+  popad
 end;
 
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
@@ -1184,6 +1190,7 @@ function GetActorTargetSlot():integer; stdcall;
 begin
 asm
   mov @result, -1;
+  pushad
   pushfd
 
   call GetActor        //получаем актора
@@ -1201,6 +1208,7 @@ asm
 
   @finish:
   popfd
+  popad
 end;
 end;
 

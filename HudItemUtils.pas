@@ -1459,6 +1459,7 @@ asm
   mov eax, xrgame_addr
   add eax, $64ec5c
   movzx eax, byte ptr [eax]
+  mov @result, al
 end;
 end;
 

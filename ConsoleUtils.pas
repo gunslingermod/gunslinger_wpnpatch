@@ -104,6 +104,7 @@ asm
 
   add eax, $92d5c
   mov eax, [eax] //получаем консоль
+  mov @result, eax
 
   @finish:
 end;
@@ -193,3 +194,4 @@ end;
 
 
 end.
+

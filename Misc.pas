@@ -531,13 +531,11 @@ end;
 end;
 
 procedure DecDevicedwFrame(); stdcall;
-begin
 asm
   push eax
   mov eax, xrEngine_addr
   dec [eax+$92EF0]
   pop eax
-end;
 end;
 
 function IsMainMenuActive():boolean; stdcall;
