@@ -1674,7 +1674,7 @@ asm
     sub ecx, $2e0
     push ecx
     call MultiHideFix_IsHidingNow
-    test eax, eax
+    test al, al
   popad
   jne @already_playing_anim
 
