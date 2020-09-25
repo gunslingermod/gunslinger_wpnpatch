@@ -117,6 +117,11 @@ type weapon_physics_damage_params = packed record
   speed:single;
 end;
 
+type boar_hit_params = packed record
+  min_condition_decrease:single;
+  max_condition_decrease:single;
+end;
+
 function Init:boolean;
 
 const
@@ -242,6 +247,8 @@ function GetHudSoundVolume():single;
 
 function GetUpgradeMenuPointOffsetX(need_16x9:boolean):integer;
 
+function GetBoarHitParams():boar_hit_params;
+
 var
   g_pickup_distance:single;
 
@@ -326,6 +333,8 @@ var
 
   _upgrade_menu_points_offset_x:integer;
   _upgrade_menu_points_offset_x_16x9:integer;
+
+  _boar_hit_params:boar_hit_params;
 
 //данные консольных команд
 //булевские флаги
@@ -941,6 +950,9 @@ begin
   _upgrade_menu_points_offset_x:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'upgrade_menu_points_offset_x', 0);
   _upgrade_menu_points_offset_x_16x9:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'upgrade_menu_points_offset_x_16x9', 0);
 
+  _boar_hit_params.min_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmin', 0.15);
+  _boar_hit_params.max_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmax', 0.3);
+
   result:=true;
 end;
 
@@ -1264,6 +1276,11 @@ begin
   end else begin
     result:=_upgrade_menu_points_offset_x;
   end;
+end;
+
+function GetBoarHitParams(): boar_hit_params;
+begin
+  result:=_boar_hit_params;
 end;
 
 end.

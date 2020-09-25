@@ -3818,6 +3818,9 @@ var
   itm:pointer;
   sect:PAnsiChar;
   slot:cardinal;
+  dropped:boolean;
+  cond_dec:single;
+  hit_params:boar_hit_params;
 begin
   dest:=GetObjectById(h.DestID);
   act:=GetActor();
@@ -3833,11 +3836,20 @@ begin
         if itm <> nil then begin
           sect:=GetSection(itm);
           slot:=game_ini_r_int_def(sect, 'slot', 2);
-          if slot<>1 then begin
+          dropped:=false;
+          if (slot<>1) or (random < (h.power - stamina^)) then begin
             PerformDrop(act);
-          end else if random < (h.power - stamina^) then begin
-            PerformDrop(act);
+            dropped:=true;
           end;
+
+          if dropped and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
+            hit_params:=GetBoarHitParams();
+            cond_dec:=hit_params.min_condition_decrease + random * (hit_params.max_condition_decrease - hit_params.min_condition_decrease);
+            cond_dec:=GetCurrentCondition(itm)-cond_dec;
+            if cond_dec < 0 then cond_dec:=0;
+            SetCondition(itm, cond_dec);
+          end;
+
           stamina^:=0;
         end;
       end;
