@@ -1975,7 +1975,7 @@ end;
 procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdcall;
 asm
   pushad
-    mov edi, ecx
+    mov edi, CParticlesObject
     mov eax, [edi+$80] //this->renderable.visual
     test eax, eax
     je @finish
