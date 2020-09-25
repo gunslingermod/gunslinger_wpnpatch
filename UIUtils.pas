@@ -1244,7 +1244,7 @@ asm
   call eax // Profile()
   push eax
   call TryDisassembleItem
-  test eax, eax
+  test al, al
   je @errorbox
 
   mov ecx, CUIActorMenu

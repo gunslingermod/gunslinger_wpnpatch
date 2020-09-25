@@ -751,7 +751,7 @@ asm
   pushad
   push eax
   call IsWeaponAllowAntiAim
-  test eax, eax
+  test al, al
   popad
   mov eax, 0
   je @finish
