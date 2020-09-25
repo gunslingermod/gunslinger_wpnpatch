@@ -91,8 +91,21 @@
       <UseFileFilters Value="True"/>
     </PublishOptions>
     <RunParams>
+      <local>
+        <HostApplicationFilename Value="G:\stalker\stcop\gunslinger_build\bin\xrengine.exe"/>
+        <CommandLineParams Value="-i"/>
+        <WorkingDirectory Value="G:\stalker\stcop\gunslinger_build"/>
+      </local>
       <FormatVersion Value="2"/>
-      <Modes Count="0"/>
+      <Modes Count="1">
+        <Mode0 Name="default">
+          <local>
+            <HostApplicationFilename Value="G:\stalker\stcop\gunslinger_build\bin\xrengine.exe"/>
+            <CommandLineParams Value="-i"/>
+            <WorkingDirectory Value="G:\stalker\stcop\gunslinger_build"/>
+          </local>
+        </Mode0>
+      </Modes>
     </RunParams>
     <Units Count="53">
       <Unit0>
