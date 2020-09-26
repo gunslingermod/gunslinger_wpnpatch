@@ -372,6 +372,19 @@ begin
   xrRender_R2_addr := (xrRender_R2_addr shr 16) shl 16;
   xrRender_R3_addr := (xrRender_R3_addr shr 16) shl 16;
   xrRender_R4_addr := (xrRender_R4_addr shr 16) shl 16;
+
+{$IFDEF FPC}
+  Log('Build env: FPC, date ' + {$INCLUDE %DATE});
+{$ELSE}
+  Log('Build env: Delphi');
+{$ENDIF}
+  Log('Base addresses of important modules:');
+  Log('gunslinger_wpnpatch.dll - '+inttohex(GetModuleHandle('gunslinger_wpnpatch'), 8));
+  Log('xrCore.dll - '+inttohex(xrCore_addr, 8));
+  Log('xrGame.dll - '+inttohex(xrGame_addr, 8));
+  Log('xrPhysics.dll - '+inttohex(xrPhysics_addr, 8));
+  Log('xrApi.dll - '+inttohex(xrAPI_addr, 8));
+
   result:=true;
 end;
 
