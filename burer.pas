@@ -7,7 +7,7 @@ function Init():boolean; stdcall;
 function GetLastSuperStaminaHitTime():cardinal; stdcall;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
@@ -19,6 +19,30 @@ const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
   BURER_HEAD_CORRECTION_HEIGHT:single = 1;
   UNCONDITIONAL_VISIBLE_DIST:single=3; //чтобы не фейлится, когда актор вплотную
+  MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT:single=0.4;
+  MIN_GRAVI_LOCK_TIME_BEFORE_SHOT:single=1.5;
+
+
+function IsLongRecharge(itm:pointer; min_time:single):boolean;
+var
+  buf:WpnBuf;
+var
+  SAFETY_PERIOD:cardinal = 100;
+begin
+  result:=false;
+  if itm=nil then exit;
+  buf:=GetBuffer(itm);
+  if buf = nil then begin
+    result:=GetShootLockTime(itm)>min_time;
+  end else begin
+    result:= (buf.GetLastShotTimeDelta() > SAFETY_PERIOD) and (buf.GetTimeBeforeNextShot()>min_time);
+  end;
+end;
+
+procedure LogBurerLogic(t:string); stdcall;
+begin
+  //Log(t);
+end;
 
 function GetLastSuperStaminaHitTime():cardinal; stdcall;
 begin
@@ -121,6 +145,11 @@ begin
   end;
 end;
 
+function IsSniperWeapon(wpn:pointer):boolean; stdcall;
+begin
+  result:=(wpn<>nil) and game_ini_r_bool_def(GetSection(wpn), 'is_burer_see_sniper_weapon', false);
+end;
+
 function IsBurerUnderAim(burer:pointer):boolean; stdcall;
 begin
   result:=false;
@@ -156,13 +185,15 @@ var
   actor_close, actor_very_close:boolean;
   itm:pointer;
   force_antiaim, force_shield, force_tele, force_gravi:boolean;
-  weapon_for_big_boom, big_boom_shooted, eatable_with_hud:boolean;
+  weapon_for_big_boom, big_boom_shooted, eatable_with_hud, sniper_weapon:boolean;
 const
   eStateBurerAttack_Tele:byte=6;
   eStateBurerAttack_AntiAim:byte=12;
   eStateBurerAttack_Gravi:byte=7;
   eStateBurerAttack_Shield:byte=11;
 begin
+  LogBurerLogic('Start burer attack selector');
+
   force_antiaim:=false;
   force_shield:=false;
   force_tele:=false;
@@ -170,6 +201,7 @@ begin
 
   itm:=GetActorActiveItem();
   weapon_for_big_boom:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
+  sniper_weapon:=IsSniperWeapon(itm);
 
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
 
@@ -183,33 +215,44 @@ begin
     pshield_ready^:=false;
   end;
 
+  if (panti_aim_ready^) and not IsActorLookTurnedAway(burer) and (GetActorActiveItem()<>nil) then begin
+    pgravi_ready^:=false;
+  end;
+
   if NeedCloseProtectionShield(burer) and (pshield_ready^) then begin
+    LogBurerLogic('NeedCloseProtectionShield+ready');
     // Актор слишком близко, оружие готово к выстрелу
     if eatable_with_hud and (panti_aim_ready^) then begin
       force_antiaim:=true;
     end else if phealthloss^ then begin
       force_shield:=true;
+    end else if sniper_weapon then begin
+      if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer) or (random < 0.3)) and panti_aim_ready^ then begin
+        force_antiaim:=true
+      end else begin
+        force_shield:=true;
+      end;
     end else if (panti_aim_ready^) and (previous_state^=eStateBurerAttack_Shield) then begin
       if (itm<>nil) and (GetKickAnimator() = GetSection(itm)) then begin
-        if pgravi_ready^ then begin //TODO: почему-то всегда фейлится, т.е. к грави-атаке бюрер не готов в этих условиях
-          force_gravi:=true
-        end else begin
-          force_shield:=true;
-        end
+        force_shield:=true;
       end else begin
         force_antiaim:=true;
       end;
     end else begin
       force_shield:=true;
     end;
-  end else if NeedCloseProtectionShield(burer) and (itm<>nil) and (GetKickAnimator() = GetSection(itm)) and pgravi_ready^ then begin
-    force_gravi:=true
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
+    LogBurerLogic('AntiHeal');
     // Попытка отхилиться - предотвращаем
     force_antiaim:=true;
   end else if (itm<>nil) and (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and pgravi_ready^ then begin
+    LogBurerLogic('AntiKnifeGravi');
     force_gravi:=true;
+  end else if IsInventoryShown() and not big_boom_shooted and (_gren_count = 0) and (panti_aim_ready^) then begin
+    LogBurerLogic('AntiInventory');
+    force_antiaim:=true;
   end else if weapon_for_big_boom or big_boom_shooted then begin
+    LogBurerLogic('AntiBigBoom');
     if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
       force_antiaim:=true;
     end else if (IsBurerUnderAim(burer) or ((panti_aim_ready^) and (random < 0.4))) and (pshield_ready^) then begin
@@ -218,8 +261,26 @@ begin
       force_antiaim:=true;
     end else if (pshield_ready^) then begin
       force_shield:=true;
+    end else begin
+      pgravi_ready^:=false;
     end
+  end else if sniper_weapon then begin
+    LogBurerLogic('AntiSniper');
+    if (_gren_count>0) and pshield_ready^ then begin
+      force_shield:=true;
+    end else if IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) and pgravi_ready^ then begin
+      force_gravi:=true;
+    end else if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer)) and panti_aim_ready^ then begin
+      force_antiaim:=true;
+    end else if not IsActorLookTurnedAway(burer) and pshield_ready^ then begin
+      force_shield:=true;
+    end else if (previous_state^ <> eStateBurerAttack_Shield) and pshield_ready^ then begin
+      force_shield:=true;
+    end else begin
+      pgravi_ready^:=false;
+    end;
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
+    LogBurerLogic('AntiMiddleDistance');
     // Актор недалеко, но не слишком близко пока
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
@@ -243,13 +304,19 @@ begin
       force_shield:=true;
     end;
   end else if IsBurerUnderAim(burer) then begin
+    LogBurerLogic('AntiDirectAim');
     // Бюрер под прицелом, оружие может стрелять
-    if (itm<>nil) and panti_aim_ready^ then begin
+    if (_gren_count>0) and pshield_ready^ then begin
+      force_shield:=true;
+    end else if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if (previous_state^ <> eStateBurerAttack_Shield) and pshield_ready^ then begin
       force_shield:=true;
+    end else begin
+      pgravi_ready^:=false;
     end;
   end else if (_gren_count>0) and (random < 0.9) then begin
+    LogBurerLogic('AntiGrenade');
     // Где-то валяется взведенная граната
     if pshield_ready^ and (not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.7)) then begin
       force_shield:=true;
@@ -257,6 +324,7 @@ begin
       force_tele:=true;
     end;
   end else if (itm<>nil) and IsThrowable(itm) then begin
+    LogBurerLogic('AntiThrowable');
     //Актор достал гранату, скоро может прилететь. Запрещаем вход в щит до броска или смена оружия
     pshield_ready^:=false;
     //на всякий - отключаем и грави, если актор что-то делает с греной
@@ -266,27 +334,32 @@ begin
   end;
 
   if force_antiaim and panti_aim_ready^ then begin
+    LogBurerLogic('force_antiaim');
     pgravi_ready^:=false;
     ptele_ready^:=false;
     pshield_ready^:=false;
     phealthloss^:=false;
   end else if force_shield and (pshield_ready^) then begin
+    LogBurerLogic('force_shield');
     panti_aim_ready^:=false;
     pgravi_ready^:=false;
     ptele_ready^:=false;
     phealthloss^:=true;
   end else if force_tele and ptele_ready^ then begin
+    LogBurerLogic('force_tele');
     pgravi_ready^:=false;
     pshield_ready^:=false;
     panti_aim_ready^:=false;
     phealthloss^:=false;
   end else if force_gravi and (pgravi_ready^) then begin
+    LogBurerLogic('force_gravi');
     pshield_ready^:=false;
     panti_aim_ready^:=false;
     ptele_ready^:=false;
     phealthloss^:=false;
   end;
   _last_state_select_time:=GetGameTickCount();
+  LogBurerLogic('End burer attack selector');
 end;
 
 procedure CStateBurerAttack__execute_Patch(); stdcall;
@@ -359,7 +432,7 @@ begin
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
 
-  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
+  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or IsInventoryShown() or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or IsSniperWeapon(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
     phit^:=ss_params.stamina_decrease;
     if (itm<>nil) and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
       cond_dec:=ss_params.condition_dec_min + random * (ss_params.condition_dec_max - ss_params.condition_dec_min);
@@ -441,7 +514,7 @@ end;
 
 function CStateBurerShield__check_start_conditions_MayIgnoreCooldown(burer:pointer):boolean; stdcall;
 begin
-  result:=NeedCloseProtectionShield(burer);
+  result:=NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer);
 end;
 
 procedure CStateBurerShield__check_start_conditions_Patch(); stdcall;
@@ -474,14 +547,19 @@ begin
     exit;
   end;
 
+  itm:=GetActorActiveItem();
+  if (itm<>nil) and IsLongRecharge(itm, 1.5*MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) then begin
+    result:=false;
+    exit;
+  end;
+
   big_boom_ready:=false;
   big_boom_shooted:=false;
-  itm:=GetActorActiveItem();
   if itm<>nil then begin
     big_boom_ready:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
   end;
 
-  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
+  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or IsSniperWeapon(itm) or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
 
   if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
