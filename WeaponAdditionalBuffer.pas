@@ -63,6 +63,9 @@ pstepped_params = ^stepped_params;
 
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
+
+  { WpnBuf }
+
   WpnBuf = class
     private
     _is_weapon_explosed:boolean;
@@ -270,6 +273,7 @@ type
 
     procedure RegisterShot();
     function GetLastShotTimeDelta():cardinal;
+    function GetTimeBeforeNextShot():single;
 
     function StartShootingWithoutParent(time:cardinal):boolean;
     function StopShootingWithoutParent():boolean;
@@ -479,7 +483,7 @@ begin
   end;
 end;
 
-function WpnBuf.GetBeforeReloadAmmoCnt: integer;
+function WpnBuf.GetBeforeReloadAmmoCnt(): integer;
 begin
   if self._ammocnt_before_reload>=0 then begin
     result:=self._ammocnt_before_reload;
@@ -489,7 +493,7 @@ begin
   end;
 end;
 
-function WpnBuf.GetCurAnim: string;
+function WpnBuf.GetCurAnim(): string; stdcall;
 begin
   if self._current_anim<>'' then begin
     result:=self._current_anim;
@@ -518,17 +522,17 @@ begin
     result:='';
 end;
 
-function WpnBuf.IsExplosed: boolean;
+function WpnBuf.IsExplosed(): boolean; stdcall;
 begin
   result:=self._is_weapon_explosed;
 end;
 
-function WpnBuf.IsReloaded: boolean;
+function WpnBuf.IsReloaded(): boolean; stdcall;
 begin
   result:=self._reloaded;
 end;
 
-procedure WpnBuf.MakeLockByConfigParam(section, key: PChar; lock_shooting:boolean = false; fun:TAnimationEffector=nil; param:integer=0);
+procedure WpnBuf.MakeLockByConfigParam(section: PChar; key: PChar; lock_shooting: boolean; fun: TAnimationEffector; param: integer);
 var time:single;
 begin
   if game_ini_line_exist(section, key) then begin
@@ -600,7 +604,7 @@ begin
   self._ammocnt_before_reload:=cnt;
 end;
 
-procedure WpnBuf.SetExplosed(status: boolean);
+procedure WpnBuf.SetExplosed(status: boolean); stdcall;
 begin
   self._is_weapon_explosed:=status;
 end;
@@ -610,7 +614,7 @@ begin
   self._lock_remain_time:=time;
 end;
 
-procedure WpnBuf.SetReloaded(status: boolean);
+procedure WpnBuf.SetReloaded(status: boolean); stdcall;
 begin
   self._reloaded:=status;
 end;
@@ -1072,12 +1076,12 @@ begin
 end;
 
 
-function WpnBuf.IsLaserEnabled: boolean;
+function WpnBuf.IsLaserEnabled(): boolean;
 begin
   result:=_laser_enabled;
 end;
 
-function WpnBuf.IsLaserInstalled: boolean;
+function WpnBuf.IsLaserInstalled(): boolean;
 begin
   result:=self._laser_installed
 end;
@@ -1088,17 +1092,17 @@ begin
 end;
 
 
-function WpnBuf.IsAmmoInChamber: boolean;
+function WpnBuf.IsAmmoInChamber(): boolean;
 begin
   result:=self._is_ammo_in_chamber;
 end;
 
-function WpnBuf.SaveAmmoInChamber: boolean;
+function WpnBuf.SaveAmmoInChamber(): boolean;
 begin
   result:=self._save_cartridge_in_chamber;
 end;
 
-function WpnBuf.AddCartridgeAfterOpen: boolean;
+function WpnBuf.AddCartridgeAfterOpen(): boolean;
 begin
   result:=self._add_cartridge_in_open;
 end;
@@ -1168,7 +1172,7 @@ begin
   self._laser_installed:=true;
 end;
 
-function WpnBuf.GetLaserDotData: laserdot_params;
+function WpnBuf.GetLaserDotData(): laserdot_params;
 begin
   result:=self._laserdot;
 end;
@@ -1255,7 +1259,7 @@ begin
   CShootingObject__StartParticles(self._my_wpn, @self._laserdot_particle_object, _laserdot.particles_cur, pos, @zero_vel, false);
 end;
 
-procedure WpnBuf.StopLaserdotParticle;
+procedure WpnBuf.StopLaserdotParticle();
 begin
   CShootingObject__StopParticles(self._my_wpn, @self._laserdot_particle_object);
   _laserdot.particles_cur := nil;
@@ -1268,7 +1272,7 @@ begin
   end;
 end;
 
-function WpnBuf.GetHUDBulletOffset: single;
+function WpnBuf.GetHUDBulletOffset(): single;
 begin
   result:=self._bullet_point_offset_hud;
 end;
@@ -1304,7 +1308,7 @@ begin
   SwitchTorchlight(@_torch_params, status);
 end;
 
-procedure WpnBuf.UpdateTorch;
+procedure WpnBuf.UpdateTorch();
 var
   HID:pointer;
   pos, dir, tmp, zerovec, omnipos, omnidir:FVector3;
@@ -1377,17 +1381,17 @@ begin
   SetTorchlightPosAndDir(@_torch_params, @pos, @dir, hudmode, @omnipos, @dir);
 end;
 
-function WpnBuf.IsTorchEnabled: boolean;
+function WpnBuf.IsTorchEnabled(): boolean;
 begin
   result:=_torch_params.enabled;
 end;
 
-function WpnBuf.IsTorchInstalled: boolean;
+function WpnBuf.IsTorchInstalled(): boolean;
 begin
   result:=self._torch_installed;
 end;
 
-function WpnBuf.GetCameraSpeed: single;
+function WpnBuf.GetCameraSpeed(): single;
 begin
   result:=self._actor_camera_speed;
 end;
@@ -1397,7 +1401,7 @@ begin
   self._actor_camera_speed:=s;
 end;
 
-function WpnBuf.IsAlterZoomMode: boolean;
+function WpnBuf.IsAlterZoomMode(): boolean;
 begin
   result:=self._is_alter_zoom_now;
 end;
@@ -1407,7 +1411,7 @@ begin
   _is_alter_zoom_now:=status;
 end;
 
-function WpnBuf.IsLastZoomAlter: boolean;
+function WpnBuf.IsLastZoomAlter(): boolean;
 begin
   result:=_is_alter_zoom_last;
 end;
@@ -1417,12 +1421,12 @@ begin
   _is_alter_zoom_last:=status;
 end;
 
-function WpnBuf.GetCollimatorBreakingParams: conditional_breaking_params;
+function WpnBuf.GetCollimatorBreakingParams(): conditional_breaking_params;
 begin
   result:=self._collimator_breaking;
 end;
 
-function WpnBuf.GetLaserBreakingParams: conditional_breaking_params;
+function WpnBuf.GetLaserBreakingParams(): conditional_breaking_params;
 begin
   result:=self._laser_breaking;
 end;
@@ -1432,17 +1436,17 @@ begin
   result:=self._shells_offset;
 end;
 
-function WpnBuf.IsShellsNeeded: boolean;
+function WpnBuf.IsShellsNeeded(): boolean;
 begin
   result:=self._shells_needed;
 end;
 
-function WpnBuf.IsPreloaded: boolean;
+function WpnBuf.IsPreloaded(): boolean;
 begin
   result:=self._preloaded;
 end;
 
-function WpnBuf.IsPreloadMode: boolean;
+function WpnBuf.IsPreloadMode(): boolean;
 begin
   result:=self._is_preload_mode;
 end;
@@ -1452,7 +1456,7 @@ begin
   _preloaded:=status;
 end;
 
-function WpnBuf.NeedPermanentLensRendering: boolean;
+function WpnBuf.NeedPermanentLensRendering(): boolean;
 begin
   result:=_need_permanent_lensrender;
 end;
@@ -1512,7 +1516,7 @@ begin
   end;
 end;
 
-function WpnBuf.GetLensOffsetDir: single;
+function WpnBuf.GetLensOffsetDir(): single;
 begin
   result:=_lens_offset.dir;
 end;
@@ -1640,7 +1644,7 @@ begin
   end;
 end;
 
-function WpnBuf.GetNightPPEFactor: single;
+function WpnBuf.GetNightPPEFactor(): single;
 const
   PP_MIN_FACTOR:PAnsiChar='scope_nightvision_min_factor';
 var
@@ -1677,7 +1681,7 @@ begin
   end;
 end;
 
-function WpnBuf.GetCurBrightness: stepped_params;
+function WpnBuf.GetCurBrightness(): stepped_params;
 begin
   result:=_lens_night_brightness;
 end;
@@ -1695,7 +1699,7 @@ begin
   result:=_lens_shoot_recoil_max;
 end;
 
-function WpnBuf.GetCurLensRecoil: FVector3;
+function WpnBuf.GetCurLensRecoil(): FVector3;
 begin
   result:=_lens_shoot_recoil_current;
 end;
@@ -1734,7 +1738,7 @@ begin
   result:=self._laser_problems_level;
 end;
 
-function WpnBuf.GetMisfireProblemsLevel: single;
+function WpnBuf.GetMisfireProblemsLevel(): single;
 begin
   result:= ModifyFloatUpgradedValue(self._my_wpn, 'misfire_after_problems_level', self._misfire_problems_level);
 end;
@@ -1755,7 +1759,7 @@ begin
   _last_recharge_time:=t;
 end;
 
-function WpnBuf.GetLastRechargeTime: single;
+function WpnBuf.GetLastRechargeTime(): single;
 begin
   result:=_last_recharge_time;
 end;
@@ -1765,7 +1769,7 @@ begin
   _lens_night_brightness_saved_step:=val;
 end;
 
-function WpnBuf.GetAlterZoomDirectSwitchMixupFactor: single;
+function WpnBuf.GetAlterZoomDirectSwitchMixupFactor(): single;
 begin
   result:=_alter_zoom_direct_switch_mixup_factor;
 end;
@@ -1781,7 +1785,7 @@ begin
   _alter_zoom_direct_switch_mixup_factor:=factor;
 end;
 
-procedure WpnBuf.StartAlterZoomDirectSwitchMixup;
+procedure WpnBuf.StartAlterZoomDirectSwitchMixup();
 begin
   SetAlterZoomDirectSwitchMixupFactor(1.0 - GetAlterZoomDirectSwitchMixupFactor());
 end;
@@ -1814,17 +1818,30 @@ begin
   end;
 end;
 
-procedure WpnBuf.RegisterShot;
+procedure WpnBuf.RegisterShot();
 begin
   _last_shot_time:=GetGameTickCount();
 end;
 
-function WpnBuf.GetLastShotTimeDelta: cardinal;
+function WpnBuf.GetLastShotTimeDelta(): cardinal;
 begin
   result:=GetTimeDeltaSafe(_last_shot_time);
 end;
 
-function WpnBuf.IsShootingWithoutParent: boolean;
+function WpnBuf.GetTimeBeforeNextShot(): single;
+var
+  delta, total:single;
+begin
+  total:=GetLastRechargeTime();
+  delta:=GetLastShotTimeDelta()/1000;
+  if delta > total then begin
+    result:=0;
+  end else begin
+    result:=total - delta;
+  end;
+end;
+
+function WpnBuf.IsShootingWithoutParent(): boolean;
 begin
   result:=_is_shooting_without_parent;
 end;
@@ -1846,7 +1863,7 @@ begin
   result:=true;
 end;
 
-function WpnBuf.StopShootingWithoutParent: boolean;
+function WpnBuf.StopShootingWithoutParent(): boolean;
 begin
   result:=false;
   if not IsShootingWithoutParent() then exit;
