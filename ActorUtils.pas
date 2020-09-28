@@ -791,6 +791,7 @@ end;
 function CInventory__CalcTotalWeight(this:pointer):single; stdcall;
 asm
   pushad
+    mov ecx, this
     mov eax, xrgame_addr
     add eax, $2A7460
     call eax
