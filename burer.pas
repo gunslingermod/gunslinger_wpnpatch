@@ -26,7 +26,7 @@ const
 function IsLongRecharge(itm:pointer; min_time:single):boolean;
 var
   buf:WpnBuf;
-var
+const
   SAFETY_PERIOD:cardinal = 100;
 begin
   result:=false;
@@ -216,6 +216,7 @@ begin
   end;
 
   if (panti_aim_ready^) and not IsActorLookTurnedAway(burer) and (itm<>nil) and not IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) then begin
+    LogBurerLogic('Disable gravi because aim ready');
     pgravi_ready^:=false;
   end;
 
@@ -227,10 +228,15 @@ begin
     end else if phealthloss^ then begin
       force_shield:=true;
     end else if sniper_weapon then begin
+      pgravi_ready^:=false;
       if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer) or (random < 0.3)) and panti_aim_ready^ then begin
         force_antiaim:=true
       end else begin
-        force_shield:=true;
+        if (previous_state^ = eStateBurerAttack_Shield) and not IsBurerUnderAim(burer) and panti_aim_ready^ then begin
+          force_antiaim:=true;
+        end else if pshield_ready^ then begin
+          force_shield:=true;
+        end;
       end;
     end else if (panti_aim_ready^) and (previous_state^=eStateBurerAttack_Shield) then begin
       if (itm<>nil) and (GetKickAnimator() = GetSection(itm)) then begin
@@ -253,6 +259,7 @@ begin
     force_antiaim:=true;
   end else if weapon_for_big_boom or big_boom_shooted then begin
     LogBurerLogic('AntiBigBoom');
+    pgravi_ready^:=false;    
     if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
       force_antiaim:=true;
     end else if (IsBurerUnderAim(burer) or ((panti_aim_ready^) and (random < 0.4))) and (pshield_ready^) then begin
@@ -261,23 +268,27 @@ begin
       force_antiaim:=true;
     end else if (pshield_ready^) then begin
       force_shield:=true;
-    end else begin
-      pgravi_ready^:=false;
     end
   end else if sniper_weapon then begin
     LogBurerLogic('AntiSniper');
     if (_gren_count>0) and pshield_ready^ then begin
       force_shield:=true;
-    end else if IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) and pgravi_ready^ then begin
+    end else if IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) and (random<0.6) and pgravi_ready^ then begin
       force_gravi:=true;
     end else if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer)) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if IsActorLookTurnedAway(burer) and panti_aim_ready^ then begin
+      LogBurerLogic('LookAway - AntiAim');
       force_antiaim:=true;
     end else if (previous_state^ <> eStateBurerAttack_Shield) and pshield_ready^ then begin
       force_shield:=true;
     end else begin
       pgravi_ready^:=false;
+      if not IsBurerUnderAim(burer) and panti_aim_ready^ then begin
+        force_antiaim:=true;
+      end else if pshield_ready^ then begin
+        force_shield:=true; 
+      end;
     end;
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
     LogBurerLogic('AntiMiddleDistance');
