@@ -137,6 +137,8 @@ begin
         SetActorActionState(actor, actAimStarted, true);
       end;
       if companion<>nil then assign_detector_anim:=true;
+    end else if (GetSection(wpn) = GetPDAShowAnimator()) and IsPDAShowToZoomNow() then begin
+      anim_name:=anim_name+'_fastzoom';
     end else if (canshoot or is_bino) and GetActorActionState(actor, actAimStarted) then begin
       anim_name:=anim_name+'_aim_end';
       if (GetSection(wpn)=GetPDAShowAnimator()) and (not IsPDAWindowVisible() or (GetActorTargetSlot()<>GetActorActiveSlot())) then begin
