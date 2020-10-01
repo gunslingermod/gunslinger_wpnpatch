@@ -215,7 +215,7 @@ begin
     pshield_ready^:=false;
   end;
 
-  if (panti_aim_ready^) and not IsActorLookTurnedAway(burer) and (itm<>nil) and not IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) then begin
+  if (panti_aim_ready^) and not IsActorLookTurnedAway(burer) and (itm<>nil) and not IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) and (random < 0.85) and IsWeaponDangerous(itm, burer) then begin
     LogBurerLogic('Disable gravi because aim ready');
     pgravi_ready^:=false;
   end;
