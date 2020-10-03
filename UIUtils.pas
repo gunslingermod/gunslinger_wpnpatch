@@ -1607,6 +1607,24 @@ asm
   @finish:
 end;
 
+function NeedHideMoveToBugItem(slot:cardinal):boolean; stdcall;
+begin
+  result:=(slot = 4);
+end;
+
+procedure CUIActorMenu__PropertiesBoxForSlots_Patch(); stdcall;
+asm
+  cmp byte ptr [eax+edx*4+08],00 //original
+  jne @finish
+  pushad
+  movzx eax, bp
+  push eax
+  call NeedHideMoveToBugItem
+  cmp al, 0
+  popad
+  @finish:
+end;
+
 procedure CUIGameSP__OnFrame_disabletask_Patch(); stdcall;
 asm
   pop ecx //ret addr
@@ -1761,6 +1779,11 @@ begin
   // [bug] в CUIGameSP::OnFrame удаляем отображение активного задания, если мы вошли в прицеливание
   jmp_addr:=xrGame_addr+$4b5983;
   if not WriteJump(jmp_addr, cardinal(@CUIGameSP__OnFrame_disabletask_Patch), 5, true) then exit;
+
+  // [bug] так как у нас в слоте гранат slot_persistent_4 = false, то появляется пункт "убрать в рюскзак" для всех застекованных гранат, одна из которых в слоте
+  // Выбор ведет к вылету. Для недопущения - в CUIActorMenu::PropertiesBoxForSlots не даем добавить пункт для слота гранат
+  jmp_addr:=xrGame_addr+$46d563;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__PropertiesBoxForSlots_Patch), 5, true) then exit;
 
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
