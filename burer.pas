@@ -1115,6 +1115,41 @@ asm
   mov edx, [eax+$24]
 end;
 
+function CheckGraviHitCondition(burer:pointer; enemy:pointer):boolean; stdcall;
+var
+  burer_pos, enemy_pos:FVector3;
+begin
+  result:=false;
+  burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
+  enemy_pos:=FVector3_copyfromengine(GetEntityPosition(enemy));
+  v_sub(@enemy_pos, @burer_pos);
+  if v_length(@enemy_pos) < UNCONDITIONAL_VISIBLE_DIST then begin
+    result:=true;
+  end;
+end;
+
+procedure CBurer__UpdateGraviObject_ForceHit_Patch(); stdcall;
+asm
+  pop eax //ret addr
+
+  pushad
+  push [edi+$a1c]
+  push edi
+  call CheckGraviHitCondition
+  cmp al, 0
+  popad
+
+  je @original
+  mov [esp+$20], 0 // нулим место вектора visible_objects, чтобы тот не попыталс€ освободитьс€
+  mov eax, xrgame_addr
+  add eax, $1037eb
+  jmp eax
+
+  @original:
+  cmp [esp+$a0], ebx //original
+  jmp eax
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -1229,7 +1264,9 @@ begin
   jmp_addr:=xrGame_addr+$d9cc6;
   if not WriteJump(jmp_addr, cardinal(@RemovePred_Patch), 5, true) then exit;
 
-  //TODO: параметр в конфиге оружи€, заставл€ющий бюреров уходить в защиту
+  //¬ CBurer::UpdateGraviObject провер€ем, не находитс€ ли цель в "радиусе поражени€", и если это так - игнорируем вс€кие RayPick и переходим к нанесению хита
+  jmp_addr:=xrGame_addr+$10349d;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__UpdateGraviObject_ForceHit_Patch), 7, true) then exit;
 
 
   //Ќа будущее:
@@ -1258,6 +1295,7 @@ begin
   //CBurer::StartTeleObjectParticle - xrgame.dll+1028f0
   //CBurer::StopTeleObjectParticle - xrgame.dll+1029b0
   //CTelekineticObject::init - xrgame.dll+da3c0
+  //CBurer::UpdateGraviObject - xrgame.dll+103210
 
   result:=true;
 end;
