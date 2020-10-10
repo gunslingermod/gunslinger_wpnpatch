@@ -1797,6 +1797,10 @@ begin
   // UIInvUpgradeInfo::init_upgrade - xrgame.dll+441470
   // UIUpgrade::Update - xrgame.dll+440f00
 
+  //CUIActorMenu::InitPartnerInventoryContents - xrgame.dll+46ebe0
+  //CAI_Stalker::can_sell - xrgame.dll+18e4f0
+  //CAI_Stalker::update_sell_info - xrgame.dll+18e3b0
+  //CAI_Stalker::tradable_item - xrgame.dll+18e240
 
   result:=true;
 end;
