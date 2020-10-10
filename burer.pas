@@ -443,7 +443,7 @@ begin
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
 
-  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or IsInventoryShown() or ((GetCurrentDifficulty()>=gd_veteran) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or IsSniperWeapon(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
+  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or IsInventoryShown() or ((GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or IsSniperWeapon(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
     phit^:=ss_params.stamina_decrease;
     if (itm<>nil) and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
       cond_dec:=ss_params.condition_dec_min + random * (ss_params.condition_dec_max - ss_params.condition_dec_min);
@@ -1037,6 +1037,18 @@ asm
   ret
 end;
 
+procedure CStateBurerAttackGravi__execute_Patch(); stdcall;
+asm
+  mov ecx,[eax+$28] //original
+  cmp ecx,[esi+$3C] //original
+  ja @finish
+  pushad
+  push [esi+$10] //burer
+  call ForceFireGraviNow
+  cmp al, 0
+  popad
+  @finish:
+end;
 
 procedure OnGraviAttackFire(burer:pointer); stdcall;
 var
@@ -1268,10 +1280,10 @@ begin
   jmp_addr:=xrGame_addr+$10349d;
   if not WriteJump(jmp_addr, cardinal(@CBurer__UpdateGraviObject_ForceHit_Patch), 7, true) then exit;
 
+  //В CStateBurerAttackGravi::execute при наличии опасности сразу переходим из ACTION_WAIT_ANIM_END в ACTION_COMPLETED
+  jmp_addr:=xrGame_addr+$105833;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__execute_Patch), 6, true) then exit;
 
-  //На будущее:
-  //Принудительный выход из грави-атаки в CStateBurerAttackGravi<Object>::check_completion (например, в случае, если актор близко или достал РПГ)
-  //todo:включаем грави только когда опасность минимальна (чтобы актор не успел подстрелить нас, пока мы кастуемся)
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
@@ -1286,6 +1298,7 @@ begin
   //CTelekineticObject::update_state - xrgame.dll+da480
   //CTelekinesis::schedule_update - xrgame.dll+da0f0
   //CStateBurerAttackGravi::execute - xrgame.dll+105800
+  //CStateBurerAttackGravi::ExecuteGraviContinue - xrgame.dll+105730
   //CStateBurerAttackTele::critical_finalize - xrgame.dll+1092a0
   //CStateBurerAttackTele::deactivate - xrgame.dll+1083f0
   //CStateBurerAttackTele::initialize - xrgame.dll+10a40b
