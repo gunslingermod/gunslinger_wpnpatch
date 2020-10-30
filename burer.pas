@@ -21,6 +21,7 @@ const
   UNCONDITIONAL_VISIBLE_DIST:single=3; //чтобы не фейлится, когда актор вплотную
   MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT:single=0.4;
   MIN_GRAVI_LOCK_TIME_BEFORE_SHOT:single=1.5;
+  MAX_TELE_GREN_COUNT:cardinal=3;
 
 
 function IsLongRecharge(itm:pointer; min_time:single):boolean;
@@ -296,9 +297,11 @@ begin
     if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if IsActorLookTurnedAway(burer) and (pgravi_ready^) then begin
-      if (_gren_count>0) and (_gren_timer > GetBurerMinGrenTimer()) and (ptele_ready^) and (random < 0.75) then begin
+      if (_gren_count > MAX_TELE_GREN_COUNT) and (pshield_ready^) then begin
+        force_shield:=true;
+      end else if (_gren_count>0) and (_gren_timer > GetBurerMinGrenTimer()) and (ptele_ready^) and (random < 0.75) then begin
         force_tele:=true;
-      end else if (_gren_count>0) and (_gren_timer <= GetBurerMinGrenTimer()) and (pshield_ready^) then begin
+      end else if (_gren_count>0) and (pshield_ready^) then begin
         force_shield:=true;
       end else begin
         force_gravi:=true;
@@ -329,7 +332,7 @@ begin
   end else if (_gren_count>0) and (random < 0.9) then begin
     LogBurerLogic('AntiGrenade');
     // Где-то валяется взведенная граната
-    if pshield_ready^ and (not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.7)) then begin
+    if pshield_ready^ and ((_gren_count > MAX_TELE_GREN_COUNT) or not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.8)) then begin
       force_shield:=true;
     end else if (ptele_ready^) then begin
       force_tele:=true;
