@@ -1708,7 +1708,10 @@ begin
   //работает дл€ ножа и бросабельных
   result:=false;
   if dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponKnife, false)<>nil then begin
-    if GetCurrentState(wpn)=EWeaponStates__eFire then begin
+    if (GetOwner(wpn)=GetActor()) and (GetActorActiveItem()<>wpn)  then begin
+      // Ќож был выбит из рук или почему-то уже не в слоте. ¬ыходим, не нанос€ удара
+      result:=true;      
+    end else if GetCurrentState(wpn)=EWeaponStates__eFire then begin
       MakeWeaponKick(CRenderDevice__GetCamPos(), CRenderDevice__GetCamDir(), wpn);
       result:=true;
     end;
