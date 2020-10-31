@@ -1221,6 +1221,12 @@ asm
   jmp eax
 end;
 
+procedure anti_aim_ability__check_start_condition__candetect_Patch(); stdcall;
+asm
+  mov eax, 1
+  ret
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -1343,6 +1349,9 @@ begin
   jmp_addr:=xrGame_addr+$105833;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__execute_Patch), 6, true) then exit;
 
+  //В anti_aim_ability::check_start_condition удаляем проверку на can_detect, чтобы бюрер мог вырывать ствол в любое время
+  jmp_addr:=xrGame_addr+$cf88d;
+  if not WriteJump(jmp_addr, cardinal(@anti_aim_ability__check_start_condition__candetect_Patch), 5, true) then exit;
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
@@ -1368,6 +1377,8 @@ begin
   //CBurer::StopTeleObjectParticle - xrgame.dll+1029b0
   //CTelekineticObject::init - xrgame.dll+da3c0
   //CBurer::UpdateGraviObject - xrgame.dll+103210
+  //CStateBurerAntiAim::check_start_conditions - xrgame.dll+106130
+  //anti_aim_ability::check_start_condition - xrgame.dll+cf7e0
 
   result:=true;
 end;
