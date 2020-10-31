@@ -151,13 +151,17 @@ begin
   result:=(wpn<>nil) and game_ini_r_bool_def(GetSection(wpn), 'is_burer_see_sniper_weapon', false);
 end;
 
-function IsBurerUnderAim(burer:pointer):boolean; stdcall;
+type
+  TBurerUnderAimType = (BurerUnderAimExact, BurerUnderAimNear, BurerUnderAimWide);
+
+function IsBurerUnderAim(burer:pointer; aimtype:TBurerUnderAimType):boolean; stdcall;
 var
   rqr:rq_result;
   cam_dir, cam_pos, burer_dir, burer_pos:FVector3;
-  dist_to_burer:single;
+  dist_to_burer, treasure:single;
 const
-  TREASURE_CONST:single = 0.8;
+  TREASURE_WIDE:single = 0.7;
+  TREASURE_NEAR:single = 0.88;
 begin
   result:=false;
   if IsWeaponDangerous(GetActorActiveItem(), burer) then begin
@@ -166,19 +170,29 @@ begin
     rqr:=TraceAsView_RQ(@cam_pos, @cam_dir, GetActor());
     if rqr.O = burer then begin
       result:=true;
+      exit;
     end;
 
-    burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
-    burer_pos.y:=burer_pos.y + BURER_HEAD_CORRECTION_HEIGHT;
-    
-    burer_dir:=burer_pos;
-    v_sub(@burer_dir, @cam_pos);
+    if aimtype <> BurerUnderAimExact then begin
+      burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
+      burer_pos.y:=burer_pos.y + BURER_HEAD_CORRECTION_HEIGHT;
 
-    if GetAngleCos(@burer_dir, @cam_dir) > TREASURE_CONST then begin
-      v_sub(@burer_pos, @cam_pos);
-      dist_to_burer:=v_length(@burer_pos);
-      if rqr.range > dist_to_burer/2 then begin
-        result:=true;
+      if aimtype = BurerUnderAimNear then begin
+        treasure:=TREASURE_NEAR;
+      end else begin
+        treasure:=TREASURE_WIDE;
+      end;
+
+      burer_dir:=burer_pos;
+      v_sub(@burer_dir, @cam_pos);
+
+      if GetAngleCos(@burer_dir, @cam_dir) > treasure then begin
+        v_sub(@burer_pos, @cam_pos);
+        dist_to_burer:=v_length(@burer_pos);
+        if rqr.range > dist_to_burer/2 then begin
+          result:=true;
+          exit;
+        end;
       end;
     end;
   end;
@@ -217,6 +231,10 @@ const
   eStateBurerAttack_Shield:byte=11;
 begin
   LogBurerLogic('Start burer attack selector');
+  LogBurerLogic('antiaim_ready = '+booltostr(panti_aim_ready^));
+  LogBurerLogic('gravi_ready = '+booltostr(pgravi_ready^));
+  LogBurerLogic('tele_ready = '+booltostr(ptele_ready^));
+  LogBurerLogic('shield_ready = '+booltostr(pshield_ready^));
 
   force_antiaim:=false;
   force_shield:=false;
@@ -256,7 +274,7 @@ begin
       if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer) or (random < 0.3)) and panti_aim_ready^ then begin
         force_antiaim:=true
       end else begin
-        if (previous_state^ = eStateBurerAttack_Shield) and not IsBurerUnderAim(burer) and panti_aim_ready^ then begin
+        if (previous_state^ = eStateBurerAttack_Shield) and not IsBurerUnderAim(burer, BurerUnderAimWide) and panti_aim_ready^ then begin
           force_antiaim:=true;
         end else if pshield_ready^ then begin
           force_shield:=true;
@@ -288,7 +306,7 @@ begin
     pgravi_ready^:=false;    
     if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
       force_antiaim:=true;
-    end else if (IsBurerUnderAim(burer) or ((panti_aim_ready^) and (random < 0.4))) and (pshield_ready^) then begin
+    end else if (IsBurerUnderAim(burer, BurerUnderAimWide) or ((panti_aim_ready^) and (random < 0.4))) and (pshield_ready^) then begin
       force_shield:=true;
     end else if (not big_boom_shooted or not pshield_ready^) and panti_aim_ready^ then begin
       force_antiaim:=true;
@@ -313,14 +331,14 @@ begin
       LogBurerLogic('ShieldAllowed');
       force_shield:=true;
     end else begin
-      if not IsBurerUnderAim(burer) and panti_aim_ready^ then begin
+      if IsBurerUnderAim(burer, BurerUnderAimWide) then begin
+        pgravi_ready^:=false;
+      end;
+
+      if not IsBurerUnderAim(burer, BurerUnderAimNear) and panti_aim_ready^ then begin
         force_antiaim:=true;
       end else if pshield_ready^ then begin
         force_shield:=true;
-      end else if ptele_ready^ then begin
-        force_tele:=true;
-      end else if pgravi_ready^ and IsActorLookTurnedAway(burer) then begin
-        force_gravi:=true;
       end;
     end;
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
@@ -349,7 +367,7 @@ begin
     end else if (itm<>nil) and (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and (pshield_ready^) then begin
       force_shield:=true;
     end;
-  end else if IsBurerUnderAim(burer) then begin
+  end else if IsBurerUnderAim(burer, BurerUnderAimNear) then begin
     LogBurerLogic('AntiDirectAim');
     // Ѕюрер под прицелом, оружие может стрел€ть
     if (_gren_count>0) and pshield_ready^ then begin
@@ -478,7 +496,7 @@ begin
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
   burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
 
-  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or IsInventoryShown() or ((GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or IsSniperWeapon(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer) then begin
+  if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or IsInventoryShown() or ((GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or IsSniperWeapon(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer, BurerUnderAimNear) then begin
     phit^:=ss_params.stamina_decrease;
     if (itm<>nil) and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
       cond_dec:=ss_params.condition_dec_min + random * (ss_params.condition_dec_max - ss_params.condition_dec_min);
@@ -529,7 +547,7 @@ begin
     end else if IsThrowable(itm) then begin
       state:=GetCurrentState(itm);
       CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
-      if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer) then begin
+      if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer, BurerUnderAimNear) then begin
         PrepareGrenadeForSuicideThrow(CGrenade, 5);
         virtual_Action(itm, kWPN_ZOOM, kActRelease);
       end else if (CGrenade<>nil) and (state=EHudStates__eIdle) then begin
@@ -561,7 +579,7 @@ end;
 
 function CStateBurerShield__check_start_conditions_MayIgnoreCooldown(burer:pointer):boolean; stdcall;
 begin
-  result:=NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer);
+  result:=NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer, BurerUnderAimWide);
 end;
 
 procedure CStateBurerShield__check_start_conditions_Patch(); stdcall;
@@ -607,7 +625,7 @@ begin
   end;
 
   sniper_danger:=IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer);
-  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer) or sniper_danger or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
+  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer, BurerUnderAimNear) or sniper_danger or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
 
   if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
@@ -784,7 +802,7 @@ begin
   end;
 
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
-  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or (IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer)) or IsBurerUnderAim(burer) or (IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer)) or ((itm<>nil) and IsThrowable(itm) and (GetCurrentState(itm) <> EHudStates__eIdle));
+  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or (IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer)) or IsBurerUnderAim(burer, BurerUnderAimNear) or (IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer)) or ((itm<>nil) and IsThrowable(itm) and (GetCurrentState(itm) <> EHudStates__eIdle));
 end;
 
 procedure CStateBurerAttackTele__check_completion_ForceCompletion_Patch(); stdcall;
@@ -1053,7 +1071,7 @@ var
 begin
   result:=false;
   itm:=GetActorActiveItem();
-  if IsBurerUnderAim(burer) or ((itm<>nil) and IsWeaponReadyForBigBoom(itm, nil)) then begin
+  if IsBurerUnderAim(burer, BurerUnderAimWide) or ((itm<>nil) and IsWeaponReadyForBigBoom(itm, nil)) then begin
     result:=true;
   end;
 end;
