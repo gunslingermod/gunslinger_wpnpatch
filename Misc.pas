@@ -1478,82 +1478,6 @@ begin
   result:=(_update_dist_koef<0);
 end;
 
-function CObject__UpdateCL_OverrideCrowState(o:pointer; dist_square:single; far_zone:boolean):boolean; stdcall;
-var
-  radius_min:single;
-  radius_max:single;
-  radius_cur:single;
-  k:single;
-
-  curframe, updframe:cardinal;
-const
-  NEAR_RADUIS_MIN:single = 10; // до какого радиуса будем сужать "ближнюю зону"
-  NEAR_RADUIS_MAX:single = 30; //Максимальный радиус "ближней зоны" (оригинальный 30)
-  FAR_RADUIS_MIN:single = 30; // до какого радиуса будем сужать "дальнюю зону"
-  FAR_RADUIS_MAX:single = 60; //Максимальный радиус "дальней зоны" (оригинальный 60)
-begin
-  // Вернуть true, если апдейт для этого предмета нужен, false если можно пропустить
-  result:=true;
-  if not IsDynamicUpdrate() then exit;
-
-  if far_zone then begin
-    radius_min:=FAR_RADUIS_MIN;
-    radius_max:=FAR_RADUIS_MAX;
-  end else begin
-    radius_min:=NEAR_RADUIS_MIN;
-    radius_max:=NEAR_RADUIS_MAX;
-  end;
-
-  k:=_update_dist_koef;
-  if k < 0 then k:=0;
-  radius_cur:= k * (radius_max-radius_min) + radius_min;
-  result:=dist_square < radius_cur*radius_cur;
-
-  if result and IsHardUpdates() then begin
-    curframe:=GetCurrentFrame();
-    updframe:=GetCObjectUpdateFrame(o);
-    updframe:=curframe-updframe;
-
-    if updframe > 5 then begin
-      result:=true;
-    end else if updframe = 1 then begin
-      result:=false;
-    end else begin
-      result:=random < 0.5;
-    end;
-  end;
-end;
-
-procedure CObject__UpdateCL_OverrideCrowState_Near_Patch(); stdcall;
-asm
-  movss [esp+8],xmm0 //original
-  mov eax, [esp+8]
-  jna @finish // уходим, если уже не в ближней зоне
-  pushad
-  push 0
-  push eax//dist
-  push esi // this
-  call CObject__UpdateCL_OverrideCrowState
-  cmp al, 0
-  popad
-  @finish:
-end;
-
-procedure CObject__UpdateCL_OverrideCrowState_Far_Patch(); stdcall;
-asm
-  comiss xmm0,[esp+08]
-  mov eax, [esp+8]
-  jna @finish // уходим, если уже не в ближней зоне
-  pushad
-  push 1
-  push eax//dist
-  push esi // this
-  call CObject__UpdateCL_OverrideCrowState
-  cmp al, 0
-  popad
-  @finish:
-end;
-
 function CanSkipUpdate():boolean; stdcall;
 begin
 {$ifdef EXPERIMENTAL_UPDRATE}
@@ -1654,19 +1578,6 @@ begin
   // в CPHSimpleCharacter::UpdateDynamicDamage (xrPhysics+22980) добавляем повреждение оружия от ударов
   jmp_addr:=xrphysics_addr+$22b57;
   if not WriteJump(jmp_addr, cardinal(@CPHSimpleCharacter__UpdateDynamicDamage_Patch), 5, true) then exit;
-
-  // CObject::UpdateCL - решаем, нужен апдейт или нет, для "ближней зоны"
-  jmp_addr:=xrEngine_addr+$1a410;
-  if not WriteJump(jmp_addr, cardinal(@CObject__UpdateCL_OverrideCrowState_Near_Patch), 6, true) then exit;
-
-  // CObject::UpdateCL - решаем, нужен апдейт или нет, для "дальней зоны"
-  jmp_addr:=xrEngine_addr+$1a44b;
-  if not WriteJump(jmp_addr, cardinal(@CObject__UpdateCL_OverrideCrowState_Far_Patch), 5, true) then exit;
-
-  {//в вызове CStatTimer::End(который заинлайнен в CObjectList::Update) убираем проверку на активную статистику - считать время апдейта будем всегда.
-  nop_code(xrEngine_addr+$1b5e5, 2);
-  //в вызове CStatTimer::Begin(который заинлайнен в CObjectList::Update) убираем проверку на активную статистику - считать время апдейта будем всегда.
-  nop_code(xrEngine_addr+$1b4ce, 2);}
 
   //в CObjectList::Update перед вызовом CStatTimer::Begin добавляем наш код, стартующий замер времени апдейта
   jmp_addr:=xrEngine_addr+$1b4c5;
