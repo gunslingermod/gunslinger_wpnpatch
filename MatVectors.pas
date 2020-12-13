@@ -43,7 +43,8 @@ interface
   type PFVector3 = ^FVector3;
   type PFVector4 = ^FVector4;
   type PFMatrix4x4 = ^FMatrix4x4;
-  type PFMatrix3x3 = ^FMatrix3x3;  
+  type PFMatrix3x3 = ^FMatrix3x3;
+  type PFRect = ^FRect;  
 
   function FVector3_copyfromengine(v:pointer):FVector3;stdcall;
   function FVector4_copyfromengine(v:pointer):FVector4;stdcall;

@@ -213,18 +213,26 @@ procedure virtual_CUIWindow__Draw(window:pCUIWindow); stdcall;
 procedure virtual_CUICursor__OnRender(cursor:pCUICursor); stdcall;
 procedure virtual_CUIDialogWnd__Show(dlg:pCUIDialogWnd; status:boolean); stdcall;
 function CUIWindow__FindChild(parent:pCUIWindow; name:PAnsiChar):pCUIWindow; stdcall;
+procedure virtual_ITextureOwner__SetTextureRect(ito:pITextureOwner; rect:pFRect); stdcall;
+procedure virtual_CUISimpleWindow__SetWndSize(wnd:pCUISimpleWindow; sz:pFVector2); stdcall;
+procedure virtual_CUISimpleWindow__SetWndPos(wnd:pCUISimpleWindow; pos:pFVector2); stdcall;
+procedure virtual_CUILightAnimColorConroller__SetColorAnimation(this:pCUILightAnimColorConroller; name:pansichar; flags:pbyte; delay:single); stdcall;
 
 function IsInventoryShown():boolean; stdcall;
 
 function Init():boolean;stdcall;
 
-
+const
+  LA_CYCLIC:byte = 1;
+  LA_ONLYALPHA:byte = 2;
+  LA_TEXTCOLOR:byte = 4;
+  LA_TEXTURECOLOR:byte = 8;
 
 var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -545,6 +553,62 @@ asm
     call eax
 
     @finish:
+  popad
+end;
+
+procedure virtual_ITextureOwner__SetTextureRect(ito:pITextureOwner; rect:pFRect); stdcall;
+asm
+  pushad
+  mov eax, rect
+  push eax
+  mov ecx, ito
+  mov edi, [ecx] // vtable
+  mov edi, [edi+$0c]
+  call edi
+  popad
+end;
+
+procedure virtual_CUISimpleWindow__SetWndSize(wnd:pCUISimpleWindow; sz:pFVector2); stdcall;
+asm
+  pushad
+  mov eax, sz
+  push eax
+  mov ecx, wnd
+  mov edi, [ecx] // vtable
+  mov edi, [edi+$04]
+  call edi
+  popad
+end;
+
+procedure virtual_CUISimpleWindow__SetWndPos(wnd:pCUISimpleWindow; pos:pFVector2); stdcall;
+asm
+  pushad
+  mov eax, pos
+  push eax
+  mov ecx, wnd
+  mov edi, [ecx] // vtable
+  mov edi, [edi+$04]
+  call edi
+  popad
+end;
+
+procedure virtual_CUILightAnimColorConroller__SetColorAnimation(this:pCUILightAnimColorConroller; name:pansichar; flags:pbyte; delay:single); stdcall;
+asm
+  pushad
+  mov eax, delay
+  push eax
+
+  mov eax, flags
+  push eax
+
+  mov eax, name
+  push eax
+
+
+  mov ecx, this
+  mov edi, [ecx] // vtable
+  mov edi, [edi+$08]
+  call edi
   popad
 end;
 
@@ -1640,6 +1704,72 @@ asm
   jmp ecx
 end;
 
+procedure OnWeaponInfoAmmoTypeIconSet(ammo1:pCUIStatic; ammo2:pCUIStatic; wpn:pointer); stdcall;
+var
+  flags:byte;
+  idx:cardinal;
+  lanim1, lanim2:PAnsiChar;
+begin
+  flags:=LA_CYCLIC + LA_ONLYALPHA + LA_TEXTURECOLOR;
+  idx:=GetAmmoTypeIndex(wpn, false);
+  lanim1:='ui_ammo_hint_passive';
+  lanim2:='ui_ammo_hint_passive';
+  if idx = 0 then begin
+    lanim1:='ui_ammo_hint_active';
+  end else if idx = 1 then begin
+    lanim2:='ui_ammo_hint_active';  
+  end;
+  virtual_CUILightAnimColorConroller__SetColorAnimation(@(ammo1^.base_CUILightAnimColorConrollerImpl.base_CUILightAnimColorConroller), lanim1, @flags, 0);
+  virtual_CUILightAnimColorConroller__SetColorAnimation(@(ammo2^.base_CUILightAnimColorConrollerImpl.base_CUILightAnimColorConroller), lanim2, @flags, 0);
+end;
+
+procedure CUIWpnParams__SetInfo_SecondAmmoType_Patch(); stdcall;
+asm
+  movss [esp+$24],xmm0 //original
+
+  mov ecx, [esp+$8F8+4] //cur_wpn
+  pushad
+  push ecx
+  lea edi, [ebp+$1f8c] // ptr to CUIWpnParams::m_stAmmoType2
+  push edi
+  lea edi, [ebp+$1eb0] // ptr to CUIWpnParams::m_stAmmoType1
+  push edi
+  call OnWeaponInfoAmmoTypeIconSet
+  popad
+
+  mov ecx, edi //original
+end;
+
+function GetOverriddenAmmoString(wpn:pointer):PAnsiChar; stdcall;
+var
+  idx:byte;
+begin
+  idx:=GetAmmoTypeIndex(wpn);
+  result:=GetCurrentCartridgeSectionByType(wpn, idx);
+  if result = nil then begin
+    result:=GetCurrentCartridgeSectionByType(wpn, 0);
+  end;
+end;
+
+procedure CUIWpnParams__SetInfo_OverrideAmmoString_Patch(); stdcall;
+asm
+  mov eax, [esp+$14] // selected weapon
+  push eax //temp buf
+  lea ecx, [esp]
+
+  pushad
+  push ecx
+
+  push eax
+  call GetOverriddenAmmoString
+
+  pop ecx
+  mov [ecx], eax
+  popad
+
+  pop eax
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -1785,6 +1915,16 @@ begin
   jmp_addr:=xrGame_addr+$46d563;
   if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__PropertiesBoxForSlots_Patch), 5, true) then exit;
 
+  // ¬ CUIWpnParams::SetInfo назначаем "анимацию" иконки активного и неактивного типа патронов
+  jmp_addr:=xrGame_addr+$454134;
+  if not WriteJump(jmp_addr, cardinal(@CUIWpnParams__SetInfo_SecondAmmoType_Patch), 8, true) then exit;
+
+  // ¬ CUIWpnParams::SetInfo делаем отображение строки не нулевого типа патронов, а зар€женного сейчас
+  jmp_addr:=xrGame_addr+$453dee;
+  if not WriteJump(jmp_addr, cardinal(@CUIWpnParams__SetInfo_OverrideAmmoString_Patch), 9, true) then exit;
+   
+
+  // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
   // CUIInventoryUpgradeWnd::HighlightHierarchy - xrgame.dll+af830

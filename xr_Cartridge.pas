@@ -44,6 +44,7 @@ function GetCartridgeFromMagVector(wpn:pointer; index:cardinal):pCCartridge; std
 function GetGrenadeCartridgeFromGLVector(wpn:pointer; index:cardinal):pCCartridge; stdcall;
 function GetMainAmmoTypesCount(wpn:pointer):integer; stdcall;
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
+function GetCurrentCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
 function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
 procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
@@ -129,6 +130,14 @@ begin
   result:=pointer(tmp+sizeof(CCartridge)*index);
 end;
 
+function GetCurrentCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
+begin
+  if IsGrenadeMode(wpn) then begin
+    result:=GetGLCartridgeSectionByType(wpn, ammotype);
+  end else begin
+    result:=GetMainCartridgeSectionByType(wpn, ammotype);
+  end;
+end;
 
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 var
