@@ -236,7 +236,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 
 var
   register_level_isuishown_ret:cardinal;
-  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr:pointer;
+  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr, IsPickupMode_adapter_ptr:pointer;
   ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, valid_saved_game_int_ptr:pointer;
   CUIInventoryUpgradeWnd__m_btn_disassemble:pCUI3tButton;
 
@@ -442,6 +442,16 @@ begin
 asm
   pushad
     call IsInventoryShown
+    mov @result, al
+  popad
+end;
+end;
+
+function IsPickupMode_adapter():boolean; stdcall;
+begin
+asm
+  pushad
+    call IsPickupMode
     mov @result, al
   popad
 end;
@@ -750,6 +760,7 @@ const
   name:PChar='is_ui_shown';
   name2:PChar='indicators_shown';
   name3:PChar='inventory_shown';
+  name4:PChar='pickup_mode';
 
   name_electroproblem_begin:PChar='electronics_break';
   name_electroproblem_end:PChar='electronics_restore';
@@ -928,6 +939,29 @@ asm
   push ecx
   mov ecx, esp
   push name3
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+  ////////////////////////////
+
+  push eax
+
+  mov ecx, IsPickupMode_adapter_ptr
+  push ecx
+  mov ecx, esp
+  push name4
   push ecx
   mov ecx, xrgame_addr
   add ecx, $1FF277;
@@ -1782,6 +1816,7 @@ begin
   IsUIShown_ptr:=@IsUIShown;
   IndicatorsShown_adapter_ptr:=@IndicatorsShown_adapter;
   IsInventoryShown_adapter_ptr:=@IsInventoryShown_adapter;
+  IsPickupMode_adapter_ptr:=@IsPickupMode_adapter;  
   ElectronicProblemsBegin_ptr:=@ElectronicProblemsBegin;
   ElectronicProblemsEnd_ptr:=@ElectronicProblemsEnd;
   ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;

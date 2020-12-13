@@ -159,6 +159,7 @@ procedure SetChangedGrenade(itm:pointer);
 
 function GetEntityDirection(e:pointer):pFVector3; stdcall;
 function GetEntityPosition(e:pointer):pFVector3; stdcall;
+function IsPickupMode():boolean; stdcall;
 
 function IsPDAShowToZoomNow():boolean;
 
@@ -1036,6 +1037,23 @@ begin
   act:=GetActor;
   if act=nil then exit;
   result:=ItemInSlot(act, GetActorActiveSlot());
+end;
+
+var
+  _is_pickup_mode:boolean;
+procedure CActor__UpdateCL_PickupMode_Patch();stdcall;
+asm
+  mov dl, byte ptr [esi+$57C] //CActor::m_bPickupMode
+  mov _is_pickup_mode, dl
+  mov edx,[esi+$2C8] //original
+end;
+
+function IsPickupMode():boolean; stdcall;
+begin
+  result:=false;
+  if GetActor()<>nil then begin
+    result:=_is_pickup_mode;
+  end
 end;
 
 
@@ -3898,7 +3916,7 @@ begin
 
 
   result:=false;
-  jmp_addr:=xrGame_addr+$261DF6;
+  jmp_addr:=xrGame_addr+$261DF6; //CActor::UpdateCL
   if not WriteJump(jmp_addr, cardinal(@ActorUpdate_Patch), 6, true) then exit;
 
   jmp_addr:= xrgame_addr+$2783F9;  //CActor::IR_OnKeyboardPress
@@ -4047,6 +4065,9 @@ begin
   jmp_addr:=xrGame_addr+$c96e5;
   if not WriteJump(jmp_addr, cardinal(@CBaseMonster__HitEntity_WeaponDrop_Patch), 10, true) then exit;
 
+  // в CActor::UpdateCL добавляем сохранение активного режима подъема предметов
+  jmp_addr:=xrGame_addr+$261e8e;
+  if not WriteJump(jmp_addr, cardinal(@CActor__UpdateCL_PickupMode_Patch), 6, true) then exit;
 
   result:=true;
 end;
