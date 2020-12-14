@@ -199,36 +199,58 @@ asm
   //проверяем, была ли от юзера команда на смену режима
 
   cmp byte ptr [esi+$6C7], $FF //if m_set_next_ammoType_on_reload<>-1 then jmp
-  jne @orig
+  jne @need_change
+
+  //Если в магазине пусто - имеет смысл автоматом сменить тип, дабы не было затупов юзеров
+  push eax //сохраняем важное
+  push esi
+  call GetCurrentAmmoCount
+  test eax, eax
+  pop eax //восстановим сохраненное
+  je @need_change
+
   mov eax, 0                    //говорим, что у оружия 0 доступных типов патронов ;)
 
-  @orig:
+  @need_change:
   //делаем вырезанное
   sar eax, 02
   test al, al
   ret
 end;
 
-procedure CWeaponShotgun__HaveCartridgeInInventory_Patch(); stdcall;
+procedure CWeaponShotgun__HaveCartridgeInInventory_DisableAutoAmmoChange_Patch(); stdcall;
 asm
-  cmp byte ptr [esi+$6c7], $FF
-  je @false
+  movzx ebp,byte ptr [esp+$14] //original
+  mov edi, eax //original
+  cmp edi, ebp //orig check: (ac<cnt); ac = edi, cnt = ebp
+  jae @finish
 
-  mov [esi+$6C7], bl
-  mov eax, 1
+  cmp byte ptr [esi+$6c7], $FF // если игрок нажал кнопку смены - разрешаем смену
+  jne @allowed_change
+
+  cmp edi, 0 // если в рюкзаке еще есть патроны текущего типа (ac>0), запрещаем автосмену
+  jne @not_allowed_change
+
+  push eax //сохраняем важное
+  push esi
+  call GetCurrentAmmoCount
+  test eax, eax
+  pop eax //восстановим сохраненное
+  jne @not_allowed_change
+
+
+  @allowed_change:
+  xor ecx, ecx
+  cmp ecx, 1
   jmp @finish
 
-  @false:
-  xor eax, eax
-  
+  @not_allowed_change:
+  xor ecx, ecx
+  cmp ecx, 0  
+
   @finish:
-  pop ebx
-  cmp edi, ebp  //??? Но так в оригинале
-  pop edi
-  pop ebp
-  pop esi
-  ret 4
 end;
+
 {$endif}
 
 //---------------------------------Патроны в патроннике для дробовиков----------------------------
@@ -716,8 +738,8 @@ begin
   addr:=xrGame_addr+$2D00FF;
   if not WriteJump(addr, cardinal(@CWeaponMagazined__TryReload_Patch), 5, true) then exit;
 
-  addr:=xrGame_addr+$2DE849;
-  if not WriteJump(addr, cardinal(@CWeaponShotgun__HaveCartridgeInInventory_Patch), 6, false) then exit;
+  addr:=xrGame_addr+$2DE7E2;
+  if not WriteJump(addr, cardinal(@CWeaponShotgun__HaveCartridgeInInventory_DisableAutoAmmoChange_Patch), 9, true) then exit;
 {$endif}
 
   //[bug] баг с неправильным расчетом веса оружия в CWeapon::Weight: не учитывается возможность наличия в магазине боеприпасов разных типов, а также зарядов в подствольнике
