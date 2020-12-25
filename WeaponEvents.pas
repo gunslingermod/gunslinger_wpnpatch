@@ -2021,6 +2021,7 @@ var
   rqr:rq_result;
   aimperiod:integer;
   is_aim_exist:boolean;
+  is_shot_after_key_released:boolean;
   entity:pointer;
   act:pointer;
 begin
@@ -2048,10 +2049,16 @@ begin
     is_aim_exist:=false;  
   end;
 
+  is_shot_after_key_released := FindBoolValueInUpgradesDef(wpn, 'autoaim_shot_after_key_released', game_ini_r_bool_def(GetSection(wpn), 'autoaim_shot_after_key_released', false), true);
+
   if aimperiod>0 then begin
-    //схема с отложенным выстрелом
-    if buf.GetAutoAimStartTime=0 then begin
-      //еще не стартовали.
+    if (is_shot_after_key_released) then begin
+      // —хема с выстрелом после отпускани€ кнопки - в каждом апдейте выставл€ем дельту заново
+      if IsActionKeyPressedInGame(kWPN_FIRE) then begin
+        buf.SetAutoAimStartTime(GetGameTickCount());
+      end;
+    end else if buf.GetAutoAimStartTime=0 then begin
+      //схема с отложенным выстрелом - еще не стартовали.
       buf.SetAutoAimStartTime(GetGameTickCount());
     end;
     result:= is_aim_exist or (GetTimeDeltaSafe(buf.GetAutoAimStartTime())>=buf.GetAutoAimPeriod());
