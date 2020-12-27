@@ -2187,9 +2187,7 @@ begin
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__state_Fire_queue_Patch), 6, true) then exit;
 
   // в CWeaponMagazined::LoadSilencerKoeffs убираем принудительный clamp для m_silencer_koef.hit_power
-  nop_code(xrGame_addr+$2cd753, 39);
-
-
+  nop_code(xrGame_addr+$2cd75e, 28);
 
   result:=true;
 end;
