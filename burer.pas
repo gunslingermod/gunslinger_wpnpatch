@@ -160,8 +160,8 @@ var
   cam_dir, cam_pos, burer_dir, burer_pos:FVector3;
   dist_to_burer, treasure:single;
 const
-  TREASURE_WIDE:single = 0.7;
-  TREASURE_NEAR:single = 0.88;
+  TREASURE_WIDE:single = 0.88;
+  TREASURE_NEAR:single = 0.94;
 begin
   result:=false;
   if IsWeaponDangerous(GetActorActiveItem(), burer) then begin
@@ -630,6 +630,9 @@ begin
   if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
     result:= random > GetBurerShieldedRiskyFactor();
+    if not result and IsBurerUnderAim(burer, BurerUnderAimExact) then begin
+      script_call('gunsl_burer.on_risky_under_aim', '', GetCObjectID(burer));
+    end;
     if not result then begin
       LogBurerLogic('Risky!');
     end;
