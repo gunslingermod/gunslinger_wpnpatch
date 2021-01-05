@@ -239,14 +239,24 @@ asm
   jne @not_allowed_change
 
 
-  @allowed_change:
+  @allowed_change: // Можем менять тип патронов - надо загнать нас в цикл перебора наличия различных типов  (т.е. как в оригинале)
   xor ecx, ecx
   cmp ecx, 1
   jmp @finish
 
-  @not_allowed_change:
-  xor ecx, ecx
-  cmp ecx, 0  
+  @not_allowed_change: // не можем менять тип патронов - надо вернуть результат условия (ac>=cnt)
+  //Но если мы пойдем мимо цикла, то всегда получим возвращение true из-за оптимизации компилятора!
+  //Вывод - сравниваем сами и возвращаемся из вызывающей функции
+  xor eax, eax
+  cmp edi, ebp //ac = edi, cnt = ebp
+  jb @retx2
+  inc eax
+  @retx2:
+  pop ecx //ret addr
+  pop edi
+  pop ebp
+  pop esi
+  ret 4 // ret FROM CWeaponShotgun::HaveCartridgeInInventory
 
   @finish:
 end;
