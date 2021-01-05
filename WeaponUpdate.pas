@@ -957,7 +957,7 @@ begin
   end;
 
   buf:=GetBuffer(wpn);
-  if (buf<>nil) and ((buf.IsLaserInstalled() and buf.IsLaserEnabled()) or (GetAimFactor(wpn)>0.001)) then begin
+  if (buf<>nil) and ((buf.IsLaserInstalled() and buf.IsLaserEnabled()) or ((GetAimFactor(wpn)>0.001) and IsZoomHideCrosshair(wpn))) then begin
     result:=false;
     exit;
   end;

@@ -68,6 +68,7 @@ function GetOwner(wpn:pointer):pointer; stdcall;
 function IsAimNow(wpn:pointer):boolean; stdcall;
 function GetAimFactor(wpn:pointer):single; stdcall;
 procedure SetAimFactor(wpn:pointer; f:single); stdcall;
+function IsZoomHideCrosshair(wpn:pointer):boolean; stdcall;
 
 function IsTriStateReload(wpn:pointer):boolean; stdcall;
 
@@ -100,6 +101,8 @@ procedure PlayCycle (obj:pointer; anim:PChar; mix_in:boolean);stdcall;
 function QueueFiredCount(wpn:pointer):integer; stdcall;
 procedure SetQueueFiredCount(wpn:pointer; cnt:cardinal); stdcall;
 function GetCurrentMotionDef(wpn:pointer):pCMotionDef; stdcall;
+function CSE_GetWpnState(swpn:pointer):byte; stdcall;
+procedure CSE_SetWpnState(swpn:pointer; s:byte); stdcall;
 
 
 
@@ -1557,6 +1560,13 @@ asm
   pop eax
 end;
 
+function IsZoomHideCrosshair(wpn:pointer):boolean; stdcall;
+asm
+  mov eax, wpn
+  mov al, [eax+$495] //m_zoom_params.m_bHideCrosshairInZoom
+  mov @result, al
+end;
+
 {function CountOfCurrentAmmoInRuck(wpn:pointer):cardinal; stdcall;
 begin
 end;
@@ -2226,5 +2236,22 @@ asm
   call eax
   popad
 end;
+
+function CSE_GetWpnState(swpn:pointer):byte; stdcall;
+asm
+  mov eax, swpn
+  mov al, [eax+$1a1] // wpn_state
+  mov @result, al
+end;
+
+procedure CSE_SetWpnState(swpn:pointer; s:byte); stdcall;
+asm
+  pushad
+  mov eax, swpn
+  mov cl, s
+  mov [eax+$1a1], cl // wpn_state
+  popad
+end;
+
 
 end.
