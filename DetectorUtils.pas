@@ -533,30 +533,10 @@ begin
     SwitchLefthandedTorch(false);
   end;
 
-{  if (GetCurrentState(det)=EHudStates__eHiding) and (leftstr(GetActualCurrentAnim(det), length('anm_hide'))<>'anm_hide') then begin
-    flag:=true;
-    if GetOwner(det)=GetActor() then begin
-      itm:=GetActorActiveItem();
-      if itm<>nil then begin
-        state:=GetCurrentState(itm);
-        if (GetActorActiveSlot()<>GetActorTargetSlot()) and ((state<>EHudStates__eHidden) and (state<>EHudStates__eHiding)) and (leftstr(GetActualCurrentAnim(det), length('anm_idle'))<>'anm_idle') then begin
-          flag:=false;
-        end;
-      end;    
-    end;
-
-    if (flag) then begin
-      if GetDetectorFastMode(det) then begin
-        anm:='anm_hide_fast';
-      end else begin
-        anm:='anm_hide';
-      end;
-      CHudItem_Play_Snd(det, 'sndHide');
-      CHudItem__PlayHUDMotion(det, PChar(anm), true, GetCurrentState(det));
-      StartPending(det);
-    end;
-
-  end;}
+  // Фиксим невозможность достать детектор, который почему-то убрался без проигрывания анимации завершения спринта
+  if (ItemInSlot(act, 9)=det) and (GetCurrentState(det)=EHudStates__eHidden) then begin
+    SetActorActionState(act, actModDetectorSprintStarted, false);  
+  end;
 end;
 
 procedure DetectorUpdatePatch();stdcall;
