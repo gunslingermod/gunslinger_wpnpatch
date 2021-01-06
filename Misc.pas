@@ -131,6 +131,9 @@ procedure ApplyElementImpulseTrace(CPhysicsElement:pointer; pos:pFVector3; dir:p
 
 function IsHardUpdates():boolean; stdcall;
 
+function GetHudNearClipPtr():psingle; stdcall;
+function GetNegHudNearClipPtr():psingle; stdcall;
+
 type MouseCoord = TPoint;
 function GetSysMousePoint():MouseCoord;
 procedure SetSysMousePoint(c:MouseCoord);
@@ -1591,6 +1594,24 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CObjectList__Update_SkipUpdate_Patch), 6, true) then exit;
 
   result:=true;
+end;
+
+
+
+var
+  g_hudNearClip:single;
+  g_negHudNearClip:single;
+
+function GetHudNearClipPtr():psingle; stdcall;
+begin
+  g_hudNearClip:=0.02;
+  result:=@g_hudNearClip;
+end;
+
+function GetNegHudNearClipPtr():psingle; stdcall;
+begin
+  g_negHudNearClip:=-0.02;
+  result:=@g_negHudNearClip;
 end;
 
 

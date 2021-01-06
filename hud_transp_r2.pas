@@ -6,7 +6,7 @@ function Init():boolean; stdcall;
 
 
 implementation
-uses BaseGameData;
+uses BaseGameData, Misc;
 
 type FixedMapR2 = packed record
   nodes:pointer;
@@ -129,7 +129,9 @@ asm
 end;
 
 function Init():boolean; stdcall;
-var jmp_addr:cardinal;
+var
+  jmp_addr:cardinal;
+  ptr:pointer;
 begin
 
   result:=false;
@@ -160,7 +162,39 @@ begin
 
   jmp_addr:=xrRender_R2_addr+$20C30;
   if not WriteJump(jmp_addr, cardinal(@r_dsgraph_render_hud_Patch_cleanup), 10, true) then exit;
-    
+
+
+  // Фикс "обрезания" близко расположенного к экрану худа
+  // https://github.com/OGSR/OGSR-Engine/commit/3b4f01f6486446ed920116ca739b1984b8e576d4
+
+  // В CParticleEffect::Render меняем VIEWPORT_NEAR
+  ptr:=GetHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$4e58c, @ptr, sizeof(single)) then exit;
+
+  // R_dsgraph_structure::r_dsgraph_render_hud (VIEWPORT_NEAR)
+  ptr:=GetNegHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$2082c, @ptr, sizeof(single)) then exit;
+  ptr:=GetHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$207d1, @ptr, sizeof(single)) then exit;
+
+  // R_dsgraph_structure::r_dsgraph_render_hud_ui
+  ptr:=GetNegHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$20d80, @ptr, sizeof(single)) then exit;
+  ptr:=GetHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$20d25, @ptr, sizeof(single)) then exit;
+
+  // R_dsgraph_structure::r_dsgraph_render_emissive (?)
+  ptr:=GetNegHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$21382, @ptr, sizeof(single)) then exit;
+  ptr:=GetHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$21327, @ptr, sizeof(single)) then exit;
+
+  // CRenderTarget::accum_point
+  ptr:=GetNegHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$64413, @ptr, sizeof(single)) then exit;
+  ptr:=GetHudNearClipPtr();
+  if not WriteBufAtAdr(xrRender_R2_addr+$643b7, @ptr, sizeof(single)) then exit;
+
   result:=true;
 end;
 
