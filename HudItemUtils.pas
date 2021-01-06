@@ -103,6 +103,8 @@ procedure SetQueueFiredCount(wpn:pointer; cnt:cardinal); stdcall;
 function GetCurrentMotionDef(wpn:pointer):pCMotionDef; stdcall;
 function CSE_GetWpnState(swpn:pointer):byte; stdcall;
 procedure CSE_SetWpnState(swpn:pointer; s:byte); stdcall;
+function CSE_GetAddonsFlags(swpn:pointer):byte; stdcall;
+procedure CSE_SetAddonsFlags(swpn:pointer; s:byte); stdcall;
 
 
 
@@ -2253,5 +2255,20 @@ asm
   popad
 end;
 
+function CSE_GetAddonsFlags(swpn:pointer):byte; stdcall;
+asm
+  mov eax, swpn
+  mov al, [eax+$1bc] // wpn_state
+  mov @result, al
+end;
+
+procedure CSE_SetAddonsFlags(swpn:pointer; s:byte); stdcall;
+asm
+  pushad
+  mov eax, swpn
+  mov cl, s
+  mov [eax+$1bc], cl // wpn_state
+  popad
+end;
 
 end.

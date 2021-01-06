@@ -166,35 +166,11 @@ end;
 //-----------------------------------------------------------------------------------------------------------
 procedure CWeapon_Load_Data_In_NetSpawn_Patch(); stdcall;
 asm
-    pushad
-    pushfd
     //здесь инициализация объекта еще толком не произведена - пишем что хотим
     //обнулим место, куда будет записываться указатель на WpnBuf
-    xor ax, ax
-    mov word ptr [ecx+$6a2], ax
-    mov word ptr [ecx+$6be], ax    
-    //Загрузим тип прицела, установленный ранее
-    mov eax, [esp+$3C]
-    test eax, eax
-    je @finish
-    movzx eax, byte ptr [eax+$1bc]
-    shr eax, 3
-    //проверим, поддерживается ли вообще прицел с таким индексом данным оружием
-    mov ebx, [ecx+$6b4]
-    sub ebx, [ecx+$6b0]
-    lea edx, [eax*4]
-    cmp edx, ebx
-    jge @finish
-    //Запишем тип прицела
-    mov [ecx+$6bc], al
-    @finish:
-    //на всякий сбросим "лишние" данные в байте флагов аддонов
-    mov eax, [esp+$3C]
-    and byte ptr [eax+$1bc], 7
-    popfd
-    popad
-
-
+    mov word ptr [ecx+$6a2], 0
+    mov word ptr [ecx+$6be], 0
+    // Оригинальное
     fstp dword ptr [esi+$4C0]
     ret
 end;
@@ -254,15 +230,6 @@ asm
       call CWeapon_NetDestroy_SaveData
     popad
 
-    //[bug] баг с прицелами - Запихнем в старшие 5 бит байта с флагами аддонов у серверного объекта номер текущего типа прицелов
-    //TODO: переделать сохранение напрямую в серверный объект на запись в пакет
-    mov dl, [ecx+$6bc]
-    shl dl,3
-    mov bl, [ecx+$460]
-    and bl, $7
-    or dl, bl
-    mov [eax+$1bc], dl
-
     @finish:
     popfd
     popad
@@ -313,6 +280,62 @@ asm
 
 end;
 
+procedure PackScopeType(wpn:pointer; data:pbyte); stdcall;
+var
+  scopetype:byte;
+begin
+  scopetype:=0;
+  if IsScopeAttached(wpn) then begin
+    scopetype:=GetCurrentScopeIndex(wpn);
+  end;
+
+  //В 5 старших битах байта серверного объекта оружия мы запишем индекс прицела
+  scopetype:=scopetype shl 3;
+  data^ := (data^ and $7) + scopetype
+end;
+
+procedure CWeapon__net_Export_scopetype_Patch(); stdcall;
+asm
+  movzx edx,byte ptr [esi+$460] // original, m_flagsAddOnState
+
+  push edx      // buffer
+  mov ecx, esp  //ptr
+  pushad
+  push ecx // ptr to buf
+  push esi //wpn
+  call PackScopeType
+  popad
+
+  pop edx // get updated
+end;
+
+procedure UnpackScopeType(wpn:pointer; data:pbyte); stdcall;
+var
+  scopetype:byte;
+begin
+  scopetype:=data^ shr 3;
+  Log('UnpackScopeType, weapon '+inttohex(cardinal(wpn), 8)+', ID='+inttostr(GetID(wpn))+', scope '+inttostr(scopetype));
+
+  data^:= data^ and $F;
+  SetCurrentScopeType(wpn, scopetype);
+end;
+
+procedure CWeapon__net_Import_scopetype_Patch(); stdcall;
+asm
+  push eax //save buffer ptr
+
+  push eax      // original
+  mov ecx, edi  // original
+  call ebp      // original; P.r_u8 (wstate)
+
+  pop eax //restore ptr to buffer
+
+  pushad
+  push eax
+  push esi
+  call UnpackScopeType
+  popad
+end;
 
 procedure CWeaponMagazinedWGrenade__save_GLAmmo(wpn:pointer; dest:pCardinal); stdcall;
 begin
@@ -395,7 +418,6 @@ begin
   jmp_addr:=xrGame_addr+$2BEFE4;
   if not WriteJump(jmp_addr, cardinal(@CWeapon_NetDestroy_SaveData_Patch), 5, true) then exit;
 
-
   jmp_addr:=xrGame_addr+$2BF195;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__load_Patch), 7, false) then exit;
 
@@ -408,6 +430,15 @@ begin
   //аналогично с типом
   jmp_addr:=xrGame_addr+$2BC05F;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__net_Export_ammotype_Patch), 7, true) then exit;
+
+  //[bug] баг - тип установленного прицела никак не сообщается в серверный объект
+  //из-за этого при уходе объекта в оффлайн установленный прицел всегда сбрасывается на дефолтовый
+  //Для исправление - в CWeapon::net_Export пакуем тип прицела в один байт с текущим стейтом, а в CWeapon::net_Import извлекаем оттуда его
+  //Также восстанавливаем аддоны в CWeapon::net_Spawn - основной способ получения их для сингла
+  jmp_addr:=xrGame_addr+$2BC04F;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__net_Export_scopetype_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$2c1588;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__net_Import_scopetype_Patch), 5, true) then exit;
 
   //правим сохранение числа подствольных грен
   jmp_addr:=xrGame_addr+$2D2850;

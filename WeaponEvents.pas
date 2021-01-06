@@ -373,7 +373,9 @@ begin
   result:=true;
 end;
 //------------------------------------------------------------------------------
-procedure OnCWeaponNetSpawn_middle(wpn:pointer);stdcall;
+procedure OnCWeaponNetSpawn_middle(wpn:pointer; swpn:pointer);stdcall;
+var
+  scope_id, wpnstate:byte;
 begin
   if WpnCanShoot(wpn) then begin
     //буфер может уже быть создан в load'e - проверим это
@@ -381,6 +383,15 @@ begin
       WpnBuf.Create(wpn);
     end;
   end;
+
+  //В 5 старших битах на стороне серверного объекта мы сохраняем индекс прицела
+  wpnstate:=CSE_GetAddonsFlags(swpn);
+  scope_id:=wpnstate shr 3;
+  if scope_id<>0 then begin
+    SetCurrentScopeType(wpn, scope_id);
+    wpnstate := wpnstate and $7;
+  end;
+  CSE_SetAddonsFlags(swpn, wpnstate);
 
   //перенести в область движкового кода после вычитки m_flagsAddOnState
   if IsScopeAttached(wpn) and (GetCurrentScopeIndex(wpn) >= GetScopesCount(wpn)) then begin
@@ -460,6 +471,7 @@ asm
     pushad
     pushfd
 
+    push edi
     push esi
     call OnCWeaponNetSpawn_middle
 
