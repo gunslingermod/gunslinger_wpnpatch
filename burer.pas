@@ -19,7 +19,7 @@ const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
   BURER_HEAD_CORRECTION_HEIGHT:single = 1;
   UNCONDITIONAL_VISIBLE_DIST:single=3; //чтобы не фейлится, когда актор вплотную
-  MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT:single=0.4;
+  MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT:single=0.2;
   MIN_GRAVI_LOCK_TIME_BEFORE_SHOT:single=1.5;
   MAX_TELE_GREN_COUNT:cardinal=3;
 
@@ -254,9 +254,17 @@ begin
 
   // Если в руках у актора нет ничего, равно как рядом нет ничего опасного - смысла в щите тоже нет.
   if (GetActorActiveItem()=nil) and (_gren_count = 0) and not big_boom_shooted then begin
+    LogBurerLogic('Disable shield in safe conditions');  
     pshield_ready^:=false;
   end;
 
+  // Если мы ранее рискнули выйти из щита с подбрасыванием камеры - временно отключаем щит
+  if (pshield_ready^) and script_bool_call('gunsl_burer.need_disable_shield', '', GetCObjectID(burer), '') then begin
+    LogBurerLogic('Script disable shield');
+    pshield_ready^:=false;
+  end;
+
+  // Отдаём предпочтение вырыванию оружия из рук в опасных ситуациях
   if (panti_aim_ready^) and not IsActorLookTurnedAway(burer) and (itm<>nil) and not IsLongRecharge(itm, MIN_GRAVI_LOCK_TIME_BEFORE_SHOT) and (random < 0.85) and IsWeaponDangerous(itm, burer) then begin
     LogBurerLogic('Disable gravi because aim ready');
     pgravi_ready^:=false;
@@ -395,6 +403,12 @@ begin
     if (GetCurrentState(itm) <> EHudStates__eIdle) then begin
       pgravi_ready^:=false;
     end;
+  end else if (itm<>nil) and WpnCanShoot(itm) and (GetCurrentState(itm) = EWeaponStates__eReload) and panti_aim_ready^ and (random < 0.9) then begin
+    LogBurerLogic('AntiReload');
+    force_antiaim:=true;
+  end else if (itm<>nil) and WpnCanShoot(itm) and (GetCurrentAmmoCount(itm) = 0) and panti_aim_ready^ and (random < 0.6) then begin
+    LogBurerLogic('AntiEmpty');
+    force_antiaim:=true;
   end;
 
   if force_antiaim and panti_aim_ready^ then begin
@@ -629,10 +643,13 @@ begin
 
   if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
+
     result:= random > GetBurerShieldedRiskyFactor();
-    if not result and IsBurerUnderAim(burer, BurerUnderAimExact) then begin
-      script_call('gunsl_burer.on_risky_under_aim', '', GetCObjectID(burer));
+    if not result and (IsBurerUnderAim(burer, BurerUnderAimExact) or sniper_danger) then begin
+      // Если решено рискнуть, но мы под прицелом
+      result := not script_bool_call('gunsl_burer.on_risky_under_aim', '', GetCObjectID(burer),'');
     end;
+
     if not result then begin
       LogBurerLogic('Risky!');
     end;
