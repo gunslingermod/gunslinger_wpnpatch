@@ -16,7 +16,7 @@ function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 procedure TryShootGLFix(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer, HitUtils;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -2289,6 +2289,186 @@ asm
   ret
 end;
 
+function GetAmmoMaterial(section:PAnsiChar):PAnsiChar; stdcall;
+const
+  DEFAULT_MATERIAL:PAnsiChar = 'objects\bullet';
+begin
+  result:=game_ini_read_string_def(section, 'material', DEFAULT_MATERIAL);
+end;
+
+procedure CCartridge__Load_material_Patch(); stdcall;
+asm
+  push [esp] // дублируем адрес возврата
+  lea eax, [esp+4] //буфер, в который будем помещать аргумент, push'ащийся в оригинале
+
+  pushad
+  push eax //save ptr to buf
+
+  push edi //ammo section
+  call GetAmmoMaterial
+
+  pop ecx //restore ptr to buf
+  mov [ecx], eax
+  popad
+end;
+
+function GetCartridgeMaterial(c:pCCartridge):PAnsiChar; stdcall;
+begin
+  result:=GetAmmoMaterial(get_string_value(@c.m_ammo_sect));
+end;
+
+procedure CWeaponAmmo__Get_material_Patch; stdcall;
+asm
+  push [esp] // дублируем адрес возврата
+  lea eax, [esp+4] //буфер, в который будем помещать аргумент, push'ащийся в оригинале
+
+  pushad
+  push eax //save ptr to buf
+
+  push ebp //cartridge
+  call GetCartridgeMaterial
+
+  pop ecx //restore ptr to buf
+  mov [ecx], eax
+  popad
+end;
+
+function GetCartridgeHitType(c:pCCartridge):cardinal; stdcall;
+var
+  s:PAnsiChar;
+begin
+  result:=6; // ALife::eHitTypeFireWound
+  if c = nil then exit;
+
+  s:=get_string_value(@c.m_ammo_sect);
+  if (s=nil) then exit;
+
+  result:=game_ini_r_int_def(s, 'hit_type', result)
+end;
+
+procedure CShootingObject__FireBullet_hittype_Patch();stdcall;
+asm
+  fstp dword ptr [esp+4]
+  push [esp] // дублируем адрес возврата, создавая буфер
+  lea ecx, [esp+4] //адрес буфера
+
+  pushad
+  push ecx //save buf
+  push [ecx+8] //cartridge
+  
+  call GetCartridgeHitType
+  pop ecx // restore buf
+  mov [ecx], eax
+  popad
+
+  mov ecx, [esp+$4c] //восстанавливаем ecx
+
+end;
+
+procedure ModifyObjectHitBeforeProcessing(h:pSHit); stdcall;
+begin
+  // Модифицируем поля в хите перед тем, как отдать его на обработку пораженному объекту
+  if h.hit_type = EHitType__eHitTypeBurn then begin
+    h.add_wound:=1;
+  end;
+end;
+
+procedure CGameObject__OnEvent_addwoundonhit_Patch(); stdcall;
+asm
+  // original
+  mov edx,[eax+$E8]
+  lea ecx,[esp+$14]
+
+  pushad
+  push ecx
+  call ModifyObjectHitBeforeProcessing
+  popad
+
+end;
+
+procedure ScaleWoundByHitType(hit_power:psingle; hit_type:cardinal); stdcall;
+var
+  factor:single;
+begin
+  factor:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('hit_type_'+inttostr(hit_type)), 1.0);
+  hit_power^:=hit_power^*factor;
+end;
+
+procedure CEntityCondition__AddWound_scalewoundsize_Patch(); stdcall;
+asm
+  lea esi, [esp+$14] //hit_power
+  mov eax, [esp+$18] //hit_type
+
+  pushad
+  push eax
+  push esi
+  call ScaleWoundByHitType
+  popad
+
+  //original
+  mov esi, ecx
+  mov eax, [esi+$48]
+end;
+
+function GetMinFireParticleForDeadEntities():cardinal;
+begin
+  result:=game_ini_r_int_def('entity_fire_particles', 'min_burn_time_dead', 5000);
+end;
+
+procedure CEntityAlive__UpdateFireParticles_deadfire_Patch(); stdcall;
+asm
+  pushad
+  mov ecx, edi
+  mov eax, xrgame_addr
+  add eax, $40aa0
+  call eax // CEntity::g_Alive
+  test eax, eax
+  popad
+
+  jne @alive
+  
+  lea eax, [esp+$8] // адрес аргумента с временем жизни
+  pushad
+  push eax
+  call GetMinFireParticleForDeadEntities
+  pop ecx
+  mov [ecx], eax
+  popad
+
+  @alive:
+  //original
+  fldcw [esp+$1c]
+  push [esp]
+  mov [esp+4], esi
+end;
+
+{procedure CEntityAlive__Die_updateparticles_Patch(); stdcall;
+asm
+  pushad
+  mov ecx, esi
+  mov eax, xrgame_addr
+  add eax, $27b600
+  call eax
+  popad
+
+  //original
+  lea eax, [esi+$10]
+  test eax, eax
+end;   }
+
+procedure CEntityAlive__shedule_Update_updateparticles_Patch(); stdcall;
+asm
+  pushad
+  lea ecx, [edi+$1b0] //cast to CParticlesPlayer
+  mov eax, xrgame_addr
+  add eax, $282b90
+  call eax  //CParticlesPlayer::UpdateParticles
+  popad
+
+  //original
+  mov eax,[edx+$254]
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -2529,6 +2709,43 @@ begin
   // CWeapon::ParentMayHaveAimBullet (xrGame.dll+2c1070) - добавляем возможность parent'a быть нулевым
   if not nop_code(xrgame_addr+$2c1080, 2, chr($c3)) then exit;
 
+  // в CEntityCondition::ConditionHit делаем обработку eHitTypeBurn так, чтобы bAddWound не сбрасывалось в false
+  // Правим jmp, чтобы переходил в ветку, не сбрасывающую bAddWound
+  jmp_addr:=$9e;
+  if not WriteBufAtAdr(xrgame_addr+$27e932,@jmp_addr,sizeof(jmp_addr)) then exit;
+
+  // в CCartridge::Load добавляем возможность указывать произвольный bullet_material_idx для пули
+  jmp_addr:=xrGame_addr+$2c43c7;
+  if not WriteJump(jmp_addr, cardinal(@CCartridge__Load_material_Patch), 5, true) then exit;
+
+  // в CWeaponAmmo::Get - аналогично, надо откорректировать bullet_material_idx
+  jmp_addr:=xrGame_addr+$2c486c;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponAmmo__Get_material_Patch), 5, true) then exit;
+
+  // в CShootingObject::FireBullet (xrgame.dll+2bb920) даем возможность прописывать разные типы урона пулям
+  jmp_addr:=xrGame_addr+$2bba26;
+  if not WriteJump(jmp_addr, cardinal(@CShootingObject__FireBullet_hittype_Patch), 5, true) then exit;
+
+  // В CGameObject::OnEvent при получении сообщения о хите перед вызовом Hit ставим add_wound=true
+  jmp_addr:=xrGame_addr+$280935;
+  if not WriteJump(jmp_addr, cardinal(@CGameObject__OnEvent_addwoundonhit_Patch), 10, true) then exit;
+
+  // в CEntityCondition::AddWound добавим возможность масштабировать размер раны в зависимости от типа урона
+  jmp_addr:=xrGame_addr+$27e683;
+  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__AddWound_scalewoundsize_Patch), 5, true) then exit;
+
+  // в CEntityAlive::UpdateFireParticles если существо умерло до остановки отыгрыша партиклов огня, то продляем отыгрыш партикла (пусть "догорает")
+  jmp_addr:=xrGame_addr+$27b6dc;
+  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__UpdateFireParticles_deadfire_Patch), 5, true) then exit;
+
+  {// в CEntityAlive::Die необходимо вызвать CEntityAlive::UpdateFireParticles для завершения отыгрыша партиклов огня
+  jmp_addr:=xrGame_addr+$27c075;
+  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__Die_updateparticles_Patch), 5, true) then exit;}
+
+  //Надо вызывать CParticlesPlayer::UpdateParticles из CEntityAlive::shedule_Update, чтобы партиклы корректно удалялись после смерти
+  jmp_addr:=xrGame_addr+$27a768;
+  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__shedule_Update_updateparticles_Patch), 6, true) then exit;
+
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
   //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).
   //По логике pending должен сброситься в CWeaponMagazined::switch2_Hidden, но до его вызова дело не доходит, так как оружие выброшено и сообщения не проходят (фиксятся предыдущей правкой)
@@ -2538,6 +2755,10 @@ begin
   //CWeaponMagazined::OnStateSwitch - xrgame.dll+2d01b0 -> CWeaponMagazined::switch2_Fire (xrgame.dll+2d0720)
   //CWeaponMagazined::Action - xrgame.dll+2ce7a0; CWeapon::Action - xrGame.dll+2bec70
   //CWeaponMagazined::OnShot - xrgame.dll+2ccc40
+  //CEntityAlive::Hit - xrgame.dll+27bdb0
+  //CBaseMonster::Hit - xrgame.dll+c6440
+  //CEntityAlive::StartFireParticles - xrgame.dll+27ba30
+  //CEntityAlive::UpdateFireParticles - xrgame.dll+27b600
 ////////////////////////////////////////////////////////////////////////////////////
 
 
