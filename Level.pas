@@ -174,10 +174,8 @@ begin
 
   material:=FindStrValueInUpgradesDef(wpn, 'kick_material', material);
 
-  init_string(@c.m_ammo_sect);
-
   InitCartridge(@c);
-  c.SCartridgeParam__kAP:=0.001;
+  c.SCartridgeParam__kAP:=ModifyFloatUpgradedValue(wpn, 'kick_ap', game_ini_r_single_def(sect, 'kick_ap', 0.001));
   c.SCartridgeParam__fWallmarkSize:=ModifyFloatUpgradedValue(wpn, 'kick_wallmark_size', game_ini_r_single_def(sect, 'kick_wallmark_size', 0.05));
   c.bullet_material_idx:=GetMaterialIdx(material);
 
@@ -246,6 +244,8 @@ begin
       true,
       false);
   end;
+
+  FreeCartridge(@c);
 end;
 
 function GetObjectById(id:word):pointer; stdcall;

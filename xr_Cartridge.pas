@@ -59,6 +59,7 @@ procedure SetAmmoTypeIndex(wpn:pointer; index:byte; second:boolean); stdcall;
 function GetCartridgeType(c:pCCartridge):byte;
 
 procedure InitCartridge(c:pCCartridge); stdcall;
+procedure FreeCartridge(c:pCCartridge); stdcall;
 
 
 implementation
@@ -366,6 +367,11 @@ begin
   c.bullet_material_idx:=$FFFF;
   c._flags:=0;
   c.m_InvShortName:=nil;
+end;
+
+procedure FreeCartridge(c:pCCartridge); stdcall;
+begin
+  assign_string(@c.m_ammo_sect, nil);
 end;
 
 end.
