@@ -2386,12 +2386,20 @@ asm
 
 end;
 
-procedure ScaleWoundByHitType(hit_power:psingle; hit_type:cardinal); stdcall;
+procedure ScaleWoundByHitType(obj:pointer; hit_power:psingle; hit_type:cardinal); stdcall;
 var
-  factor:single;
+  factor1, factor2:single;
+  sect:PAnsiChar;
 begin
-  factor:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('hit_type_'+inttostr(hit_type)), 1.0);
-  hit_power^:=hit_power^*factor;
+  sect:=get_string_value(GetCObjectSection(obj));
+  sect:=game_ini_read_string_def(sect, 'condition_sect', sect);
+  
+  factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('hit_type_'+inttostr(hit_type)), 1.0);
+  factor2:=game_ini_r_single_def(sect, PAnsiChar('wound_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
+
+  // log('Section '+sect+', hit_type '+inttostr(hit_type)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
+
+  hit_power^:=hit_power^*factor1*factor2;
 end;
 
 procedure CEntityCondition__AddWound_scalewoundsize_Patch(); stdcall;
@@ -2402,6 +2410,7 @@ asm
   pushad
   push eax
   push esi
+  push [ecx+$44] // this->m_object
   call ScaleWoundByHitType
   popad
 
@@ -2441,20 +2450,6 @@ asm
   push [esp]
   mov [esp+4], esi
 end;
-
-{procedure CEntityAlive__Die_updateparticles_Patch(); stdcall;
-asm
-  pushad
-  mov ecx, esi
-  mov eax, xrgame_addr
-  add eax, $27b600
-  call eax
-  popad
-
-  //original
-  lea eax, [esi+$10]
-  test eax, eax
-end;   }
 
 procedure CEntityAlive__shedule_Update_updateparticles_Patch(); stdcall;
 asm
@@ -2737,10 +2732,6 @@ begin
   // в CEntityAlive::UpdateFireParticles если существо умерло до остановки отыгрыша партиклов огня, то продляем отыгрыш партикла (пусть "догорает")
   jmp_addr:=xrGame_addr+$27b6dc;
   if not WriteJump(jmp_addr, cardinal(@CEntityAlive__UpdateFireParticles_deadfire_Patch), 5, true) then exit;
-
-  {// в CEntityAlive::Die необходимо вызвать CEntityAlive::UpdateFireParticles для завершения отыгрыша партиклов огня
-  jmp_addr:=xrGame_addr+$27c075;
-  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__Die_updateparticles_Patch), 5, true) then exit;}
 
   //Надо вызывать CParticlesPlayer::UpdateParticles из CEntityAlive::shedule_Update, чтобы партиклы корректно удалялись после смерти
   jmp_addr:=xrGame_addr+$27a768;

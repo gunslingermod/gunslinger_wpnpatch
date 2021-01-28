@@ -2,7 +2,7 @@ unit Misc;
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
-uses MatVectors, windows;
+uses MatVectors, windows, xr_strings;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
 type CSE_Abstract = packed record
@@ -98,6 +98,7 @@ function CastHudItemToCObject(wpn:pointer):pointer; stdcall;
 function GetCObjectID(CObject:pointer):word; stdcall;
 function GetCObjectXForm(CObject:pointer):pFMatrix4x4; stdcall;
 function GetCObjectVisual(CObject:pointer):pointer; stdcall;
+function GetCObjectSection(CObject:pointer):pshared_str; stdcall;
 function GetCObjectUpdateFrame(CObject:pointer):cardinal; stdcall;
 procedure CObject__processing_activate(o:pointer); stdcall;
 procedure CObject__processing_deactivate(o:pointer); stdcall;
@@ -731,6 +732,14 @@ asm
   mov eax, [eax+$90]
   mov @result, eax
 end;
+
+function GetCObjectSection(CObject:pointer):pshared_str; stdcall;
+asm
+  mov eax, [CObject]
+  lea eax, [eax+$ac]
+  mov @result, eax
+end;
+
 
 function GetCObjectUpdateFrame(CObject:pointer):cardinal; stdcall;
 asm
