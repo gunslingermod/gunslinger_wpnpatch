@@ -2394,7 +2394,7 @@ begin
   sect:=get_string_value(GetCObjectSection(obj));
   sect:=game_ini_read_string_def(sect, 'condition_sect', sect);
   
-  factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('hit_type_'+inttostr(hit_type)), 1.0);
+  factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('wound_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
   factor2:=game_ini_r_single_def(sect, PAnsiChar('wound_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
 
   // log('Section '+sect+', hit_type '+inttostr(hit_type)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
@@ -2462,6 +2462,41 @@ asm
 
   //original
   mov eax,[edx+$254]
+end;
+
+function CorrectBleedingForHitType(obj:pointer; hit_type:cardinal; bleeding:single):single; stdcall;
+var
+  factor1, factor2:single;
+  sect:PAnsiChar;
+begin
+  result:=bleeding;
+
+  sect:=get_string_value(GetCObjectSection(obj));
+  sect:=game_ini_read_string_def(sect, 'condition_sect', sect);
+  
+  factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('bleeding_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
+  factor2:=game_ini_r_single_def(sect, PAnsiChar('bleeding_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
+
+  //log('Section '+sect+', hit_type '+inttostr(hit_type)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
+
+  result:=result*factor1*factor2;
+end;
+
+procedure CEntityCondition__BleedingSpeed_typekoefs_Patch(); stdcall;
+asm
+  pushad
+  push eax //buffer for arg
+  fstp [esp] // save result of TotalSize to arg
+  sub esi, [edi+$48]
+  shr esi, 2
+  push esi
+  push [edi+$44] // this->m_object
+  call CorrectBleedingForHitType
+  popad
+
+  //original
+  fadd dword ptr [esp+$c]
+  add esi, 04
 end;
 
 function Init:boolean;
@@ -2737,6 +2772,10 @@ begin
   jmp_addr:=xrGame_addr+$27a768;
   if not WriteJump(jmp_addr, cardinal(@CEntityAlive__shedule_Update_updateparticles_Patch), 6, true) then exit;
 
+  //в CEntityCondition::BleedingSpeed вводим поправочные коэффициенты в зависимости от типа хита
+  jmp_addr:=xrGame_addr+$27dd1f;
+  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__BleedingSpeed_typekoefs_Patch), 7, true) then exit;
+
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
   //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).
   //По логике pending должен сброситься в CWeaponMagazined::switch2_Hidden, но до его вызова дело не доходит, так как оружие выброшено и сообщения не проходят (фиксятся предыдущей правкой)
@@ -2750,6 +2789,9 @@ begin
   //CBaseMonster::Hit - xrgame.dll+c6440
   //CEntityAlive::StartFireParticles - xrgame.dll+27ba30
   //CEntityAlive::UpdateFireParticles - xrgame.dll+27b600
+  //CEntityCondition::UpdateCondition - xrgame.dll+27def0
+  //CEntityCondition::UpdateHealth - xrgame.dll+27dd70
+  //CEntityCondition::BleedingSpeed - xrgame.dll+27dd0
 ////////////////////////////////////////////////////////////////////////////////////
 
 
