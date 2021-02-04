@@ -836,6 +836,10 @@ begin
   anim_name:='anm_shoot';
   modifier:='';
 
+  if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot')) <> 'anm_shoot') and game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_animations', false) and game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_start_animation', false) then begin
+    modifier:=modifier+'_start';
+  end;
+
   SpawnShells(wpn);
   buf:=GetBuffer(wpn);
   if buf<>nil then begin
@@ -1698,7 +1702,7 @@ function CanAssignIdleAnimNow(wpn:pointer):boolean; stdcall;
 const
   anm:string = 'anm_shoot';
 begin
-  result := ((GetAimFactor(wpn)>0.001) and (GetAimFactor(wpn)<0.999)) or (GetCurrentMotionDef(wpn)=nil) or (leftstr(GetActualCurrentAnim(wpn), length(anm))<>anm);
+  result := ((GetAimFactor(wpn)>0.001) and (GetAimFactor(wpn)<0.999)) or (GetCurrentMotionDef(wpn)=nil) or (leftstr(GetActualCurrentAnim(wpn), length(anm))<>anm) or game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_animations', false);
 end;
 
 procedure CWeaponMagazined__OnStateSwitch_IdlePatch(); stdcall;
@@ -1833,6 +1837,51 @@ asm
   call StopQueueIfNeeded
   popad
   mov edx, [eax+$1f8] //original
+end;
+
+function NeedShotAnimAssign(wpn:pointer):boolean; stdcall;
+begin
+  result:=true;
+
+  if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot')) = 'anm_shoot') and (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot_start')) <> 'anm_shoot_start') then begin
+    result:=not game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_animations', false);
+  end;
+end;
+
+procedure CWeaponMagazined__OnShot_SkipAssignAnim_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call NeedShotAnimAssign
+  test al, al
+  popad
+  je @finish
+  //original
+  mov eax,[edx+$234]
+  mov ecx,esi
+  call eax
+  @finish:
+end;
+
+function NeedPlayShotSound(wpn:pointer):boolean; stdcall;
+begin
+  result:=not game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_sound', false);
+end;
+
+procedure CWeaponMagazined__OnShot_SkipAssignSound_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call NeedPlayShotSound
+  test al, al
+  popad
+  je @finish
+  //original
+  push ebx
+  push eax
+  mov eax,[edx+$30]
+  call eax // PlaySound
+  @finish:
 end;
 
 /////////////////////////////////////
@@ -2188,6 +2237,15 @@ begin
 
   // в CWeaponMagazined::LoadSilencerKoeffs убираем принудительный clamp для m_silencer_koef.hit_power
   nop_code(xrGame_addr+$2cd75e, 28);
+
+  // в CWeaponMagazined::OnShot пропускаем последующие вызовы анимации выстрела, если у нас зацикленная анимка
+  jump_addr:=xrGame_addr+$2ccc9d;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__OnShot_SkipAssignAnim_Patch), 10, true) then exit;
+
+  // в CWeaponMagazined::OnShot пропускаем вызовы назначения новых звуков выстрела, если у нас зацикленная анимка
+  jump_addr:=xrGame_addr+$2ccc88;
+  if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__OnShot_SkipAssignSound_Patch), 7, true) then exit;
+  
 
   result:=true;
 end;
