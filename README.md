@@ -1,5 +1,4 @@
-# gunslinger_wpnpatch
-Сборка:
+# Сборка:
 1) Установить Free Pascal Compiler (https://www.freepascal.org/)
 2) Склонировать этот репозиторий, либо скачать его архивом
 3) Сделать необходимые правки, запустить файл gunslinger_wpnpatch.dpr при помощи программы fpc.exe
