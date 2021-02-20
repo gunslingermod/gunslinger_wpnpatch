@@ -716,10 +716,22 @@ asm
   ret
 end;
 
-function IsGrenadeSafe(CGrenade:pointer):boolean; stdcall;
+function IsGrenadeSkipForTele(CGrenade:pointer):boolean; stdcall;
+var
+  act:pointer;
+  act_dist:FVector3;
+const
+  MAX_DIST_TO_ACTOR:single = 6.0;
 begin
   result:=IsGrenadeDeactivated(CGrenade);
-  if result then begin
+  if not result then begin
+    act:=GetActor();
+    if act <> nil then begin;
+      act_dist:=FVector3_copyfromengine(GetEntityPosition(act));
+      v_sub(@act_dist, GetPosition(CGrenade));
+//      log('gren_dist '+floattostr(v_length(@act_dist)));
+      result:= (v_length(@act_dist) <= MAX_DIST_TO_ACTOR);
+    end;      
   end;
 end;
 
@@ -757,7 +769,7 @@ asm
   push eax
 
   push eax
-  call IsGrenadeSafe
+  call IsGrenadeSkipForTele
   test al, al
   jne @safe
   add _gren_count, 1
