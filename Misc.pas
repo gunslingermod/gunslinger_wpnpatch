@@ -103,6 +103,10 @@ function GetCObjectUpdateFrame(CObject:pointer):cardinal; stdcall;
 procedure CObject__processing_activate(o:pointer); stdcall;
 procedure CObject__processing_deactivate(o:pointer); stdcall;
 
+function get_time_hours():cardinal; stdcall
+function get_time_minutes():cardinal; stdcall;
+function get_split_time(years:pcardinal; months:pcardinal; days:pcardinal; hours:pcardinal; minutes:pcardinal; seconds:pcardinal; milliseconds:pcardinal):boolean; stdcall;
+
 function GetAngleByLegs(x,y:single):single;
 
 function IsInputExclusive:boolean; stdcall;
@@ -1304,6 +1308,63 @@ asm
   popad
 end;
 
+
+function get_time_hours():cardinal; stdcall
+asm
+  pushad
+  mov eax, xrgame_addr
+  add eax, $23e850
+  call eax
+  mov result, eax
+  popad
+end;
+
+function get_time_minutes():cardinal; stdcall
+asm
+  pushad
+  mov eax, xrgame_addr
+  add eax, $23e900
+  call eax
+  mov result, eax
+  popad
+end;
+
+function get_split_time(years:pcardinal; months:pcardinal; days:pcardinal; hours:pcardinal; minutes:pcardinal; seconds:pcardinal; milliseconds:pcardinal):boolean; stdcall;
+asm
+  mov result, 0
+  pushad
+  call GetLevel
+  test eax, eax
+  je @finish
+  mov ecx, eax
+  cmp [ecx+$486F8],0 // Level().game
+  je @finish
+
+  mov eax, xrgame_addr
+  add eax, $232d40 // Level().GetGameTime()
+  call eax
+
+  push milliseconds
+  push seconds
+  push minutes
+  push hours
+  push days
+  push months
+  push years
+  push edx //part of u64 result from GetGameTime
+  push eax //part of u64 result from GetGameTime
+  mov eax, xrgame_addr
+  add eax, $33bfe0 // split_time
+  call eax
+  add esp, $24
+
+  mov @result, 1
+
+  @finish:
+  popad
+end;
+
+
 procedure ApplyImpulseTrace(CPhysicsShellHolder:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
 asm
   pushad
@@ -1622,7 +1683,6 @@ begin
   g_negHudNearClip:=-0.02;
   result:=@g_negHudNearClip;
 end;
-
 
 // CInventory::Update - xrgame.dll+2a83a0
 
