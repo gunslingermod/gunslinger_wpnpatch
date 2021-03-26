@@ -71,6 +71,7 @@ interface
 
 
   procedure build_projection(m:pFMatrix4x4; hat:single; aspect:single; near_plane:single; far_plane:single);
+  procedure getHP(v:pFVector3; var h:single; var p:single);
 
 implementation
 uses Math;
@@ -296,5 +297,38 @@ begin
   result.z := (v.x*m.i.z) + (v.y*m.j.z) + (v.z * m.k.z);
 end;
 
+procedure getHP(v:pFVector3; var h:single; var p:single);
+const
+  EPS:single = 0.00001;
+var
+  hyp:single;
+begin
+  if ((abs(v.x) < EPS) and (abs(v.z) < EPS)) then begin
+    h:=0;
+    if (abs(v.y) < EPS) then begin
+      p:=0;
+    end else if (v.y > 0) then begin
+      p:=PI/2;
+    end else begin
+      p:=(-1)* PI/2;
+    end;
+  end else begin
+    if (abs(v.z)<EPS) then begin
+      if v.x > 0 then h:=(-1)* PI/2 else h:=PI/2;
+    end else if (v.z<0) then begin
+      h:=-1*(arctan(v.x/v.z)-PI);
+    end else begin
+      h:=-arctan(v.x/v.z);
+    end;
+
+    hyp:=sqrt(v.x*v.x+v.z*v.z);
+    if (abs(hyp)<EPS) then begin
+      if v.y > 0 then p:=PI/2 else p:=(-1)* PI/2;
+    end else begin
+      p:=arctan(v.y/hyp);
+    end;
+
+  end; 
+end;
 
 end.

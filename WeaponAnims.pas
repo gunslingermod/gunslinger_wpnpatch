@@ -229,6 +229,10 @@ begin
   MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
 
 
+  if game_ini_r_bool_def(hud_sect, 'stop_all_sounds_before_idle', false) then begin
+    CHudItem_StopAllSounds(wpn);
+  end;
+
   if not PlaySoundByAnimName(wpn, anim_name) and (snd_label<>nil) then begin
     CHudItem_Play_Snd(wpn, snd_label);
   end;
@@ -1843,8 +1847,12 @@ function NeedShotAnimAssign(wpn:pointer):boolean; stdcall;
 begin
   result:=true;
 
-  if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot')) = 'anm_shoot') and (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot_start')) <> 'anm_shoot_start') then begin
-    result:=not game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_animations', false);
+  if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot')) = 'anm_shoot') then begin
+    if (leftstr(GetActualCurrentAnim(wpn), length('anm_shoot_start')) <> 'anm_shoot_start') then begin
+      result:=not game_ini_r_bool_def(GetHUDSection(wpn), 'cyclic_shoot_animations', false);
+    end else begin
+      result:= not IsActionProcessing(wpn);
+    end;
   end;
 end;
 

@@ -1047,6 +1047,38 @@ pushad
 popad
 end;
 
+procedure PlayHudSoundEx(itm:pointer; alias:PAnsiChar; position:pFVector3; root_cobject:pointer; hud_mode:boolean; looped:boolean; index:byte); stdcall;
+asm
+  pushad
+
+  movzx ecx, index
+  push ecx
+
+  movzx ecx, looped
+  push ecx
+
+  movzx ecx, hud_mode
+  push ecx
+
+  mov eax, root_cobject
+  push eax //cobject
+
+  mov ebx, position
+  push ebx
+
+  mov eax, alias
+  push eax
+
+  mov ecx, itm
+  add ecx, $2e0 + $44 //m_sounds
+
+  mov eax, xrGame_addr
+  add eax, $2fa6c0 //HUD_SOUND_COLLECTION::PlaySound
+  call eax
+
+  popad
+end;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 procedure DetachGLRight(wpn:pointer);stdcall;
@@ -2145,6 +2177,10 @@ var
   hud_sect:PChar;
   snd_name:string;
   is_exclusive:cardinal;
+
+  root_cobject:pointer;
+  hud_mode:boolean;
+  is_looped:boolean;
 begin
   hud_sect:=GetHUDSection(wpn);
   snd_name:='snd_'+anm;
@@ -2154,7 +2190,15 @@ begin
     else
       is_exclusive:=0;
     HUD_SOUND_COLLECTION__LoadSound(GetSoundCollection(wpn), hud_sect, PChar(snd_name), PChar(snd_name), is_exclusive, game_ini_r_int_def(hud_sect, PChar('snd_type_'+anm), -1));
-    CHudItem_Play_Snd(wpn, PChar(snd_name));
+
+    hud_mode:=(CHudItem__HudItemData(wpn)<>nil) and (GetActorActiveItem()=wpn);
+    is_looped:=game_ini_r_bool_def(hud_sect, PChar('snd_looped_'+anm), false);
+    root_cobject:=GetOwner(wpn);
+    if root_cobject=nil then begin
+      root_cobject:=CastHudItemToCObject(wpn);
+    end;
+
+    PlayHudSoundEx(wpn, PChar(snd_name), GetPosition(wpn), root_cobject, hud_mode, is_looped, $FF);
     result:=true;
   end else begin
     result:=false;

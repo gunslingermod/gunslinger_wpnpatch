@@ -40,6 +40,8 @@ var
   binder_actor_states:R_constant_setup;
   binder_zoom_deviation:R_constant_setup;
   binder_affects:R_constant_setup;
+  binder_timearrow:R_constant_setup;
+  binder_timearrow2:R_constant_setup;
 
 
 
@@ -196,6 +198,66 @@ begin
   end;
 end;
 
+
+procedure binder_timearrow_setup(C:pR_constant); stdcall;
+var
+  y, mo, d, h, m, s, ms:integer;
+  h_f, m_f, s_f:single;
+  h_angle, m_angle, s_angle:single;
+begin
+  y:=0;
+  mo:=0;
+  d:=0;
+  h:=0;
+  m:=0;
+  s:=0;
+  ms:=0;
+
+  get_split_time(@y, @mo, @d, @h, @m, @s, @ms);
+
+  R_ASSERT((h>=0) and (h<24), 'Invalid hours value', 'binder_timearrow_setup');
+  R_ASSERT((m>=0) and (m<60), 'Invalid minutes value', 'binder_timearrow_setup');
+  R_ASSERT((s>=0) and (s<60), 'Invalid seconds value', 'binder_timearrow_setup');
+
+  s_f := s/60;
+  s_angle := 2*pi*s_f;
+
+  m_f:= (s_f+m) / 60;
+  m_angle := 2*pi*m_f;
+
+  h_f:= (m_f+h) / 12;
+  h_angle:=2*pi*h_f;
+
+  RCache__set(C, sin(h_angle), cos(h_angle), sin(m_angle), cos(m_angle));
+end;
+
+procedure binder_timearrow2_setup(C:pR_constant); stdcall;
+var
+  y, mo, d, h, m, s, ms:integer;
+  camdir:FVector3;
+  sec_f, temp:single;
+  sec_angle, compass_angle:single;
+begin
+  y:=0;
+  mo:=0;
+  d:=0;
+  h:=0;
+  m:=0;
+  s:=0;
+  ms:=0;
+
+  get_split_time(@y, @mo, @d, @h, @m, @s, @ms);
+  R_ASSERT((s>=0) and (s<60), 'Invalid seconds value', 'binder_timearrow2_setup');
+
+  sec_f:= s / 60;
+  sec_angle := 2*pi*sec_f;
+
+  camdir:=FVector3_copyfromengine(CRenderDevice__GetCamDir());
+  getHP(@camdir, compass_angle, temp);
+
+  RCache__set(C, sin(sec_angle), cos(sec_angle), sin(compass_angle), cos(compass_angle));
+end;
+
 ////////////////////////////////////////////////////////////////////////
 procedure CBlender_Compile__SetMapping(this:pointer); stdcall;
 begin
@@ -217,6 +279,14 @@ begin
   binder_affects.vftable:=@r_constant_vftable;
   binder_affects.setup_proc_addr:=@binder_affects_setup;
   CBlender_Compile__r_Constant(this, 'm_affects', @binder_affects);
+
+  binder_timearrow.vftable:=@r_constant_vftable;
+  binder_timearrow.setup_proc_addr:=@binder_timearrow_setup;
+  CBlender_Compile__r_Constant(this, 'm_timearrow', @binder_timearrow);
+
+  binder_timearrow2.vftable:=@r_constant_vftable;
+  binder_timearrow2.setup_proc_addr:=@binder_timearrow2_setup;
+  CBlender_Compile__r_Constant(this, 'm_timearrow2', @binder_timearrow2);
 end;
 
 //Патч для добавления констант
