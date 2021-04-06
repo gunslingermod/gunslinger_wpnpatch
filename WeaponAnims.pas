@@ -825,18 +825,21 @@ var
 
 begin
   fun:=nil;
+  actor:=GetActor();
+  hud_sect:=GetHUDSection(wpn);
 
   if play_breech_snd then begin
     if IsExplosed(wpn) then begin
       CHudItem_Play_Snd(wpn, 'sndExplose');
     end else if IsWeaponJammed(wpn) then begin
       CHudItem_Play_Snd(wpn, 'sndJam');
+    end else if (actor<>nil) and (actor=GetOwner(wpn)) and (IsActorSuicideNow() or IsSuicideInreversible()) then begin
+      CHudItem_Play_Snd(wpn, 'sndSuicideBreechblock');
     end else begin
       CHudItem_Play_Snd(wpn, 'sndBreechblock');
     end
   end;
 
-  hud_sect:=GetHUDSection(wpn);
   anim_name:='anm_shoot';
   modifier:='';
 
@@ -851,7 +854,6 @@ begin
   end;
 
   ProcessAmmo(wpn, true);
-  actor:=GetActor();
   //Если у нас владелец - не актор, то и смысла работать дальше нет
   if (actor<>nil) and (actor=GetOwner(wpn)) then begin
     //----------------------------------Модификаторы состояния актора----------------------------------------------------

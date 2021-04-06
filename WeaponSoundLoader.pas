@@ -122,6 +122,7 @@ begin
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_jam', 'sndJam', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_breechblock', 'sndBreechblock', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_suicide_breechblock', 'sndSuicideBreechblock', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_explose', 'sndExplose', 0, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_prepare_detector', 'sndPrepareDet', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_finish_detector', 'sndFinishDet', 1, $FFFFFFFF);
