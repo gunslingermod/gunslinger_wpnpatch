@@ -16,7 +16,7 @@ function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
 procedure TryShootGLFix(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer, HitUtils;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer, HitUtils, Vector;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -658,6 +658,29 @@ begin
   alife_release(get_server_object_by_id(GetID(wpn)));
 end;
 
+function IsJamProhibited(wpn:pointer):boolean; stdcall;
+var
+  c_cur, c_next:pCCartridge;
+  ammoc:cardinal;
+begin
+  // Если реальный тип патрона в стволе и следующего патрона (того, который будет заряжен после выстрела) отличаются между собой - клинить нельзя!
+  // Иначе на дробовиках гильза поменяет цвет после окончания анимации заклина
+  result:=false;
+
+  if IsGrenadeMode(wpn) then exit;
+
+  ammoc:=GetAmmoInMagCount(wpn);
+  if ammoc <= 0 then exit;
+  c_cur:=GetCartridgeFromMagVector(wpn, ammoc-1);
+
+  if ammoc=1 then begin
+    result:=GetAmmoTypeIndex(wpn, false) <> GetCartridgeType(c_cur);
+  end else begin
+    c_next:=GetCartridgeFromMagVector(wpn, ammoc-2);
+    result:=GetCartridgeType(c_cur)<>GetCartridgeType(c_next);
+  end;
+end;
+
 function OnWeaponJam(wpn:pointer):boolean;stdcall;
 //сейчас с оружием произойдет что-то нехорошее...
 //вернуть false, если не стрелять перед клином, true - если стрелять
@@ -747,6 +770,17 @@ procedure WeaponJammed_Patch(); stdcall;
 //Аниму выстрела в заклинившем состоянии выставляем отличную от обычного выстрела в WeaponAnims.pas
 asm
   mov eax, 1
+  pushad
+    push esi
+    call IsJamProhibited
+    cmp al, 0
+  popad
+  je @jam_allowed
+  mov byte ptr [esi+$45A], 0 //сбрасываем возможный заклин
+  xor eax, eax               //говорим, что осечки нет
+  jmp @finish
+
+  @jam_allowed:
   pushad
     push esi
     call OnWeaponJam
@@ -2473,30 +2507,74 @@ begin
 
   sect:=get_string_value(GetCObjectSection(obj));
   sect:=game_ini_read_string_def(sect, 'condition_sect', sect);
-  
+
   factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('bleeding_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
   factor2:=game_ini_r_single_def(sect, PAnsiChar('bleeding_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
 
-  //log('Section '+sect+', hit_type '+inttostr(hit_type)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
+  //log('Section '+sect+', hit_type '+inttostr(hit_type)+', val='+floattostr(bleeding)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
 
   result:=result*factor1*factor2;
 end;
 
-procedure CEntityCondition__BleedingSpeed_typekoefs_Patch(); stdcall;
+function GetWoundComponentByHitType(wound:pointer; hit_type:cardinal):single; stdcall;
+var
+ a_m_Wounds:cardinal;
+begin
+  result:=0;
+  if hit_type>=EHitType__eHitTypeMax then exit;
+
+  a_m_Wounds:=cardinal(wound)+$10;
+  result:=psingle(a_m_Wounds+hit_type*sizeof(single))^;
+end;
+
+function CalcWoundTotalSize(obj:pointer; wound:pointer):single; stdcall;
+var
+  i:integer;
+  bleeding:single;
+begin
+  result:=0;
+  for i:=0 to EHitType__eHitTypeMax do begin
+    bleeding:=GetWoundComponentByHitType(wound, i);
+    if bleeding > 0 then begin
+      result:=result+CorrectBleedingForHitType(obj, i, bleeding);
+    end;
+  end;
+end;
+
+procedure CEntityCondition__BleedingSpeed_reimpl(obj:pointer;wounds:pxr_vector; res:psingle); stdcall;
+var
+  i:integer;
+  pwound:pointer;
+begin
+  res^:=0;
+  //if items_count_in_vector(wounds, sizeof(pointer)) > 0 then begin
+  //  Log('Wounds count: '+inttostr(items_count_in_vector(wounds, sizeof(pointer))));
+  //end;
+
+  for i:=0 to items_count_in_vector(wounds, sizeof(pointer))-1 do begin
+    pwound:=get_item_from_vector(wounds, i, sizeof(pointer));
+    res^:=res^+CalcWoundTotalSize(obj, pointer(pcardinal(pwound)^));
+  end;
+end;
+
+procedure CEntityCondition__BleedingSpeed_Patch(); stdcall;
 asm
+  push 0
+  lea eax, [esp] 
+
   pushad
-  push eax //buffer for arg
-  fstp [esp] // save result of TotalSize to arg
-  sub esi, [edi+$48]
-  shr esi, 2
-  push esi
+  mov edi, ecx //this
+
+  push eax // ptr to result
+  lea esi, [edi+$48] // m_WoundVector
+  push esi       // this->m_WoundVector
   push [edi+$44] // this->m_object
-  call CorrectBleedingForHitType
+  call CEntityCondition__BleedingSpeed_reimpl
   popad
 
-  //original
-  fadd dword ptr [esp+$c]
-  add esi, 04
+  fld [esp]
+  add esp, 4
+  ret
 end;
 
 function Init:boolean;
@@ -2772,9 +2850,10 @@ begin
   jmp_addr:=xrGame_addr+$27a768;
   if not WriteJump(jmp_addr, cardinal(@CEntityAlive__shedule_Update_updateparticles_Patch), 6, true) then exit;
 
-  //в CEntityCondition::BleedingSpeed вводим поправочные коэффициенты в зависимости от типа хита
-  jmp_addr:=xrGame_addr+$27dd1f;
-  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__BleedingSpeed_typekoefs_Patch), 7, true) then exit;
+  // [bug] баг в CEntityCondition::BleedingSpeed - из-за того, что итоговое кровотечение берется как среднее от всех ран, то при заживании небольшой раны кровотечение усиливается
+  // Для исправления заменяем функцию на нашу реализацию, заодно учитывающую и коэффициенты в завсимости от типа хита
+  jmp_addr:=xrGame_addr+$27dd00;
+  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__BleedingSpeed_Patch), 6, false) then exit;
 
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
   //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).
@@ -2791,7 +2870,9 @@ begin
   //CEntityAlive::UpdateFireParticles - xrgame.dll+27b600
   //CEntityCondition::UpdateCondition - xrgame.dll+27def0
   //CEntityCondition::UpdateHealth - xrgame.dll+27dd70
-  //CEntityCondition::BleedingSpeed - xrgame.dll+27dd0
+  //CEntityCondition::BleedingSpeed - xrgame.dll+27dd00
+  //CAI_Stalker::react_on_member_death - xrgame.dll+192430
+  //CStalkerDangerPlanner::update - xrgame.dll+xrgame.dll+1785b0
 ////////////////////////////////////////////////////////////////////////////////////
 
 

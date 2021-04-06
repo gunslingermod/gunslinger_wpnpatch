@@ -103,7 +103,7 @@ function GetCObjectUpdateFrame(CObject:pointer):cardinal; stdcall;
 procedure CObject__processing_activate(o:pointer); stdcall;
 procedure CObject__processing_deactivate(o:pointer); stdcall;
 
-function get_time_hours():cardinal; stdcall
+function get_time_hours():cardinal; stdcall;
 function get_time_minutes():cardinal; stdcall;
 function get_split_time(years:pcardinal; months:pcardinal; days:pcardinal; hours:pcardinal; minutes:pcardinal; seconds:pcardinal; milliseconds:pcardinal):boolean; stdcall;
 
@@ -1309,7 +1309,7 @@ asm
 end;
 
 
-function get_time_hours():cardinal; stdcall
+function get_time_hours():cardinal; stdcall;
 asm
   pushad
   mov eax, xrgame_addr
@@ -1319,7 +1319,7 @@ asm
   popad
 end;
 
-function get_time_minutes():cardinal; stdcall
+function get_time_minutes():cardinal; stdcall;
 asm
   pushad
   mov eax, xrgame_addr
