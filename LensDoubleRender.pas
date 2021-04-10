@@ -87,7 +87,7 @@ begin
 
     if (IsAimNow(wpn) or IsHolderInAimState(wpn) or (GetAimFactor(wpn)>0.001)) and (not IsGrenadeMode(wpn) or game_ini_r_bool_def(GetHUDSection(wpn), 'doublerendered_gl_zoom', false)) then begin
       if IsLensedScopeInstalled(wpn) then begin
-        result:=not IsAlterZoom(wpn) and not IsLastZoomAlter(wpn);
+        result:= (GetAlterZoomDirectSwitchMixupFactor(wpn) > 0) or (not IsAlterZoom(wpn) and not IsLastZoomAlter(wpn));
       end else begin
         result:=game_ini_r_bool_def(GetHUDSection(wpn), 'need_lens_frame', false) or game_ini_r_bool_def(GetSection(wpn), 'need_lens_frame', false);
       end;

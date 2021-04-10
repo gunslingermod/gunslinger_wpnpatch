@@ -11,6 +11,7 @@ function GetAlterScopeZoomFactor(wpn:pointer):single; stdcall;
 function IsAlterZoom(wpn:pointer):boolean; stdcall;
 function GetZoomLensVisibilityFactor(wpn:pointer):single; stdcall;
 function IsLastZoomAlter(wpn:pointer):boolean; stdcall;
+function GetAlterZoomDirectSwitchMixupFactor(wpn:pointer):single; stdcall;
 function IsHudModelForceUnhide(wpn:pointer):boolean; stdcall;
 function IsUIForceHiding(wpn:pointer): boolean;stdcall;
 function IsUIForceUnhiding(wpn:pointer): boolean;stdcall;
@@ -374,6 +375,17 @@ var
 begin
   buf := GetBuffer(wpn);
   result:= (buf<>nil) and buf.IsLastZoomAlter();
+end;
+
+function GetAlterZoomDirectSwitchMixupFactor(wpn:pointer):single; stdcall;
+var
+  buf:WpnBuf;
+begin
+  result:=0;
+  buf := GetBuffer(wpn);
+  if buf <> nil then begin
+    result:= buf.GetAlterZoomDirectSwitchMixupFactor();
+  end;
 end;
 
 procedure CWeapon__OnZoomIn_PreExit_Patch();
