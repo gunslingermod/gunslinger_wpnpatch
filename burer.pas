@@ -279,7 +279,9 @@ begin
       force_shield:=true;
     end else if sniper_weapon then begin
       pgravi_ready^:=false;
-      if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer) or (random < 0.3)) and panti_aim_ready^ then begin
+      if ((GetCurrentAmmoCount(itm) = 0) or (GetCurrentState(itm) = EWeaponStates__eReload)) and panti_aim_ready^ then begin
+        force_antiaim:=true
+      end else if (IsLongRecharge(itm, MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) or IsActorLookTurnedAway(burer) or (random < 0.3)) and panti_aim_ready^ then begin
         force_antiaim:=true
       end else begin
         if (previous_state^ = eStateBurerAttack_Shield) and not IsBurerUnderAim(burer, BurerUnderAimWide) and panti_aim_ready^ then begin
