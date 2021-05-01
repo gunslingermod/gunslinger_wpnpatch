@@ -54,7 +54,8 @@ uses
   DynamicWallmarks in 'DynamicWallmarks.pas',
   HqGeometryFix in 'HqGeometryFix.pas',
   savedgames in 'savedgames.pas',
-  burer in 'burer.pas';
+  burer in 'burer.pas',
+  Vector in 'Vector.pas';
 
 {$R *.res}
 
