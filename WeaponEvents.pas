@@ -1397,6 +1397,11 @@ var
   lens_params:lens_zoom_params;
   dt, oldpos:single;
   force_zoom_sound:boolean;
+
+  is_rpm_limit:boolean;
+
+const
+  PROHIBIT_SHOOT_TIME:cardinal = 100;  
 begin
   result:=false;
   buf:=GetBuffer(wpn);
@@ -1412,9 +1417,15 @@ begin
     end;
   end;
 
-  if (id=kWPN_FIRE) and IsActorControlled() then begin
-      result:=true;
-      exit;  
+  // Защита от "залипания" и повторных выстрелов при маленькой скорострельности
+  is_rpm_limit:=false;
+  if (buf <> nil) then begin
+    is_rpm_limit:= (buf.GetTimeBeforeNextShot() > (PROHIBIT_SHOOT_TIME / 1000));
+  end;
+
+  if (id=kWPN_FIRE) and (IsActorControlled() or is_rpm_limit) then begin
+    result:=true;
+    exit;
   end;
 
   if (id=kLASER) and (flags=kActPress) then begin
