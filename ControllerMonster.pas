@@ -356,7 +356,7 @@ begin
     end;
   end else begin
     if can_shoot then begin
-      result:= (GetAmmoInMagCount(wpn) > 0) and not IsWeaponJammed(wpn)
+      result:= (GetAmmoInMagCount(wpn) > 0) and not IsWeaponJammed(wpn) and (GetCurrentState(wpn) <> EWeaponStates__eReload);
     end else begin
       result:=true;
     end;
