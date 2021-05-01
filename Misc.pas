@@ -1580,10 +1580,36 @@ asm
   jmp eax
 end;
 
+procedure KillerThread(); stdcall;
+var
+  kill_key_pressed:boolean;
+  f4_state, ctrl_state:boolean;
+begin
+  kill_key_pressed:=false;
+  while(true) do begin
+    f4_state:=GetAsyncKeyState(VK_F4) < 0;
+    if f4_state then begin
+      ctrl_state:=GetAsyncKeyState(VK_LCONTROL) < 0;
+      if ctrl_state then begin
+        if kill_key_pressed then begin
+          TerminateProcess(GetCurrentProcess(), 1013);
+        end else begin
+          kill_key_pressed:=true;
+        end;
+      end else begin
+        kill_key_pressed:=false;
+      end;
+    end else begin
+      kill_key_pressed:=false;
+    end;
+    
+    Sleep(1000);
+  end;
+end;
 
 function Init():boolean;stdcall;
 var
-  jmp_addr, jmp_addr_to:cardinal;
+  jmp_addr, jmp_addr_to, tid:cardinal;
 begin
   _update_dist_koef:=1.0;
 
@@ -1663,9 +1689,12 @@ begin
   jmp_addr:=xrEngine_addr+$1b3c0;
   if not WriteJump(jmp_addr, cardinal(@CObjectList__Update_SkipUpdate_Patch), 6, true) then exit;
 
+  //Убийца процесса игры при мёртвом зависании
+  tid:=0;
+  if CreateThread(nil, 0, @KillerThread, 0, 0, tid) = 0 then exit;
+
   result:=true;
 end;
-
 
 
 var
