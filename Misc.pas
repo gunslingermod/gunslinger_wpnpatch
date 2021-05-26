@@ -1714,6 +1714,7 @@ begin
 end;
 
 // CInventory::Update - xrgame.dll+2a83a0
+// CScriptGameObject::buy_supplies - xrgame.dll+1c3df0
 
 
 end.

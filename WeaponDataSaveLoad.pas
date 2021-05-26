@@ -418,6 +418,7 @@ begin
   jmp_addr:=xrGame_addr+$2BEFE4;
   if not WriteJump(jmp_addr, cardinal(@CWeapon_NetDestroy_SaveData_Patch), 5, true) then exit;
 
+  // Врезка в CWeapon::load для загрузки данных мода
   jmp_addr:=xrGame_addr+$2BF195;
   if not WriteJump(jmp_addr, cardinal(@CWeapon__load_Patch), 7, false) then exit;
 
