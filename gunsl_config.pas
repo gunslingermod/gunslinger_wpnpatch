@@ -249,6 +249,8 @@ function GetUpgradeMenuPointOffsetX(need_16x9:boolean):integer;
 
 function GetBoarHitParams():boar_hit_params;
 
+function GetActorFallHitKoef():single;
+
 var
   g_pickup_distance:single;
 
@@ -335,6 +337,8 @@ var
   _upgrade_menu_points_offset_x_16x9:integer;
 
   _boar_hit_params:boar_hit_params;
+
+  _actor_fall_hit_koef:single;
 
 //данные консольных команд
 //булевские флаги
@@ -953,6 +957,8 @@ begin
   _boar_hit_params.min_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmin', 0.15);
   _boar_hit_params.max_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmax', 0.3);
 
+  _actor_fall_hit_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_fall_hit_koef', 1.0);
+
   result:=true;
 end;
 
@@ -1281,6 +1287,11 @@ end;
 function GetBoarHitParams(): boar_hit_params;
 begin
   result:=_boar_hit_params;
+end;
+
+function GetActorFallHitKoef():single;
+begin
+  result:=_actor_fall_hit_koef;
 end;
 
 end.

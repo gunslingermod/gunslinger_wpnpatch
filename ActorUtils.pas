@@ -3890,6 +3890,24 @@ asm
   ret
 end;
 
+
+procedure CorrectActorPhysicsHit(phit:pSHit); stdcall;
+begin
+  if GetActorActionState(GetActor(), actFall, mstate_REAL) then begin
+    phit.power:=phit.power*GetActorFallHitKoef();
+  end;
+end;
+
+procedure CActor__g_Physics_FallHit_Patch(); stdcall;
+asm
+  lea edx, [esp+$40] // HDS
+  pushad
+  push edx
+  call CorrectActorPhysicsHit
+  popad
+  lea edx,[esp+$88] // original code
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -4068,6 +4086,10 @@ begin
   // в CActor::UpdateCL добавляем сохранение активного режима подъема предметов
   jmp_addr:=xrGame_addr+$261e8e;
   if not WriteJump(jmp_addr, cardinal(@CActor__UpdateCL_PickupMode_Patch), 6, true) then exit;
+
+  // в CActor::g_Physics перед отправкой нетпакета корректируем данные в нём (увеличиваем урон от падений)
+  jmp_addr:=xrGame_addr+$261db0;
+  if not WriteJump(jmp_addr, cardinal(@CActor__g_Physics_FallHit_Patch), 7, true) then exit;
 
   result:=true;
 end;
