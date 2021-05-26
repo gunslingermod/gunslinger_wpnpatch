@@ -42,6 +42,7 @@ var
   binder_affects:R_constant_setup;
   binder_timearrow:R_constant_setup;
   binder_timearrow2:R_constant_setup;
+  binder_digiclock:R_constant_setup;
 
 
 
@@ -258,6 +259,28 @@ begin
   RCache__set(C, sin(sec_angle), cos(sec_angle), sin(compass_angle), cos(compass_angle));
 end;
 
+procedure binder_digiclock_setup(C:pR_constant); stdcall;
+var
+  y, mo, d, h, m, s, ms:integer;
+  hh, hl, mh, ml:single;
+begin
+  y:=0;
+  mo:=0;
+  d:=0;
+  h:=0;
+  m:=0;
+  s:=0;
+  ms:=0;
+
+  get_split_time(@y, @mo, @d, @h, @m, @s, @ms);
+  hh:= (h div 10) / 10; //старший разряд часов
+  hl:= (h mod 10) / 10; //младший разряд часов
+  mh:= (m div 10) / 10; //старший разряд минут
+  ml:= (m mod 10) / 10; //младший разряд минут  
+
+  RCache__set(C, hh, hl, mh, ml);
+end;
+
 ////////////////////////////////////////////////////////////////////////
 procedure CBlender_Compile__SetMapping(this:pointer); stdcall;
 begin
@@ -287,6 +310,10 @@ begin
   binder_timearrow2.vftable:=@r_constant_vftable;
   binder_timearrow2.setup_proc_addr:=@binder_timearrow2_setup;
   CBlender_Compile__r_Constant(this, 'm_timearrow2', @binder_timearrow2);
+
+  binder_digiclock.vftable:=@r_constant_vftable;
+  binder_digiclock.setup_proc_addr:=@binder_digiclock_setup;
+  CBlender_Compile__r_Constant(this, 'm_digiclock', @binder_digiclock);
 end;
 
 //Патч для добавления констант
