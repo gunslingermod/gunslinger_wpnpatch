@@ -800,6 +800,8 @@ end;
 function CanAimNow(wpn:pointer):boolean;stdcall;
 var
   tmp:pointer;
+  sect:PAnsiChar;
+  gl_status:integer;
 begin
   result:=true;
   if IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing() then begin
@@ -816,6 +818,20 @@ begin
         result:=false
       else
         result:=true;
+    end;
+
+    if result then begin
+      gl_status:=GetGLStatus(wpn);
+      if ((gl_status=1) or ((gl_status=2) and (IsGLAttached(wpn)))) and IsGLEnabled(wpn) then begin
+        if IsScopeAttached(wpn) then begin
+          sect:=GetCurrentScopeSection(wpn);
+        end else begin
+          sect:=GetHUDSection(wpn);
+        end;
+        if game_ini_r_bool_def(sect, 'prohibit_aim_for_grenade_mode', false) then begin
+          result:=false;
+        end;
+      end;
     end;
   end;
 end;
