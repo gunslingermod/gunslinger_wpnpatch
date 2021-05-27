@@ -5,7 +5,7 @@ unit WeaponAnims;
 
 interface
 function Init:boolean;
-function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
+function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false; allow_noscope_prefix:boolean = false):string; stdcall;
 function ModifierAlterSprint(wpn:pointer; base_anim:string):string;stdcall;
 function CanReloadNow(wpn:pointer):boolean; stdcall;
 
@@ -286,7 +286,7 @@ begin
 end;
 
 //------------------------------------------------------------------------------anm_show/hide/bore/switch_*-----------------------
-function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false):string;stdcall;
+function ModifierStd(wpn:pointer; base_anim:string; disable_noanim_hint:boolean=false; allow_noscope_prefix:boolean = false):string; stdcall;
 var
   hud_sect:PChar;
   actor:pointer;
@@ -320,6 +320,13 @@ begin
   
   ModifierGL(wpn, base_anim);
   ModifierBM16(wpn, base_anim);
+
+  if allow_noscope_prefix and game_ini_line_exist(hud_sect, PChar(base_anim+'_noscope')) then begin
+    //кастомная анимация при отсутсвующем прицеле
+    if (GetScopeStatus(wpn)<>2) or not IsScopeAttached(wpn) then
+      base_anim:=base_anim+'_noscope';
+  end;
+
   if not disable_noanim_hint then begin
     if not game_ini_line_exist(hud_sect, PChar(base_anim)) then begin
       log('Section ['+hud_sect+'] has no motion alias defined ['+base_anim+']');
@@ -331,11 +338,11 @@ begin
   result:=base_anim;
 end;
 
-function anm_std_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
+function anm_std_selector(wpn:pointer; base_anim:PChar; allow_noscope_prefix:boolean):pchar;stdcall;
 var
   v:FVector3;
 begin
-  anim_name := ModifierStd(wpn, base_anim);
+  anim_name := ModifierStd(wpn, base_anim, false, allow_noscope_prefix);
   if ReadActionDOFVector(wpn, v, anim_name, false) then begin
     SetDOF(v, ReadActionDOFSpeed_In(wpn, anim_name));
   end;
@@ -365,7 +372,7 @@ begin
       anm_show:='anm_show_suicide';
     end;
   end;
-  result:=anm_std_selector(wpn, anm_show);
+  result:=anm_std_selector(wpn, anm_show, false);
 end;
 
 function anm_bore_selector(wpn:pointer; base_anim:PChar):pchar;stdcall;
@@ -374,11 +381,11 @@ var
 begin
   snd:=nil;
   if (GetActor<>nil) and (GetActor()=GetOwner(wpn)) and (GetActorActionState(GetActor(), actModNeedBlowoutAnim)) then begin
-    result:=anm_std_selector(wpn, 'anm_blowout');
+    result:=anm_std_selector(wpn, 'anm_blowout', false);
     snd:='sndBlowout';
     SetActorActionState(GetActor(), actModNeedBlowoutAnim, false);
   end else begin
-    result:=anm_std_selector(wpn, base_anim);
+    result:=anm_std_selector(wpn, base_anim, false);
     snd:='sndBore';
   end;
 
@@ -440,6 +447,7 @@ asm
 
     pushad
     pushfd
+      push 0
       push anm_hide
       push esi
       call anm_std_selector   //получаем строку с именем анимы
@@ -528,6 +536,7 @@ asm
     pushad
     pushfd
     sub esi, $2E0
+    push 1
     push anm_switch
     push esi
     call anm_std_selector  //получаем строку с именем анимы
@@ -557,7 +566,7 @@ begin
     tmpstr:=tmpstr+'_suicide';
   end;
 
-  result:=anm_std_selector(wpn, PChar(tmpstr));
+  result:=anm_std_selector(wpn, PChar(tmpstr), false);
 end;
 
 procedure anm_shoot_g_std_patch();stdcall;
