@@ -208,11 +208,15 @@ var addonname:PChar;
     hud_sect, sect:PChar;
     err_msg:PChar;
     key:cardinal;
+    need_detach_scope, need_detach_gl, need_detach_sil:boolean;
 begin
   param_name:=nil;
   snd_name:=nil;
   sect:=GetSection(wpn);
   err_msg:=nil;
+  need_detach_scope:=false;
+  need_detach_gl:=false;
+  need_detach_sil:=false;
   case addontype of
     1:begin
         //log ('scope_att');
@@ -225,9 +229,15 @@ begin
 
         if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_sil') and game_ini_r_bool(sect, 'restricted_scope_and_sil')  then begin
           err_msg:='gunsl_msg_sil_restricts_scope';
-        end else if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl') then begin
+          need_detach_sil:=true;
+        end;
+
+        if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl') then begin
           err_msg:='gunsl_msg_gl_restricts_scope';
-        end else if IsAimNow(wpn) then begin
+          need_detach_gl:=true;
+        end;
+
+        if IsAimNow(wpn) then begin
           if IsAlterZoom(wpn) then begin
             key:=kWPN_ZOOM_ALTER;          
           end else begin
@@ -248,8 +258,12 @@ begin
         addonname:=GetSilencerSection(wpn);
         if IsScopeAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_sil') and game_ini_r_bool(sect, 'restricted_scope_and_sil')  then begin
           err_msg:='gunsl_msg_scope_restricts_sil';
-        end else if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
+          need_detach_scope:=true;
+        end;
+
+        if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
           err_msg:='gunsl_msg_gl_restricts_sil';
+          need_detach_gl:=true;
         end;
       end;
     2:begin
@@ -260,8 +274,12 @@ begin
         addonname:=GetGLSection(wpn);
         if IsScopeAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl')  then begin
           err_msg:='gunsl_msg_scope_restricts_gl';
-        end else if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
+          need_detach_scope:=true;
+        end;
+
+        if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
           err_msg:='gunsl_msg_sil_restricts_gl';
+          need_detach_sil:=true;
         end;
       end;
     else begin
@@ -274,14 +292,23 @@ begin
   hud_sect:=GetHUDSection(wpn);
   actor:=GetActor();
   if not IsAnimatedAddons() then begin
-    if err_msg<>nil then begin
+    {if err_msg<>nil then begin
       if (actor<>nil) and (actor=GetOwner(wpn)) then begin
         Messenger.SendMessage(err_msg);
       end;
       result:=false
     end else begin
       result:=true;
+    end; }
+    if need_detach_scope then begin
+      DetachAddon(wpn, 1);
+    end else if need_detach_gl then begin
+      DetachAddon(wpn, 2);
+    end else if need_detach_sil then begin
+      DetachAddon(wpn, 4);
     end;
+
+    result:=true;
   end else if (actor<>nil) and (actor=GetOwner(wpn)) and (not CheckActorWeaponAvailabilityWithInform(wpn)) then begin
     //log('not_available');
     result:=false;
