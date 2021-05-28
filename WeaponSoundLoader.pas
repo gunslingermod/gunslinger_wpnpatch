@@ -22,7 +22,7 @@ type HUD_SOUND_ITEM = packed record
   m_alias:shared_str;
   m_activeSnd:pHUD_SOUND_ITEM_SSnd;
   m_b_exclusive:byte{bool};
-  _unused1:byte;
+  volume:byte; //в оригинале не используется, переопределяем под новую громкость
   _unused2:word;
   sounds_start:pHUD_SOUND_ITEM_SSnd;
   sounds_end:pHUD_SOUND_ITEM_SSnd;
@@ -53,7 +53,7 @@ procedure HUD_SOUND_COLLECTION__LoadSound(hcs:pHUD_SOUND_COLLECTION; section:PCh
 
 
 implementation
-uses BaseGameData, gunsl_config, HudItemUtils, sysutils;
+uses BaseGameData, gunsl_config, HudItemUtils, sysutils, math;
 
 var
   sound_load_magazined_addr:cardinal;
@@ -303,6 +303,44 @@ asm
   popad
 end;
 
+const
+  GLOBAL_HUD_VOLUME_KOEF:single=0.9;
+procedure HUD_SOUND_ITEM__LoadSndVolume(sect:PAnsiChar; param:PAnsiChar; hud_snd:pHUD_SOUND_ITEM); stdcall;
+var
+  vol:cardinal;
+  maxvol:cardinal;
+  param_name:string;
+begin
+  param_name:='volume_'+param;
+  vol:=game_ini_r_int_def(sect, PAnsiChar(param_name), 0); // в процентах
+  R_ASSERT(vol >= 0, PAnsiChar('Parameter "'+param_name+'" in section "'+sect+'" must be >= 0'), 'HUD_SOUND_ITEM__LoadSndVolume');
+
+  maxvol:= floor(100 / GLOBAL_HUD_VOLUME_KOEF);
+  R_ASSERT(vol <= maxvol, PAnsiChar('Parameter "'+param_name+'" in section "'+sect+'" must be <= '+inttostr(maxvol)), 'HUD_SOUND_ITEM__LoadSndVolume');
+
+  hud_snd.volume:=byte(vol);
+end;
+
+procedure HUD_SOUND_ITEM__LoadSound_loadvolume_Patch(); stdcall;
+asm
+  mov eax, esp
+  pushad
+    mov edx,[eax+$148]
+    push edx
+    lea edx, [eax+$3c]
+    push edx
+    push edi
+    call HUD_SOUND_ITEM__LoadSndVolume
+  popad
+
+  pop eax //ret addr
+
+  add esi, 01
+  push esi
+  push ebp
+  jmp eax
+end;
+
 
 procedure UpdateSoundsPos(collection:pHUD_SOUND_COLLECTION; pos:pFVector3);stdcall;
 var
@@ -423,10 +461,15 @@ begin
     // Log('Freq = '+floattostr(freq)+', unlock = '+booltostr(sound_unlocked, true));
   end;
 
-  volume:=1;
+  volume:=GLOBAL_HUD_VOLUME_KOEF;
+  if snd.volume <> 0 then begin      //Громкость переехала в ранее неиспользуемую область
+    volume:= snd.volume / 100;
+    //Log('Override volume '+floattostr(volume) +' for '+get_string_value(@snd.m_alias));
+  end;
+
   hud_mode:=((flags and sm_2D)<>0);
   if hud_mode then begin
-    volume:=GetHudSoundVolume();
+    volume:=volume * GetHudSoundVolume();
   end;
 
   if (not sound_unlocked) or ((snd.m_b_exclusive<>0) or ((flags and sm_Looped)<>0))  then begin
@@ -477,6 +520,14 @@ begin
     addr:=xrGame_addr+$2FB46C;
     nop_code(addr, 37);
     if not WriteJump(addr, cardinal(@HUD_SOUND_COLLECTION__LoadSound_Patch), 5, true) then exit;
+
+    //Добавление новой корректировки громкости звука
+    addr:=xrGame_addr+$2FB0F7;
+    if not WriteJump(addr, cardinal(@HUD_SOUND_ITEM__LoadSound_loadvolume_Patch), 5, true) then exit;
+
+    //Исправляем копирующий конструктор, чтобы при ресайзе вектора со звуками копировалось и наше значение громкости
+    nop_code(xrGame_addr+$2FAD37, 1, chr($8b));
+    nop_code(xrGame_addr+$2FAD41, 1, chr($89));
 
     //обновляем позиции всех звуков
     addr:=xrGame_addr+$2CCBD3;
