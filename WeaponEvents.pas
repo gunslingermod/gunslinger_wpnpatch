@@ -1446,7 +1446,7 @@ begin
 
   // Защита от "залипания" и повторных выстрелов при маленькой скорострельности
   is_rpm_limit:=false;
-  if (buf <> nil) then begin
+  if (buf <> nil) and (flags=kActPress) and (CurrentQueueSize(wpn) > 0) then begin
     is_rpm_limit:= (buf.GetTimeBeforeNextShot() > (PROHIBIT_SHOOT_TIME / 1000));
   end;
 
