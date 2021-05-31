@@ -1137,6 +1137,7 @@ end;
 procedure GetPDAScreen_kx_patcher(); stdcall;
 asm
   pushad
+    // ¬озвращаемое значение - в стеке FPU
     call GetPDAScreen_kx
   popad
 end;
@@ -1873,6 +1874,8 @@ begin
   jmp_addr:=xrGame_addr+$446DE3;
   if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
   jmp_addr:=xrGame_addr+$446E4F;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$446F0E;
   if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
 
   //CUIRankingWnd::get_favorite_weapon - избавитьс€ от вызова get_current_kx в отрисовке иконки оружи€
