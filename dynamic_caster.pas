@@ -50,6 +50,8 @@ const
   RTTI_CBurer:cardinal = $620238;
   RTTI_CBaseMonster:cardinal = $61d7f0;
   RTTI_CUIActorMenu = $63ee68;
+  RTTI_CUICustomMap = $63f030;
+  RTTI_CUIMiniMap = $63f0a4;
 
 
 

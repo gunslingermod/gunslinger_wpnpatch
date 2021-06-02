@@ -16,7 +16,6 @@ pCUITaskWnd=pointer;
 pCUIRankingWnd=pointer;
 pCLAItem=pointer;
 ui_shader = pointer;
-pCMapLocation=pointer;
 
 
 ITextureOwner = packed record
@@ -50,9 +49,9 @@ CUISimpleWindow = packed record
   m_bShowMe:byte;
   m_wndPos:FVector2;
   m_wndSize:FVector2;
-  m_alignment:cardinal;
   _unused1:byte;
   _unused2:word;
+  m_alignment:cardinal;
 end;
 pCUISimpleWindow=^CUISimpleWindow;
 
@@ -62,7 +61,7 @@ WINDOW_LIST = packed record
   vec_memend:pointer;    
 end;
 
-CUIWindow = packed record
+CUIWindow = packed record //sizeof = 0x54
   base_CUISimpleWindow:CUISimpleWindow;
   m_windowName:shared_str;
   m_ChildWndList:WINDOW_LIST;
@@ -77,11 +76,14 @@ CUIWindow = packed record
   m_bPP:byte;
   m_bIsEnabled:byte;
   m_bCursorOverWindow:byte;
+
+  //offset = 0x50
   m_bCustomDraw:byte;
   _unused1:byte;
   _unused2:word;
 end;
 pCUIWindow=^CUIWindow;
+ppCUIWindow=^pCUIWindow;
 
 lanim_cont = packed record
   m_lanim:pCLAItem;
@@ -114,21 +116,75 @@ pCUIStaticItem=^CUIStaticItem;
 
 CUIStatic = packed record
   base_CUIWindow:CUIWindow;
+  //offset = 0x54
   base_ITextureOwner:ITextureOwner;
+  //offset = 0x58
   base_CUILightAnimColorConrollerImpl:CUILightAnimColorConrollerImpl;
+  // offset = 0x6c
   m_lanim_xform:lanim_cont_xf;
+  //0x84
   m_pTextControl:pCUILines;
   m_bStretchTexture:byte;
   m_bTextureEnable:byte;
-  m_bHeading:byte;
-  m_bConstHeading:byte;  
+  unused1:word;
   m_UIStaticItem:CUIStaticItem;
+
+  //offset:0xc8
+  m_bHeading:byte;
+  m_bConstHeading:byte;
+  unused2:word;  
+  //offset:0xcc
   m_fHeading:single;
   m_TextureOffset:FVector2;
-  TextItemControl:pCUILines;
+  //offset:0xd8
   m_stat_hint_text:shared_str;
 end;
 pCUIStatic=^CUIStatic;
+
+SCachedValues = packed record
+  m_updatedFrame:cardinal;
+  m_graphID:word;
+  m_Position:FVector2;
+  m_Direction:FVector2;
+  unused1:word;
+  m_LevelName:shared_str;
+  m_Actuality:byte; {boolean}
+end;
+
+CMapLocation = packed record
+  vftable:pointer;
+  m_flags:cardinal;
+  m_hint:shared_str;
+
+  m_level_spot:pointer;
+  m_level_spot_pointer:pointer;
+  m_minimap_spot:pointer;
+  m_minimap_spot_pointer:pointer;
+  m_complex_spot:pointer;
+  m_complex_spot_pointer:pointer;
+
+  m_spot_border_names:array[0..5] of shared_str;
+  m_level_map_spot_border:pointer;
+  m_mini_map_spot_border:pointer;
+  m_complex_spot_border:pointer;
+
+  m_level_map_spot_border_na:pointer;
+  m_mini_map_spot_border_na:pointer;
+  m_complex_spot_border_na:pointer;
+
+  //offset: 0x54
+  m_objectID:word;
+  unused1:word;
+  m_owner_se_object:pointer;
+  m_ttl:integer;
+  m_actual_time:cardinal;
+  m_position_global:FVector3;
+  m_position_on_map:FVector2;
+
+  //offset:0x78
+  m_cached:SCachedValues;
+end;
+pCMapLocation = ^CMapLocation;
 
 CMapSpot = packed record
   base_CUIStatic:CUIStatic;
@@ -142,6 +198,7 @@ CMapSpot = packed record
   m_originSize:FVector2;
 end;
 pCMapSpot=^CMapSpot;
+ppCMapSpot=^pCMapSpot;
 
 CUIDialogWnd = packed record
   base_CUIWindow:CUIWindow;
@@ -1089,19 +1146,24 @@ end;
 procedure ResizeMapSpots(map:pCUIWindow; k:single); stdcall;
 var
   vec_element:pointer;
+  spot_wnd:pCUIWindow;
   spot:pCMapSpot;
   scale:single;
 begin
   if cardinal(map.m_ChildWndList.vec_start)=0 then exit;
   vec_element:=map.m_ChildWndList.vec_start;
   while vec_element<>map.m_ChildWndList.vec_end do begin
-    spot:=pCMapSpot(pcardinal(vec_element)^);
-    if dynamic_cast(spot, 0, RTTI_CUIWindow, RTTI_CMapSpot, false)=nil then continue;
-    scale:=spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y/spot.m_originSize.y;
-    spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_originSize.x*scale*k;
-    if (spot.m_border_static<>nil) then begin
-      //only square borders suported now! If you need not square - use unused bytes to store origin sizes
-      spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y*k;
+    spot_wnd:=(ppCUIWindow(vec_element))^;
+    spot:=dynamic_cast(spot_wnd, 0, RTTI_CUIWindow, RTTI_CMapSpot, false);
+    if (spot<>nil) then begin;
+      if spot.base_CUIStatic.m_bHeading = 0 then begin
+        scale:=spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y/spot.m_originSize.y;
+        spot.base_CUIStatic.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_originSize.x*scale*k;
+        if (spot.m_border_static<>nil) then begin
+          //only square borders suported now! If you need not square - use unused bytes to store origin sizes
+          spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.x:=spot.m_border_static.base_CUIWindow.base_CUISimpleWindow.m_wndSize.y*k;
+        end;
+      end;
     end;
 
     vec_element:=pointer(cardinal(vec_element)+sizeof(pointer));
@@ -1139,6 +1201,28 @@ asm
   pushad
     // Возвращаемое значение - в стеке FPU
     call GetPDAScreen_kx
+  popad
+end;
+
+procedure GetPDAScreen_kx_patcher_checkforminimap_esi(); stdcall;
+asm
+  pushad
+  push 0
+  push RTTI_CUIMiniMap
+  push RTTI_CUICustomMap
+  push 0
+  push esi
+  call dynamic_cast
+  test eax, eax
+  je @not_minimap
+  
+  call get_current_kx
+  jmp @finish
+
+  @not_minimap:
+  call GetPDAScreen_kx
+
+  @finish:
   popad
 end;
 
@@ -1847,7 +1931,7 @@ begin
   nop_code(xrgame_addr+$495EFC, 1, char($24));
 
   //[bug] баг - при смене соотношения сторон экрана метки на карте (CMapSpot) не изменяют пропорции
-  //По аналогичным причинам имеются проблемы с оваласи на ПДА
+  //По аналогичным причинам имеются проблемы с овалами на ПДА
   //отключаем движковое применение коэффициента сжатия в CMapSpot::Load (вызовы SetWidth)
   nop_code(xrgame_addr+$443EF0, 34);
   nop_code(xrgame_addr+$44404E, 44);
@@ -1870,13 +1954,21 @@ begin
   if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
   //3.CUICustomMap::ConvertRealToLocal
   jmp_addr:=xrGame_addr+$446DD1;
-  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher_checkforminimap_esi), 5, true) then exit;
   jmp_addr:=xrGame_addr+$446DE3;
-  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher_checkforminimap_esi), 5, true) then exit;
   jmp_addr:=xrGame_addr+$446E4F;
-  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher_checkforminimap_esi), 5, true) then exit;
   jmp_addr:=xrGame_addr+$446F0E;
-  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher), 5, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@GetPDAScreen_kx_patcher_checkforminimap_esi), 5, true) then exit;
+
+  //В конце CUICustomMap::ConvertRealToLocal меняем указатель выходного буфера с ESI на EDX, чтобы не перезаписывался this (нам он енужен для патча xrGame_addr+$446E4F)
+  nop_code(xrGame_addr+$446e24, 1, CHR($54));
+  nop_code(xrGame_addr+$446e46, 1, CHR($02));
+  nop_code(xrGame_addr+$446e48, 1, CHR($4a));
+  nop_code(xrGame_addr+$446e55, 1, CHR($0a));
+  nop_code(xrGame_addr+$446e58, 1, CHR($c2));
+  nop_code(xrGame_addr+$446e5a, 1, CHR($1a));
 
   //CUIRankingWnd::get_favorite_weapon - избавиться от вызова get_current_kx в отрисовке иконки оружия
   jmp_addr:=xrGame_addr+$44C254;
