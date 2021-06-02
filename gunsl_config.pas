@@ -96,6 +96,8 @@ end;
 type burer_superstamina_hit_params = record
   distance:single;
   stamina_decrease:single;
+  minimal_stamina:single;
+  minimal_stamina_health:single;
   power:single;
   impulse:single;
   hit_type:cardinal;
@@ -930,6 +932,8 @@ begin
 
   _burer_superstaminahit_params.distance:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_dist', 15);
   _burer_superstaminahit_params.stamina_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_value', 1000);
+  _burer_superstaminahit_params.minimal_stamina:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_minimal_stamina', 0.05);
+  _burer_superstaminahit_params.minimal_stamina_health:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superstaminahit_minimal_stamina_health', 0.5);
   _burer_superstaminahit_params.power:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_power', -1);
   _burer_superstaminahit_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_impulse', 10);
   _burer_superstaminahit_params.hit_type:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_superhealthhit_type', 5);

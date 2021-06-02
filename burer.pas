@@ -1295,6 +1295,35 @@ asm
   ret
 end;
 
+procedure RestoreMinimalStamina(); stdcall;
+var
+  act:pointer;
+  ss_params:burer_superstamina_hit_params;
+const
+  SUPERSTAMINA_HIT_PERIOD:cardinal=100;
+begin
+  act:=GetActor();
+  if (act <> nil) and (GetTimeDeltaSafe(GetLastSuperStaminaHitTime()) < SUPERSTAMINA_HIT_PERIOD) then begin
+    ss_params:=GetBurerSuperstaminaHitParams();
+    if (GetActorStamina(act) < ss_params.minimal_stamina) and (GetActorHealth(act) > ss_params.minimal_stamina_health) then begin
+      SetActorStamina(act, ss_params.minimal_stamina);
+    end;
+  end;
+end;
+
+procedure CBurer__StaminaHit_RestoreMinimalStamina_Patch(); stdcall;
+asm
+  pushad
+    call RestoreMinimalStamina
+  popad
+  pop eax //ret addr
+  pop edi
+  pop ebx
+  pop esi
+  add esp, $28
+  jmp eax
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -1304,6 +1333,10 @@ begin
   //в CBurer::StaminaHit (xrgame+102730) - увеличивает урон стамине, если актор слишком близко
   jmp_addr:=xrGame_addr+$1027a2;
   if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_Patch), 6, true) then exit;
+
+  //в конце CBurer::StaminaHit восстанавливаем минимальную стамину актору
+  jmp_addr:=xrGame_addr+$1028dd;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_RestoreMinimalStamina_Patch), 6, true) then exit;
 
   //в CStateBurerAttack<Object>::execute (xrgame.dll+10ab20) меняем приоритеты, чтобы при приближении актора с наличием стамины эту стамину отнимало
   jmp_addr:=xrGame_addr+$10acb5;
