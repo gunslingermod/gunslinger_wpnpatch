@@ -55,7 +55,8 @@ uses
   HqGeometryFix in 'HqGeometryFix.pas',
   savedgames in 'savedgames.pas',
   burer in 'burer.pas',
-  Vector in 'Vector.pas';
+  Vector in 'Vector.pas',
+  xr_map in 'xr_map.pas';
 
 {$R *.res}
 
