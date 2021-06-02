@@ -240,6 +240,7 @@ function GetBurerMinGrenTimer():cardinal; stdcall;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
 function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
+function GetBoneNameForBurerTeleFire():PAnsiChar; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -1268,6 +1269,20 @@ end;
 function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
 begin
   result:=_weapon_physics_damage_params;
+end;
+
+function GetBoneNameForBurerTeleFire():PAnsiChar; stdcall;
+var
+  cnt, i:cardinal;
+  param:string;
+begin
+  result:='';
+  cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_bones_count', 0);
+  if cnt > 0 then begin
+    i:=floor(random * i);
+    param:='burer_teleweapon_bone_'+inttostr(i);
+    result:=game_ini_read_string_def(GUNSL_BASE_SECTION, PAnsiChar(param), '');
+  end;
 end;
 
 function GetHudSoundVolume():single;

@@ -138,6 +138,7 @@ function IsHardUpdates():boolean; stdcall;
 
 function GetHudNearClipPtr():psingle; stdcall;
 function GetNegHudNearClipPtr():psingle; stdcall;
+procedure get_bone_position(obj:pointer; bone_name:pAnsiChar; res:pFVector3); stdcall;
 
 type MouseCoord = TPoint;
 function GetSysMousePoint():MouseCoord;
@@ -1711,6 +1712,19 @@ function GetNegHudNearClipPtr():psingle; stdcall;
 begin
   g_negHudNearClip:=-0.02;
   result:=@g_negHudNearClip;
+end;
+
+procedure get_bone_position(obj:pointer; bone_name:pAnsiChar; res:pFVector3); stdcall;
+asm
+  pushad
+    push bone_name
+    push obj
+    push res
+    mov eax, xrgame_addr
+    add eax, $cef70
+    call eax
+    add esp, $c
+  popad
 end;
 
 // CInventory::Update - xrgame.dll+2a83a0

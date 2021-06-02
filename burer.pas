@@ -1256,6 +1256,39 @@ asm
   jmp eax
 end;
 
+procedure OverrideTeleAttackTargetPoint(coords:pFVector3; target_object:pointer); stdcall;
+var
+  bone:PAnsiChar;
+begin
+  if (target_object<>nil) and (GetActor() = target_object) then begin
+    bone:=GetBoneNameForBurerTeleFire();
+    if length(bone)>0 then begin
+      get_bone_position(target_object, bone,  coords);
+    end;
+  end;
+end;
+
+procedure CStateBurerAttackTele__FireAllToEnemy_selecttargetpatch(); stdcall;
+asm
+  push [esp+8] //дублируем аргумент с указателем на цель
+  push [esp+8] //дублируем аргумент с указателем на выходной вектор
+
+  mov eax, xrgame_addr
+  add eax, $cf0d0 //get_head_position
+  call eax;
+  add esp, 8 // снимаем аргументы
+
+  mov edx, [esp+8]
+  pushad
+  push edx // указатель на цель
+  push eax // указатель на буфер с координатами 
+  call OverrideTeleAttackTargetPoint
+  popad
+
+  pop edx //ret addr
+  jmp edx
+end;
+
 procedure anti_aim_ability__check_start_condition__candetect_Patch(); stdcall;
 asm
   mov eax, 1
@@ -1388,6 +1421,10 @@ begin
   jmp_addr:=xrGame_addr+$cf88d;
   if not WriteJump(jmp_addr, cardinal(@anti_aim_ability__check_start_condition__candetect_Patch), 5, true) then exit;
 
+  //В CStateBurerAttackTele<Object>::FireAllToEnemy рандомизируем выбор кости, по которой идёт бросок
+  jmp_addr:=xrGame_addr+$104db0;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FireAllToEnemy_selecttargetpatch), 5, true) then exit;
+
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
 
@@ -1404,7 +1441,8 @@ begin
   //CStateBurerAttackGravi::ExecuteGraviContinue - xrgame.dll+105730
   //CStateBurerAttackTele::critical_finalize - xrgame.dll+1092a0
   //CStateBurerAttackTele::deactivate - xrgame.dll+1083f0
-  //CStateBurerAttackTele<Object>::FireAllToEnemy - xrgame.dll+104d80
+  //CStateBurerAttackTele::ExecuteTeleFire - 
+  //CStateBurerAttackTele::FireAllToEnemy - xrgame.dll+104d80
   //CStateBurerAttackTele::initialize - xrgame.dll+10a40b
   //CStateBurerAttackTele::SelectObjects - xrgame.dll+109b50
   //CTelekinesis::activate - xrgame.dll+da250
