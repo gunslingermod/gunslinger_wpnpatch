@@ -1112,7 +1112,8 @@ end;
 
 procedure CStateBurerAttackGravi__ExecuteGraviContinue_delay_Patch(); stdcall;
 asm
-  fldcw [esp]
+  fldcw [esp+4]
+
   pushad
   mov eax, [ecx+$10]
   push eax
@@ -1403,6 +1404,7 @@ begin
   //CStateBurerAttackGravi::ExecuteGraviContinue - xrgame.dll+105730
   //CStateBurerAttackTele::critical_finalize - xrgame.dll+1092a0
   //CStateBurerAttackTele::deactivate - xrgame.dll+1083f0
+  //CStateBurerAttackTele<Object>::FireAllToEnemy - xrgame.dll+104d80
   //CStateBurerAttackTele::initialize - xrgame.dll+10a40b
   //CStateBurerAttackTele::SelectObjects - xrgame.dll+109b50
   //CTelekinesis::activate - xrgame.dll+da250
