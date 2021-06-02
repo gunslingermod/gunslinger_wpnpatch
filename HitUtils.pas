@@ -28,6 +28,12 @@ type
   end;
   pSHit = ^SHit;
 
+  CHitImmunity = packed record
+    vftable:pointer;
+    m_HitImmunityKoefs:array[0..10] of single;
+    m_HitImmunityKoefs_size:cardinal;
+  end;
+
 const
     EHitType__eHitTypeBurn:cardinal = 0;
     EHitType__eHitTypeShock:cardinal = 1;

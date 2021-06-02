@@ -156,7 +156,7 @@ begin
     actor_wpn_loading:=1;
   end;
 
-  actor_health:=GetActorHealthPtr(act)^;
+  actor_health:=GetActorHealth(act);
   RCache__set(C, actor_health, actor_outfit_cond, actor_weapon_cond, actor_wpn_loading);
 end;
 

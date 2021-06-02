@@ -7,7 +7,7 @@ unit ActorUtils;
 {$define USE_SCRIPT_USABLE_HUDITEMS}  //на всякий - потом все равно в двиг надо перекинуть, но влом - и так отлично работает
 
 interface
-uses LightUtils, WeaponAdditionalBuffer, MatVectors;
+uses LightUtils, WeaponAdditionalBuffer, MatVectors, HitUtils, vector, xr_map;
 
 const
   actMovingForward:cardinal = $1;
@@ -64,6 +64,173 @@ type
     base:torchlight_params;
     aim_offset:FVector3;
   end;
+
+  CEntityConditionSimple = packed record
+    vftable:pointer;
+    m_fHealth:single;
+    m_fHealthMax:single;
+  end;
+
+  SConditionChangeV = packed record //sizeof = 0x20
+		m_fV_Radiation:single;
+		m_fV_PsyHealth:single;
+		m_fV_Circumspection:single;
+		m_fV_EntityMorale:single;
+		m_fV_RadiationHealth:single;
+		m_fV_Bleeding:single;
+		m_fV_WoundIncarnation:single;
+		m_fV_HealthRestore:single;
+  end;
+
+  SBooster = packed record
+	  fBoostTime:single;
+	  fBoostValue:single;
+	  m_type:cardinal;
+  end;
+  pSBooster = ^SBooster;
+
+  BOOSTER_MAP = packed record // sizeof = 0x1c
+    data:xr_integerindexed_map_base;
+  end;
+
+  CEntityCondition = packed record //xizeof = 0x140;
+    base_CEntityConditionSimple:CEntityConditionSimple;
+    base_CHitImmunity:CHitImmunity;
+    //offset: 0x40
+    m_use_limping_state:byte; {boolean}
+    _unused1:byte;
+    _unused2:word;
+    m_object:pointer;
+    m_WoundVector:xr_vector;
+    m_fPower:single;
+    m_fRadiation:single;
+    m_fPsyHealth:single;
+    m_fEntityMorale:single;
+    //offset:0x64
+    m_fPowerMax:single;
+    m_fRadiationMax:single;
+    m_fPsyHealthMax:single;
+    m_fEntityMoraleMax:single;
+    //offset:0x74
+	  m_fDeltaHealth:single;
+  	m_fDeltaPower:single;
+  	m_fDeltaRadiation:single;
+  	m_fDeltaPsyHealth:single;
+    m_fDeltaCircumspection:single;
+  	m_fDeltaEntityMorale:single;
+    //offset:0x8c
+    m_change_v:SConditionChangeV;
+    //offset:0xac
+    m_fMinWoundSize:single;
+    //offset:0xb0
+    m_bIsBleeding:boolean;
+    _unused3:byte;
+    _unused4:word;
+    m_fHealthHitPart:single;
+    m_fPowerHitPart:single;
+    //offset:0xbc
+    m_fBoostBurnImmunity:single;
+    m_fBoostShockImmunity:single;
+    m_fBoostRadiationImmunity:single;
+    m_fBoostTelepaticImmunity:single;
+    m_fBoostChemicalBurnImmunity:single;
+    m_fBoostExplImmunity:single;
+    m_fBoostStrikeImmunity:single;
+    m_fBoostFireWoundImmunity:single;
+    m_fBoostWoundImmunity:single;
+    m_fBoostRadiationProtection:single;
+    m_fBoostTelepaticProtection:single;
+    m_fBoostChemicalBurnProtection:single;
+    //offset:0xec
+    m_fHealthLost:single;
+    m_fKillHitTreshold:single;
+  	m_fLastChanceHealth:single;
+		m_fInvulnerableTime:single;
+		m_fInvulnerableTimeDelta:single;
+    //offset:0x100
+    m_iLastTimeCalled:Int64;
+    m_fDeltaTime:single;
+    m_pWho:pointer;
+    //offset:0x110
+    m_iWhoID:word;
+    _unused5:word;
+    m_fHitBoneScale:single;
+    m_fWoundBoneScale:single;
+    m_limping_threshold:single;
+    //offset:0x120
+    m_bTimeValid:byte; {boolean}
+    m_bCanBeHarmed:byte; {boolean}
+    _unused6:word;
+    m_booster_influences:BOOSTER_MAP;
+  end;
+  pCEntityCondition=^CEntityCondition;
+
+  SMedicineInfluenceValues = packed record  //sizeof = 0x24
+    fHealth:single;
+    fPower:single;
+    fSatiety:single;
+    fRadiation:single;
+    fWoundsHeal:single;
+    fMaxPowerUp:single;
+    fAlcohol:single;
+    fTimeTotal:single;
+    fTimeCurrent:single;  
+  end;
+
+  CActorCondition = packed record //sizeof = 0x224
+    base_CEntityCondition:CEntityCondition;
+    //offset:0x140
+    m_condition_flags:cardinal;
+    m_object:pointer;
+    m_death_effector:pointer;
+    //offset:0x14c
+    m_curr_medicine_influence:SMedicineInfluenceValues;
+    //offset:0x170
+    m_fAlcohol:single;
+    m_fV_Alcohol:single;
+    m_fSatiety:single;
+    m_fV_Satiety:single;
+    m_fV_SatietyPower:single;
+    m_fV_SatietyHealth:single;
+    m_fSatietyCritical:single;
+    m_fPowerLeakSpeed:single;
+    //offset:0x190
+    m_fJumpPower:single;
+    m_fStandPower:single;
+    m_fWalkPower:single;
+    m_fJumpWeightPower:single;
+    m_fWalkWeightPower:single;
+    m_fOverweightWalkK:single;
+    m_fOverweightJumpK:single;
+    m_fAccelK:single;
+    m_fSprintK:single;
+    m_MaxWalkWeight:single;
+    //offset:0x1b8
+    m_zone_max_power: array [0..4] of single;
+    m_zone_danger: array [0..4] of single;
+    //offset:0x1e0
+    m_f_time_affected:single;
+    m_max_power_restore_speed:single;
+    m_max_wound_protection:single;
+    m_max_fire_wound_protection:single;
+    //offset:0x1f0
+    m_bLimping:byte; {boolean}
+    m_bCantWalk:byte; {boolean}
+    m_bCantSprint:byte; {boolean}
+    _unused1:byte;
+    //offset:0x1f4
+    m_fLimpingPowerBegin:single;
+    m_fLimpingPowerEnd:single;
+    m_fCantWalkPowerBegin:single;
+    m_fCantWalkPowerEnd:single;
+    //offset:0x214
+    m_fCantSprintPowerBegin:single;
+    m_fCantSprintPowerEnd:single;
+    m_fLimpingHealthBegin:single;
+    m_fLimpingHealthEnd:single;
+    m_use_sound:pointer;
+  end;
+  pCActorCondition = ^CActorCondition;
 
 
 function GetActor():pointer; stdcall;
@@ -142,8 +309,9 @@ procedure set_pp_effector_factor2(id:integer; f:single); stdcall;
 procedure set_pp_effector_factor(id:integer; f:single; f_sp:single); stdcall;
 procedure remove_pp_effector(id:integer); stdcall;
 
-function GetActorHealthPtr(act:pointer):pSingle; stdcall;
-function GetActorStaminaPtr(act:pointer):pSingle; stdcall;
+function GetActorHealth(act:pointer):single; stdcall;
+function GetActorStamina(act:pointer):single; stdcall;
+procedure SetActorStamina(act:pointer; val:single); stdcall;
 
 function GetCameraManager():pointer; stdcall;
 function CCameraManager__GetCamEffector(index:cardinal):pointer; stdcall;
@@ -163,12 +331,35 @@ function IsPickupMode():boolean; stdcall;
 
 function IsPDAShowToZoomNow():boolean;
 
+function GetBoosterFromConditions(cond:pCEntityCondition; booster_type:cardinal):pSBooster; stdcall;
+
+function GetActorConditions(act:pointer):pCActorCondition; stdcall;
+
+const
+	eBoostHpRestore:cardinal=0;
+	eBoostPowerRestore:cardinal=1;
+	eBoostRadiationRestore:cardinal=2;
+	eBoostBleedingRestore:cardinal=3;
+	eBoostMaxWeight:cardinal=4;
+	eBoostRadiationProtection:cardinal=5;
+	eBoostTelepaticProtection:cardinal=6;
+	eBoostChemicalBurnProtection:cardinal=7;
+	eBoostBurnImmunity:cardinal=8;
+	eBoostShockImmunity:cardinal=9;
+	eBoostRadiationImmunity:cardinal=10;
+	eBoostTelepaticImmunity:cardinal=11;
+	eBoostChemicalBurnImmunity:cardinal=12;
+	eBoostExplImmunity:cardinal=13;
+	eBoostStrikeImmunity:cardinal=14;
+	eBoostFireWoundImmunity:cardinal=15;
+	eBoostWoundImmunity:cardinal=16;
+
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, HitUtils, LensDoubleRender, xr_strings, RayPick;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, LensDoubleRender, xr_strings, RayPick;
 
 type
   TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
@@ -838,27 +1029,33 @@ asm
 end;
 end;
 
-function GetActorHealthPtr(act:pointer):pSingle; stdcall;
-asm
-  mov @result, 0
-  pushad
-    mov eax, act
-    mov eax, [eax+$26C]
-    lea eax, [eax+$4]
-    mov @result, eax
-  popad
+function GetActorHealth(act:pointer):single; stdcall;
+var
+  c:pCActorCondition;
+begin
+  c:=GetActorConditions(act);
+  result:=c.base_CEntityCondition.base_CEntityConditionSimple.m_fHealth;
 end;
 
-function GetActorStaminaPtr(act:pointer):pSingle; stdcall;
-asm
-  mov @result, 0
-  pushad
-    mov eax, act
-    mov eax, [eax+$26C]
-    lea eax, [eax+$54]
-    mov @result, eax
-  popad
+function GetActorStamina(act:pointer):single; stdcall;
+var
+  c:pCActorCondition;
+begin
+  c:=GetActorConditions(act);
+  result:=c.base_CEntityCondition.m_fPower;
 end;
+
+procedure SetActorStamina(act:pointer; val:single); stdcall;
+var
+  c:pCActorCondition;
+begin
+  if val < 0 then val:=0;
+  if val > 1 then val:=1;
+
+  c:=GetActorConditions(act);
+  c.base_CEntityCondition.m_fPower := val;
+end;
+
 
 function GetActorActionState(stalker:pointer; mask:cardinal; state:cardinal=$594):boolean; stdcall;
 asm
@@ -988,7 +1185,7 @@ const
   EPS = 0.001;
 begin
   if actor = nil then exit;
-  if GetActorHealthPtr(actor)^ > 0 then begin
+  if GetActorHealth(actor) > 0 then begin
     CActor__Die(actor, who);
   end;
 end;
@@ -1679,7 +1876,7 @@ begin
     _torch_linked_detector:=nil;
   end;
 
-  if (GetMaxJitterHealth()> GetActorHealthPtr(act)^ ) then begin
+  if (GetMaxJitterHealth()> GetActorHealth(act)) then begin
     SetHandsJitterTime(GetShockTime());
   end;
 
@@ -3833,7 +4030,7 @@ procedure OnMonsterHit(h:pSHit); stdcall;
 var
   source, dest:pointer;
   boar, act:pointer;
-  stamina:psingle;
+  stamina:single;
   itm:pointer;
   sect:PAnsiChar;
   slot:cardinal;
@@ -3847,16 +4044,16 @@ begin
     source:=GetObjectById(h.whoId);
     boar:=dynamic_cast(source, 0, RTTI_CObject, RTTI_CAI_Boar, false);
     if boar<>nil then begin
-      stamina:=GetActorStaminaPtr(act);
-      if stamina^ > h.power then begin
-        stamina^:=stamina^-h.power;
+      stamina:=GetActorStamina(act);
+      if stamina > h.power then begin
+        SetActorStamina(act, stamina-h.power);
       end else begin
         itm:=GetActorActiveItem();
         if itm <> nil then begin
           sect:=GetSection(itm);
           slot:=game_ini_r_int_def(sect, 'slot', 2);
           dropped:=false;
-          if (slot<>1) or (random < (h.power - stamina^)) then begin
+          if (slot<>1) or (random < (h.power - stamina)) then begin
             PerformDrop(act);
             dropped:=true;
           end;
@@ -3869,7 +4066,7 @@ begin
             SetCondition(itm, cond_dec);
           end;
 
-          stamina^:=0;
+          SetActorStamina(act, 0);
         end;
       end;
     end;
@@ -3890,7 +4087,6 @@ asm
   ret
 end;
 
-
 procedure CorrectActorPhysicsHit(phit:pSHit); stdcall;
 begin
   if GetActorActionState(GetActor(), actFall, mstate_REAL) then begin
@@ -3907,6 +4103,50 @@ asm
   popad
   lea edx,[esp+$88] // original code
 end;
+
+function GetBoosterFromConditions(cond:pCEntityCondition; booster_type:cardinal):pSBooster; stdcall;
+begin
+  result:=pSBooster(FindItemInIntKeyMap(@cond.m_booster_influences.data, booster_type));
+end;
+
+function CanIgnoreLimping(conds:pCActorCondition):boolean; stdcall;
+var
+  energy_booster:pSBooster;
+begin
+  result:=false;
+  energy_booster:=GetBoosterFromConditions(@conds.base_CEntityCondition, eBoostPowerRestore);
+  if energy_booster<>nil then begin
+    result:=true;
+  end;
+end;
+
+procedure CActor__CanMove_Patch();stdcall;
+asm
+  pushad
+  push ecx
+  call CanIgnoreLimping
+  test al, al
+  popad
+
+  je @enable_limping
+  mov byte ptr [ecx+$1F1],00
+  jmp @finish
+
+  @enable_limping:
+  mov byte ptr [ecx+$1F1],01
+
+  @finish:
+end;
+
+function GetActorConditions(act:pointer):pCActorCondition; stdcall;
+begin
+  asm
+    mov eax, act
+    mov eax, [eax+$97c]
+    mov @result, eax
+  end;
+end;
+
 
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
@@ -4090,6 +4330,10 @@ begin
   // в CActor::g_Physics перед отправкой нетпакета корректируем данные в нём (увеличиваем урон от падений)
   jmp_addr:=xrGame_addr+$261db0;
   if not WriteJump(jmp_addr, cardinal(@CActor__g_Physics_FallHit_Patch), 7, true) then exit;
+
+  // в CActor::CanMove даём возможность передвигаться независимо от наличия стамины под действием энергетика
+  jmp_addr:=xrGame_addr+$2749d2;
+  if not WriteJump(jmp_addr, cardinal(@CActor__CanMove_Patch), 7, true) then exit;
 
   result:=true;
 end;

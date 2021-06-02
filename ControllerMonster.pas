@@ -117,21 +117,11 @@ begin
 end;
 
 function IsPsiBlocked(act:pointer):boolean; stdcall;
-asm
-  mov @result, 0
-  pushad
-    mov eax, act
-    cmp act, 0
-    je @finish
-    mov eax, [eax+$26C]
-    mov eax, [eax+$E4]
-
-    cmp eax, 0
-    je @finish
-    mov @result, 1
-
-    @finish:
-  popad
+var
+  c:pCActorCondition;
+begin
+  c:=GetActorConditions(act);
+  result:=(GetBoosterFromConditions(@c.base_CEntityCondition, eBoostTelepaticProtection) <> nil);
 end;
 
 procedure IsPsiBlocked_adapter(); stdcall;
@@ -369,7 +359,7 @@ var
   last_contr_time:cardinal;
 begin
   act:=GetActor();
-  if (act = nil) or (GetActorHealthPtr(act)^ <= 0) then begin
+  if (act = nil) or (GetActorHealth(act) <= 0) then begin
     ResetActorControl();
     exit;
   end;
