@@ -1283,7 +1283,7 @@ begin
   result:='';
   cnt:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_bones_count', 0);
   if cnt > 0 then begin
-    i:=floor(random * i);
+    i:=floor(random * cnt);
     param:='burer_teleweapon_bone_'+inttostr(i);
     result:=game_ini_read_string_def(GUNSL_BASE_SECTION, PAnsiChar(param), '');
   end;
