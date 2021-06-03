@@ -1297,13 +1297,16 @@ end;
 
 procedure RestoreMinimalStamina(); stdcall;
 var
-  act:pointer;
+  act, wpn:pointer;
+  wpn_dangerous:boolean;
   ss_params:burer_superstamina_hit_params;
 const
   SUPERSTAMINA_HIT_PERIOD:cardinal=100;
 begin
   act:=GetActor();
-  if (act <> nil) and (GetTimeDeltaSafe(GetLastSuperStaminaHitTime()) < SUPERSTAMINA_HIT_PERIOD) then begin
+  wpn := GetActorActiveItem();
+  wpn_dangerous:=(wpn<>nil) and (IsSniperWeapon(wpn) or IsWeaponReadyForBigBoom(wpn, nil));
+  if (act <> nil) and (not wpn_dangerous) and (GetTimeDeltaSafe(GetLastSuperStaminaHitTime()) < SUPERSTAMINA_HIT_PERIOD) then begin
     ss_params:=GetBurerSuperstaminaHitParams();
     if (GetActorStamina(act) < ss_params.minimal_stamina) and (GetActorHealth(act) > ss_params.minimal_stamina_health) then begin
       SetActorStamina(act, ss_params.minimal_stamina);
