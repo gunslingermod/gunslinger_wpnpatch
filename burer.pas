@@ -1319,12 +1319,7 @@ asm
   pushad
     call RestoreMinimalStamina
   popad
-  pop eax //ret addr
-  pop edi
-  pop ebx
-  pop esi
-  add esp, $28
-  jmp eax
+  ret 4  //original overwritten return
 end;
 
 function Init():boolean; stdcall;
@@ -1338,8 +1333,8 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_Patch), 6, true) then exit;
 
   //в конце CBurer::StaminaHit восстанавливаем минимальную стамину актору
-  jmp_addr:=xrGame_addr+$1028dd;
-  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_RestoreMinimalStamina_Patch), 6, true) then exit;
+  jmp_addr:=xrGame_addr+$1028e3;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_RestoreMinimalStamina_Patch), 6, false) then exit;
 
   //в CStateBurerAttack<Object>::execute (xrgame.dll+10ab20) меняем приоритеты, чтобы при приближении актора с наличием стамины эту стамину отнимало
   jmp_addr:=xrGame_addr+$10acb5;
@@ -1398,7 +1393,7 @@ begin
   // в CStateBurerAttackTele<Object>::HandleGrenades увеличиваем частоту сканирования на гранаты
   nop_code(xrgame_addr+$10502e, 1, chr($64));
   nop_code(xrgame_addr+$10502f, 1, chr($00));
-  // и уменьшаем максимальное время левитирования гранат  
+  // и уменьшаем максимальное время левитирования гранат
   nop_code(xrgame_addr+$10512b, 1, chr($88));
   nop_code(xrgame_addr+$10512c, 1, chr($13));
 
