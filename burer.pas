@@ -7,7 +7,7 @@ function Init():boolean; stdcall;
 function GetLastSuperStaminaHitTime():cardinal; stdcall;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils, vector;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
@@ -235,6 +235,8 @@ begin
   LogBurerLogic('gravi_ready = '+booltostr(pgravi_ready^));
   LogBurerLogic('tele_ready = '+booltostr(ptele_ready^));
   LogBurerLogic('shield_ready = '+booltostr(pshield_ready^));
+  LogBurerLogic('gren_count = '+inttostr(_gren_count));
+  LogBurerLogic('gren_timer = '+inttostr(_gren_timer));
 
   force_antiaim:=false;
   force_shield:=false;
@@ -709,14 +711,166 @@ asm
 end;
 
 
-procedure CStateBurerAttackTele__CheckTeleStart_BeforeObjectsSearch_Patch(); stdcall;
+procedure CStateBurerAttackTele__CheckTeleStart_callFindObjects_Patch(); stdcall;
 asm
+  pushad
   mov _gren_count, 0
   mov _gren_timer, $FFFFFFFF
+    
+  mov ecx, esi
+  mov eax, xrgame_addr
+  add eax, $109cb0  //CStateBurerAttackTele::FindObjects
+  call eax
+  popad
+
   //original
-  add ecx, $9b0
+  mov eax,[ecx+$5B8]
+end;
+
+procedure OnActiveGrenadeFound(CGrenade:pointer); stdcall;
+var
+  destroy_time, expl_timer, curr_time:cardinal;
+begin
+  _gren_count:=_gren_count+1;
+
+  destroy_time:=CMissile__GetDestroyTime(CGrenade);
+  curr_time:=GetGameTickCount();
+
+  if destroy_time<=curr_time then begin
+    _gren_timer:=0;
+  end else begin
+    expl_timer:=destroy_time - curr_time;
+    if expl_timer < _gren_timer then begin
+      _gren_timer:=expl_timer;
+    end;
+  end;
+end;
+
+
+procedure CalcGrenades(v_objects:pxr_vector; reset_counter:boolean); stdcall;
+var
+  o, g:pointer;
+  i, cnt:integer;
+begin
+  if reset_counter then begin
+    _gren_count:=0;
+    _gren_timer:=$FFFFFFFF;
+  end;
+
+  cnt:=items_count_in_vector(v_objects, sizeof(o));
+  for i:=0 to cnt-1 do begin
+    o:= pointer(pcardinal(get_item_from_vector(v_objects, i, sizeof(o)))^);
+    if o=nil then exit;
+    g:=dynamic_cast(o, 0, RTTI_CObject, RTTI_CGrenade, false);
+    if (g=nil) or (IsGrenadeDeactivated(g)) then continue;
+    OnActiveGrenadeFound(g);
+  end;
+
+  LogBurerLogic('CalcGrenades performed, reset='+booltostr(reset_counter, true)+', cnt='+inttostr(_gren_count));
+end;
+
+procedure CStateBurerAttackTele__HandleGrenades_RecalcGrenades_Patch(); stdcall;
+asm
+  pushad
+  push 1
+  push ebp
+  call CalcGrenades
+  popad
+  //original code
+  mov ecx, [ebp+$04]
+  sub ecx, [ebp]
   ret
 end;
+
+procedure CStateBurerAttackTele__FindFreeObjects_CalcGrenades_Patch(); stdcall;
+asm
+  pushad
+  push 0
+  push ebp
+  call CalcGrenades
+  popad
+  //original code
+  mov eax, [ebp]
+  mov ecx, [ebp+4]
+  ret
+end;
+
+function IsObjectForbiddenForTele(burer:pointer; cpsh:pointer):boolean; stdcall;
+begin
+  result:=false;
+end;
+
+
+procedure CStateBurerAttackTele__FindFreeObjects_CheckTeleObjects_Patch(); stdcall;
+asm
+  mov ecx, [esp+$1c]
+  mov ecx, [ecx+$10]
+
+  pushad
+  push esi
+  push ecx
+  call IsObjectForbiddenForTele
+  cmp al, 0
+  popad
+  je @original
+
+  pop edx       //адрес возврата из врезки
+  add esp, $14  //вырезанная инструкция
+  cmp edx, 0    //форсируем jne в оригинальном коде
+  jmp edx
+
+  @original:
+  pop edx //адрес возврата из врезки
+  //вырезанные инструкции и уход
+  add esp, $14
+  test eax, eax
+  jmp edx
+end;
+
+
+{procedure CStateBurerAttackTele__FindFreeObjects_CheckTeleObjects_Patch(); stdcall;
+asm
+  mov ecx, [esp+$1c]
+  mov ecx, [ecx+$10]
+  test eax, eax
+  je @not_grenade
+
+  //проверяем, опасна ли граната, или уже нет
+  pushad
+  push eax
+  call IsGrenadeDeactivated
+  test al, al
+  popad
+  jne @safe
+
+  pushad
+  //Опасна, увеличиваем счетчик активных гранат и смотрим на время до взрыва - для надёжности подсчёт ведём как тут, так и в HandleGrenades
+  push eax
+  call OnActiveGrenadeFound
+  popad
+
+  @not_grenade:
+  pushad
+  push esi
+  push ecx
+  call IsObjectForbiddenForTele
+  cmp al, 0
+  popad
+  je @original
+
+  @safe:
+  pop edx       //адрес возврата из врезки
+  add esp, $14  //вырезанная инструкция
+  cmp edx, 0    //форсируем jne в оригинальном коде
+  jmp edx
+
+  @original:
+  pop edx //адрес возврата из врезки
+  //вырезанные инструкции и уход
+  add esp, $14
+  test eax, eax
+  jmp edx
+end;}
 
 function IsGrenadeSkipForTele(CGrenade:pointer):boolean; stdcall;
 var
@@ -731,77 +885,37 @@ begin
     if act <> nil then begin;
       act_dist:=FVector3_copyfromengine(GetEntityPosition(act));
       v_sub(@act_dist, GetPosition(CGrenade));
-//      log('gren_dist '+floattostr(v_length(@act_dist)));
+      log('gren_dist '+floattostr(v_length(@act_dist)));
       result:= (v_length(@act_dist) <= MAX_DIST_TO_ACTOR);
     end;      
   end;
+  log('skip grenade: '+booltostr(result, true));
 end;
 
-procedure CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_ParseDestroyTime(CGrenade:pointer); stdcall;
-var
-  destroy_time, expl_timer, curr_time:cardinal;
-begin
-  destroy_time:=CMissile__GetDestroyTime(CGrenade);
-  curr_time:=GetGameTickCount();
-
-  if destroy_time<=curr_time then begin
-    _gren_timer:=0;
-  end else begin
-    expl_timer:=destroy_time - curr_time;
-    if expl_timer < _gren_timer then begin
-      _gren_timer:=expl_timer;
-    end;
-  end;
-end;
-
-function IsObjectForbiddenForTele(burer:pointer; cpsh:pointer):boolean; stdcall;
-begin
-  result:=false;
-end;
-
-procedure CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_Patch(); stdcall;
+procedure CStateBurerAttackTele__HandleGrenades_OnGrenadeFound_Patch(); stdcall;
 asm
-  mov ecx, [esp+$1c]
-  mov ecx, [ecx+$10]
-  test eax, eax
-  je @not_grenade
+  test edi, edi
+  je @original //если не граната
 
-  //проверяем, опасна ли граната, или уже нет
   pushad
-  push eax
-
-  push eax
+  push edi
   call IsGrenadeSkipForTele
   test al, al
-  jne @safe
-  add _gren_count, 1
-
-  //Опасна, смотрим на время до взрыва
-  push [esp]
-  call CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_ParseDestroyTime
-
-  @safe:
-  pop eax
-  popad
-
-  @not_grenade:
-  pop edx //ret addr
-  add esp, $14 //cut action
-
-  pushad
-  push esi
-  push ecx
-  call IsObjectForbiddenForTele
-  cmp al, 0
   popad
   je @original
-  jmp edx
-
+  
+  pop eax //адрес возврата из врезки
+  //вырезанные инструкции и уход
+  add esp, $14
+  cmp esp, 0 //форсируем переход je в оригинальном коде для пропуска грены
+  jmp eax
 
   @original:
-  //perform cut action
-  test eax, eax
-  jmp edx
+  pop eax //адрес возврата из врезки
+  //вырезанные инструкции и уход
+  add esp, $14
+  test edi,edi
+  jmp eax
 end;
 
 procedure CStateBurerAttackTele__CheckTeleStart_AfterObjectsSearch_Patch(); stdcall;
@@ -1348,17 +1462,25 @@ begin
   jmp_addr:=xrGame_addr+$105f94;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerShield__check_start_conditions_Patch), 6, true) then exit;
 
-  // в начале CStateBurerAttackTele<Object>::CheckTeleStart сбрасываем счетчик гранат вокруг перед тем, как начатьискать объекты
-  jmp_addr:=xrGame_addr+$10a427;
-  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__CheckTeleStart_BeforeObjectsSearch_Patch), 6, true) then exit;
+/////
+  // в CStateBurerAttackTele<Object>::CheckTeleStart вставляем вызов FindObjects перед проверкой дистанции, чтобы пересчитались гранаты
+  jmp_addr:=xrGame_addr+$10a43e;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__CheckTeleStart_callFindObjects_Patch), 6, true) then exit;
+
+  //в CStateBurerAttackTele<Object>::FindFreeObjects (xrgame+1097e0) инкрементим счетчик гранат (это делается на старте стейта, чтобы понять, есть объекты для телекинеза или нет)
+  jmp_addr:=xrGame_addr+$109814;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FindFreeObjects_CalcGrenades_Patch), 6, true) then exit;
+  //убираем оригинальный вызов FindObjects в CStateBurerAttackTele<Object>::CheckTeleStart
+  if not nop_code(xrGame_addr+$10a497, 5) then exit;
+
+  //в CStateBurerAttackTele<Object>::FindFreeObjects (xrgame+1097e0) проверяем возможность телекинеза объекта
+  jmp_addr:=xrGame_addr+$10989b;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FindFreeObjects_CheckTeleObjects_Patch), 5, true) then exit;
 
   // в конце CStateBurerAttackTele<Object>::CheckTeleStart проверяем, нашлись ли грены, и если нашлись - разрешаем телекинез
   jmp_addr:=xrGame_addr+$10a4a2;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__CheckTeleStart_AfterObjectsSearch_Patch), 6, false) then exit;
-
-  //в CStateBurerAttackTele<Object>::FindFreeObjects (xrgame+1097e0) инкрементим счетчик гранат
-  jmp_addr:=xrGame_addr+$10989b;
-  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FindFreeObjects_OnGrenadeFound_Patch), 5, true) then exit;
+/////
 
   //Принудительный выход из телекинеза в CStateBurerAttackTele<Object>::check_completion (xrgame+1046b0) (например, в случае, если актор близко или достал РПГ)
   jmp_addr:=xrGame_addr+$104724;
@@ -1396,6 +1518,12 @@ begin
   // и уменьшаем максимальное время левитирования гранат
   nop_code(xrgame_addr+$10512b, 1, chr($88));
   nop_code(xrgame_addr+$10512c, 1, chr($13));
+  //также в CStateBurerAttackTele<Object>::HandleGrenades после получения списка предметов считаем гранаты для наших нужд
+  jmp_addr:=xrGame_addr+$10508b;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__HandleGrenades_RecalcGrenades_Patch), 6, true) then exit;
+  //также в CStateBurerAttackTele<Object>::HandleGrenades перерабатываем логику для отсечения неопасных грен и грен под ногами актора
+  jmp_addr:=xrGame_addr+$1050c5;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__HandleGrenades_OnGrenadeFound_Patch), 5, true) then exit;
 
   // [bug] anti_aim_ability::check_update_condition (xrgame+cf750) не позволяет использовать анти-аим с гранатами из-за явного каста к CWeapon. Переделываем.
   jmp_addr:=xrGame_addr+$cf7c1;
