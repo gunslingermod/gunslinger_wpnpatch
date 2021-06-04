@@ -12,6 +12,7 @@ uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItem
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
   _gren_timer:cardinal;
+  _gren_contact:boolean;
   _last_superstamina_hit_time:cardinal;
   _last_state_select_time:cardinal;
 
@@ -237,6 +238,7 @@ begin
   LogBurerLogic('shield_ready = '+booltostr(pshield_ready^));
   LogBurerLogic('gren_count = '+inttostr(_gren_count));
   LogBurerLogic('gren_timer = '+inttostr(_gren_timer));
+  LogBurerLogic('gren_contact = '+booltostr(_gren_contact));
 
   force_antiaim:=false;
   force_shield:=false;
@@ -275,7 +277,9 @@ begin
   if NeedCloseProtectionShield(burer) and (pshield_ready^) then begin
     LogBurerLogic('NeedCloseProtectionShield+ready');
     // јктор слишком близко, оружие готово к выстрелу
-    if eatable_with_hud and (panti_aim_ready^) then begin
+    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) then begin
+      force_shield:=true;
+    end else if eatable_with_hud and (panti_aim_ready^) then begin
       force_antiaim:=true;
     end else if phealthloss^ then begin
       force_shield:=true;
@@ -304,10 +308,15 @@ begin
       force_shield:=true;
     end;
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
-    LogBurerLogic('AntiHeal');
     // ѕопытка отхилитьс€ - предотвращаем
-    force_antiaim:=true;
-  end else if (itm<>nil) and (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and pgravi_ready^ then begin
+    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) and (random < 0.8) then begin
+      LogBurerLogic('AntiHeal - GrenShield');
+      force_shield:=true;
+    end else begin
+      LogBurerLogic('AntiHeal');
+      force_antiaim:=true;
+    end;
+  end else if (itm<>nil) and (_gren_count = 0) and (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and pgravi_ready^ then begin
     LogBurerLogic('AntiKnifeGravi');
     force_gravi:=true;
   end else if IsInventoryShown() and not big_boom_shooted and (_gren_count = 0) and (panti_aim_ready^) then begin
@@ -315,8 +324,11 @@ begin
     force_antiaim:=true;
   end else if weapon_for_big_boom or big_boom_shooted then begin
     LogBurerLogic('AntiBigBoom');
-    pgravi_ready^:=false;    
-    if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
+    pgravi_ready^:=false;
+    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) and (random < 0.8) then begin
+      LogBurerLogic('AntiBigBoom - GrenShield');
+      force_shield:=true;
+    end else if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
       force_antiaim:=true;
     end else if (IsBurerUnderAim(burer, BurerUnderAimWide) or ((panti_aim_ready^) and (random < 0.4))) and (pshield_ready^) then begin
       force_shield:=true;
@@ -356,7 +368,9 @@ begin
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
     LogBurerLogic('AntiMiddleDistance');
     // јктор недалеко, но не слишком близко пока
-    if (itm<>nil) and panti_aim_ready^ then begin
+    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) then begin
+      force_shield:=true;
+    end else if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
     end else if IsActorLookTurnedAway(burer) and (pgravi_ready^) then begin
       if (_gren_count > MAX_TELE_GREN_COUNT) and (pshield_ready^) then begin
@@ -394,7 +408,7 @@ begin
   end else if (_gren_count>0) and (random < 0.9) then begin
     LogBurerLogic('AntiGrenade');
     // √де-то вал€етс€ взведенна€ граната
-    if pshield_ready^ and ((_gren_count > MAX_TELE_GREN_COUNT) or not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.8)) then begin
+    if pshield_ready^ and ((_gren_count > MAX_TELE_GREN_COUNT) or _gren_contact or not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.8)) then begin
       force_shield:=true;
     end else if (ptele_ready^) then begin
       force_tele:=true;
@@ -544,11 +558,14 @@ procedure StaminaHit_ActionsInBeginning(burer:pointer); stdcall;
 var
   itm:pointer;
   ss_params:burer_superstamina_hit_params;
-  campos:FVector3;
+  campos, dist:FVector3;
   burer_see_actor:boolean;
   hit:SHit;
   state:cardinal;
   CGrenade:pointer;
+  contact_gren:boolean;
+const
+  CONTACT_GRENADE_SAFE_DIST:single=10;
 begin
   itm:=GetActorActiveItem();
   ss_params:=GetBurerSuperstaminaHitParams();
@@ -563,14 +580,20 @@ begin
         ActivateActorSlot__CInventory(0, true);
       end;
     end else if IsThrowable(itm) then begin
-      state:=GetCurrentState(itm);
-      CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
-      if (CGrenade<>nil) and (state=EMissileStates__eReady) and not IsBurerUnderAim(burer, BurerUnderAimNear) then begin
-        PrepareGrenadeForSuicideThrow(CGrenade, 5);
-        virtual_Action(itm, kWPN_ZOOM, kActRelease);
-      end else if (CGrenade<>nil) and (state=EHudStates__eIdle) then begin
-        ActivateActorSlot__CInventory(0, false);
-        DropItem(GetActor(), itm);
+      contact_gren:=game_ini_r_bool_def(GetSection(itm), 'explosion_on_kick', false);
+
+      dist:=FVector3_copyfromengine(GetEntityPosition(GetActor()));
+      v_sub(@dist, GetEntityPosition(burer));
+      if not contact_gren or (v_length(@dist) > CONTACT_GRENADE_SAFE_DIST) then begin
+        state:=GetCurrentState(itm);
+        CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
+        if (CGrenade<>nil) and (state=EMissileStates__eReady) then begin
+          PrepareGrenadeForSuicideThrow(CGrenade, 5);
+          virtual_Action(itm, kWPN_ZOOM, kActRelease);
+        end else if (CGrenade<>nil) and (state=EHudStates__eIdle) then begin
+          ActivateActorSlot__CInventory(0, false);
+          DropItem(GetActor(), itm);
+        end;
       end;
     end;
   end;
@@ -716,6 +739,7 @@ asm
   pushad
   mov _gren_count, 0
   mov _gren_timer, $FFFFFFFF
+  mov _gren_contact, false
     
   mov ecx, esi
   mov eax, xrgame_addr
@@ -740,7 +764,11 @@ begin
     _gren_timer:=0;
   end else begin
     expl_timer:=destroy_time - curr_time;
-    if expl_timer < _gren_timer then begin
+
+    if game_ini_r_bool_def(GetSection(CGrenade), 'explosion_on_kick', false) then begin
+      _gren_contact:=true;
+      _gren_timer:=0;
+    end else if expl_timer < _gren_timer then begin
       _gren_timer:=expl_timer;
     end;
   end;
@@ -755,6 +783,7 @@ begin
   if reset_counter then begin
     _gren_count:=0;
     _gren_timer:=$FFFFFFFF;
+    _gren_contact:=false;
   end;
 
   cnt:=items_count_in_vector(v_objects, sizeof(o));
@@ -827,51 +856,6 @@ asm
   jmp edx
 end;
 
-
-{procedure CStateBurerAttackTele__FindFreeObjects_CheckTeleObjects_Patch(); stdcall;
-asm
-  mov ecx, [esp+$1c]
-  mov ecx, [ecx+$10]
-  test eax, eax
-  je @not_grenade
-
-  //провер€ем, опасна ли граната, или уже нет
-  pushad
-  push eax
-  call IsGrenadeDeactivated
-  test al, al
-  popad
-  jne @safe
-
-  pushad
-  //ќпасна, увеличиваем счетчик активных гранат и смотрим на врем€ до взрыва - дл€ надЄжности подсчЄт ведЄм как тут, так и в HandleGrenades
-  push eax
-  call OnActiveGrenadeFound
-  popad
-
-  @not_grenade:
-  pushad
-  push esi
-  push ecx
-  call IsObjectForbiddenForTele
-  cmp al, 0
-  popad
-  je @original
-
-  @safe:
-  pop edx       //адрес возврата из врезки
-  add esp, $14  //вырезанна€ инструкци€
-  cmp edx, 0    //форсируем jne в оригинальном коде
-  jmp edx
-
-  @original:
-  pop edx //адрес возврата из врезки
-  //вырезанные инструкции и уход
-  add esp, $14
-  test eax, eax
-  jmp edx
-end;}
-
 function IsGrenadeSkipForTele(CGrenade:pointer):boolean; stdcall;
 var
   act:pointer;
@@ -907,7 +891,7 @@ asm
   pop eax //адрес возврата из врезки
   //вырезанные инструкции и уход
   add esp, $14
-  cmp esp, 0 //форсируем переход je в оригинальном коде дл€ пропуска грены
+  cmp eax, eax //форсируем переход je в оригинальном коде дл€ пропуска грены
   jmp eax
 
   @original:
