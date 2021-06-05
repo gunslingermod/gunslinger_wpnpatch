@@ -12,7 +12,6 @@ uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItem
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
   _gren_timer:cardinal;
-  _gren_contact:boolean;
   _last_superstamina_hit_time:cardinal;
   _last_state_select_time:cardinal;
 
@@ -238,7 +237,6 @@ begin
   LogBurerLogic('shield_ready = '+booltostr(pshield_ready^));
   LogBurerLogic('gren_count = '+inttostr(_gren_count));
   LogBurerLogic('gren_timer = '+inttostr(_gren_timer));
-  LogBurerLogic('gren_contact = '+booltostr(_gren_contact));
 
   force_antiaim:=false;
   force_shield:=false;
@@ -277,7 +275,7 @@ begin
   if NeedCloseProtectionShield(burer) and (pshield_ready^) then begin
     LogBurerLogic('NeedCloseProtectionShield+ready');
     // Актор слишком близко, оружие готово к выстрелу
-    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) then begin
+    if (_gren_count>0) and (_gren_timer < GetBurerMinGrenTimer()) and (pshield_ready^) then begin
       force_shield:=true;
     end else if eatable_with_hud and (panti_aim_ready^) then begin
       force_antiaim:=true;
@@ -309,7 +307,7 @@ begin
     end;
   end else if (GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and panti_aim_ready^ and (random < 0.95) then begin
     // Попытка отхилиться - предотвращаем
-    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) and (random < 0.8) then begin
+    if (_gren_count>0) and (_gren_timer < GetBurerMinGrenTimer()) and (pshield_ready^) and (random < 0.8) then begin
       LogBurerLogic('AntiHeal - GrenShield');
       force_shield:=true;
     end else begin
@@ -325,7 +323,7 @@ begin
   end else if weapon_for_big_boom or big_boom_shooted then begin
     LogBurerLogic('AntiBigBoom');
     pgravi_ready^:=false;
-    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) and (random < 0.8) then begin
+    if (_gren_count>0) and (_gren_timer < GetBurerMinGrenTimer()) and (pshield_ready^) and (random < 0.8) then begin
       LogBurerLogic('AntiBigBoom - GrenShield');
       force_shield:=true;
     end else if (not big_boom_shooted) and (previous_state^ = eStateBurerAttack_Shield) and (panti_aim_ready^) then begin
@@ -368,7 +366,7 @@ begin
   end else if IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
     LogBurerLogic('AntiMiddleDistance');
     // Актор недалеко, но не слишком близко пока
-    if (_gren_count>0) and ((_gren_timer < GetBurerMinGrenTimer()) or _gren_contact) and (pshield_ready^) then begin
+    if (_gren_count>0) and (_gren_timer < GetBurerMinGrenTimer()) and (pshield_ready^) then begin
       force_shield:=true;
     end else if (itm<>nil) and panti_aim_ready^ then begin
       force_antiaim:=true;
@@ -408,7 +406,7 @@ begin
   end else if (_gren_count>0) and (random < 0.9) then begin
     LogBurerLogic('AntiGrenade');
     // Где-то валяется взведенная граната
-    if pshield_ready^ and ((_gren_count > MAX_TELE_GREN_COUNT) or _gren_contact or not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.8)) then begin
+    if pshield_ready^ and ((_gren_count > MAX_TELE_GREN_COUNT) or not (ptele_ready^) or (_gren_timer <= GetBurerMinGrenTimer()) or (random < 0.8)) then begin
       force_shield:=true;
     end else if (ptele_ready^) then begin
       force_tele:=true;
@@ -558,14 +556,11 @@ procedure StaminaHit_ActionsInBeginning(burer:pointer); stdcall;
 var
   itm:pointer;
   ss_params:burer_superstamina_hit_params;
-  campos, dist:FVector3;
+  campos:FVector3;
   burer_see_actor:boolean;
   hit:SHit;
   state:cardinal;
   CGrenade:pointer;
-  contact_gren:boolean;
-const
-  CONTACT_GRENADE_SAFE_DIST:single=10;
 begin
   itm:=GetActorActiveItem();
   ss_params:=GetBurerSuperstaminaHitParams();
@@ -580,20 +575,17 @@ begin
         ActivateActorSlot__CInventory(0, true);
       end;
     end else if IsThrowable(itm) then begin
-      contact_gren:=game_ini_r_bool_def(GetSection(itm), 'explosion_on_kick', false);
-
-      dist:=FVector3_copyfromengine(GetEntityPosition(GetActor()));
-      v_sub(@dist, GetEntityPosition(burer));
-      if not contact_gren or (v_length(@dist) > CONTACT_GRENADE_SAFE_DIST) then begin
-        state:=GetCurrentState(itm);
-        CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
-        if (CGrenade<>nil) and (state=EMissileStates__eReady) then begin
-          PrepareGrenadeForSuicideThrow(CGrenade, 5);
-          virtual_Action(itm, kWPN_ZOOM, kActRelease);
-        end else if (CGrenade<>nil) and (state=EHudStates__eIdle) then begin
-          ActivateActorSlot__CInventory(0, false);
-          DropItem(GetActor(), itm);
-        end;
+      state:=GetCurrentState(itm);
+      CGrenade:=dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CGrenade, false);
+      if (CGrenade<>nil) and (state=EMissileStates__eReady) then begin
+        PrepareGrenadeForSuicideThrow(CGrenade, 5);
+        virtual_Action(itm, kWPN_ZOOM, kActRelease);
+      end else if (CGrenade<>nil) and (state=EMissileStates__eThrowStart) then begin
+        PrepareGrenadeForSuicideThrow(CGrenade, 5);
+        SetImmediateThrowStatus(CGrenade, true);
+      end else if (CGrenade<>nil) and (state=EHudStates__eIdle) then begin
+        ActivateActorSlot__CInventory(0, false);
+        DropItem(GetActor(), itm);
       end;
     end;
   end;
@@ -739,7 +731,6 @@ asm
   pushad
   mov _gren_count, 0
   mov _gren_timer, $FFFFFFFF
-  mov _gren_contact, false
     
   mov ecx, esi
   mov eax, xrgame_addr
@@ -766,8 +757,7 @@ begin
     expl_timer:=destroy_time - curr_time;
 
     if game_ini_r_bool_def(GetSection(CGrenade), 'explosion_on_kick', false) then begin
-      _gren_contact:=true;
-      _gren_timer:=0;
+      _gren_timer:=1;
     end else if expl_timer < _gren_timer then begin
       _gren_timer:=expl_timer;
     end;
@@ -783,7 +773,6 @@ begin
   if reset_counter then begin
     _gren_count:=0;
     _gren_timer:=$FFFFFFFF;
-    _gren_contact:=false;
   end;
 
   cnt:=items_count_in_vector(v_objects, sizeof(o));

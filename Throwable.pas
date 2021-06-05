@@ -33,7 +33,7 @@ const
     CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
 
 implementation
-uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster, WeaponEvents;
+uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster, WeaponEvents, MatVectors;
 
 var
   _activate_key_state:TKeyHoldState;
@@ -587,7 +587,12 @@ var
   grenade:pointer;
   sect:PChar;
   destroy_time, time_from_throw, now:cardinal;
+  safe_time:cardinal;
   samolikvidator_delta:cardinal;
+  linear_vel:FVector3;
+  cpsh:pointer;
+  min_speed, speed:single;
+  new_destroy_time:cardinal;
 begin
   //первым делом убеждаемся, что к нам прилетела грена, а не то, с чем она столкнулась ;)
   grenade:=dxGeomUserData__get_ph_ref_object(PHRetrieveGeomUserData(dxGeom));
@@ -604,17 +609,24 @@ begin
   time_from_throw:=CMissile__GetDestroyTimeMax(grenade) - (destroy_time-now);
 
   sect:=GetSection(grenade);
+  safe_time:=game_ini_r_int_def(sect, 'safe_time', 0);
 
-{  if game_ini_line_exist(sect, 'safe_time') then begin
-    log('safe: '+inttostr(strtointdef(game_ini_read_string(sect, 'safe_time'),0)));
-    log('from throw: '+inttostr(time_from_throw));
-
-  end;  }
-
-  if game_ini_line_exist(sect, 'safe_time') and (strtointdef(game_ini_read_string(sect, 'safe_time'), 0)>time_from_throw) then begin
+  if (safe_time<>0) and (safe_time>time_from_throw) then begin
     CMissile__SetDestroyTime(grenade, CMISSILE_NOT_ACTIVATED);
-  end else if game_ini_line_exist(sect, 'explosion_on_kick') and game_ini_r_bool(sect, 'explosion_on_kick') then begin
-    CMissile__SetDestroyTime(grenade, now);
+  end else if game_ini_r_bool_def(sect, 'explosion_on_kick', false) then begin
+    new_destroy_time:=now;
+    min_speed:=game_ini_r_single_def(sect, 'min_explosion_speed', 0);
+    if min_speed > 0 then begin
+      cpsh:=dynamic_cast(grenade, 0, RTTI_CGrenade, RTTI_CPhysicsShellHolder, false);
+      if cpsh <> nil then begin
+        GetLinearVel(cpsh, @linear_vel);
+        speed:=v_length(@linear_vel);
+        if speed < min_speed then begin
+          new_destroy_time:=CMISSILE_NOT_ACTIVATED;
+        end;
+      end;
+    end;
+    CMissile__SetDestroyTime(grenade, new_destroy_time);
   end;
 end;
 
