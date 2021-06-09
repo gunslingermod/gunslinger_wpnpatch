@@ -13,7 +13,6 @@ var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
   _gren_timer:cardinal;
   _last_superstamina_hit_time:cardinal;
-  _last_state_select_time:cardinal;
 
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
@@ -224,6 +223,8 @@ var
   itm:pointer;
   force_antiaim, force_shield, force_tele, force_gravi:boolean;
   weapon_for_big_boom, big_boom_shooted, eatable_with_hud, sniper_weapon:boolean;
+  burer_see_actor:boolean;
+  campos:FVector3;
 const
   eStateBurerAttack_Tele:byte=6;
   eStateBurerAttack_AntiAim:byte=12;
@@ -246,6 +247,10 @@ begin
   itm:=GetActorActiveItem();
   weapon_for_big_boom:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
   sniper_weapon:=IsSniperWeapon(itm);
+
+  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  burer_see_actor:=(GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
+  LogBurerLogic('see_actor = '+booltostr(burer_see_actor));
 
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
 
@@ -275,6 +280,7 @@ begin
   if NeedCloseProtectionShield(burer) and (pshield_ready^) then begin
     LogBurerLogic('NeedCloseProtectionShield+ready');
     // јктор слишком близко, оружие готово к выстрелу
+    ptele_ready^:=false;
     if (_gren_count>0) and (_gren_timer < GetBurerMinGrenTimer()) and (pshield_ready^) then begin
       force_shield:=true;
     end else if eatable_with_hud and (panti_aim_ready^) then begin
@@ -323,6 +329,13 @@ begin
   end else if weapon_for_big_boom or big_boom_shooted then begin
     LogBurerLogic('AntiBigBoom');
     pgravi_ready^:=false;
+
+    if (IsActorLookTurnedAway(burer) or not burer_see_actor) and (random < 0.1) then begin
+      LogBurerLogic('Temp skip disable tele');
+    end else begin
+      ptele_ready^:=false;
+    end;
+
     if (_gren_count>0) and (_gren_timer < GetBurerMinGrenTimer()) and (pshield_ready^) and (random < 0.8) then begin
       LogBurerLogic('AntiBigBoom - GrenShield');
       force_shield:=true;
@@ -337,6 +350,13 @@ begin
     end
   end else if sniper_weapon then begin
     LogBurerLogic('AntiSniper');
+
+    if (IsActorLookTurnedAway(burer) or not burer_see_actor) and (random < 0.1) then begin
+      LogBurerLogic('Temp skip disable tele');
+    end else begin
+      ptele_ready^:=false;
+    end;
+
     if (_gren_count>0) and pshield_ready^ then begin
       LogBurerLogic('Grenades');    
       force_shield:=true;
@@ -452,7 +472,6 @@ begin
     ptele_ready^:=false;
     phealthloss^:=false;
   end;
-  _last_state_select_time:=GetGameTickCount();
   LogBurerLogic('End burer attack selector');
 end;
 
@@ -858,11 +877,11 @@ begin
     if act <> nil then begin;
       act_dist:=FVector3_copyfromengine(GetEntityPosition(act));
       v_sub(@act_dist, GetPosition(CGrenade));
-      log('gren_dist '+floattostr(v_length(@act_dist)));
+      LogBurerLogic('gren_dist '+floattostr(v_length(@act_dist)));
       result:= (v_length(@act_dist) <= MAX_DIST_TO_ACTOR);
     end;      
   end;
-  log('skip grenade: '+booltostr(result, true));
+  LogBurerLogic('skip grenade: '+booltostr(result, true));
 end;
 
 procedure CStateBurerAttackTele__HandleGrenades_OnGrenadeFound_Patch(); stdcall;
@@ -904,26 +923,45 @@ asm
   ret
 end;
 
-function NeedStopTeleAttack(burer:pointer):boolean; stdcall;
+function NeedStopTeleAttack(burer:pointer; time_start:cardinal; time_end:cardinal):boolean; stdcall;
 var
   itm:pointer;
   eatable_with_hud:boolean;
+  curtime, dtime:cardinal;
+  is_long_tele, burer_see_actor:boolean;
+  campos:FVector3;
 begin
   itm:=GetActorActiveItem();
+  result:=false;
+  curtime:=GetGameTickCount();
+  dtime:=GetTimeDeltaSafe(time_start);
+  is_long_tele:=dtime > GetBurerForceTeleFireMinDelta();
+  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  burer_see_actor:=(GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
 
   //если у нас есть граната, готова€ вот-вот взорватьс€ - срочно прекращаем телекинез и уходим в щит!
   if _gren_timer < GetBurerMinGrenTimer() / 2 then begin
+    LogBurerLogic('NeedStopTeleAttack - gren_timer');
     result:=true;
-    exit;
+  end else if NeedCloseProtectionShield(burer) then begin
+    LogBurerLogic('NeedStopTeleAttack - NeedCloseProtectionShield');
+    result:=true;
+  end else if IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer) and burer_see_actor then begin
+    LogBurerLogic('NeedStopTeleAttack - Sniper');
+    result:=true;
+  end else if IsBurerUnderAim(burer, BurerUnderAimNear) then begin
+    LogBurerLogic('NeedStopTeleAttack - UnderAim');
+    result:=true;
+  end else if IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer) and burer_see_actor then begin
+    LogBurerLogic('NeedStopTeleAttack - BigBoom');
+    result:=true;
+  end else if is_long_tele and (itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object') then begin
+    LogBurerLogic('NeedStopTeleAttack - eatable');
+    result:=true;
+  end else if is_long_tele and (itm<>nil) and IsThrowable(itm) and (GetCurrentState(itm) <> EHudStates__eIdle) then begin
+    LogBurerLogic('NeedStopTeleAttack - throw_suspect');  
+    result:=true;
   end;
-
-  if GetTimeDeltaSafe(_last_state_select_time) < GetBurerForceTeleFireMinDelta() then begin
-    result:=false;
-    exit;
-  end;
-
-  eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
-  result:=(eatable_with_hud and (GetCurrentDifficulty()>=gd_veteran)) or NeedCloseProtectionShield(burer) or (IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer)) or IsBurerUnderAim(burer, BurerUnderAimNear) or (IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer)) or ((itm<>nil) and IsThrowable(itm) and (GetCurrentState(itm) <> EHudStates__eIdle));
 end;
 
 procedure CStateBurerAttackTele__check_completion_ForceCompletion_Patch(); stdcall;
@@ -934,6 +972,8 @@ asm
   ja @finish //прыгаем, если уже решили закончить
 
   pushad
+  push [ecx+$5c] // m_end_tick
+  push [ecx+$4c] // time_started
   push [ecx+$10]
   call NeedStopTeleAttack
   cmp al, 0
@@ -1409,6 +1449,38 @@ asm
   ret 4  //original overwritten return
 end;
 
+function CanForceTeleFireOnDeactivate(tele_start_time:cardinal; tele_end_time:cardinal):boolean; stdcall;
+var
+  curtime:cardinal;
+begin
+  curtime:=GetGameTickCount();
+  LogBurerLogic('tele_start '+inttostr(tele_start_time)+', tele_end '+inttostr(tele_end_time)+', cur '+inttostr(curtime));
+  if curtime > tele_end_time then begin
+    result:=true;
+  end else begin
+    result:= (tele_start_time > 0) and (GetTimeDeltaSafe(tele_start_time) > GetBurerForceTeleFireMinDelta());
+  end;
+end;
+
+procedure CStateBurerAttackTele__deactivate_conditionalfireall_Patch(); stdcall;
+asm
+  pushad
+  push [ecx+$5c] // m_end_tick
+  push [ecx+$4c] // time_started
+  call CanForceTeleFireOnDeactivate
+  test al, al
+  popad
+  je @finish
+
+  pushad
+  mov eax, xrgame_addr
+  add eax, $104d80
+  call eax
+  popad
+
+  @finish:
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -1556,6 +1628,10 @@ begin
   //¬ CStateBurerAttackTele<Object>::FireAllToEnemy рандомизируем выбор кости, по которой идЄт бросок
   jmp_addr:=xrGame_addr+$104db0;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FireAllToEnemy_selecttargetpatch), 5, true) then exit;
+
+  //¬ CStateBurerAttackTele<Object>::deactivate берем контроль на вызовом FireAllToEnemy
+  jmp_addr:=xrGame_addr+$1085b7;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__deactivate_conditionalfireall_Patch), 5, true) then exit;
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
