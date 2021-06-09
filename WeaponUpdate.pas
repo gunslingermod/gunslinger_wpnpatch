@@ -436,7 +436,13 @@ begin
   if game_ini_line_exist(hud_sect, PAnsiChar(firemode_mark)) then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(hud_sect, PAnsiChar(firemode_mark)), true);
 end;
 
-procedure ProcessUpgrade(wpn:pointer); stdcall;
+type
+UpgradeProcessResults = packed record
+  hud_overriden:boolean;
+  visual_overriden:boolean;
+end;
+
+function ProcessUpgrade(wpn:pointer):UpgradeProcessResults; stdcall;
 var all_upgrades:string;
     section:PChar;
     up_gr_sect:string;
@@ -447,6 +453,9 @@ var all_upgrades:string;
     gl_status:cardinal;
     gl_enabled:boolean;
 begin
+  result.hud_overriden:=false;
+  result.visual_overriden:=false;
+
   section:=GetSection(wpn);
   buf:=GetBuffer(wpn);
 
@@ -472,17 +481,19 @@ begin
       section:=game_ini_read_string(section, 'section');
       if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
       if game_ini_line_exist(section, 'hud') then begin
-        if game_ini_r_bool_def(section, 'hud_when_silencer_is_attached', false) and IsSilencerAttached(wpn) then begin
+        result.hud_overriden:=true;
+        if IsSilencerAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_silencer_is_attached', false) then begin
           SetHUDSection(wpn, game_ini_read_string(section, 'hud_silencer'));
-        end else if game_ini_r_bool_def(section, 'hud_when_gl_is_attached', false) and IsGLAttached(wpn) then begin
+        end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_gl_is_attached', false) then begin
           SetHUDSection(wpn, game_ini_read_string(section, 'hud_gl'));
-        end else if game_ini_r_bool_def(section, 'hud_when_scope_is_attached', false) and IsScopeAttached(wpn) then begin
+        end else if IsScopeAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_scope_is_attached', false) then begin
           SetHUDSection(wpn, game_ini_read_string(section, 'hud_scope'));
         end else begin
           SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
         end;
       end;
       if game_ini_line_exist(section, 'visual') then begin
+        result.visual_overriden:=true;
         SetWpnVisual(wpn, game_ini_read_string(section, 'visual'));
       end;
 
@@ -743,6 +754,9 @@ var
   so:pointer;
   need_bones_recheck:boolean;
   k:single;
+
+  upgrade_results:UpgradeProcessResults;
+  cur_hud_sect, new_hud_sect:PAnsiChar;
 const
   EPS:single = 0.0001;
 begin
@@ -885,9 +899,29 @@ begin
       end else begin
         need_bones_recheck:=OptimizationCheck(wpn, GetCurrentFrame(), true, k, k);
       end;
+
       if need_bones_recheck then begin
         //Обработаем установленные апгрейды
-        ProcessUpgrade(wpn);
+        upgrade_results:=ProcessUpgrade(wpn);
+        if not upgrade_results.hud_overriden then begin
+          cur_hud_sect:=GetHUDSection(wpn);
+          new_hud_sect:=cur_hud_sect;
+
+          if IsSilencerAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_silencer_is_attached', false) then begin
+            new_hud_sect:=game_ini_read_string(sect, 'hud_silencer');
+          end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_gl_is_attached', false) then begin
+            new_hud_sect:=game_ini_read_string(sect, 'hud_gl');
+          end else if IsScopeAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_scope_is_attached', false) then begin
+            new_hud_sect:=game_ini_read_string(sect, 'hud_scope');
+          end else begin
+            new_hud_sect:=game_ini_read_string(sect, 'hud');
+          end;
+
+          if cur_hud_sect <> new_hud_sect then begin
+            SetHUDSection(wpn, new_hud_sect);
+          end;
+        end;
+
         //Теперь отобразим установленный прицел
         ProcessScope(wpn);
         //Разберемся с визуализацией патронов
