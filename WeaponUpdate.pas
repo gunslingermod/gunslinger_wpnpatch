@@ -445,6 +445,7 @@ end;
 function ProcessUpgrade(wpn:pointer):UpgradeProcessResults; stdcall;
 var all_upgrades:string;
     section:PChar;
+    new_hud_sect, old_hud_sect:PAnsiChar;
     up_gr_sect:string;
     i:integer;
     buf:WpnBuf;
@@ -481,15 +482,25 @@ begin
       section:=game_ini_read_string(section, 'section');
       if game_ini_line_exist(section, 'hide_bones') then SetWeaponMultipleBonesStatus(wpn, game_ini_read_string(section, 'hide_bones'), false);
       if game_ini_line_exist(section, 'hud') then begin
-        result.hud_overriden:=true;
+        old_hud_sect:=GetHUDSection(wpn);
+        new_hud_sect:=old_hud_sect;
+
         if IsSilencerAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_silencer_is_attached', false) then begin
-          SetHUDSection(wpn, game_ini_read_string(section, 'hud_silencer'));
+          new_hud_sect:=game_ini_read_string(section, 'hud_silencer');
         end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_gl_is_attached', false) then begin
-          SetHUDSection(wpn, game_ini_read_string(section, 'hud_gl'));
+          new_hud_sect:= game_ini_read_string(section, 'hud_gl');
         end else if IsScopeAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_scope_is_attached', false) then begin
-          SetHUDSection(wpn, game_ini_read_string(section, 'hud_scope'));
+          new_hud_sect:=game_ini_read_string(section, 'hud_scope');
         end else begin
-          SetHUDSection(wpn, game_ini_read_string(section, 'hud'));
+          new_hud_sect:=game_ini_read_string(section, 'hud');
+          if new_hud_sect = 'skip_reassign' then begin
+            new_hud_sect:=old_hud_sect;
+          end;
+        end;
+
+        if new_hud_sect<>old_hud_sect then begin
+          SetHUDSection(wpn, new_hud_sect);
+          result.hud_overriden:=true; 
         end;
       end;
       if game_ini_line_exist(section, 'visual') then begin
