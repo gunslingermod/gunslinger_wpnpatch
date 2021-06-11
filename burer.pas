@@ -1270,11 +1270,11 @@ asm
   @finish:
 end;
 
-procedure OnGraviAttackFire(burer:pointer); stdcall;
+procedure OnGraviAttackFire(enemy:pointer; burer:pointer); stdcall;
 var
   actpos:FVector3;
 begin
-  if GetActor()=nil then exit;
+  if (GetActor()=nil) or (enemy <> GetActor) then exit;
 
   actpos:=FVector3_copyfromengine(GetEntityPosition(GetActor()));
   actpos.y:=actpos.y+ACTOR_HEAD_CORRECTION_HEIGHT;
@@ -1287,6 +1287,8 @@ procedure CStateBurerAttackGravi__ExecuteGraviFire_Patch(); stdcall;
 asm
   pushad
   mov ecx, [esi+$10]
+  push ecx
+  mov ecx, [ecx+$a1c]
   push ecx
   call OnGraviAttackFire
   popad
@@ -1460,6 +1462,7 @@ begin
   end else begin
     result:= (tele_start_time > 0) and (GetTimeDeltaSafe(tele_start_time) > GetBurerForceTeleFireMinDelta());
   end;
+  LogBurerLogic('telefire = '+booltostr(result, true));
 end;
 
 procedure CStateBurerAttackTele__deactivate_conditionalfireall_Patch(); stdcall;
