@@ -1453,14 +1453,22 @@ end;
 
 function CanForceTeleFireOnDeactivate(tele_start_time:cardinal; tele_end_time:cardinal):boolean; stdcall;
 var
-  curtime:cardinal;
+  curtime, dt:cardinal;
+const
+  MIN_TELE_INTERVAL:cardinal = 500;
 begin
   curtime:=GetGameTickCount();
   LogBurerLogic('tele_start '+inttostr(tele_start_time)+', tele_end '+inttostr(tele_end_time)+', cur '+inttostr(curtime));
-  if curtime > tele_end_time then begin
+
+  dt:=0;
+  if (tele_start_time > 0) then begin
+    dt:=GetTimeDeltaSafe(tele_start_time);
+  end;
+
+  if (curtime > tele_end_time) or ((_gren_count > 0) and (dt > MIN_TELE_INTERVAL))  then begin
     result:=true;
   end else begin
-    result:= (tele_start_time > 0) and (GetTimeDeltaSafe(tele_start_time) > GetBurerForceTeleFireMinDelta());
+    result:= (dt > GetBurerForceTeleFireMinDelta());
   end;
   LogBurerLogic('telefire = '+booltostr(result, true));
 end;
