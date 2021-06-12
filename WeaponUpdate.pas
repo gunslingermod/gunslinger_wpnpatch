@@ -487,20 +487,24 @@ begin
 
         if IsSilencerAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_silencer_is_attached', false) then begin
           new_hud_sect:=game_ini_read_string(section, 'hud_silencer');
+          result.hud_overriden:=true;
         end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_gl_is_attached', false) then begin
           new_hud_sect:= game_ini_read_string(section, 'hud_gl');
+          result.hud_overriden:=true;
         end else if IsScopeAttached(wpn) and game_ini_r_bool_def(section, 'hud_when_scope_is_attached', false) then begin
           new_hud_sect:=game_ini_read_string(section, 'hud_scope');
+          result.hud_overriden:=true;
         end else begin
           new_hud_sect:=game_ini_read_string(section, 'hud');
           if new_hud_sect = 'skip_reassign' then begin
             new_hud_sect:=old_hud_sect;
+          end else begin
+            result.hud_overriden:=true;
           end;
         end;
 
         if new_hud_sect<>old_hud_sect then begin
           SetHUDSection(wpn, new_hud_sect);
-          result.hud_overriden:=true; 
         end;
       end;
       if game_ini_line_exist(section, 'visual') then begin
