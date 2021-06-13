@@ -421,7 +421,7 @@ begin
   CSE_SetAddonsFlags(swpn, wpnstate);
 
   //перенести в область движкового кода после вычитки m_flagsAddOnState
-  if IsScopeAttached(wpn) and (GetCurrentScopeIndex(wpn) >= GetScopesCount(wpn)) then begin
+  if (IsScopeAttached(wpn) or (GetCurrentScopeIndex(wpn) > 0)) and (GetCurrentScopeIndex(wpn) >= GetScopesCount(wpn)) then begin
     //Проблема - прицел не существует! Сбрасываем флаг
     Log('Invalid scope ID '+inttostr(GetCurrentScopeIndex(wpn))+' for '+GetSection(wpn)+', reset ID', true);
     SetCurrentScopeType(wpn, 0);
