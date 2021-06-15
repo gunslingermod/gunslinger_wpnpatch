@@ -899,6 +899,45 @@ asm
   popad
 end;
 
+function NeedSkipExplodeParticle():boolean; stdcall;
+begin
+  // Тут возможно пропускать партиклы взрывов, если они будут приводить к падению производительности
+  result:=false;
+end;
+
+procedure CExplosive__Explode_Patch(); stdcall;
+asm
+  xor eax, eax
+  cmp [esi+$c8], eax
+
+  pushad
+  call NeedSkipExplodeParticle
+  test al, al
+  popad
+  je @finish
+  xor ebp, ebp
+  pop eax //ret addr
+  mov eax, xrgame_addr
+  add eax, $301a28
+  jmp eax 
+
+
+  @finish:
+end;
+
+procedure CExplosive__OnEvent_Patch(); stdcall;
+asm
+  // if m_explosion_flags.test(flExploding) then return
+  
+  mov al, [ecx+$8c] //m_explosion_flags
+  test al, 1 //flExploding
+  jne @finish
+
+  //original
+  cmp word ptr [esp+$24],$18
+  @finish:
+end;
+
 ////////////////////////////////////////////////////////
 function Init():boolean;
 var
@@ -946,8 +985,19 @@ begin
   jump_addr:=xrGame_addr+$2c658f;
   if not WriteJump(jump_addr, cardinal(@CGrenade__Action_changetype_Patch), 6, true) then exit;
 
+  //В CExplosive::Explode не даём наплодить слишком много партиклов взрывов 
+  jump_addr:=xrGame_addr+$3019cc;
+  if not WriteJump(jump_addr, cardinal(@CExplosive__Explode_Patch), 8, true) then exit;
+
+  //[bug] баг - в CExplosive::OnEvent добавляем проверку на то, что мы уже не взрываемся
+  jump_addr:=xrGame_addr+$300173;
+  if not WriteJump(jump_addr, cardinal(@CExplosive__OnEvent_Patch), 6, true) then exit;
+
   result:=true;
 
 end;
+
+// CExplosive::Explode - xrgame.dll+301880
+// CExplosive::StartLight - xrgame.dll+300600
 
 end.
