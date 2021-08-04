@@ -260,15 +260,19 @@ begin
   end;
 
   // Если в руках у актора нет ничего, равно как рядом нет ничего опасного - смысла в щите тоже нет.
-  if (GetActorActiveItem()=nil) and (_gren_count = 0) and not big_boom_shooted then begin
+  if (itm=nil) and (_gren_count = 0) and not big_boom_shooted then begin
     LogBurerLogic('Disable shield in safe conditions');  
     pshield_ready^:=false;
   end;
 
   // Если мы ранее рискнули выйти из щита с подбрасыванием камеры - временно отключаем щит
   if (pshield_ready^) and script_bool_call('gunsl_burer.need_disable_shield', '', GetCObjectID(burer), '') then begin
-    LogBurerLogic('Script disable shield');
-    pshield_ready^:=false;
+    if big_boom_shooted then begin
+      LogBurerLogic('Script disable shield');
+      pshield_ready^:=false;
+    end else begin
+      LogBurerLogic('Skip disable shield - big_boom_shooted');
+    end;
   end;
 
   // Отдаём предпочтение вырыванию оружия из рук в опасных ситуациях
