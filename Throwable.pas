@@ -744,7 +744,7 @@ asm
 end;
 
 
-function CMissile__OnHit_CanExplode(this:pointer; SHit:pSHit):boolean;stdcall;
+function CGrenade__OnHit_CanExplode_Patch(this:pointer; SHit:pSHit):boolean;stdcall;
 //Вернуть true, если от полученного хита грена должна взорваться
 var
   sect:PChar;
@@ -781,7 +781,7 @@ asm
     je @nohit
     push edi
     push esi
-    call CMissile__OnHit_CanExplode
+    call CGrenade__OnHit_CanExplode_Patch
     @nohit:
     cmp eax, 1
   popad
@@ -974,7 +974,7 @@ begin
   jump_addr:=xrGame_addr+$2C719B;
   if not WriteJump(jump_addr, cardinal(@CMissile__ExitContactCallback_Patch), 5) then exit;
   jump_addr:=xrGame_addr+$2C5B5C;
-  if not WriteJump(jump_addr, cardinal(@CMissile__OnHit_CanExplode_Patch), 31, true) then exit;
+  if not WriteJump(jump_addr, cardinal(@CGrenade__OnHit_CanExplode_Patch), 31, true) then exit;
 
   //CMissile::Throw - xrgame.dll+2c8cb0 
 
