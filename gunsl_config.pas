@@ -258,7 +258,7 @@ var
   g_pickup_distance:single;
 
 implementation
-uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils;
+uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils, xr_strings, fs;
 
 var
   std_inertion:weapon_inertion_params;
@@ -688,9 +688,84 @@ begin
   result:=((val and r2_dof_enable)>0);
 end;
 
+
+procedure InjectReaderToSystemIni(r:pIReader; path:PAnsiChar);stdcall;
+asm
+  pushad
+  mov eax, xrcore_addr
+  mov ecx, [eax+$be91c] // xrCore.pSettings
+  lea ebx, [eax+$171f0]
+
+  push 0
+  push 0
+  push path
+  push r
+  call ebx
+
+  popad
+end;
+
+function IterateInjectionsFiles():boolean;
+var
+  path:string_path;
+  fname:string;
+  flist:FileList;
+  i, cnt:cardinal;
+
+  r:pIReader;
+begin
+  result:=false; 
+
+  fs_update_path(path, '$game_config$', 'injections\system\');
+  fs_file_list_open(@flist, path, FS_ListFiles+FS_RootOnly);
+
+  cnt:=fs_file_list_count(@flist);
+
+  log('Config injections count = '+inttostr(cnt));
+
+  if cnt > 0 then begin
+    for i:=0 to cnt-1 do begin
+      fname:=fs_file_list_get_item(@flist, i);
+      log('Injecting config file '+fname);
+      fname:=path+fname;
+
+      fs_r_open(@r, PAnsiChar(fname));
+      if r <> nil then begin
+        InjectReaderToSystemIni(r, path);
+        fs_r_close(@r);
+      end;
+    end;
+  end;
+
+  fs_file_list_close(@flist);
+
+  result:=true;
+end;
+
+function EnableConfigsInjections():boolean;
+begin
+  result:=false;
+
+  //1. Let's disable 'Duplicate section' asserts in CInifile::Load
+  if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
+  if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
+
+  //2. Iterate all injections configs
+  if not IterateInjectionsFiles() then exit;
+
+  //3. Enable disabled asserts
+  if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
+  if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
+
+  result:=true;
+end;
+
 function Init:boolean;
 begin
   result:=false;
+  
+  if not EnableConfigsInjections() then exit;
+
   _console_bool_flags:=0;
   _lens_render_factor:=1;
   _lens_enabled:=true;

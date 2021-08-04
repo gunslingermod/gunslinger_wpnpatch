@@ -10,7 +10,7 @@ uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge,
 
 
 //загрузка/сохранение игры
-procedure CWeapon__load(wpn:pointer; packet:pointer); stdcall;
+procedure CWeapon__load(wpn:pointer; packet:pIReader); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;

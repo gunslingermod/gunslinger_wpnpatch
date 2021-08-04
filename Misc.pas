@@ -2,7 +2,7 @@ unit Misc;
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
-uses MatVectors, windows, xr_strings;
+uses MatVectors, windows, xr_strings, BaseGameData;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
 type CSE_Abstract = packed record
@@ -88,9 +88,9 @@ procedure ClearNetPacket(packet:pNET_Packet); stdcall;
 procedure WriteToPacket(packet:pNET_Packet; data:pointer; bytes_count:cardinal); stdcall;
 procedure SendNetPacket(packet:pNET_Packet); stdcall;
 
-procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
-function ReaderLength(IReader:pointer):cardinal; stdcall;
-function ReaderElapsed(IReader:pointer):cardinal; stdcall;
+procedure ReadFromReader(r:pIReader; buf:pointer; bytes_count:cardinal); stdcall;
+function ReaderLength(r:pIReader):cardinal; stdcall;
+function ReaderElapsed(r:pIReader):cardinal; stdcall;
 procedure IWriter__w_u32(this:pointer; value:cardinal); stdcall;
 procedure IWriter__w_stringZ(this:pointer; value:PAnsiChar); stdcall;
 
@@ -146,7 +146,7 @@ function GetSysMousePoint():MouseCoord;
 procedure SetSysMousePoint(c:MouseCoord);
 
 implementation
-uses BaseGameData, ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender;
+uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -633,7 +633,7 @@ asm
   popad
 end;
 
-procedure ReadFromReader(IReader:pointer; buf:pointer; bytes_count:cardinal); stdcall;
+procedure ReadFromReader(r:pIReader; buf:pointer; bytes_count:cardinal); stdcall;
 asm
   pushad
     mov eax, xrgame_addr
@@ -642,27 +642,27 @@ asm
     push bytes_count
     push buf
 
-    mov ecx, IReader
+    mov ecx, r
     call eax;
   popad
 end;
 
-function ReaderLength(IReader:pointer):cardinal; stdcall;
+function ReaderLength(r:pIReader):cardinal; stdcall;
 asm
   pushad
     mov eax, xrgame_addr
     mov eax, [eax+$512970]
 
-    mov ecx, IReader
-    call eax;
+    mov ecx, r
+    call eax
     mov @result, eax
   popad
 end;
 
-function ReaderElapsed(IReader:pointer):cardinal; stdcall;
+function ReaderElapsed(r:pIReader):cardinal; stdcall;
 asm
   push ecx
-  mov ecx, IReader
+  mov ecx, r
   mov eax, [ecx+$10]
   sub eax, [ecx+$c]
   mov @result, eax

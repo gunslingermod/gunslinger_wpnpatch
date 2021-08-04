@@ -77,7 +77,7 @@ begin
 end;
 
 
-function ReadNextGunsU32Data(reader:pointer; var id:word; var value:cardinal):boolean;
+function ReadNextGunsU32Data(reader:pIReader; var id:word; var value:cardinal):boolean;
 var
   tmp:cardinal;
 begin
@@ -92,7 +92,7 @@ begin
   result:=true;
 end;
 
-function ReadNextGunsStringZData(reader:pointer; var id:word; var value:string):boolean;
+function ReadNextGunsStringZData(reader:pIReader; var id:word; var value:string):boolean;
 var
   tmp:cardinal;
   str:string;
@@ -131,7 +131,7 @@ begin
   result:=true;
 end;
 //-------------------------
-function CSavedGameWrapper__valid_saved_game_override_internal(reader:pointer; var version:string; var addon_name:string; var save_ver:string; var d1:cardinal; var d2:cardinal):cardinal; stdcall;
+function CSavedGameWrapper__valid_saved_game_override_internal(reader:pIReader; var version:string; var addon_name:string; var save_ver:string; var d1:cardinal; var d2:cardinal):cardinal; stdcall;
 var
   ver_hdr:cardinal;
   alife_ver:cardinal;
@@ -186,7 +186,7 @@ begin
   end;
 end;
 
-function CSavedGameWrapper__valid_saved_game_override(reader:pointer):cardinal; stdcall;
+function CSavedGameWrapper__valid_saved_game_override(reader:pIReader):cardinal; stdcall;
 var
   version, addon_name, save_ver:string;
   d1, d2:cardinal;
