@@ -12,6 +12,7 @@ function OnWeaponAimIn(wpn:pointer):boolean;stdcall;
 function OnWeaponAimOut(wpn:pointer):boolean;stdcall;
 function Weapon_SetKeyRepeatFlagIfNeeded(wpn:pointer; kfACTTYPE:cardinal):boolean;stdcall;
 function CHudItem__OnMotionMark(wpn:pointer):boolean; stdcall;
+procedure RPG7ReactiveHit(wpn:pointer); stdcall;
 
 procedure TryShootGLFix(wpn:pointer); stdcall;
 
@@ -2013,9 +2014,106 @@ asm
   call eax
 end;
 
+procedure RPG7ReactiveHit(wpn:pointer); stdcall;
+var
+  sect:PAnsiChar;
+  dist, hit, impulse, buck_disp, rdisp, rdisp2, rdist, rhit, rhit_cur, revk:single;
+  hittype:cardinal;
+  bullet_material:PAnsiChar;
+  buck_cnt, rbuck_cnt, i, j:integer;
+  pos, point, dir, dir2, tgt_dir,tgt_dir2:FVector3;
+  c:CCartridge;
+  rqr:rq_result;
+  id:word;
+
+begin
+
+  //При стрельбе НПС не применяем поражение реактивной струей
+  if (GetOwner(wpn) <> GetActor()) and (GetOwner(wpn)<>nil) then begin
+    exit;
+  end;
+
+  sect:=GetSection(wpn);
+  dist:=game_ini_r_single_def(sect, 'reactive_hit_dist', 0);
+  hit:=game_ini_r_single_def(sect, 'reactive_hit_power', 0);
+  impulse:=game_ini_r_single_def(sect, 'reactive_hit_impulse', 0);
+  buck_cnt:=game_ini_r_int_def(sect, 'reactive_hit_buck', 1);
+  rbuck_cnt:=game_ini_r_int_def(sect, 'reactive_hit_reverse_buck', 1);
+  buck_disp:=game_ini_r_single_def(sect, 'reactive_hit_buck_disp', 1);
+  rdisp:=game_ini_r_single_def(sect, 'reactive_hit_reverse_disp', 0.1);
+  rdisp2:=game_ini_r_single_def(sect, 'reactive_hit_reverse_disp2', 0.1);
+  rhit:=game_ini_r_single_def(sect, 'reactive_hit_reverse_power', hit);
+  hittype:=game_ini_r_int_def(sect, 'reactive_hit_type', EHitType__eHitTypeExplosion);
+  revk:=game_ini_r_single_def(sect, 'reactive_hit_reverse_k', 1);
+  if (dist <= 0) or (hit <= 0) or (impulse <= 0) or (buck_cnt <= 0) then exit;
+
+  bullet_material:=game_ini_read_string_def(sect, 'reactive_hit_bullet_material', 'default');
+  pos:=GetLastFP(wpn);
+  dir:=GetLastFd(wpn);
+
+  v_mul(@dir, -1);
+
+  InitCartridge(@c);
+  c.bullet_material_idx:=GetMaterialIdx(bullet_material);
+
+  for i:=0 to buck_cnt-1 do begin
+    // Хитуем тех, кто сзади
+    random_dir(@tgt_dir, @dir, buck_disp);
+
+    if GetOwner(wpn) = nil then begin
+      id:=GetID(wpn);
+    end else begin
+      id:=GetCObjectID(GetOwner(wpn));
+    end;
+    AddBullet(@pos, @tgt_dir, 330, hit, impulse, id, GetID(wpn), hittype, dist, @c, 1, true, false);
+
+    //имитируем отражение струи в стрелка при близком препятствии - для этого используем disp2
+    random_dir(@tgt_dir, @dir, rdisp);
+    if Level_RayPick(@pos, @tgt_dir, dist, rq_target__rqtStatic, @rqr, GetOwner(wpn)) then begin
+      //За стрелком обнаружилось препятствие, хитуем стрелка
+      log('--- Reactive danger, dist = '+floattostr(rqr.range));
+      for j:=0 to rbuck_cnt-1 do begin
+        point := pos;
+        dir2 := tgt_dir;
+
+        v_mul(@dir2, rqr.range * 0.9);
+        v_add(@point, @dir2);
+
+        dir2:=pos;
+        v_sub(@dir2, @point);
+        v_normalize(@dir2);
+        random_dir(@tgt_dir2, @dir2, rdisp2);
+
+
+        // Вычисляем хит отраженной струи
+        rdist:=(dist - rqr.range);
+        if rdist < 0 then rdist:=0;
+        rhit_cur:=rhit * rdist / dist;
+
+        // Вычисляем дистанцию полета отраженной струи
+        rdist:=dist - rqr.range;
+        if rdist < 0 then rdist:=0;
+        rdist:=rdist / dist;
+        rdist:=dist * revk * rdist;
+
+        AddBullet(@point, @tgt_dir2, 330, rhit_cur, impulse, GetID(wpn), GetID(wpn), hittype, rdist*(0.9 + random*0.15), @c, 1, true, true);
+      end;
+    end;
+  end;
+
+  FreeCartridge(@c);
+end;
+
 
 procedure CWeaponRPG7__FireStart_SpawnRocket_Replace_Patch(); stdcall;
 asm
+  {// Cтруя за стрелком - в том числе и во время осечек (полезно для отладки)
+  pushad
+  lea ecx, [ecx-$338]
+  push ecx
+  call RPG7ReactiveHit
+  popad}
+
   pushad
   lea ecx, [ecx+$480]
   push ecx
@@ -2615,6 +2713,37 @@ asm
   ret
 end;
 
+
+function NeedSkipNewBullet(v:pxr_vector; sz:cardinal):boolean; stdcall;
+const
+  MAX_BULLETS_COUNT:cardinal = 1000;
+begin
+//  result:=items_count_in_vector(v, sz) >= MAX_BULLETS_COUNT;
+  result:=false;
+end;
+
+procedure CBulletManager__RegisterEvent_CheckBulletCount_Patch(); stdcall;
+asm
+  pushad
+  push $a0 //sizeof(CBulletManager::_event)
+  lea ecx, [ecx+$34]
+  push ecx
+  call NeedSkipNewBullet
+  test al, al
+  popad
+
+  je @original
+  pop ebx //ret addr
+  mov ebx, xrgame_addr
+  add ebx, $24f0dd
+  jmp ebx
+
+
+  @original:
+  mov edi, ecx
+  mov ecx, [edi+$38]
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -2892,6 +3021,10 @@ begin
   // Для исправления заменяем функцию на нашу реализацию, заодно учитывающую и коэффициенты в завсимости от типа хита
   jmp_addr:=xrGame_addr+$27dd00;
   if not WriteJump(jmp_addr, cardinal(@CEntityCondition__BleedingSpeed_Patch), 6, false) then exit;
+
+  // [bug] В CBulletManager::RegisterEvent проверяем количество пуль на локации, и если их слишком много - дропаем пулю, которую хотели добавить
+  jmp_addr:=xrGame_addr+$24ef7a;
+  if not WriteJump(jmp_addr, cardinal(@CBulletManager__RegisterEvent_CheckBulletCount_Patch), 5, true) then exit;
 
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
   //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).

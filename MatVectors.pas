@@ -73,6 +73,8 @@ interface
   procedure build_projection(m:pFMatrix4x4; hat:single; aspect:single; near_plane:single; far_plane:single);
   procedure getHP(v:pFVector3; var h:single; var p:single);
 
+  procedure random_dir(tgt_dir:pFvector3; src_dir:pFVector3; dispersion:single); stdcall;  
+
 implementation
 uses Math;
 
@@ -329,6 +331,55 @@ begin
     end;
 
   end; 
+end;
+
+function _nrand(sigma:single):single; stdcall;
+const
+  ONE_OVER_SIGMA_EXP:single = 1.0 / 0.7975;
+var
+  y:single;
+begin
+	if(sigma = 0) then begin
+    result:=0;
+    exit;
+  end;
+
+	repeat
+		y := -1 * ln(random);
+	until(random <= exp(-1 * (y - 1.0)*(y - 1.0)*0.5));
+
+
+	if(random < 0.5) then begin
+    result:=y * sigma * ONE_OVER_SIGMA_EXP;
+  end else begin
+    result:= -1 * y * sigma * ONE_OVER_SIGMA_EXP;
+  end;
+end;
+
+procedure random_dir(tgt_dir:pFvector3; src_dir:pFVector3; dispersion:single); stdcall;
+var
+  sigma, alpha, theta, r:single;
+  U,V:Fvector3;
+begin
+	sigma := dispersion/3;
+
+	alpha := _nrand(sigma);
+  if alpha < -1*dispersion then begin
+    alpha:=-1*dispersion;
+  end else if alpha > dispersion then begin
+    alpha:=dispersion;
+  end;
+
+	theta := random * PI;
+	r := tan (alpha);
+  generate_orthonormal_basis_normalized(src_dir, @u, @v);
+  v_mul(@u, r*sin(theta));
+  v_mul(@v, r*cos(theta));
+
+  tgt_dir^:=u;
+  v_add(tgt_dir, @v);
+  v_add(tgt_dir, src_dir);
+  v_normalize(tgt_dir);
 end;
 
 end.

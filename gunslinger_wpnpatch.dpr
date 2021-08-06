@@ -56,7 +56,8 @@ uses
   savedgames in 'savedgames.pas',
   burer in 'burer.pas',
   Vector in 'Vector.pas',
-  xr_map in 'xr_map.pas';
+  xr_map in 'xr_map.pas',
+  fs in 'fs.pas';
 
 {$R *.res}
 

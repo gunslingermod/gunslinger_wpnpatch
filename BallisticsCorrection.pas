@@ -123,6 +123,11 @@ asm
   lea edx, [esp+$34]
   lea ecx, [esp+$4C]
   pushad
+    push esi
+    call RPG7ReactiveHit
+  popad
+
+  pushad
     push esi//wpn
 
     push ecx//dir
