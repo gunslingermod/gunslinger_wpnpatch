@@ -289,7 +289,7 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -1889,6 +1889,62 @@ asm
   pop eax
 end;
 
+function IsActorBurned():boolean; stdcall;
+var
+  act:pointer;
+  cond:pCActorCondition;
+  burn_amount:single;
+begin
+  result:=false;
+  act:=GetActor();
+  if act = nil then exit;
+
+  cond:=GetActorConditions(act);
+  if cond = nil then exit;
+
+  CEntityCondition__BleedingSpeed_reimpl(act, @cond.base_CEntityCondition.m_WoundVector, @burn_amount, (1 shl EHitType__eHitTypeBurn) + (1 shl EHitType__eHitTypeLightBurn));
+
+  result:=burn_amount > 0;
+end;
+
+procedure CUIMainIngameWnd__UpdateMainIndicators_Patch(); stdcall;
+const
+  burn_icon:string = 'ui_gunsl_inGame2_circle_fire';
+asm
+  //original instruction
+  fst dword ptr [esp+$14]
+  mov ecx, [esi+$68]
+
+  //check if bleeding
+  pushad
+  call IsActorBurned
+  test al, al
+  popad
+
+  je @original_icon
+  mov [esp+$14], 0 // bleeding = 0
+
+  mov eax,[ecx]
+  mov edx,[eax+$58]
+  push 01
+  call edx   // m_ind_bleeding->Show(true);
+
+  mov eax,[esi+$68]
+  lea ecx,[eax+$54]
+  mov eax,[ecx]
+  mov edx,[eax+04]
+  push burn_icon
+  call edx // m_ind_bleeding->InitTexture
+
+  pop eax // ret addr
+  mov eax, xrgame_addr
+  add eax, $45a26b
+  jmp eax // to m_ind_bleeding->SetColorAnimation("ui_fast_blinking_alpha", flags)
+
+  @original_icon:
+  ret
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -2052,6 +2108,12 @@ begin
   // ¬ CUIWpnParams::SetInfo делаем отображение строки не нулевого типа патронов, а зар€женного сейчас
   jmp_addr:=xrGame_addr+$453dee;
   if not WriteJump(jmp_addr, cardinal(@CUIWpnParams__SetInfo_OverrideAmmoString_Patch), 9, true) then exit;
+
+
+  //»конка горени€ вместо кровотечени€
+  jmp_addr:=xrGame_addr+$45a1b5;
+  if not WriteJump(jmp_addr, cardinal(@CUIMainIngameWnd__UpdateMainIndicators_Patch), 7, true) then exit;
+
    
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0

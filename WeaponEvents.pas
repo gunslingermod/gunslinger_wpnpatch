@@ -2,6 +2,8 @@ unit WeaponEvents;
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
+uses Vector;
+
 function Init:boolean;
 
 procedure OnWeaponExplode_AfterAnim(wpn:pointer; param:integer);stdcall;
@@ -17,7 +19,7 @@ procedure RPG7ReactiveHit(wpn:pointer); stdcall;
 procedure TryShootGLFix(wpn:pointer); stdcall;
 
 implementation
-uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer, HitUtils, Vector;
+uses Messenger, BaseGameData, Misc, HudItemUtils, WeaponAnims, LightUtils, WeaponAdditionalBuffer, sysutils, ActorUtils, DetectorUtils, strutils, dynamic_caster, weaponupdate, KeyUtils, gunsl_config, xr_Cartridge, ActorDOF, MatVectors, ControllerMonster, collimator, level, WeaponAmmoCounter, xr_RocketLauncher, xr_strings, Throwable, UIUtils, BallisticsCorrection, RayPick, burer, HitUtils;
 
 var
   upgrade_weapon_addr:cardinal;
@@ -2027,7 +2029,6 @@ var
   id:word;
 
 begin
-
   //При стрельбе НПС не применяем поражение реактивной струей
   if (GetOwner(wpn) <> GetActor()) and (GetOwner(wpn)<>nil) then begin
     exit;
@@ -2071,7 +2072,6 @@ begin
     random_dir(@tgt_dir, @dir, rdisp);
     if Level_RayPick(@pos, @tgt_dir, dist, rq_target__rqtStatic, @rqr, GetOwner(wpn)) then begin
       //За стрелком обнаружилось препятствие, хитуем стрелка
-      log('--- Reactive danger, dist = '+floattostr(rqr.range));
       for j:=0 to rbuck_cnt-1 do begin
         point := pos;
         dir2 := tgt_dir;
@@ -2083,7 +2083,6 @@ begin
         v_sub(@dir2, @point);
         v_normalize(@dir2);
         random_dir(@tgt_dir2, @dir2, rdisp2);
-
 
         // Вычисляем хит отраженной струи
         rdist:=(dist - rqr.range);
@@ -2535,184 +2534,6 @@ asm
 
 end;
 
-procedure ModifyObjectHitBeforeProcessing(h:pSHit); stdcall;
-begin
-  // Модифицируем поля в хите перед тем, как отдать его на обработку пораженному объекту
-  if h.hit_type = EHitType__eHitTypeBurn then begin
-    h.add_wound:=1;
-  end;
-end;
-
-procedure CGameObject__OnEvent_addwoundonhit_Patch(); stdcall;
-asm
-  // original
-  mov edx,[eax+$E8]
-  lea ecx,[esp+$14]
-
-  pushad
-  push ecx
-  call ModifyObjectHitBeforeProcessing
-  popad
-
-end;
-
-procedure ScaleWoundByHitType(obj:pointer; hit_power:psingle; hit_type:cardinal); stdcall;
-var
-  factor1, factor2:single;
-  sect:PAnsiChar;
-begin
-  sect:=get_string_value(GetCObjectSection(obj));
-  sect:=game_ini_read_string_def(sect, 'condition_sect', sect);
-  
-  factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('wound_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
-  factor2:=game_ini_r_single_def(sect, PAnsiChar('wound_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
-
-  // log('Section '+sect+', hit_type '+inttostr(hit_type)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
-
-  hit_power^:=hit_power^*factor1*factor2;
-end;
-
-procedure CEntityCondition__AddWound_scalewoundsize_Patch(); stdcall;
-asm
-  lea esi, [esp+$14] //hit_power
-  mov eax, [esp+$18] //hit_type
-
-  pushad
-  push eax
-  push esi
-  push [ecx+$44] // this->m_object
-  call ScaleWoundByHitType
-  popad
-
-  //original
-  mov esi, ecx
-  mov eax, [esi+$48]
-end;
-
-function GetMinFireParticleForDeadEntities():cardinal;
-begin
-  result:=game_ini_r_int_def('entity_fire_particles', 'min_burn_time_dead', 5000);
-end;
-
-procedure CEntityAlive__UpdateFireParticles_deadfire_Patch(); stdcall;
-asm
-  pushad
-  mov ecx, edi
-  mov eax, xrgame_addr
-  add eax, $40aa0
-  call eax // CEntity::g_Alive
-  test eax, eax
-  popad
-
-  jne @alive
-  
-  lea eax, [esp+$8] // адрес аргумента с временем жизни
-  pushad
-  push eax
-  call GetMinFireParticleForDeadEntities
-  pop ecx
-  mov [ecx], eax
-  popad
-
-  @alive:
-  //original
-  fldcw [esp+$1c]
-  push [esp]
-  mov [esp+4], esi
-end;
-
-procedure CEntityAlive__shedule_Update_updateparticles_Patch(); stdcall;
-asm
-  pushad
-  lea ecx, [edi+$1b0] //cast to CParticlesPlayer
-  mov eax, xrgame_addr
-  add eax, $282b90
-  call eax  //CParticlesPlayer::UpdateParticles
-  popad
-
-  //original
-  mov eax,[edx+$254]
-end;
-
-function CorrectBleedingForHitType(obj:pointer; hit_type:cardinal; bleeding:single):single; stdcall;
-var
-  factor1, factor2:single;
-  sect:PAnsiChar;
-begin
-  result:=bleeding;
-
-  sect:=get_string_value(GetCObjectSection(obj));
-  sect:=game_ini_read_string_def(sect, 'condition_sect', sect);
-
-  factor1:=game_ini_r_single_def('gunslinger_wound_factors', PAnsiChar('bleeding_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
-  factor2:=game_ini_r_single_def(sect, PAnsiChar('bleeding_factor_for_hit_type_'+inttostr(hit_type)), 1.0);
-
-  //log('Section '+sect+', hit_type '+inttostr(hit_type)+', val='+floattostr(bleeding)+', factor1 is '+floattostr(factor1)+', factor2 is '+floattostr(factor2));
-
-  result:=result*factor1*factor2;
-end;
-
-function GetWoundComponentByHitType(wound:pointer; hit_type:cardinal):single; stdcall;
-var
- a_m_Wounds:cardinal;
-begin
-  result:=0;
-  if hit_type>=EHitType__eHitTypeMax then exit;
-
-  a_m_Wounds:=cardinal(wound)+$10;
-  result:=psingle(a_m_Wounds+hit_type*sizeof(single))^;
-end;
-
-function CalcWoundTotalSize(obj:pointer; wound:pointer):single; stdcall;
-var
-  i:integer;
-  bleeding:single;
-begin
-  result:=0;
-  for i:=0 to EHitType__eHitTypeMax do begin
-    bleeding:=GetWoundComponentByHitType(wound, i);
-    if bleeding > 0 then begin
-      result:=result+CorrectBleedingForHitType(obj, i, bleeding);
-    end;
-  end;
-end;
-
-procedure CEntityCondition__BleedingSpeed_reimpl(obj:pointer;wounds:pxr_vector; res:psingle); stdcall;
-var
-  i:integer;
-  pwound:pointer;
-begin
-  res^:=0;
-  //if items_count_in_vector(wounds, sizeof(pointer)) > 0 then begin
-  //  Log('Wounds count: '+inttostr(items_count_in_vector(wounds, sizeof(pointer))));
-  //end;
-
-  for i:=0 to items_count_in_vector(wounds, sizeof(pointer))-1 do begin
-    pwound:=get_item_from_vector(wounds, i, sizeof(pointer));
-    res^:=res^+CalcWoundTotalSize(obj, pointer(pcardinal(pwound)^));
-  end;
-end;
-
-procedure CEntityCondition__BleedingSpeed_Patch(); stdcall;
-asm
-  push 0
-  lea eax, [esp] 
-
-  pushad
-  mov edi, ecx //this
-
-  push eax // ptr to result
-  lea esi, [edi+$48] // m_WoundVector
-  push esi       // this->m_WoundVector
-  push [edi+$44] // this->m_object
-  call CEntityCondition__BleedingSpeed_reimpl
-  popad
-
-  fld [esp]
-  add esp, 4
-  ret
-end;
-
 
 function NeedSkipNewBullet(v:pxr_vector; sz:cardinal):boolean; stdcall;
 const
@@ -3000,27 +2821,6 @@ begin
   // в CShootingObject::FireBullet (xrgame.dll+2bb920) даем возможность прописывать разные типы урона пулям
   jmp_addr:=xrGame_addr+$2bba26;
   if not WriteJump(jmp_addr, cardinal(@CShootingObject__FireBullet_hittype_Patch), 5, true) then exit;
-
-  // В CGameObject::OnEvent при получении сообщения о хите перед вызовом Hit ставим add_wound=true
-  jmp_addr:=xrGame_addr+$280935;
-  if not WriteJump(jmp_addr, cardinal(@CGameObject__OnEvent_addwoundonhit_Patch), 10, true) then exit;
-
-  // в CEntityCondition::AddWound добавим возможность масштабировать размер раны в зависимости от типа урона
-  jmp_addr:=xrGame_addr+$27e683;
-  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__AddWound_scalewoundsize_Patch), 5, true) then exit;
-
-  // в CEntityAlive::UpdateFireParticles если существо умерло до остановки отыгрыша партиклов огня, то продляем отыгрыш партикла (пусть "догорает")
-  jmp_addr:=xrGame_addr+$27b6dc;
-  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__UpdateFireParticles_deadfire_Patch), 5, true) then exit;
-
-  //Надо вызывать CParticlesPlayer::UpdateParticles из CEntityAlive::shedule_Update, чтобы партиклы корректно удалялись после смерти
-  jmp_addr:=xrGame_addr+$27a768;
-  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__shedule_Update_updateparticles_Patch), 6, true) then exit;
-
-  // [bug] баг в CEntityCondition::BleedingSpeed - из-за того, что итоговое кровотечение берется как среднее от всех ран, то при заживании небольшой раны кровотечение усиливается
-  // Для исправления заменяем функцию на нашу реализацию, заодно учитывающую и коэффициенты в завсимости от типа хита
-  jmp_addr:=xrGame_addr+$27dd00;
-  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__BleedingSpeed_Patch), 6, false) then exit;
 
   // [bug] В CBulletManager::RegisterEvent проверяем количество пуль на локации, и если их слишком много - дропаем пулю, которую хотели добавить
   jmp_addr:=xrGame_addr+$24ef7a;

@@ -8,7 +8,7 @@ function Init:boolean;
 procedure CorrectShooting(wpn:pointer; CEntity:pointer; pos:pFVector3; dir:pFVector3); stdcall;
 
 implementation
-uses BaseGameData,  sysutils, messenger, HudItemUtils, ActorUtils, gunsl_config, WeaponAdditionalBuffer, RayPick, dynamic_caster, ControllerMonster;
+uses BaseGameData,  sysutils, messenger, HudItemUtils, ActorUtils, gunsl_config, WeaponAdditionalBuffer, RayPick, dynamic_caster, ControllerMonster, WeaponEvents;
 
 procedure virtual_CEntity__g_fireParams(this:pointer; wpn:pointer; pos:pFVector3; dir:pFVector3); stdcall;
 asm
