@@ -1599,6 +1599,34 @@ asm
   jmp eax
 end;
 
+
+procedure CorrectSecondaryHitType(zone:pointer; orig_hit_type:cardinal; pNewHitType:pcardinal); stdcall;
+var
+  s:PAnsiChar;
+begin
+  pNewHitType^:=orig_hit_type;
+  if zone = nil then exit;
+
+  s:=get_string_value(GetCObjectSection(zone));
+  pNewHitType^:=game_ini_r_int_def(s, 'secondary_hit_type', orig_hit_type);
+end;
+
+
+procedure CMosquitoBald__UpdateSecondaryHit_SecondaryHitType_Patch(); stdcall;
+asm
+  push 0 //buffer for hit type
+  mov ecx, esp
+
+  pushad
+  push ecx
+  push [esi+$228] // m_eHitTypeBlowout
+  push esi
+  call CorrectSecondaryHitType
+  popad
+
+  pop ecx // get new hit type from buffer
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -1681,6 +1709,11 @@ begin
   jmp_addr:=xrEngine_addr+$1b3c0;
   if not WriteJump(jmp_addr, cardinal(@CObjectList__Update_SkipUpdate_Patch), 6, true) then exit;
 
+  // в CMosquitoBald::UpdateSecondaryHit добавляем возможность задавать тип "вторичного" урона
+  jmp_addr:=xrGame_addr+$30ed2d;
+  if not WriteJump(jmp_addr, cardinal(@CMosquitoBald__UpdateSecondaryHit_SecondaryHitType_Patch), 6, true) then exit;
+
+
   result:=true;
 end;
 
@@ -1716,6 +1749,7 @@ end;
 
 // CInventory::Update - xrgame.dll+2a83a0
 // CScriptGameObject::buy_supplies - xrgame.dll+1c3df0
+// CMosquitoBald::UpdateSecondaryHit - xrgame.dll+30ea90
 
 
 end.

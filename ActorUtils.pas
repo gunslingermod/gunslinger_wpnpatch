@@ -4532,6 +4532,9 @@ begin
   jmp_addr:=xrGame_addr+$27a768;
   if not WriteJump(jmp_addr, cardinal(@CEntityAlive__shedule_Update_updateparticles_Patch), 6, true) then exit;
 
+  //В CEntityAlive::Hit можно отключить вопроизведение партикла горения для типа eHitTypeLightBurn
+  nop_code(xrgame_addr+$27be23, 2); 
+
   // [bug] баг в CEntityCondition::BleedingSpeed - из-за того, что итоговое кровотечение берется как среднее от всех ран, то при заживании небольшой раны кровотечение усиливается
   // Для исправления заменяем функцию на нашу реализацию, заодно учитывающую и коэффициенты в завсимости от типа хита
   jmp_addr:=xrGame_addr+$27dd00;

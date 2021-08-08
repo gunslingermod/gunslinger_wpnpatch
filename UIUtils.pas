@@ -1902,7 +1902,7 @@ begin
   cond:=GetActorConditions(act);
   if cond = nil then exit;
 
-  CEntityCondition__BleedingSpeed_reimpl(act, @cond.base_CEntityCondition.m_WoundVector, @burn_amount, (1 shl EHitType__eHitTypeBurn) + (1 shl EHitType__eHitTypeLightBurn));
+  CEntityCondition__BleedingSpeed_reimpl(act, @cond.base_CEntityCondition.m_WoundVector, @burn_amount, (1 shl EHitType__eHitTypeBurn));
 
   result:=burn_amount > 0;
 end;
