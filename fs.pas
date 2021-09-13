@@ -1,4 +1,5 @@
 unit fs;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 uses Vector, BaseGameData;

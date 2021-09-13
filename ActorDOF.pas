@@ -439,3 +439,8 @@ begin
 end;
 
 end.
+
+//xrGame.dll+230790 - CGamePersistent::RestoreEffectorDOF
+//xrGame.dll+230960 - CGamePersistent::SetPickableEffectorDOF
+//xrGame.dll+30bd10 - CCustomZone::feel_touch_delete
+//xrGame.dll+313300 - CNoGravityZone::switchGravity

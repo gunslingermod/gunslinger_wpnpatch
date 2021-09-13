@@ -1,4 +1,5 @@
 unit xr_map;
+{$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
 
