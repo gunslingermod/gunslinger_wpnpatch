@@ -744,23 +744,23 @@ asm
 end;
 
 
-function CGrenade__OnHit_CanExplode_Patch(this:pointer; SHit:pSHit):boolean;stdcall;
+function CheckGrenadeExplosionByHit(grenade:pointer; SHit:pSHit):boolean;stdcall;
 //Вернуть true, если от полученного хита грена должна взорваться
 var
   sect:PChar;
 begin
-  sect:=GetSection(this);
+  sect:=GetSection(grenade);
   result:=false;
   if game_ini_line_exist(sect, 'help_explosive_info') and game_ini_r_bool(sect, 'help_explosive_info') then begin
     log('Hit type: '+inttostr(SHit.hit_type));
     log('Hit power: '+ floattostr(SHit.power));
     log('Hit impulse: '+ floattostr(SHit.impulse));
-    log('Treshold: '+floattostr(CGrenade__GetDetonationTresholdHit(this)));
+    log('Treshold: '+floattostr(CGrenade__GetDetonationTresholdHit(grenade)));
   end;
 
   if game_ini_line_exist(sect, 'explosion_on_hit') and game_ini_r_bool(sect, 'explosion_on_hit') then begin
-    if CGrenade__GetDetonationTresholdHit(this)<SHit.power then begin
-      if (not CMissile__Useful(this)) or (not game_ini_line_exist(sect, 'explosive_while_not_activated')) or game_ini_r_bool(sect, 'explosive_while_not_activated') then begin
+    if CGrenade__GetDetonationTresholdHit(grenade)<SHit.power then begin
+      if (not CMissile__Useful(grenade)) or (not game_ini_line_exist(sect, 'explosive_while_not_activated')) or game_ini_r_bool(sect, 'explosive_while_not_activated') then begin
         if game_ini_line_exist(sect, 'explosion_hit_types') then begin
           if pos(inttostr(SHit.hit_type), game_ini_read_string(sect, 'explosion_hit_types'))<>0 then result:=true;
         end else begin
@@ -773,7 +773,7 @@ begin
 end;
 
 
-procedure CMissile__OnHit_CanExplode_Patch();stdcall;
+procedure CGrenade__OnHit_CanExplode_Patch();stdcall;
 asm
   pushad
     mov eax, 0
@@ -781,7 +781,7 @@ asm
     je @nohit
     push edi
     push esi
-    call CGrenade__OnHit_CanExplode_Patch
+    call CheckGrenadeExplosionByHit
     @nohit:
     cmp eax, 1
   popad
