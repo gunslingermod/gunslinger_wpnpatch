@@ -33,7 +33,7 @@ const
     CMISSILE_NOT_ACTIVATED:cardinal=$FFFFFFFF;
 
 implementation
-uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster, WeaponEvents, MatVectors;
+uses BaseGameData, Misc, WeaponSoundLoader, ActorUtils, HudItemUtils, gunsl_config, KeyUtils, sysutils, strutils, dynamic_caster, HitUtils, DetectorUtils, xr_BoneUtils, ControllerMonster, WeaponEvents, MatVectors, physics;
 
 var
   _activate_key_state:TKeyHoldState;

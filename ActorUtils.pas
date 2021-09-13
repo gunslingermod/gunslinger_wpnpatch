@@ -7,7 +7,7 @@ unit ActorUtils;
 {$define USE_SCRIPT_USABLE_HUDITEMS}  //на всякий - потом все равно в двиг надо перекинуть, но влом - и так отлично работает
 
 interface
-uses LightUtils, WeaponAdditionalBuffer, MatVectors, HitUtils, vector, xr_map;
+uses LightUtils, WeaponAdditionalBuffer, MatVectors, HitUtils, vector, xr_map, physics;
 
 const
   actMovingForward:cardinal = $1;

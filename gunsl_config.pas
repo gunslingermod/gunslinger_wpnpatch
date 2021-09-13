@@ -106,6 +106,18 @@ type burer_superstamina_hit_params = record
   condition_dec_max:single;
 end;
 
+type burer_fly_params = record
+  max_dist:single;
+  critical_dist:single;
+  preferred_dist:single;
+  preferred_height:single;
+  impulse:single;
+  cooldown_period:cardinal;
+  visibility_period:cardinal;
+  max_time:cardinal;
+  vertical_accel:single;
+end;
+
 type burer_teleweapon_params = record
   impulse:single;
   allowed_angle:single;
@@ -243,6 +255,8 @@ function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
 function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
 function GetBoneNameForBurerTeleFire():PAnsiChar; stdcall;
+function GetBurerGraviImpulseForActor():single; stdcall;
+function GetBurerFlyParams():burer_fly_params;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -331,6 +345,8 @@ var
   _burer_shielded_risky_factor:single;
   _burer_min_gren_timer:cardinal;
   _burer_forcetelefire_min_delta:cardinal;
+  _burer_gravi_impulse_for_actor:single;
+  _burer_fly_params:burer_fly_params;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
@@ -1021,12 +1037,23 @@ begin
   _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0.02);
   _burer_min_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_min_gren_timer', 1000);
   _burer_forcetelefire_min_delta:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_forcetelefire_min_delta', 1000);
+  _burer_gravi_impulse_for_actor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_gravi_impulse_for_actor', 1000);
 
   _burer_teleweapon_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_impulse', 0.1);
   _burer_teleweapon_params.allowed_angle:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_angle', 0.26);
   _burer_teleweapon_params.min_shoot_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_min_shot_time', 20);
   _burer_teleweapon_params.max_shoot_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_max_shot_time', 400);
   _burer_teleweapon_params.shot_probability:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_shot_probability', 0.4);
+
+  _burer_fly_params.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_max_dist', 50);
+  _burer_fly_params.critical_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_critical_dist', 5);
+  _burer_fly_params.preferred_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_preferred_dist', 20);
+  _burer_fly_params.preferred_height:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_preferred_height', 10);
+  _burer_fly_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_impulse', 10000);
+  _burer_fly_params.cooldown_period:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_fly_params_cooldown_period', 2000);
+  _burer_fly_params.visibility_period:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_fly_params_visibility_period', 1000);
+  _burer_fly_params.max_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_fly_params_max_time', 5000);
+  _burer_fly_params.vertical_accel:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_fly_params_vertical_accel', 1);
 
   _weapon_physics_damage_params.treshold:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_physics_damage_treshold', 15);
   _weapon_physics_damage_params.speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'weapon_physics_damage_speed', 0.03);
@@ -1362,6 +1389,16 @@ begin
     param:='burer_teleweapon_bone_'+inttostr(i);
     result:=game_ini_read_string_def(GUNSL_BASE_SECTION, PAnsiChar(param), '');
   end;
+end;
+
+function GetBurerGraviImpulseForActor():single; stdcall;
+begin
+  result:=_burer_gravi_impulse_for_actor;
+end;
+
+function GetBurerFlyParams():burer_fly_params;
+begin
+  result:=_burer_fly_params;
 end;
 
 function GetHudSoundVolume():single;

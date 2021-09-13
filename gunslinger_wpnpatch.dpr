@@ -57,7 +57,8 @@ uses
   burer in 'burer.pas',
   Vector in 'Vector.pas',
   xr_map in 'xr_map.pas',
-  fs in 'fs.pas';
+  fs in 'fs.pas',
+  physics in 'physics.pas';
 
 {$R *.res}
 

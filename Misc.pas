@@ -130,10 +130,6 @@ function IsElectronicsProblemsDecreasing():boolean; stdcall;
 
 function IsObjectSeePoint(CObject:pointer; point:FVector3; unconditional_vision_dist:single; object_y_correction_value:single; can_backsee:boolean):boolean; stdcall;
 procedure DropItemAndTeleport(CObject:pointer; pos:pFVector3); stdcall;
-procedure ApplyImpulseTrace(CPhysicsShellHolder:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
-procedure GetLinearVel(CPhysicsShellHolder:pointer; vel:pFVector3); stdcall;
-function GetPhysicsElementMassCenter(CPhysicsElement:pointer):pFVector3; stdcall;
-procedure ApplyElementImpulseTrace(CPhysicsElement:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
 
 function IsHardUpdates():boolean; stdcall;
 
@@ -1259,37 +1255,6 @@ asm
   popad
 end;
 
-procedure SetWeaponPhysicMass(wpn:pointer; mass:single); stdcall;
-asm
-  pushad
-  mov esi, wpn
-  mov ecx, [esi+$2d4]
-  test ecx, ecx
-  je @finish
-  mov edx, [ecx]
-  mov eax, [edx+$4c]
-  push mass
-  call eax
-  @finish:
-  popad
-end;
-
-function GetWeaponPhysicMass(wpn:pointer):single; stdcall;
-asm
-  mov result, $BF800000 //-1
-  pushad
-  mov esi, wpn
-  mov ecx, [esi+$2d4]
-  test ecx, ecx
-  je @finish
-  mov edx, [ecx]
-  mov eax, [edx+$54]
-  call eax
-  fstp [result]
-  @finish:
-  popad
-end;
-
 procedure CObject__processing_activate(o:pointer); stdcall;
 asm
   pushad
@@ -1367,71 +1332,6 @@ asm
 end;
 
 
-procedure ApplyImpulseTrace(CPhysicsShellHolder:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
-asm
-  pushad
-  mov ecx, CPhysicsShellHolder
-  mov ecx, [ecx+$1ec] //m_pPhysicsShell
-  test ecx, ecx
-  je @finish
-
-  push val
-  push dir
-  push pos
-
-  mov edx, [ecx] //vtable
-  mov edx, [edx+$148] //ptr to xrPhysics + 3dba0
-  call edx   //applyImpulseTrace
-
-  @finish:
-  popad
-end;
-
-procedure GetLinearVel(CPhysicsShellHolder:pointer; vel:pFVector3); stdcall;
-asm
-  pushad
-  mov ecx, CPhysicsShellHolder
-  mov ecx, [ecx+$1ec] //m_pPhysicsShell
-  test ecx, ecx
-  je @finish
-
-  mov eax, [ecx]
-  mov eax, [eax+$15c]
-  push vel
-  call eax //m_pPhysicsShell->get_LinearVel(velocity)
-
-  @finish:
-  popad
-end;
-
-procedure ApplyElementImpulseTrace(CPhysicsElement:pointer; pos:pFVector3; dir:pFVector3; val:single); stdcall;
-asm
-  pushad
-  mov ecx, CPhysicsElement
-
-  push 0
-  push val
-  push dir
-  push pos
-
-  mov edx, [ecx] //vtable
-  mov edx, [edx+$124] //ptr to xrPhysics + 2eff0
-  call edx   //applyImpulseTrace
-
-  popad
-end;
-
-function GetPhysicsElementMassCenter(CPhysicsElement:pointer):pFVector3; stdcall;
-asm
-  pushad
-  mov esi, CPhysicsElement
-  mov eax, [esi+$44]
-  mov edx, [eax+$10]
-  lea ecx, [esi+$44]
-  call edx //mass_Center
-  mov result, eax
-  popad
-end;
 
 function GetSysMousePoint():MouseCoord;
 begin

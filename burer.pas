@@ -7,7 +7,7 @@ function Init():boolean; stdcall;
 function GetLastSuperStaminaHitTime():cardinal; stdcall;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils, vector;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils, vector, physics;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
@@ -836,9 +836,13 @@ asm
   ret
 end;
 
-function IsObjectForbiddenForTele(burer:pointer; cpsh:pointer):boolean; stdcall;
+function IsObjectForbiddenForTele(cpsh:pointer):boolean; stdcall;
 begin
-  result:=false;
+  if cpsh = nil then begin
+    result:=true;
+  end else begin
+    result:=not script_bool_call('gunsl_burer.can_tele_object', '', GetCObjectID(cpsh), '');
+  end;
 end;
 
 
@@ -849,7 +853,6 @@ asm
 
   pushad
   push esi
-  push ecx
   call IsObjectForbiddenForTele
   cmp al, 0
   popad
@@ -1389,6 +1392,41 @@ asm
   jmp eax
 end;
 
+procedure ProcessGraviHitEffects(burer:pointer; CEntityAlive:pointer); stdcall;
+var
+  cphmc:pointer;
+  dir:FVector3;
+begin
+  if CEntityAlive = GetActor() then begin
+    script_call('gunsl_burer.on_gravi_attack_actor_hit', '', GetCObjectID(burer));
+    cphmc:=GetCharacterPhysicsSupport(CEntityAlive);
+    if (GetBurerGraviImpulseForActor() > 0) and (cphmc<>nil) then begin
+      cphmc:=GetCPHMovementControl(cphmc);
+      if cphmc<>nil then begin
+        dir:=FVector3_copyfromengine(GetEntityPosition(CEntityAlive));
+        v_sub(@dir, GetEntityPosition(burer));
+        dir.y:=dir.y+0.1;
+        v_normalize(@dir);
+
+        CPHMovementControl_ApplyImpulse(cphmc, @dir, GetBurerGraviImpulseForActor());
+      end;
+    end;
+  end;
+end;
+
+procedure CBurer__UpdateGraviObject_ActorEffects_Patch(); stdcall;
+asm
+  mov byte ptr [edi+$9F0],00 //original
+
+  pushad
+  mov ecx,[edi+$A1C]
+  push ecx
+  push edi
+  call ProcessGraviHitEffects
+  popad
+  ret
+end;
+
 procedure OverrideTeleAttackTargetPoint(coords:pFVector3; target_object:pointer); stdcall;
 var
   bone:PAnsiChar;
@@ -1495,6 +1533,102 @@ asm
 
   @finish:
 end;
+
+var
+  last_fly_impulse_time:cardinal;
+  last_fly_period:cardinal;
+
+procedure ActorFly(burer:pointer); stdcall;
+var
+  act:pointer;
+  cphmc:pointer;
+  v, v_up, burer_pos, act_pos:FVector3;
+
+  dist_xz, dist_y:single;
+  can_fly:boolean;
+  params:burer_fly_params;
+
+begin
+  act:=GetActor();
+  if (act<>nil) then begin
+    params:=GetBurerFlyParams();
+
+    burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
+    act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
+
+    v:=burer_pos;
+    v_sub(@v, @act_pos);
+    dist_xz:= sqrt(v.x*v.x + v.z*v.z);
+    can_fly:=(dist_xz < params.critical_dist) or
+             (GetTimeDeltaSafe(last_fly_impulse_time) < params.visibility_period) or
+             ((GetTimeDeltaSafe(last_fly_impulse_time) > params.cooldown_period) and IsActorTooClose(burer, params.max_dist));
+
+
+    if (last_fly_period < params.max_time) then begin
+      if can_fly and (dist_xz < params.max_dist) then begin
+        if dist_xz > params.preferred_dist*1.1 then begin
+          v_normalize(@v);
+        end else if dist_xz < params.preferred_dist*0.9 then begin
+          v_normalize(@v);
+          v_mul(@v, -1);
+        end else begin
+          v_zero(@v);
+          v.y:=0.001;
+        end;
+
+        if TraceAsView(@act_pos, @v, dynamic_cast(act, 0, RTTI_CActor, RTTI_CObject, false)) < 3 then begin
+          v_mul(@v, -1);
+        end;
+
+        dist_y:= abs(burer_pos.y - act_pos.y);
+        if (dist_y < params.preferred_height) then begin
+         v_up.x:=0; v_up.y:=1; v_up.z:=0;
+         if TraceAsView(@act_pos, @v_up, dynamic_cast(act, 0, RTTI_CActor, RTTI_CObject, false)) > 3 then begin
+            v.y:= params.vertical_accel;
+          end else begin
+            v.y:= -1 * params.vertical_accel;          
+          end;
+        end;
+
+        v_normalize(@v);
+        cphmc:=GetCharacterPhysicsSupport(act);
+        if cphmc<>nil then begin
+          cphmc:=GetCPHMovementControl(cphmc);
+          if cphmc <> nil then begin
+            CPHMovementControl_SetVelocity(cphmc, @v);
+            CPHMovementControl_ApplyImpulse(cphmc, @v, params.impulse);
+
+            if last_fly_period = 0 then begin
+              last_fly_period:=1;
+            end else begin
+              last_fly_period:=last_fly_period + GetTimeDeltaSafe(last_fly_impulse_time)
+            end;
+
+            last_fly_impulse_time:=GetGameTickCount();
+          end;
+        end;
+      end else if GetTimeDeltaSafe(last_fly_impulse_time) > params.visibility_period then begin
+        last_fly_period:=0;
+      end;
+    end else begin
+      last_fly_period:=0;
+      last_fly_impulse_time:=GetGameTickCount() - params.visibility_period;
+    end;
+  end;
+end;
+
+procedure CStateBurerAttackTele__execute_ActorFly_Patch(); stdcall;
+asm
+  pushad
+  mov eax, [esi+$10] //this->object
+  push eax
+  call ActorFly
+  popad
+
+  mov eax, [esi+$50] // original
+  cmp ax, 03
+end;
+
 
 function Init():boolean; stdcall;
 var
@@ -1632,6 +1766,10 @@ begin
   jmp_addr:=xrGame_addr+$10349d;
   if not WriteJump(jmp_addr, cardinal(@CBurer__UpdateGraviObject_ForceHit_Patch), 7, true) then exit;
 
+  //В CBurer::UpdateGraviObject после вызова HitEntity добавляем врезку для дополнительных эффектов хита актора
+  jmp_addr:=xrGame_addr+$103852;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__UpdateGraviObject_ActorEffects_Patch), 7, true) then exit;
+
   //В CStateBurerAttackGravi::execute при наличии опасности сразу переходим из ACTION_WAIT_ANIM_END в ACTION_COMPLETED
   jmp_addr:=xrGame_addr+$105833;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackGravi__execute_Patch), 6, true) then exit;
@@ -1647,6 +1785,10 @@ begin
   //В CStateBurerAttackTele<Object>::deactivate берем контроль на вызовом FireAllToEnemy
   jmp_addr:=xrGame_addr+$1085b7;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__deactivate_conditionalfireall_Patch), 5, true) then exit;
+
+  //В CStateBurerAttackTele::execute управляем полётом актора
+  jmp_addr:=xrGame_addr+$107a7b;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__execute_ActorFly_Patch), 6, true) then exit;
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
@@ -1668,6 +1810,8 @@ begin
   //CStateBurerAttackTele::FireAllToEnemy - xrgame.dll+104d80
   //CStateBurerAttackTele::initialize - xrgame.dll+10a40b
   //CStateBurerAttackTele::SelectObjects - xrgame.dll+109b50
+  //CStateBurerAttackTele::execute - xrgame.dll+107a70
+  //CStateBurerAttackTele::ExecuteTeleContinue - xrgame.dll+105370
   //CTelekinesis::activate - xrgame.dll+da250
   //CTelekinesis::alloc_tele_object - xrgame.dll+da050
   //CBurer::StartTeleObjectParticle - xrgame.dll+1028f0
