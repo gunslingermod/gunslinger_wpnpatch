@@ -251,6 +251,7 @@ function GetBurerForceantiaimDist():single; stdcall;
 function GetBurerForceshieldDist():single; stdcall;
 function GetBurerShieldedRiskyFactor():single; stdcall;
 function GetBurerMinGrenTimer():cardinal; stdcall;
+function GetBurerCriticalGrenTimer():cardinal; stdcall;
 function GetBurerTeleweaponShotParams():burer_teleweapon_params; stdcall;
 function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
 function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
@@ -345,6 +346,7 @@ var
   _burer_forceshield_dist:single;
   _burer_shielded_risky_factor:single;
   _burer_min_gren_timer:cardinal;
+  _burer_critical_gren_timer:cardinal;
   _burer_forcetelefire_min_delta:cardinal;
   _burer_gravi_impulse_for_actor:single;
   _burer_fly_params:burer_fly_params;
@@ -1038,6 +1040,7 @@ begin
   _burer_forceshield_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_forceshield_dist', 3);
   _burer_shielded_risky_factor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_shielded_risky_factor', 0.02);
   _burer_min_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_min_gren_timer', 1000);
+  _burer_critical_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_critical_gren_timer', 1000);
   _burer_forcetelefire_min_delta:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_forcetelefire_min_delta', 1000);
   _burer_gravi_impulse_for_actor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_gravi_impulse_for_actor', 1000);
 
@@ -1360,6 +1363,12 @@ function GetBurerMinGrenTimer():cardinal; stdcall;
 begin
   result:=_burer_min_gren_timer;
 end;
+
+function GetBurerCriticalGrenTimer():cardinal; stdcall;
+begin
+  result:=_burer_critical_gren_timer;
+end;
+
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 begin

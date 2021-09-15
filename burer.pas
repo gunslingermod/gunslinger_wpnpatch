@@ -937,11 +937,6 @@ asm
   ret
 end;
 
-function GetBurerGrenForceTeleStopTimer():cardinal;
-begin
-  result:= (GetBurerMinGrenTimer() div 2);
-end;
-
 function NeedStopTeleAttack(burer:pointer; time_start:cardinal; time_end:cardinal):boolean; stdcall;
 var
   itm:pointer;
@@ -959,7 +954,7 @@ begin
   burer_see_actor:=(GetActorIfAlive()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
 
   //если у нас есть граната, готовая вот-вот взорваться - срочно прекращаем телекинез и уходим в щит!
-  if _gren_timer < GetBurerGrenForceTeleStopTimer() then begin
+  if _gren_timer < GetBurerCriticalGrenTimer() then begin
     LogBurerLogic('NeedStopTeleAttack - gren_timer');
     result:=true;
   end else if NeedCloseProtectionShield(burer) then begin
@@ -1738,7 +1733,7 @@ begin
   g:=dynamic_cast(o, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
   if g<>nil then begin
     if CMissile__GetDestroyTime(g)<>CMISSILE_NOT_ACTIVATED then begin
-      CMissile__SetDestroyTime(g, GetGameTickCount()+GetBurerGrenForceTeleStopTimer()-1);
+      CMissile__SetDestroyTime(g, GetGameTickCount()+GetBurerCriticalGrenTimer()-1);
     end;
   end;
 end;
@@ -1847,9 +1842,9 @@ asm
   test eax, eax
   jne @finish
 
-  lea ecx, [esp+$28+$8]  
+  lea ecx, [esp+$28+$8]
   pushad
-  push ecx
+  push [ecx]
   call NeedSkipStaminaHit
   test al, al
   popad
