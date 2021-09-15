@@ -1847,8 +1847,8 @@ asm
   test eax, eax
   jne @finish
 
+  lea ecx, [esp+$28+$8]  
   pushad
-  lea ecx, [esp+$28+$8]
   push ecx
   call NeedSkipStaminaHit
   test al, al
