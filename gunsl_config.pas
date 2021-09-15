@@ -257,6 +257,7 @@ function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
 function GetBoneNameForBurerTeleFire():PAnsiChar; stdcall;
 function GetBurerGraviImpulseForActor():single; stdcall;
 function GetBurerFlyParams():burer_fly_params;
+function GetSkipFireAllProbability():single; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -347,6 +348,7 @@ var
   _burer_forcetelefire_min_delta:cardinal;
   _burer_gravi_impulse_for_actor:single;
   _burer_fly_params:burer_fly_params;
+  _burer_skipfireall_prob:single;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
@@ -1045,6 +1047,8 @@ begin
   _burer_teleweapon_params.max_shoot_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_teleweapon_max_shot_time', 400);
   _burer_teleweapon_params.shot_probability:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_shot_probability', 0.4);
 
+  _burer_skipfireall_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_skip_fireall_probability', 0.8);
+
   _burer_fly_params.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_max_dist', 50);
   _burer_fly_params.critical_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_critical_dist', 5);
   _burer_fly_params.preferred_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_preferred_dist', 20);
@@ -1399,6 +1403,11 @@ end;
 function GetBurerFlyParams():burer_fly_params;
 begin
   result:=_burer_fly_params;
+end;
+
+function GetSkipFireAllProbability():single; stdcall;
+begin
+  result:=_burer_skipfireall_prob;
 end;
 
 function GetHudSoundVolume():single;

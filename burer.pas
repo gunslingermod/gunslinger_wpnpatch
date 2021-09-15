@@ -56,7 +56,7 @@ var
   len:single;
 begin
   result:=false;
-  act:=GetActor();
+  act:=GetActorIfAlive();
   if act = nil then exit;
 
   act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
@@ -205,7 +205,7 @@ var
 
 begin
   result:=false;
-  act:=GetActor();
+  act:=GetActorIfAlive();
   if act=nil then exit;
   itm:=GetActorActiveItem();
   if itm=nil then exit;
@@ -249,7 +249,7 @@ begin
   sniper_weapon:=IsSniperWeapon(itm);
 
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  burer_see_actor:=(GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
+  burer_see_actor:=(GetActorIfAlive()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
   LogBurerLogic('see_actor = '+booltostr(burer_see_actor));
 
   eatable_with_hud:=(itm<>nil) and game_ini_line_exist(GetSection(itm), 'gwr_changed_object');
@@ -547,7 +547,7 @@ begin
   ss_params:=GetBurerSuperstaminaHitParams();
 
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
+  burer_see_actor:= (GetActorIfAlive()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
 
   if (burer_see_actor and (IsActorTooClose(burer, ss_params.distance) or IsInventoryShown() or ((GetCurrentDifficulty()>=gd_stalker) and eatable_with_hud and (random < 0.95)) or IsWeaponReadyForBigBoom(itm, nil) or IsSniperWeapon(itm) or (wpn_aim_now and not IsActorLookTurnedAway(burer)))) or IsBurerUnderAim(burer, BurerUnderAimNear) then begin
     phit^:=ss_params.stamina_decrease;
@@ -588,7 +588,7 @@ begin
   itm:=GetActorActiveItem();
   ss_params:=GetBurerSuperstaminaHitParams();
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  burer_see_actor:= (GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
+  burer_see_actor:= (GetActorIfAlive()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, false);
   _last_superstamina_hit_time:=GetGameTickCount();
 
   if itm<>nil then begin
@@ -871,22 +871,27 @@ asm
   jmp edx
 end;
 
-function IsGrenadeSkipForTele(CGrenade:pointer):boolean; stdcall;
+function IsGrenadeSkipForTele(CGrenade:pointer; burer:pointer):boolean; stdcall;
 var
   act:pointer;
-  act_dist:FVector3;
+  dist:FVector3;
 const
-  MAX_DIST_TO_ACTOR:single = 6.0;
+  MAX_DIST_TO_ACTOR:single = 5.0;
+  MIN_DIST_TO_BURER:single = 5.0;
 begin
   result:=IsGrenadeDeactivated(CGrenade);
   if not result then begin
-    act:=GetActor();
-    if act <> nil then begin;
-      act_dist:=FVector3_copyfromengine(GetEntityPosition(act));
-      v_sub(@act_dist, GetPosition(CGrenade));
-      LogBurerLogic('gren_dist '+floattostr(v_length(@act_dist)));
-      result:= (v_length(@act_dist) <= MAX_DIST_TO_ACTOR);
-    end;      
+    act:=GetActorIfAlive();
+    dist:=FVector3_copyfromengine(GetEntityPosition(act));
+    v_sub(@dist, GetPosition(CGrenade));
+    if v_length(@dist) < MIN_DIST_TO_BURER then begin
+      result:=false;
+    end else if act <> nil then begin;
+      dist:=FVector3_copyfromengine(GetEntityPosition(act));
+      v_sub(@dist, GetPosition(CGrenade));
+      LogBurerLogic('gren_dist '+floattostr(v_length(@dist)));
+      result:= (v_length(@dist) <= MAX_DIST_TO_ACTOR);
+    end;
   end;
   LogBurerLogic('skip grenade: '+booltostr(result, true));
 end;
@@ -897,6 +902,8 @@ asm
   je @original //если не граната
 
   pushad
+  mov eax, [esi+$10] //this->object
+  push eax
   push edi
   call IsGrenadeSkipForTele
   test al, al
@@ -930,6 +937,11 @@ asm
   ret
 end;
 
+function GetBurerGrenForceTeleStopTimer():cardinal;
+begin
+  result:= (GetBurerMinGrenTimer() div 2);
+end;
+
 function NeedStopTeleAttack(burer:pointer; time_start:cardinal; time_end:cardinal):boolean; stdcall;
 var
   itm:pointer;
@@ -944,10 +956,10 @@ begin
   dtime:=GetTimeDeltaSafe(time_start);
   is_long_tele:=dtime > GetBurerForceTeleFireMinDelta();
   campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
-  burer_see_actor:=(GetActor()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
+  burer_see_actor:=(GetActorIfAlive()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
 
   //если у нас есть граната, готовая вот-вот взорваться - срочно прекращаем телекинез и уходим в щит!
-  if _gren_timer < GetBurerMinGrenTimer() / 2 then begin
+  if _gren_timer < GetBurerGrenForceTeleStopTimer() then begin
     LogBurerLogic('NeedStopTeleAttack - gren_timer');
     result:=true;
   end else if NeedCloseProtectionShield(burer) then begin
@@ -1092,7 +1104,7 @@ begin
 
   wpn:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CWeaponMagazined, false);
   grenade:=dynamic_cast(cpsh, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
-  act:=GetActor();
+  act:=GetActorIfAlive();
   block_shoot:=false;
 
 
@@ -1281,7 +1293,7 @@ procedure OnGraviAttackFire(enemy:pointer; burer:pointer); stdcall;
 var
   actpos:FVector3;
 begin
-  if (GetActor()=nil) or (enemy <> GetActor) then exit;
+  if (GetActorIfAlive()=nil) or (enemy <> GetActor) then exit;
 
   actpos:=FVector3_copyfromengine(GetEntityPosition(GetActor()));
   actpos.y:=actpos.y+ACTOR_HEAD_CORRECTION_HEIGHT;
@@ -1397,7 +1409,7 @@ var
   cphmc:pointer;
   dir:FVector3;
 begin
-  if CEntityAlive = GetActor() then begin
+  if CEntityAlive = GetActorIfAlive() then begin
     script_call('gunsl_burer.on_gravi_attack_actor_hit', '', GetCObjectID(burer));
     cphmc:=GetCharacterPhysicsSupport(CEntityAlive);
     if (GetBurerGraviImpulseForActor() > 0) and (cphmc<>nil) then begin
@@ -1431,7 +1443,7 @@ procedure OverrideTeleAttackTargetPoint(coords:pFVector3; target_object:pointer)
 var
   bone:PAnsiChar;
 begin
-  if (target_object<>nil) and (GetActor() = target_object) then begin
+  if (target_object<>nil) and (GetActorIfAlive() = target_object) then begin
     bone:=GetBoneNameForBurerTeleFire();
     if length(bone)>0 then begin
       get_bone_position(target_object, bone,  coords);
@@ -1474,7 +1486,7 @@ var
 const
   SUPERSTAMINA_HIT_PERIOD:cardinal=100;
 begin
-  act:=GetActor();
+  act:=GetActorIfAlive();
   wpn := GetActorActiveItem();
   wpn_dangerous:=(wpn<>nil) and (IsSniperWeapon(wpn) or IsWeaponReadyForBigBoom(wpn, nil));
   if (act <> nil) and (not wpn_dangerous) and (GetTimeDeltaSafe(GetLastSuperStaminaHitTime()) < SUPERSTAMINA_HIT_PERIOD) then begin
@@ -1548,9 +1560,12 @@ var
   can_fly:boolean;
   params:burer_fly_params;
 
+const
+  EPS = 0.0001;
+
 begin
-  act:=GetActor();
-  if (act<>nil) then begin
+  act:=GetActorIfAlive();
+  if (act<>nil) and (GetActorHealth(act)>0)  then begin
     params:=GetBurerFlyParams();
 
     burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
@@ -1573,11 +1588,10 @@ begin
           v_mul(@v, -1);
         end else begin
           v_zero(@v);
-          v.y:=0.001;
         end;
 
         if TraceAsView(@act_pos, @v, dynamic_cast(act, 0, RTTI_CActor, RTTI_CObject, false)) < 3 then begin
-          v_mul(@v, -1);
+          v_zero(@v);
         end;
 
         dist_y:= abs(burer_pos.y - act_pos.y);
@@ -1586,16 +1600,15 @@ begin
          if TraceAsView(@act_pos, @v_up, dynamic_cast(act, 0, RTTI_CActor, RTTI_CObject, false)) > 3 then begin
             v.y:= params.vertical_accel;
           end else begin
-            v.y:= -1 * params.vertical_accel;          
+            v.y:= 0
           end;
         end;
 
         v_normalize(@v);
         cphmc:=GetCharacterPhysicsSupport(act);
-        if cphmc<>nil then begin
+        if (cphmc<>nil) and ((v.x > EPS) or (v.y > EPS) or (v.z > EPS)) then begin
           cphmc:=GetCPHMovementControl(cphmc);
           if cphmc <> nil then begin
-            CPHMovementControl_SetVelocity(cphmc, @v);
             CPHMovementControl_ApplyImpulse(cphmc, @v, params.impulse);
 
             if last_fly_period = 0 then begin
@@ -1627,6 +1640,224 @@ asm
 
   mov eax, [esi+$50] // original
   cmp ax, 03
+end;
+
+function NeedForceAttackState(burer:pointer):boolean; stdcall;
+
+begin
+  result:=false;
+end;
+
+procedure CStateManagerBurer__execute_ForceAttack_Patch(); stdcall;
+asm
+   // Внимание! Некоторые стейты атаки ожидают, что get_enemy<>nil!
+
+   pushad
+   push eax
+   call NeedForceAttackState
+   cmp al, 0
+   popad
+
+   jne @finish
+   cmp dword ptr [eax+$5B8],00 // original
+   @finish:
+end;
+
+procedure CStateBurerAttackTele__check_completion_enemyexist_Patch(); stdcall;
+asm
+  mov eax,[edx+$5B8] // original
+  test eax, eax
+  jne @finish
+  mov eax, edx //врага нет, берем для расчетов самого бюрера
+  @finish:
+end;
+
+type
+  CTelekineticObject = packed record
+    vtable:pointer;
+    state:cardinal;
+    CPhysicsShellHolder_object:pointer;
+    telekinesis:pointer;
+    target_height:single;
+    time_keep_started:cardinal;
+		time_keep_updated:cardinal;
+    time_raise_started:cardinal;
+    time_to_keep:cardinal;
+    time_fire_started:cardinal;
+    strength:single;
+	  m_rotate:byte;
+    _unused1:byte;
+    _unused2:word;
+    sound_hold:pointer;
+    sound_throw:pointer;
+  end;
+  pCTelekineticObject = ^CTelekineticObject;
+  ppCTelekineticObject = ^pCTelekineticObject;
+const
+  ETelekineticState_TS_Keep:cardinal = 2;
+
+procedure OverrideObjectToThrow(teleobjects:pxr_vector; tele_object:pCTelekineticObject); stdcall;
+var
+  i:integer;
+  o:pCTelekineticObject;
+  g:pointer;
+begin
+  for i:=0 to items_count_in_vector(teleobjects, sizeof(pCTelekineticObject))-1 do begin
+    o:=ppCTelekineticObject(get_item_from_vector(teleobjects, i, sizeof(pCTelekineticObject)))^;
+    if (o.CPhysicsShellHolder_object <> nil) and (o.state = ETelekineticState_TS_Keep) and (GetTimeDeltaSafe(o.time_keep_started) > 100) and (random < 0.9) then begin
+      g:=dynamic_cast(o.CPhysicsShellHolder_object, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
+      if (g<>nil) then begin
+        tele_object.CPhysicsShellHolder_object:=o.CPhysicsShellHolder_object;
+        break;
+      end;
+    end;
+  end;
+end;
+
+procedure CStateBurerAttackTele__ExecuteTeleContinue_selectgrenades_Patch();stdcall;
+asm
+  lea ecx,[esp+$0c] // original
+
+  pushad
+    mov edx,[esi+$10] // object (burer)
+    lea ebx, [edx+$9C0] // telekinetic objects vector
+
+    push ecx // pCTelekineticObject tele_object
+    push ebx
+    call OverrideObjectToThrow
+  popad
+
+  mov eax,[esp+$14] // original
+end;
+
+procedure OnTeleFire(o:pointer); stdcall;
+var
+  g:pointer;
+begin
+  if o = nil then exit;
+  g:=dynamic_cast(o, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false);
+  if g<>nil then begin
+    if CMissile__GetDestroyTime(g)<>CMISSILE_NOT_ACTIVATED then begin
+      CMissile__SetDestroyTime(g, GetGameTickCount()+GetBurerGrenForceTeleStopTimer()-1);
+    end;
+  end;
+end;
+
+procedure CStateBurerAttackTele__ExecuteTeleFire_OnTeleFire_Patch(); stdcall;
+asm
+  mov eax,[esi+$3C] // original
+  mov ecx,[esi+$10]
+
+  pushad
+  push eax // selected_object
+  call OnTeleFire
+  popad
+end;
+
+procedure OnTeleFireAll(o:pointer); stdcall;
+begin
+  OnTeleFire(o);
+end;
+
+procedure CStateBurerAttackTele__FireAllToEnemy_OnTeleFire_Patch(); stdcall;
+asm
+  lea ecx,[eax+$9B0]
+
+  pushad
+  push esi // cur_object
+  call OnTeleFireAll
+  popad
+end;
+
+procedure CalcTotalObjectsCount (v:pxr_vector; res:pinteger); stdcall;
+begin
+  res^:=items_count_in_vector(v, sizeof(pCTelekineticObject));
+end;
+
+//ре-имплементация получения полного числа контролируемых объектов для замены неверных вызовов функции
+procedure CTelekinesis__get_objects_count_total_reimpl_Patch(); stdcall;
+asm
+  push eax
+  mov eax, esp
+  pushad
+  push eax // result buffer
+  add  ecx, $10
+  push ecx // this
+  call CalcTotalObjectsCount
+  popad
+  pop eax
+end;
+
+function IsFireAllowed(o:pCTelekineticObject):boolean; stdcall;
+begin
+  if o = nil then begin
+    result:=false;
+  end else if (o.state <> ETelekineticState_TS_Keep) then begin
+    result:=false;
+  end else if (dynamic_cast(o.CPhysicsShellHolder_object, 0, RTTI_CPhysicsShellHolder, RTTI_CGrenade, false) <> nil) then begin
+    result:=true;
+  end else begin
+    result:=random < GetSkipFireAllProbability();
+  end;
+
+end;
+
+procedure CStateBurerAttackTele__FireAllToEnemy_CheckSkipTeleFire_Patch(); stdcall;
+asm
+  mov esi, [esp+$34] //original
+  lea ecx, [esp+$2C] //original
+
+  pushad
+  push ecx // current pCTelekineticObject
+  call IsFireAllowed
+  test al, al
+  popad
+  jne @finish
+  xor esi, esi
+  @finish:
+end;
+
+procedure CStateBurerShield__returntrue_Patch(); stdcall;
+asm
+  mov eax, 1
+end;
+
+function NeedSkipStaminaHit(burer:pointer):boolean; stdcall;
+var
+  burer_see_actor:boolean;
+  campos:FVector3;
+begin
+  result:=false;
+
+  campos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+  burer_see_actor:=(GetActorIfAlive()<>nil) and IsObjectSeePoint(burer, campos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true);
+  if burer_see_actor then exit;
+
+  if IsBurerUnderAim(burer, BurerUnderAimNear) then exit;
+
+  LogBurerLogic('Skip stamina hit');
+  result:=true;
+end;
+
+procedure CBurer__StaminaHit_needskip_Patch(); stdcall;
+asm
+  mov eax, xrgame_addr
+  add  eax, $274be0 // GodMode() - original
+  call eax
+  test eax, eax
+  jne @finish
+
+  pushad
+  lea ecx, [esp+$28+$8]
+  push ecx
+  call NeedSkipStaminaHit
+  test al, al
+  popad
+  je @finish
+  mov eax, 1
+
+
+  @finish:
 end;
 
 
@@ -1790,6 +2021,74 @@ begin
   jmp_addr:=xrGame_addr+$107a7b;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__execute_ActorFly_Patch), 6, true) then exit;
 
+  //В CStateManagerBurer::execute форсируем состояние атаки при наличии рядом грен и прочих ништяков
+  jmp_addr:=xrGame_addr+$1039ea;
+  if not WriteJump(jmp_addr, cardinal(@CStateManagerBurer__execute_ForceAttack_Patch), 7, true) then exit;
+
+  //В CStateBurerAttackTele::check_completion добавляем проверку, что EnemyMan.get_enemy не nil
+  jmp_addr:=xrGame_addr+$1046b4;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__check_completion_enemyexist_Patch), 6, true) then exit;
+
+  //В CStateBurerAttackTele::ExecuteTeleContinue стараемся выбирать для броска в первую очередь грены
+  jmp_addr:=xrGame_addr+$10545c;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__ExecuteTeleContinue_selectgrenades_Patch), 8, true) then exit;
+
+  //в CStateBurerAttackTele::ExecuteTeleFire обрабатываем событие броска телекинетического предмета
+  jmp_addr:=xrGame_addr+$1047bf;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__ExecuteTeleFire_OnTeleFire_Patch), 6, true) then exit;
+
+  //в CStateBurerAttackTele::FireAllToEnemy обрабатываем событие их броска
+  jmp_addr:=xrGame_addr+$104e68;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FireAllToEnemy_OnTeleFire_Patch), 6, true) then exit;
+
+  //////////////////////////////
+  //[bug] баг - в CStateBurerAttackTele get_objects_count подразумевается как полное число телекинетируемых объектов, но на самом деле он возвращает число объектов, находящихся сейчас в состоянии raise или keep
+  //Из-за этого в CStateBurerAttackTele::FireAllToEnemy при переходе объекта в состояние TS_Fire возвращаемое get_objects_count значение уменьшается на 1, но в реальности вектор не изменяется
+  //Итог - цикл перебирает один и тот же предмет в векторе. Решение - надо использовать get_objects_total_count и проверять состояние предмета на TS_Keep
+
+  //Заменяем вызовы get_objects_count в CStateBurerAttackTele::FireAllToEnemy
+  jmp_addr:=xrGame_addr+$104dd7;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$104df9;  
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$104e7c;  
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$104e94;  
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  //в CStateBurerAttackTele::ExecuteTeleContinue
+  jmp_addr:=xrGame_addr+$1053b9;  
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$105417;  
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$105429;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  //в CStateBurerAttackTele::SelectObjects
+  jmp_addr:=xrGame_addr+$109c7b;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  //в CStateBurerAttackTele::HandleGrenades
+  jmp_addr:=xrGame_addr+$105188;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  //в CStateBurerAttackTele::IsActiveObjects
+  jmp_addr:=xrGame_addr+$1045c9;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+  //в CStateBurerAttackTele<Object>::CheckTeleStart (инлайновый IsActiveObjects)
+  jmp_addr:=xrGame_addr+$10a42d;
+  if not WriteJump(jmp_addr, cardinal(@CTelekinesis__get_objects_count_total_reimpl_Patch), 5, true) then exit;
+
+  //В CStateBurerAttackTele<Object>::FireAllToEnemy добавляем проверку на то, что объект в TS_Keep
+  jmp_addr:=xrGame_addr+$104e16;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttackTele__FireAllToEnemy_CheckSkipTeleFire_Patch), 8, true) then exit;
+  //////////////////////////////
+
+  //в CStateBurerShield::check_start_conditions (xrgame+105f80) убираем проверку на то, что нас видит враг
+  jmp_addr:=xrGame_addr+$105f9f;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerShield__returntrue_Patch), 9, false) then exit;
+
+  //в начале CBurer::StaminaHit проверяем, нужно ли пропустить нанесение хита стамине
+  jmp_addr:=xrGame_addr+$102733;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_needskip_Patch), 5, true) then exit;
+
+
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
 
@@ -1806,7 +2105,7 @@ begin
   //CStateBurerAttackGravi::ExecuteGraviContinue - xrgame.dll+105730
   //CStateBurerAttackTele::critical_finalize - xrgame.dll+1092a0
   //CStateBurerAttackTele::deactivate - xrgame.dll+1083f0
-  //CStateBurerAttackTele::ExecuteTeleFire - 
+  //CStateBurerAttackTele::ExecuteTeleFire - xrgame.dll+104740
   //CStateBurerAttackTele::FireAllToEnemy - xrgame.dll+104d80
   //CStateBurerAttackTele::initialize - xrgame.dll+10a40b
   //CStateBurerAttackTele::SelectObjects - xrgame.dll+109b50
@@ -1820,6 +2119,7 @@ begin
   //CBurer::UpdateGraviObject - xrgame.dll+103210
   //CStateBurerAntiAim::check_start_conditions - xrgame.dll+106130
   //anti_aim_ability::check_start_condition - xrgame.dll+cf7e0
+  //CStateManagerBurer::execute - xrGame.dll+1039e0
 
   result:=true;
 end;

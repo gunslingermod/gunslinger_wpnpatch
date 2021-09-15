@@ -234,6 +234,7 @@ type
 
 
 function GetActor():pointer; stdcall;
+function GetActorIfAlive():pointer; stdcall;
 function GetActorTargetSlot():integer; stdcall;
 function GetActorActiveSlot():integer; stdcall;
 //для быстрого использования
@@ -1031,6 +1032,14 @@ asm
 end;
 end;
 
+function GetActorIfAlive():pointer; stdcall;
+begin
+  result:=GetActor();
+  if GetActorHealth(result) <= 0 then begin
+    result:=nil;
+  end;
+end;
+
 function GetActorHealth(act:pointer):single; stdcall;
 var
   c:pCActorCondition;
@@ -1233,7 +1242,7 @@ var
   act:pointer;
 begin
   result:=nil;
-  act:=GetActor;
+  act:=GetActorIfAlive;
   if act=nil then exit;
   result:=ItemInSlot(act, GetActorActiveSlot());
 end;
