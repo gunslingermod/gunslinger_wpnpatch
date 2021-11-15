@@ -150,6 +150,8 @@ type
     _shooting_without_parent_start_time:cardinal;
     _shooting_without_parent_period:cardinal;
 
+    _last_scope_id:cardinal;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -163,6 +165,7 @@ type
     rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
 
     last_bones_update_frame:cardinal;
+    need_update_icon:boolean;
 
     constructor Create(wpn:pointer);
     destructor Destroy; override;
@@ -278,6 +281,9 @@ type
     function StartShootingWithoutParent(time:cardinal):boolean;
     function StopShootingWithoutParent():boolean;
     function IsShootingWithoutParent():boolean;
+
+    function GetLastScopeId():cardinal;
+    procedure SetLastScopeId(id:cardinal);
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -443,6 +449,9 @@ begin
   _shooting_without_parent_start_time:=0;
   _shooting_without_parent_period:=0;
   _is_shooting_without_parent:=false;
+
+  _last_scope_id := $FFFFFFFF;
+  need_update_icon:=false;
 
 end;
 
@@ -1891,5 +1900,16 @@ begin
   _is_shooting_without_parent:=false;
   result:=true;
 end;
+
+function WpnBuf.GetLastScopeId: cardinal;
+begin
+  result:=_last_scope_id
+end;
+
+procedure WpnBuf.SetLastScopeId(id: cardinal);
+begin
+  _last_scope_id:=id;
+end;
+
 
 end.

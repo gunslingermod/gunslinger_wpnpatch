@@ -202,6 +202,35 @@ end;
 
 //-----------------Общий обработчик события присоединения аддонов----------------
 
+procedure SetNewScopeId(wpn:pointer; new_id:byte); stdcall;
+var
+  buf:WpnBuf;
+  last_id:cardinal;
+begin
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    if IsScopeAttached(wpn) then begin
+      last_id:=GetCurrentScopeIndex(wpn);
+    end else begin
+      last_id:=$FFFFFFFF;
+    end;
+    buf.SetLastScopeId(last_id);
+  end;
+
+  SetCurrentScopeType(wpn, new_id);
+end;
+
+procedure CWeaponMagazined__Attach_saveprevscope_Patch(); stdcall;
+asm
+  pushad
+  xor ecx, ecx
+  mov cl, al
+  push ecx
+  push ebp
+  call SetNewScopeId
+  popad
+end;
+
 function OnAddonAttach(wpn:pointer; addontype:integer):boolean;stdcall;
 var addonname:PChar;
     actor:pointer;
@@ -211,15 +240,23 @@ var addonname:PChar;
     hud_sect, sect:PChar;
     err_msg:PChar;
     key:cardinal;
-    need_detach_scope, need_detach_gl, need_detach_sil:boolean;
+    need_detach_gl, need_detach_sil:boolean;
+    need_detach_scope_id, tmpid:cardinal;
+    buf:WpnBuf;
 begin
   param_name:=nil;
   snd_name:=nil;
   sect:=GetSection(wpn);
   err_msg:=nil;
-  need_detach_scope:=false;
+  need_detach_scope_id:=$FFFFFFFF;
   need_detach_gl:=false;
   need_detach_sil:=false;
+
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    buf.need_update_icon:=true;
+  end;
+
   case addontype of
     1:begin
         //log ('scope_att');
@@ -229,6 +266,11 @@ begin
         param_name:='use_scopeattach_anim';
         anim_name:='anm_attach_scope_'+addonname;
         snd_name:='sndScopeAtt';
+
+        if IsScopeAttached(wpn) and (buf <> nil) then begin
+          err_msg:='gunsl_msg_need_detach_scope';
+          need_detach_scope_id:=buf.GetLastScopeId();
+        end;
 
         if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_sil') and game_ini_r_bool(sect, 'restricted_scope_and_sil')  then begin
           err_msg:='gunsl_msg_sil_restricts_scope';
@@ -259,9 +301,15 @@ begin
         anim_name:='anm_attach_sil';
         snd_name:='sndSilAtt';
         addonname:=GetSilencerSection(wpn);
+
+        if IsSilencerAttached(wpn) then begin
+          err_msg:='gunsl_msg_need_detach_silencer';
+          need_detach_sil:=true;
+        end;
+
         if IsScopeAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_sil') and game_ini_r_bool(sect, 'restricted_scope_and_sil')  then begin
           err_msg:='gunsl_msg_scope_restricts_sil';
-          need_detach_scope:=true;
+          need_detach_scope_id:=GetCurrentScopeIndex(wpn);
         end;
 
         if IsGLAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
@@ -275,9 +323,15 @@ begin
         anim_name:='anm_attach_gl';
         snd_name:='sndGLAtt';
         addonname:=GetGLSection(wpn);
+
+        if IsGLAttached(wpn) then begin
+          err_msg:='gunsl_msg_need_detach_gl';
+          need_detach_gl:=true;
+        end;
+
         if IsScopeAttached(wpn) and game_ini_line_exist(sect, 'restricted_scope_and_gl') and game_ini_r_bool(sect, 'restricted_scope_and_gl')  then begin
           err_msg:='gunsl_msg_scope_restricts_gl';
-          need_detach_scope:=true;
+          need_detach_scope_id:=GetCurrentScopeIndex(wpn);
         end;
 
         if IsSilencerAttached(wpn) and game_ini_line_exist(sect, 'restricted_gl_and_sil') and game_ini_r_bool(sect, 'restricted_gl_and_sil') then begin
@@ -295,16 +349,12 @@ begin
   hud_sect:=GetHUDSection(wpn);
   actor:=GetActor();
   if not IsAnimatedAddons() then begin
-    {if err_msg<>nil then begin
-      if (actor<>nil) and (actor=GetOwner(wpn)) then begin
-        Messenger.SendMessage(err_msg);
-      end;
-      result:=false
-    end else begin
-      result:=true;
-    end; }
-    if need_detach_scope then begin
+    // про сброс флагов при детаче не беспокоимся - движок сам выставим нужный нам флаг после того, как мы отработаем
+    if need_detach_scope_id <> $FFFFFFFF then begin
+      tmpid:=GetCurrentScopeIndex(wpn);
+      SetCurrentScopeType(wpn, need_detach_scope_id);
       DetachAddon(wpn, 1);
+      SetCurrentScopeType(wpn, tmpid);
     end else if need_detach_gl then begin
       DetachAddon(wpn, 2);
     end else if need_detach_sil then begin
@@ -2591,6 +2641,18 @@ begin
 
   //Аттач глушителя
   InitAttachAddon(xrGame_addr+$2CEE5A, $14);
+
+  //В CWeaponMagazined::CanAttach убираем проверку на уже присоединенный к оружию аддон такого типа, чтобы появлялось предложение присоединить его
+  nop_code(xrgame_addr+$2cebcd, 6);
+  nop_code(xrgame_addr+$2cec91, 2);
+  nop_code(xrgame_addr+$2cecd5, 2);
+  //в CWeaponMagazined::Attach - аналогично, убираем сравнения
+  nop_code(xrgame_addr+$2ceda9, 6);
+  nop_code(xrgame_addr+$2cee7a, 2);
+  nop_code(xrgame_addr+$2ceeb7, 2);
+  //в CWeaponMagazined::Attach во время аттача прицела m_cur_scope выставляется раньше нашего патча. Запоминаем предыдущий индекс прицела
+  jmp_addr:=xrGame_addr+$2cee22;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__Attach_saveprevscope_Patch),6, true) then exit;
 
   //в CUIActorMenu::AttachAddon отключим проигрывание звука аттача аддонов
 

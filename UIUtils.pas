@@ -289,7 +289,7 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils, WeaponAdditionalBuffer;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -1945,6 +1945,31 @@ asm
   ret
 end;
 
+procedure CheckForForceUpdateAddonsIcons(wpn:pointer; needforceupdate:pbyte); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf <> nil) and (buf.need_update_icon) then begin
+    needforceupdate^:=1;
+  end;
+end;
+
+procedure CUIWeaponCellItem__Update_forceaddonupdate_Patch(); stdcall;
+asm
+  setne [esp+$0B+4] //original
+
+  lea edx, [esp+$0B+4]
+  pushad
+  push edx
+  mov ecx,[esi+$110]
+  push ecx
+  call CheckForForceUpdateAddonsIcons
+  popad
+
+  mov edx,[eax+$150] // original
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -2114,6 +2139,9 @@ begin
   jmp_addr:=xrGame_addr+$45a1b5;
   if not WriteJump(jmp_addr, cardinal(@CUIMainIngameWnd__UpdateMainIndicators_Patch), 7, true) then exit;
 
+  //в CUIWeaponCellItem::Update выставляем bForceReInitAddons, когда в буфере установлено требование обновить иконки аддонов
+  jmp_addr:=xrGame_addr+$49df80;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_forceaddonupdate_Patch), 11, true) then exit;
    
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
@@ -2133,6 +2161,7 @@ begin
   //CAI_Stalker::can_sell - xrgame.dll+18e4f0
   //CAI_Stalker::update_sell_info - xrgame.dll+18e3b0
   //CAI_Stalker::tradable_item - xrgame.dll+18e240
+  //CUIWeaponCellItem::Update - xrgame.dll+49df60
 
   result:=true;
 end;

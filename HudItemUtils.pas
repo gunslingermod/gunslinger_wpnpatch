@@ -1173,7 +1173,7 @@ begin
 
       cmp addon_type, 1
       jne @finish
-      mov byte ptr [esi+$6bc], 0
+      mov byte ptr [esi+$6bc], 0   // m_cur_scope
 
       @finish:
     popad
