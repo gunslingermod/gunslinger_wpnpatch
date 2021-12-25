@@ -142,7 +142,7 @@ function GetSysMousePoint():MouseCoord;
 procedure SetSysMousePoint(c:MouseCoord);
 
 implementation
-uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender;
+uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -1527,6 +1527,36 @@ asm
   pop ecx // get new hit type from buffer
 end;
 
+
+procedure OnObjectInZone(zone:pointer; obj:pointer); stdcall;
+var
+  missile:pointer;
+const
+  REMOVE_DELTA:cardinal=100;
+begin
+  missile:=dynamic_cast(obj, 0, RTTI_CGameObject, RTTI_CBolt, false);
+  if missile<>nil then begin
+    if game_ini_r_bool_def(get_string_value(GetCObjectSection(zone)), 'delete_bolts', true) then begin
+      if CMissile__GetDestroyTime(missile) > GetGameTickCount()+REMOVE_DELTA then begin
+        CMissile__SetDestroyTime(missile, GetGameTickCount()+REMOVE_DELTA);
+      end;
+    end;
+  end;
+end;
+
+procedure CCustomZone__feel_touch_new_detectbolts_Patch(); stdcall;
+asm
+  pushad
+  push edi //bolt
+  push esi // zone
+  call OnObjectInZone
+  popad
+
+  // original
+  mov eax,[esp+$1c]
+  cmp eax,ebx
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -1613,6 +1643,9 @@ begin
   jmp_addr:=xrGame_addr+$30ed2d;
   if not WriteJump(jmp_addr, cardinal(@CMosquitoBald__UpdateSecondaryHit_SecondaryHitType_Patch), 6, true) then exit;
 
+  // в CCustomZone::feel_touch_new удал€ем болты при воспроизведении партикла
+  jmp_addr:=xrGame_addr+$30c01b;
+  if not WriteJump(jmp_addr, cardinal(@CCustomZone__feel_touch_new_detectbolts_Patch), 6, true) then exit;
 
   result:=true;
 end;

@@ -52,6 +52,7 @@ const
   RTTI_CUIActorMenu = $63ee68;
   RTTI_CUICustomMap = $63f030;
   RTTI_CUIMiniMap = $63f0a4;
+  RTTI_CBolt = $62c520;  
 
 
 
