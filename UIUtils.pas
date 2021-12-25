@@ -1970,6 +1970,40 @@ asm
   mov edx,[eax+$150] // original
 end;
 
+procedure ui_actor_state_wnd__UpdateActorInfo_burnicon_Patch(); stdcall;
+asm
+  // так как код оригинала подразумевает только 3 варианта иконок состояния (и в кровотечении они все использованы) - добавляем иконку в здоровье (там по умолчанию только прогрессбар)
+
+  // m_state[stt_health]->show_static(false, 1);
+  mov ecx,[esi+$54]
+  push 01
+  push 00
+  mov eax, xrgame_addr
+  add eax, $46f9e0
+  call eax
+
+  pushad
+  call IsActorBurned
+  test al, al
+  popad
+
+  je @original
+  // m_state[stt_health]->show_static(true, 1);
+  mov ecx,[esi+$54]
+  push 01
+  push 01
+  mov eax, xrgame_addr
+  add eax, $46f9e0
+  call eax
+
+  // value = 0
+  mov [esp+$58], 0
+
+  @original:
+  fld [esp+$58]
+  fabs
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -2138,11 +2172,12 @@ begin
   //Иконка горения вместо кровотечения
   jmp_addr:=xrGame_addr+$45a1b5;
   if not WriteJump(jmp_addr, cardinal(@CUIMainIngameWnd__UpdateMainIndicators_Patch), 7, true) then exit;
+  jmp_addr:=xrGame_addr+$46ffe7;
+  if not WriteJump(jmp_addr, cardinal(@ui_actor_state_wnd__UpdateActorInfo_burnicon_Patch), 6, true) then exit;
 
   //в CUIWeaponCellItem::Update выставляем bForceReInitAddons, когда в буфере установлено требование обновить иконки аддонов
   jmp_addr:=xrGame_addr+$49df80;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_forceaddonupdate_Patch), 11, true) then exit;
-   
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
@@ -2162,6 +2197,7 @@ begin
   //CAI_Stalker::update_sell_info - xrgame.dll+18e3b0
   //CAI_Stalker::tradable_item - xrgame.dll+18e240
   //CUIWeaponCellItem::Update - xrgame.dll+49df60
+  //ui_actor_state_wnd::UpdateActorInfo - xrgame.dll+46ff40
 
   result:=true;
 end;
