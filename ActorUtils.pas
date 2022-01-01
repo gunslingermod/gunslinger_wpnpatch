@@ -2564,7 +2564,7 @@ end;
 procedure UpdateFOV(act:pointer);
 var
     fov, zoom_fov, alter_zoom_fov, alter_zoom_factor, hud_fov, af:single;
-    wpn:pointer;
+    wpn, det, itm:pointer;
     buf:WpnBuf;
     zoom_fov_section:PAnsiChar;
 const
@@ -2573,10 +2573,17 @@ begin
   //Можно манипулировать FOV и HudFOV
 
   wpn:=GetActorActiveItem();
+  det:=GetActiveDetector(act);
 
   if not game_ini_line_exist(GUNSL_BASE_SECTION, 'fov') then exit;
   fov:=GetBaseFOV();
-  if (wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'fov_factor');
+
+  if (wpn<>nil) then begin
+   if game_ini_line_exist(GetSection(wpn), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'fov_factor');
+  end else if (det<>nil) then begin
+   if game_ini_line_exist(GetSection(det), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(det), 'fov_factor');
+  end;
+  
   SetFOV(fov);
   alter_zoom_factor:=0;
   zoom_fov_section:=nil;
@@ -2623,6 +2630,9 @@ begin
       af :=GetAimFactor(wpn);
       hud_fov:=hud_fov-(hud_fov-zoom_fov)*af;
     end;
+    fov := fov*hud_fov;
+  end else if (det<>nil) then begin
+    hud_fov:=game_ini_r_single_def(GetHUDSection(det), 'hud_fov_factor', 1.0);
     fov := fov*hud_fov;
   end;
   SetHudFOV(fov);
