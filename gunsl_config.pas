@@ -213,6 +213,7 @@ function GetHeadlampDisableAnimator():PChar;
 function GetNVEnableAnimator():PChar;
 function GetNVDisableAnimator():PChar;
 function GetKickAnimator():PChar;
+function GetBurnAnimator():PChar;
 function GetPDAShowAnimator():PChar;
 function GetPDAScreen_kx():single; stdcall;
 function GetPDAUpdatePeriod():cardinal; stdcall;
@@ -315,6 +316,7 @@ var
   _headlamp_disable_animator_section:PChar;
   _nv_disable_animator_section:PChar;
   _kick_animator:PChar;
+  _burn_animator:PChar;
   _pda_show_animator:PChar;
 
   _quickuse_functor:PChar;
@@ -962,6 +964,7 @@ begin
   _nv_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_enable_animator');
   _nv_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_disable_animator');
   _kick_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'kick_animator');
+  _burn_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'burn_animator');
   _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
 
   _is_animated_addons:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'animated_addons', false);
@@ -1206,6 +1209,11 @@ end;
 function GetKickAnimator():PChar;
 begin
   result:=_kick_animator;
+end;
+
+function GetBurnAnimator():PChar;
+begin
+  result:=_burn_animator;
 end;
 
 function GetPDAShowAnimator():PChar;

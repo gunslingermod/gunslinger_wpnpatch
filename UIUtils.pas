@@ -276,6 +276,7 @@ procedure virtual_CUISimpleWindow__SetWndPos(wnd:pCUISimpleWindow; pos:pFVector2
 procedure virtual_CUILightAnimColorConroller__SetColorAnimation(this:pCUILightAnimColorConroller; name:pansichar; flags:pbyte; delay:single); stdcall;
 
 function IsInventoryShown():boolean; stdcall;
+function IsActorBurned():boolean; stdcall;
 
 function Init():boolean;stdcall;
 

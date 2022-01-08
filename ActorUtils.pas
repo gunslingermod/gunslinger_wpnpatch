@@ -337,6 +337,7 @@ function GetBoosterFromConditions(cond:pCEntityCondition; booster_type:cardinal)
 function GetActorConditions(act:pointer):pCActorCondition; stdcall;
 
 function CEntityCondition__BleedingSpeed_reimpl(pcond:pCEntityCondition; hit_type_mask:integer = -1):single; stdcall;
+procedure CEntityCondition__ChangeBleeding_custom(cond:pCEntityCondition; percent:single; hit_type_mask:integer = -1); stdcall;
 
 const
 	eBoostHpRestore:cardinal=0;
@@ -1897,6 +1898,27 @@ begin
     //[bug] баг - останавливаем эффектор анимации камеры оружи€ при его наличии, но остутствии оружи€ в руках
     if CCameraManager__GetCamEffector($12)<>nil then begin
       CCameraManager__RemoveCamEffector($12);
+    end;
+  end;
+
+  if IsActorBurned() then begin
+    // ” актора горит жопа
+    if itm<>nil then begin
+      if GetSection(itm)<>GetBurnAnimator() then begin;
+        //≈сли руки зан€ты - выбрасываем нафиг
+        PerformDrop(act);
+        ActivateActorSlot__CInventory(0, true);
+      end else begin
+        if length(GetActualCurrentAnim(itm)) = 0 then begin
+          //защита от потенциального "выбрасывани€" предыдущего аниматора - в этом случае новый почему-то не запускаетс€, всЄ просто "висит" в состо€нии без оружи€ в руках до активации чего-нибудь        
+          ActivateActorSlot(1);
+        end;
+        //лечимс€ от ожога
+        CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
+      end;
+    end else begin
+      // иначе - активируем аниматор тушени€
+      OnActorSwithesSmth('disable_burn_anim', GetBurnAnimator(), nil, nil, 0, @FakeCallback, 0);
     end;
   end;
 
