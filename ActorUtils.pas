@@ -336,7 +336,7 @@ function GetBoosterFromConditions(cond:pCEntityCondition; booster_type:cardinal)
 
 function GetActorConditions(act:pointer):pCActorCondition; stdcall;
 
-procedure CEntityCondition__BleedingSpeed_reimpl(obj:pointer;wounds:pxr_vector; res:psingle; hit_type_mask:integer = -1); stdcall;
+function CEntityCondition__BleedingSpeed_reimpl(pcond:pCEntityCondition; hit_type_mask:integer = -1):single; stdcall;
 
 const
 	eBoostHpRestore:cardinal=0;
@@ -4296,13 +4296,32 @@ begin
   result:=psingle(a_m_Wounds+hit_type*sizeof(single))^;
 end;
 
-function CalcWoundTotalSize(obj:pointer; wound:pointer; hit_type_mask:integer = -1):single; stdcall;
+procedure SetWoundComponentByHitType(wound:pointer; value:single; hit_type:cardinal); stdcall;
+var
+ a_m_Wounds:cardinal;
+begin
+  if hit_type>=EHitType__eHitTypeMax then exit;
+
+  a_m_Wounds:=cardinal(wound)+$10;
+  psingle(a_m_Wounds+hit_type*sizeof(single))^:=value;
+end;
+
+procedure CWound__SetDestroy(wound:pointer; status:byte); stdcall;
+var
+  m_bToBeDestroy:pByte;
+begin
+  m_bToBeDestroy:=@(PAnsiChar(wound)[$40]);
+  m_bToBeDestroy^:=status;
+end;
+
+
+function CalcModifiedWoundTotalSize(obj:pointer; wound:pointer; hit_type_mask:integer = -1):single; stdcall;
 var
   i:integer;
   bleeding:single;
 begin
   result:=0;
-  for i:=0 to EHitType__eHitTypeMax do begin
+  for i:=0 to EHitType__eHitTypeMax-1 do begin
     if (hit_type_mask > 0) and ( (1 shl i) and hit_type_mask = 0) then continue;
     bleeding:=GetWoundComponentByHitType(wound, i);
     if bleeding > 0 then begin
@@ -4311,41 +4330,101 @@ begin
   end;
 end;
 
-procedure CEntityCondition__BleedingSpeed_reimpl(obj:pointer;wounds:pxr_vector; res:psingle; hit_type_mask:integer = -1); stdcall;
+function CEntityCondition__BleedingSpeed_reimpl(pcond:pCEntityCondition; hit_type_mask:integer = -1):single; stdcall;
 var
   i:integer;
   pwound:pointer;
 begin
-  res^:=0;
+  result:=0;
   //if items_count_in_vector(wounds, sizeof(pointer)) > 0 then begin
   //  Log('Wounds count: '+inttostr(items_count_in_vector(wounds, sizeof(pointer))));
   //end;
 
-  for i:=0 to items_count_in_vector(wounds, sizeof(pointer))-1 do begin
-    pwound:=get_item_from_vector(wounds, i, sizeof(pointer));
-    res^:=res^+CalcWoundTotalSize(obj, pointer(pcardinal(pwound)^), hit_type_mask);
+  for i:=0 to items_count_in_vector(@pcond.m_WoundVector, sizeof(pointer))-1 do begin
+    pwound:=get_item_from_vector(@pcond.m_WoundVector, i, sizeof(pointer));
+    result:=result+CalcModifiedWoundTotalSize(pcond.m_object, pointer(pcardinal(pwound)^), hit_type_mask);
   end;
 end;
 
 procedure CEntityCondition__BleedingSpeed_Patch(); stdcall;
 asm
-  push 0
-  lea eax, [esp] 
-
   pushad
-  mov edi, ecx //this
-
   push $FFFFFFFF
-  push eax // ptr to result
-  lea esi, [edi+$48] // m_WoundVector
-  push esi       // this->m_WoundVector
-  push [edi+$44] // this->m_object
-  call CEntityCondition__BleedingSpeed_reimpl
+  push ecx // this
+  call CEntityCondition__BleedingSpeed_reimpl // returns value in fpu register - exactly what's we need
   popad
 
-  fld [esp]
-  add esp, 4
   ret
+end;
+
+function ChangeBleedingForWound(wound:pointer; percent:single; min_wound_size:single; hit_type_mask:integer = -1):boolean; stdcall;
+var
+  i:integer;
+  wound_size:single;
+const
+  EPS:single=0.0000001;  
+begin
+  for i:=0 to EHitType__eHitTypeMax-1 do begin
+    if (hit_type_mask > 0) and ( (1 shl i) and hit_type_mask = 0) then continue;
+    wound_size:=GetWoundComponentByHitType(wound, i);
+    wound_size:=wound_size - percent;
+    if wound_size < min_wound_size then begin
+      wound_size:=0;
+    end;
+    SetWoundComponentByHitType(wound, wound_size, i);
+  end;
+
+  result:=true;
+  for i:=0 to EHitType__eHitTypeMax-1 do begin
+    if GetWoundComponentByHitType(wound, i) > EPS then begin
+     result:=false;
+     break;
+    end;
+  end;
+
+  if result then begin
+    for i:=0 to EHitType__eHitTypeMax-1 do begin
+      SetWoundComponentByHitType(wound, 0, i);
+    end;  
+  end;
+
+end;
+
+procedure CEntityCondition__ChangeBleeding_custom(cond:pCEntityCondition; percent:single; hit_type_mask:integer = -1); stdcall;
+var
+  i:integer;
+  pwound:pointer;
+begin
+  for i:=0 to items_count_in_vector(@cond.m_WoundVector, sizeof(pointer))-1 do begin
+    pwound:=get_item_from_vector(@cond.m_WoundVector, i, sizeof(pointer));
+    if ChangeBleedingForWound(pointer(pcardinal(pwound)^), percent, cond.m_fMinWoundSize, hit_type_mask) then begin
+      //bleeding stopped, need to remove wound
+      CWound__SetDestroy(pointer(pcardinal(pwound)^), 1);
+    end;
+  end;
+end;
+
+procedure CEntityCondition__ChangeBleeding_reimpl(cond:pCEntityCondition; percent:single); stdcall;
+var
+  mask:word;
+begin
+  if cond.m_object = GetActor() then begin
+    mask:=not (1 shl EHitType__eHitTypeBurn); // beware of negative value after passing to CEntityCondition__ChangeBleeding_custom!
+    CEntityCondition__ChangeBleeding_custom(cond, percent, mask);
+  end else begin
+    CEntityCondition__ChangeBleeding_custom(cond, percent);
+  end;
+end;
+
+procedure CEntityCondition__ChangeBleeding_reimpl_Patch(); stdcall;
+asm
+  mov eax, [esp+4] // percent
+  pushad
+  push eax
+  push ecx
+  call CEntityCondition__ChangeBleeding_reimpl
+  popad
+  ret 4
 end;
 
 function Init():boolean; stdcall;
@@ -4559,7 +4638,14 @@ begin
   jmp_addr:=xrGame_addr+$27dd00;
   if not WriteJump(jmp_addr, cardinal(@CEntityCondition__BleedingSpeed_Patch), 6, false) then exit;
 
+  // Переабатываем стандартный CEntityCondition::ChangeBleeding так, чтобы он не заживлял актору ожоги
+  jmp_addr:=xrGame_addr+$27dc60;
+  if not WriteJump(jmp_addr, cardinal(@CEntityCondition__ChangeBleeding_reimpl_Patch), 7, false) then exit;
+
   result:=true;
 end;
+
+// CEntityCondition::ChangeBleeding - xrGame.dll+27dc60
+// CActor::UpdateArtefactsOnBeltAndOutfit - xrGame.dll+262cd0
 
 end.
