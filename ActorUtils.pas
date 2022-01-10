@@ -340,7 +340,7 @@ function CEntityCondition__BleedingSpeed_reimpl(pcond:pCEntityCondition; hit_typ
 procedure CEntityCondition__ChangeBleeding_custom(cond:pCEntityCondition; percent:single; hit_type_mask:integer = -1); stdcall;
 
 function IsItemActionAnimator(itm:pointer):boolean; stdcall;
-procedure PlanActorKickAnimator(kick_types_section:PAnsiChar);
+procedure PlanActorKickAnimator(kick_types_section:string);
 
 const
 	eBoostHpRestore:cardinal=0;
@@ -1844,18 +1844,37 @@ begin
   result:=(blowout_level<=CurrentElectronicsProblemsCnt());
 end;
 
-procedure PlanActorKickAnimator(kick_types_section:PAnsiChar);
+procedure PlanActorKickAnimator(kick_types_section:string);
 var
   cnt, i:integer;
 begin
   if length(_planned_kick_animator) > 0 then exit;
 
-  cnt:=game_ini_r_int_def(kick_types_section, 'count', 0);
+  cnt:=game_ini_r_int_def(PAnsiChar(kick_types_section), 'count', 0);
   if cnt<=0 then exit;
 
   i:= floor(random * cnt);
 
-  _planned_kick_animator:=game_ini_read_string(kick_types_section, PAnsiChar('animator_'+inttostr(i)));
+  _planned_kick_animator:=game_ini_read_string(PAnsiChar(kick_types_section), PAnsiChar('animator_'+inttostr(i)));
+end;
+
+function IsPlannedKickAnimator(itm:pointer; kick_types_section:string):boolean;
+var
+  sect:PAnsiChar;
+  cnt, i:integer;
+begin
+  result:=false;
+
+  cnt:=game_ini_r_int_def(PAnsiChar(kick_types_section), 'count', 0);
+  if (itm=nil) or (cnt<=0) then exit;
+
+  sect:=GetSection(itm);
+  for i:=0 to cnt-1 do begin
+    if game_ini_read_string(PAnsiChar(kick_types_section), PAnsiChar('animator_'+inttostr(i))) = sect then begin
+      result:=true;
+      break;
+    end;
+  end;
 end;
 
 procedure ActorUpdate(act:pointer); stdcall;
@@ -1942,7 +1961,7 @@ begin
   end;
 
   if IsActorBurned() then begin
-    if (itm<>nil) and (GetSection(itm)=GetBurnAnimator()) then begin
+    if (itm<>nil) and (IsPlannedKickAnimator(itm, 'burn_kicks')) then begin
       //כוקטלסÿ מע מזמדא
       CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
     end else begin
