@@ -801,7 +801,7 @@ begin
       end;
     end;
 
-    if game_ini_r_bool_def(sect, 'action_animator', false) then begin
+    if IsItemActionAnimator(wpn) then begin
         if (wpn=GetActorActiveItem()) then begin
           if (GetCurrentState(wpn)=EHudStates__eShowing) then begin
             if (GetActorTargetSlot()=GetActorActiveSlot()) and not game_ini_r_bool_def(sect, 'disable_autochange_slot', false) then begin

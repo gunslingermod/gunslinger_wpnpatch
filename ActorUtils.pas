@@ -339,6 +339,8 @@ function GetActorConditions(act:pointer):pCActorCondition; stdcall;
 function CEntityCondition__BleedingSpeed_reimpl(pcond:pCEntityCondition; hit_type_mask:integer = -1):single; stdcall;
 procedure CEntityCondition__ChangeBleeding_custom(cond:pCEntityCondition; percent:single; hit_type_mask:integer = -1); stdcall;
 
+function IsItemActionAnimator(itm:pointer):boolean; stdcall;
+
 const
 	eBoostHpRestore:cardinal=0;
 	eBoostPowerRestore:cardinal=1;
@@ -412,6 +414,7 @@ var
   _need_pda_zoom:boolean;
   _last_pda_zoom_state:boolean;
   _pda_blowout_anim_started:boolean;
+  _planned_kick_animator:string;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure player_hud__load_fixpatched(); stdcall;
@@ -506,6 +509,26 @@ asm
 
     @finish:
   popad
+end;
+
+procedure PerformDropFromActorHands(); stdcall;
+var
+  act, det, itm:pointer;
+begin
+  act:=GetActorIfAlive();
+  if act=nil then exit;
+
+  det:=GetActiveDetector(act);
+  if det<>nil then begin
+    DropItem(act, det);
+  end;
+
+  PerformDrop(act);
+
+//  itm:=GetActorActiveItem();
+//  if itm<>nil then begin
+//    DropItem(act, itm);
+//  end;
 end;
 
 //-------------------------------------------------------------------------------------------------------------
@@ -716,6 +739,13 @@ asm
 
   @finish:
   lea edi, [esi+$e8]
+end;
+
+function IsItemActionAnimator(itm:pointer):boolean; stdcall;
+begin
+  result:=false;
+  if itm = nil then exit;
+  result:=game_ini_r_bool_def(GetSection(itm), 'action_animator', false)
 end;
 
 function OnActorSwithesSmth(restrictor_config_param:PChar; animator_item_section:PChar; anm_name:PChar; snd_label:PChar; key_repeat:cardinal; callback:TAnimationEffector; callback_param:integer):boolean; stdcall;
@@ -1818,6 +1848,20 @@ begin
   result:=(blowout_level<=CurrentElectronicsProblemsCnt());
 end;
 
+procedure PlanActorKickAnimator(kick_types_section:PAnsiChar);
+var
+  cnt, i:integer;
+begin
+  if length(_planned_kick_animator) > 0 then exit;
+
+  cnt:=game_ini_r_int_def(kick_types_section, 'count', 0);
+  if cnt<=0 then exit;
+
+  i:= floor(random * cnt);
+
+  _planned_kick_animator:=game_ini_read_string(kick_types_section, PAnsiChar('animator_'+inttostr(i)));
+end;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -1902,29 +1946,40 @@ begin
   end;
 
   if IsActorBurned() then begin
-    // ” актора горит жопа
-    if itm<>nil then begin
-      if GetSection(itm)<>GetBurnAnimator() then begin;
-        //≈сли руки зан€ты - выбрасываем нафиг
-        PerformDrop(act);
+    if (itm<>nil) and (GetSection(itm)=GetBurnAnimator()) then begin
+      //лечимс€ от ожога
+      CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
+    end else begin
+      PlanActorKickAnimator('burn_kicks');
+    end;
+  end;
+
+  if length(_planned_kick_animator) > 0 then begin
+    //надо проиграть аниматор пинка с выбиванием оружи€ из рук
+    if (itm<>nil) and (GetSection(itm)=_planned_kick_animator) and (length(GetActualCurrentAnim(itm)) > 0) then begin
+      // уже играем
+      _planned_kick_animator:='';
+    end else if (itm<>nil) or (GetActiveDetector(act)<>nil) then begin
+      //≈сли руки зан€ты - выбрасываем всЄ нафиг
+      if ((itm<>nil) and (GetSection(itm)<>_planned_kick_animator)) or (GetActiveDetector(act)<>nil) then begin
+        PerformDropFromActorHands();
         ActivateActorSlot__CInventory(0, true);
       end else begin
         if length(GetActualCurrentAnim(itm)) = 0 then begin
-          //защита от потенциального "выбрасывани€" предыдущего аниматора - в этом случае новый почему-то не запускаетс€, всЄ просто "висит" в состо€нии без оружи€ в руках до активации чего-нибудь        
+          //защита от потенциального "выбрасывани€" предыдущего аниматора - в этом случае новый почему-то не запускаетс€, всЄ просто "висит" в состо€нии без оружи€ в руках до активации чего-нибудь
           ActivateActorSlot(1);
+        end else begin
+          _planned_kick_animator:='';
         end;
-        //лечимс€ от ожога
-        CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
       end;
     end else begin
-      // иначе - активируем аниматор тушени€
-      OnActorSwithesSmth('disable_burn_anim', GetBurnAnimator(), nil, nil, 0, @FakeCallback, 0);
+      OnActorSwithesSmth('disable_planned_kicks', PAnsiChar(_planned_kick_animator), nil, nil, 0, @FakeCallback, 0);
     end;
   end;
 
   //если в руках аниматор действи€ или премет без буфера с играющейс€ анимой действи€ - запускаем калбэк вручную
   if (@_action_animator_callback<>nil) then begin
-    act_anm:=(itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'action_animator', false);
+    act_anm:=(itm<>nil) and IsItemActionAnimator(itm);
     if (itm<>nil) and (act_anm or ((GetBuffer(itm)=nil) and IsPending(itm) and (GetCurrentState(itm)=EHudStates__eIdle))) then begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
@@ -2332,7 +2387,7 @@ begin
       end;
     end;
   end else if ((dik=kWPN_1) or (dik=kWPN_2) or (dik=kWPN_3) or (dik=kWPN_4) or (dik=kWPN_5) or (dik=kWPN_6) or (dik=kARTEFACT)) then begin
-    if (IsActorSuicideNow()) or IsActorPlanningSuicide() or ((wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object')) then begin
+    if (IsActorSuicideNow()) or IsActorPlanningSuicide() or ((wpn<>nil) and game_ini_line_exist(GetSection(wpn), 'gwr_changed_object') and game_ini_line_exist(GetSection(wpn), 'gwr_eatable_object')) or ((wpn<>nil) and IsItemActionAnimator(wpn)) then begin
       result:=false;
     end else if IsActorControlled() then begin
       result:=CanUseItemForSuicide(ItemInSlot(act, dik-kWPN_1+1));
@@ -2475,6 +2530,7 @@ begin
   _last_pda_zoom_state:=IsFastPdaZoom();
   _is_pda_lookout_mode:=false;
   _pda_blowout_anim_started:=false;
+  _planned_kick_animator:='';
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
@@ -4068,7 +4124,6 @@ asm
   mov edx,[ebx+$254]
 end;
 
-
 procedure OnMonsterHit(h:pSHit); stdcall;
 var
   source, dest:pointer;
@@ -4080,6 +4135,9 @@ var
   dropped:boolean;
   cond_dec:single;
   hit_params:boar_hit_params;
+
+  look_v:FVector3;
+  is_actor_see_monster:boolean;
 begin
   dest:=GetObjectById(h.DestID);
   act:=GetActor();
@@ -4087,30 +4145,43 @@ begin
     source:=GetObjectById(h.whoId);
     boar:=dynamic_cast(source, 0, RTTI_CObject, RTTI_CAI_Boar, false);
     if boar<>nil then begin
+      itm:=GetActorActiveItem();
       stamina:=GetActorStamina(act);
+
+      look_v:=FVector3_copyfromengine(CRenderDevice__GetCamdir());
+      is_actor_see_monster:=GetAngleCos(@h.dir, @look_v) < 0;
+
       if stamina > h.power then begin
         SetActorStamina(act, stamina-h.power);
-      end else begin
-        itm:=GetActorActiveItem();
-        if itm <> nil then begin
-          sect:=GetSection(itm);
-          slot:=game_ini_r_int_def(sect, 'slot', 2);
-          dropped:=false;
-          if (slot<>1) or (random < (h.power - stamina)) then begin
-            PerformDrop(act);
-            dropped:=true;
-          end;
-
-          if dropped and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
-            hit_params:=GetBoarHitParams();
-            cond_dec:=hit_params.min_condition_decrease + random * (hit_params.max_condition_decrease - hit_params.min_condition_decrease);
-            cond_dec:=GetCurrentCondition(itm)-cond_dec;
-            if cond_dec < 0 then cond_dec:=0;
-            SetCondition(itm, cond_dec);
-          end;
-
-          SetActorStamina(act, 0);
+      end else if itm = nil then begin
+        if is_actor_see_monster then begin
+          PlanActorKickAnimator('boar_front_kicks');
+        end else begin
+          PlanActorKickAnimator('boar_back_kicks');
         end;
+      end else begin
+        sect:=GetSection(itm);
+        slot:=game_ini_r_int_def(sect, 'slot', 2);
+        dropped:=false;
+        if (slot<>1) or (random < (h.power - stamina)) then begin
+          PerformDrop(act);
+          if is_actor_see_monster then begin
+            PlanActorKickAnimator('boar_front_kicks');
+          end else begin
+            PlanActorKickAnimator('boar_back_kicks');
+          end;
+          dropped:=true;
+        end;
+
+        if dropped and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
+          hit_params:=GetBoarHitParams();
+          cond_dec:=hit_params.min_condition_decrease + random * (hit_params.max_condition_decrease - hit_params.min_condition_decrease);
+          cond_dec:=GetCurrentCondition(itm)-cond_dec;
+          if cond_dec < 0 then cond_dec:=0;
+          SetCondition(itm, cond_dec);
+        end;
+
+        SetActorStamina(act, 0);
       end;
     end;
   end;
