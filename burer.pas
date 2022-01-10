@@ -596,6 +596,7 @@ begin
       if ss_params.force_hide_items_prob < random then begin
         script_call('gunsl_burer.on_close_antiknife', '', GetCObjectID(burer));
         ActivateActorSlot__CInventory(0, true);
+        PlanActorKickAnimator('burer_kicks');
       end;
     end else if IsThrowable(itm) then begin
       state:=GetCurrentState(itm);
@@ -1855,6 +1856,20 @@ asm
   @finish:
 end;
 
+procedure RunBurerDropAnimator(); stdcall;
+begin
+  PlanActorKickAnimator('burer_kicks');
+end;
+
+procedure CBurer__StaminaHit_animateddrop_Patch(); stdcall;
+asm
+  add eax,$2C8 // original
+
+  pushad
+    call RunBurerDropAnimator
+  popad  
+end;
+
 
 function Init():boolean; stdcall;
 var
@@ -2082,6 +2097,10 @@ begin
   //в начале CBurer::StaminaHit проверяем, нужно ли пропустить нанесение хита стамине
   jmp_addr:=xrGame_addr+$102733;
   if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_needskip_Patch), 5, true) then exit;
+
+  //в CBurer::StaminaHit запускаем аниматор броска при выхватывании оружия
+  jmp_addr:=xrGame_addr+$1028b5;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_animateddrop_Patch), 5, true) then exit;
 
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970

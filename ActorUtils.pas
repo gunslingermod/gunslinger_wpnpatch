@@ -340,6 +340,7 @@ function CEntityCondition__BleedingSpeed_reimpl(pcond:pCEntityCondition; hit_typ
 procedure CEntityCondition__ChangeBleeding_custom(cond:pCEntityCondition; percent:single; hit_type_mask:integer = -1); stdcall;
 
 function IsItemActionAnimator(itm:pointer):boolean; stdcall;
+procedure PlanActorKickAnimator(kick_types_section:PAnsiChar);
 
 const
 	eBoostHpRestore:cardinal=0;
@@ -524,11 +525,6 @@ begin
   end;
 
   PerformDrop(act);
-
-//  itm:=GetActorActiveItem();
-//  if itm<>nil then begin
-//    DropItem(act, itm);
-//  end;
 end;
 
 //-------------------------------------------------------------------------------------------------------------
