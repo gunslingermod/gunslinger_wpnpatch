@@ -1683,6 +1683,8 @@ end;
 // CInventory::Update - xrgame.dll+2a83a0
 // CScriptGameObject::buy_supplies - xrgame.dll+1c3df0
 // CMosquitoBald::UpdateSecondaryHit - xrgame.dll+30ea90
+// CShootingObject::StartShotParticles - xrgame.dll+2bbee0
+// CShootingObject::StartFlameParticles - xrgame.dll+2bbdb0
 
 
 end.

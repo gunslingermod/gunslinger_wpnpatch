@@ -160,6 +160,8 @@ function GetHandsRotOffset(attachable_hud_item:pointer):FVector3;
 
 procedure attachable_hud_item__GetBoneOffsetPosDir(this:pointer; bone:PChar;dest_pos:pFVector3; dest_dir:pFVector3; bone_offset:pFVector3);stdcall;
 
+procedure CShootingObject__StartFlameParticles(wpn:pointer);stdcall;
+
 procedure CShootingObject__UpdateParticles(wpn:pointer; CParticlesObject:pointer; pos:pFVector3; vel:pFVector3);stdcall;
 procedure CShootingObject__StartParticles(wpn:pointer; CParticlesObject:pointer; particles_name:PChar; pos:pFVector3; vel:pFVector3; auto_remove_flag:boolean);stdcall;
 procedure CShootingObject__StopParticles(wpn:pointer; CParticlesObject:pointer); stdcall;
@@ -1970,6 +1972,17 @@ asm
   movss [eax+8], xmm0
 
   @finish:
+  popad
+end;
+
+procedure CShootingObject__StartFlameParticles(wpn:pointer);stdcall;
+asm
+  pushad
+  mov ecx, wpn
+  add ecx, $338 //cast to CShootingObject
+  mov eax, xrgame_addr
+  add eax, $2bbdb0
+  call eax
   popad
 end;
 

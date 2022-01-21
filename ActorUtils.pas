@@ -1962,6 +1962,9 @@ begin
 
   if IsActorBurned() then begin
     if (itm<>nil) and (IsPlannedKickAnimator(itm, 'burn_kicks')) then begin
+      if length(_planned_kick_animator)>0 then begin
+        CShootingObject__StartFlameParticles(itm);
+      end;
       //כוקטלסÿ מע מזמדא
       CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
     end else begin
