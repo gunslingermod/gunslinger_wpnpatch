@@ -587,7 +587,7 @@ var
   grenade:pointer;
   sect:PChar;
   destroy_time, time_from_throw, now:cardinal;
-  safe_time:cardinal;
+  safe_time, delay_time:cardinal;
   samolikvidator_delta:cardinal;
   linear_vel:FVector3;
   cpsh:pointer;
@@ -610,9 +610,12 @@ begin
 
   sect:=GetSection(grenade);
   safe_time:=game_ini_r_int_def(sect, 'safe_time', 0);
+  delay_time:=game_ini_r_int_def(sect, 'delay_time', 0);
 
   if (safe_time<>0) and (safe_time>time_from_throw) then begin
     CMissile__SetDestroyTime(grenade, CMISSILE_NOT_ACTIVATED);
+  end else if (delay_time<>0) and (delay_time>time_from_throw) then begin
+    //Просто пропускаем контакт
   end else if game_ini_r_bool_def(sect, 'explosion_on_kick', false) then begin
     new_destroy_time:=now;
     min_speed:=game_ini_r_single_def(sect, 'min_explosion_speed', 0);
@@ -622,7 +625,11 @@ begin
         GetLinearVel(cpsh, @linear_vel);
         speed:=v_length(@linear_vel);
         if speed < min_speed then begin
-          new_destroy_time:=CMISSILE_NOT_ACTIVATED;
+          if game_ini_r_bool_def(sect, 'deactivate_on_minimal_speed_contact', false) then begin
+            new_destroy_time:=CMISSILE_NOT_ACTIVATED;
+          end else begin
+            new_destroy_time:=destroy_time;
+          end;
         end;
       end;
     end;
