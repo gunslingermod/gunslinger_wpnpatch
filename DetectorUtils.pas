@@ -732,6 +732,9 @@ begin
   end;
 end;
 
+
+var
+  CUIArtefactDetectorSimple__Flash_period:single;
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -773,6 +776,12 @@ begin
 
   jmp_addr:=xrGame_addr+$2ED002;
   if not WriteJump(jmp_addr, cardinal(@CCustomDetector__CheckCompatibility_Patch), 9, true) then exit;
+
+  // [bug] в CUIArtefactDetectorSimple::Flash уменьшаем период активности сигнала, чтобы мигания лампочки не ливались воедино
+  CUIArtefactDetectorSimple__Flash_period:=500;
+  jmp_addr:=cardinal(@CUIArtefactDetectorSimple__Flash_period);
+  WriteBufAtAdr(xrGame_addr+$2ede6f, @jmp_addr, sizeof(jmp_addr));
+
 
   result:=true;
 end;
