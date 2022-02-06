@@ -2066,6 +2066,40 @@ asm
   call eax
 end;
 
+procedure CWeaponRPG7__FireStart_GrenadeLaunchPoint_Patch(); stdcall;
+asm
+  //original
+  test edi, edi
+  mov [esp+$1C+4],edi
+  je @finish
+  pushad
+  push edi
+  call GetActor    //if E == GetActor then skip E->g_fireParams
+  pop edi
+  cmp eax, edi
+  popad
+  @finish:
+end;
+
+procedure EmptyClickIfNeeded(wpn:pointer); stdcall;
+begin
+  if GetCurrentAmmoCount(wpn) = 0 then begin
+    virtual_CWeaponMagazined__OnEmptyClick(wpn);
+  end;
+end;
+
+procedure CWeaponRG6__FireStart_EmptyClicks_Patch(); stdcall;
+asm
+  pushad
+  lea ecx, [ebp-$338]
+  push ecx
+  call EmptyClickIfNeeded
+  popad
+
+  //original
+  lea ecx,[ebp-$358]  
+end;
+
 procedure RPG7ReactiveHit(wpn:pointer); stdcall;
 var
   sect:PAnsiChar;
@@ -2803,7 +2837,14 @@ begin
   //[bug] баг - из-за dropCurrentRocket() в CWeaponRG6::FireStart после выстрела НПСом грена зависает в воздухе
   //но если этого не делать, в оригинале заспавнится 2 CCustomRocket! Из-за вызова FireStart 2 раза. Мы решаем аналогично РПГ-7
   nop_code(xrgame_addr+$2DFBDD, 5);
-  result:=true;
+
+  //[bug] баг - в CWeaponRG6::FireStart не стоит вызывать E->g_fireParams, когда гранатомет в руках у актора, иначе грена полетит из центра камеры
+  jmp_addr:=xrGame_addr+$2DF7C7;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_GrenadeLaunchPoint_Patch), 6, true) then exit;
+
+  //[bug] баг - в CWeaponRG6::FireStart не реализованы щелчки при попытке выстрелить из пустого оружия. Добавляем вызов OnEmptyClick(); после проверки GetState() == eIdle и перед getRocketCount()
+  jmp_addr:=xrGame_addr+$2DF6E7;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__FireStart_EmptyClicks_Patch), 6, true) then exit;
 
   //реализация изменения скорости доставания/убирания оружия при переключении на/со слота аниматоров и прочей юзабельной хрени
   jmp_addr:=xrGame_addr+$2FB5EA;
@@ -2888,6 +2929,11 @@ begin
   jmp_addr:=xrGame_addr+$24ef7a;
   if not WriteJump(jmp_addr, cardinal(@CBulletManager__RegisterEvent_CheckBulletCount_Patch), 5, true) then exit;
 
+  //В CWeaponMagazined::OnMagazineEmpty ликвидируем переход в стейт eMagEmpty
+  if not nop_code(xrgame_addr+$2ccb20, 1, chr($eb)) then exit;
+
+  result:=true;
+
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
   //Далее эта штука ловится и заставляет вызываться CWeaponMagazined::switch2_Hiding, в котором зачем-то вызывает PlaySound, а потом дергает SetPending(true).
   //По логике pending должен сброситься в CWeaponMagazined::switch2_Hidden, но до его вызова дело не доходит, так как оружие выброшено и сообщения не проходят (фиксятся предыдущей правкой)
@@ -2897,6 +2943,7 @@ begin
   //CWeaponMagazined::OnStateSwitch - xrgame.dll+2d01b0 -> CWeaponMagazined::switch2_Fire (xrgame.dll+2d0720)
   //CWeaponMagazined::Action - xrgame.dll+2ce7a0; CWeapon::Action - xrGame.dll+2bec70
   //CWeaponMagazined::OnShot - xrgame.dll+2ccc40
+  //CWeaponMagazined::OnMagazineEmpty - xrgame.dll+2ccb00
   //CEntityAlive::Hit - xrgame.dll+27bdb0
   //CBaseMonster::Hit - xrgame.dll+c6440
   //CEntityAlive::StartFireParticles - xrgame.dll+27ba30
