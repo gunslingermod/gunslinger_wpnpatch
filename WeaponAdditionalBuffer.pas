@@ -61,6 +61,21 @@ type stepped_params = record
 end;
 pstepped_params = ^stepped_params;
 
+type upgrades_process_condition = packed record
+  force:boolean;
+  gl_attached:boolean;
+  gl_enabled:boolean;
+  silencer_attached:boolean;
+  scope_attached:PAnsiChar;  
+  scope_sect:PAnsiChar;
+  upgrades_count:integer;
+  ammo_type:integer;
+  ammo_count:integer;
+  firemode:integer;
+  state:cardinal;
+  last_frame:boolean;
+end;
+
 type
   TAnimationEffector = procedure(wpn:pointer; param:integer);stdcall;
 
@@ -152,6 +167,11 @@ type
 
     _last_scope_id:cardinal;
 
+    _default_hud_sect:PAnsiChar;
+    _default_hud_sect_sil:PAnsiChar;
+    _default_hud_sect_gl:PAnsiChar;
+    _default_hud_sect_scope:PAnsiChar;
+
     class procedure _SetWpnBufPtr(wpn:pointer; what_write:pointer);
 
 
@@ -164,8 +184,8 @@ type
     last_frame_rocket_loaded:cardinal; //для РПГ
     rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
 
-    last_bones_update_frame:cardinal;
     need_update_icon:boolean;
+    upgrades_procesing_conditions:upgrades_process_condition;
 
     constructor Create(wpn:pointer);
     destructor Destroy; override;
@@ -284,6 +304,11 @@ type
 
     function GetLastScopeId():cardinal;
     procedure SetLastScopeId(id:cardinal);
+
+    function GetDefaultHudSection():PAnsiChar;
+    function GetDefaultHudSectionScope():PAnsiChar;
+    function GetDefaultHudSectionGL():PAnsiChar;
+    function GetDefaultHudSectionSil():PAnsiChar;
   end;
 
   function PlayCustomAnimStatic(wpn:pointer; base_anm:PChar; snd_label:PChar=nil; effector:TAnimationEffector=nil; eff_param:integer=0; lock_shooting:boolean = false; ignore_aim_state:boolean=false):boolean; stdcall;
@@ -452,6 +477,13 @@ begin
 
   _last_scope_id := $FFFFFFFF;
   need_update_icon:=false;
+
+  upgrades_procesing_conditions.force:=true;
+
+  _default_hud_sect:=game_ini_read_string(GetSection(wpn), 'hud');
+  _default_hud_sect_sil:=game_ini_read_string_def(GetSection(wpn), 'hud_silencer', nil);
+  _default_hud_sect_gl:=game_ini_read_string_def(GetSection(wpn), 'hud_gl', nil);
+  _default_hud_sect_scope:=game_ini_read_string_def(GetSection(wpn), 'hud_scope', nil);
 
 end;
 
@@ -1913,6 +1945,26 @@ end;
 procedure WpnBuf.SetLastScopeId(id: cardinal);
 begin
   _last_scope_id:=id;
+end;
+
+function WpnBuf.GetDefaultHudSection():PAnsiChar;
+begin
+  result:=_default_hud_sect;
+end;
+
+function WpnBuf.GetDefaultHudSectionScope():PAnsiChar;
+begin
+  result:=_default_hud_sect_scope;
+end;
+
+function WpnBuf.GetDefaultHudSectionGL():PAnsiChar;
+begin
+  result:=_default_hud_sect_gl;
+end;
+
+function WpnBuf.GetDefaultHudSectionSil():PAnsiChar;
+begin
+  result:=_default_hud_sect_sil;
 end;
 
 

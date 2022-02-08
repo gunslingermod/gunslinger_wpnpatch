@@ -13,28 +13,48 @@ uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysuti
 var patch_addr:cardinal;
   tst_light:pointer;
 
-function OptimizationCheck(wpn:pointer; last_update_frame:cardinal; additional_skip_allowed_condition:boolean; update_period_factor:single=1.0; update_split_count_factor:single=1.0):boolean; stdcall;
+function NeedUpdateBonesCheck(wpn:pointer):boolean;
 var
   buf:WpnBuf;
-  update_period, update_split_count:cardinal;
-const
-  DEF_UPDATE_FRAMES_PERIOD:cardinal=20;
-  DEF_UPDATE_SPLIT_FACTOR:cardinal=10;
+  new_conds:upgrades_process_condition;
 begin
-  // Оптимизация - разгружаем апдейт от пересчета апгрейдов на каждом кадре
-  if (GetActor<>nil) and (GetActorActiveItem()=wpn) then begin
-    result:=true;
-    exit;
-  end;
-
-  result:=false;
-
-  update_period:=floor(update_period_factor*DEF_UPDATE_FRAMES_PERIOD);
-  update_split_count:=floor(update_period_factor*DEF_UPDATE_SPLIT_FACTOR);
-  if (last_update_frame+update_period >= GetCurrentFrame()) and additional_skip_allowed_condition then begin
-    if (GetId(wpn) mod update_split_count) <> (GetCurrentFrame() mod update_split_count) then exit;
-  end;
   result:=true;
+
+  buf:=GetBuffer(wpn);
+  if buf = nil then exit;
+
+  new_conds.force:=false;
+  new_conds.upgrades_count:=GetInstalledUpgradesCount(wpn);
+  new_conds.gl_attached:=IsGLAttached(wpn);
+  new_conds.gl_enabled:=IsGrenadeMode(wpn);
+  new_conds.silencer_attached:=IsSilencerAttached(wpn);
+  new_conds.scope_sect:=nil;
+  if IsScopeAttached(wpn) then begin
+    new_conds.scope_sect:=GetCurrentScopeSection(wpn);
+  end;
+  new_conds.ammo_type:=GetAmmoTypeIndex(wpn, false);
+  new_conds.ammo_count:=GetCurrentAmmoCount(wpn);
+  new_conds.firemode:=CurrentQueueSize(wpn);
+  new_conds.state:=GetCurrentState(wpn);
+
+
+  if buf.upgrades_procesing_conditions.force then begin
+    result:=true;
+  end else begin
+    result:= (new_conds.upgrades_count <> buf.upgrades_procesing_conditions.upgrades_count) or
+             (new_conds.gl_attached <> buf.upgrades_procesing_conditions.gl_attached) or
+             (new_conds.gl_enabled <> buf.upgrades_procesing_conditions.gl_enabled) or
+             (new_conds.silencer_attached <> buf.upgrades_procesing_conditions.silencer_attached) or
+             (new_conds.scope_sect <> buf.upgrades_procesing_conditions.scope_sect) or
+             (new_conds.ammo_type <> buf.upgrades_procesing_conditions.ammo_type) or
+             (new_conds.ammo_count <> buf.upgrades_procesing_conditions.ammo_count) or
+             (new_conds.firemode <> buf.upgrades_procesing_conditions.firemode) or
+             (new_conds.state <> buf.upgrades_procesing_conditions.state);
+  end;
+
+  if result then begin
+    buf.upgrades_procesing_conditions:=new_conds;
+  end;
 end;
 
 procedure ProcessLaserdot(wpn:pointer);
@@ -908,28 +928,39 @@ begin
         k:=1;
       end;
 
-      if buf<>nil then begin
-        need_bones_recheck:=OptimizationCheck(wpn, buf.last_bones_update_frame, true, k, k);
-        buf.last_bones_update_frame:=GetCurrentFrame();
-      end else begin
-        need_bones_recheck:=OptimizationCheck(wpn, GetCurrentFrame(), true, k, k);
-      end;
+      need_bones_recheck:=NeedUpdateBonesCheck(wpn);
 
       if need_bones_recheck then begin
         //Обработаем установленные апгрейды
         upgrade_results:=ProcessUpgrade(wpn);
-        if not upgrade_results.hud_overriden then begin
+        if (GetInstalledUpgradesCount(wpn)>0) and (not upgrade_results.hud_overriden) then begin
           cur_hud_sect:=GetHUDSection(wpn);
           new_hud_sect:=cur_hud_sect;
 
           if IsSilencerAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_silencer_is_attached', false) then begin
-            new_hud_sect:=game_ini_read_string(sect, 'hud_silencer');
+            if buf<>nil then begin
+              new_hud_sect:=buf.GetDefaultHudSectionSil();
+            end else begin
+              new_hud_sect:=game_ini_read_string(sect, 'hud_silencer');
+            end;
           end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_gl_is_attached', false) then begin
-            new_hud_sect:=game_ini_read_string(sect, 'hud_gl');
+            if buf<>nil then begin
+              new_hud_sect:=buf.GetDefaultHudSectionGL();
+            end else begin
+              new_hud_sect:=game_ini_read_string(sect, 'hud_gl');
+            end;
           end else if IsScopeAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_scope_is_attached', false) then begin
-            new_hud_sect:=game_ini_read_string(sect, 'hud_scope');
+            if buf<>nil then begin
+              new_hud_sect:=buf.GetDefaultHudSectionScope();
+            end else begin
+              new_hud_sect:=game_ini_read_string(sect, 'hud_scope');
+            end;
           end else begin
-            new_hud_sect:=game_ini_read_string(sect, 'hud');
+            if buf<>nil then begin
+              new_hud_sect:=buf.GetDefaultHudSection();
+            end else begin
+              new_hud_sect:=game_ini_read_string(sect, 'hud');
+            end;
           end;
 
           if cur_hud_sect <> new_hud_sect then begin
