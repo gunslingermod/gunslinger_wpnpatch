@@ -1823,23 +1823,27 @@ var
 const
   EPS:single = 0.0001;
 begin
-  sect:=GetHUDSection(_my_wpn);
-  speed:=ModifyFloatUpgradedValue(_my_wpn, 'alter_zoom_direct_switch_speed', game_ini_r_single_def(sect, 'alter_zoom_direct_switch_speed', 0.0));
+  if GetActorActiveItem() = _my_wpn then begin
+    sect:=GetHUDSection(_my_wpn);
+    speed:=ModifyFloatUpgradedValue(_my_wpn, 'alter_zoom_direct_switch_speed', game_ini_r_single_def(sect, 'alter_zoom_direct_switch_speed', 0.0));
 
-  if IsScopeAttached(_my_wpn) then begin
-    speed:=game_ini_r_single_def(GetCurrentScopeSection(_my_wpn), 'alter_zoom_direct_switch_speed', speed);
-  end;
+    if IsScopeAttached(_my_wpn) then begin
+      speed:=game_ini_r_single_def(GetCurrentScopeSection(_my_wpn), 'alter_zoom_direct_switch_speed', speed);
+    end;
 
-  if speed < EPS then begin
-    //Моментальная смена
-    SetAlterZoomDirectSwitchMixupFactor(0);
-  end else begin
-    speed:=speed * dt / 1000;
-    if speed > GetAlterZoomDirectSwitchMixupFactor() then begin
+    if speed < EPS then begin
+      //Моментальная смена
       SetAlterZoomDirectSwitchMixupFactor(0);
     end else begin
-      SetAlterZoomDirectSwitchMixupFactor(GetAlterZoomDirectSwitchMixupFactor() - speed);
+      speed:=speed * dt / 1000;
+      if speed > GetAlterZoomDirectSwitchMixupFactor() then begin
+        SetAlterZoomDirectSwitchMixupFactor(0);
+      end else begin
+        SetAlterZoomDirectSwitchMixupFactor(GetAlterZoomDirectSwitchMixupFactor() - speed);
+      end;
     end;
+  end else begin
+    SetAlterZoomDirectSwitchMixupFactor(0);
   end;
 end;
 
