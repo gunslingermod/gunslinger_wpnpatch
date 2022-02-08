@@ -390,6 +390,7 @@ ammo_section_params = packed record
   name:string;
   box_size:single;
   box_weight:single;
+  inv_name_short:PAnsiChar;
 end;
 var
   _ammo_sections_params_cache:array of ammo_section_params;
@@ -413,6 +414,7 @@ begin
     result.box_size:=game_ini_r_single_def(PAnsiChar(sect), 'box_size', 1);
     result.box_weight:=game_ini_r_single_def(PAnsiChar(sect), 'inv_weight', 0);
     result.name:=sect;
+    result.inv_name_short:=game_ini_read_string(PAnsiChar(sect), 'inv_name_short');
 
     setlength(_ammo_sections_params_cache, length(_ammo_sections_params_cache)+1);
     _ammo_sections_params_cache[length(_ammo_sections_params_cache)-1]:=result;
@@ -528,7 +530,7 @@ var
 begin
   ammo_sect:= GetMainCartridgeSectionByType(wpn, GetAmmoTypeIndex(wpn, false));
 
-  assign_string(@bi.name, game_ini_read_string(ammo_sect, 'inv_name_short'));
+  assign_string(@bi.name, GetAmmoSectionParams(ammo_sect).inv_name_short);
   assign_string(@bi.icon, ammo_sect);
   s:=inttostr(GetAmmoInMagCount(wpn));
   assign_string(@bi.cur_ammo, PChar(s));
@@ -589,7 +591,7 @@ begin
   end else begin
     current:=GetAmmoTypeIndex(wpn, false);
     ammo_sect:= GetGLCartridgeSectionByType(wpn, current);
-    assign_string(@bi.name, game_ini_read_string(ammo_sect, 'inv_name_short'));
+    assign_string(@bi.name, GetAmmoSectionParams(ammo_sect).inv_name_short);
     assign_string(@bi.icon, ammo_sect);
     s:=inttostr(GetAmmoInGLCount(wpn));
     assign_string(@bi.cur_ammo, PChar(s));
