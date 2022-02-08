@@ -220,24 +220,6 @@ begin
   end;
 
   i_p:=def_inert;
-
-{  i_p.pitch_offset_r:=i_p.pitch_offset_r-clamp(i_p.pitch_offset_r-def_inert.pitch_offset_r, -eps, eps);
-  i_p.pitch_offset_n:=i_p.pitch_offset_n-clamp(i_p.pitch_offset_n-def_inert.pitch_offset_n, -eps, eps);
-  i_p.pitch_offset_d:=i_p.pitch_offset_d-clamp(i_p.pitch_offset_d-def_inert.pitch_offset_d, -eps, eps);
-  i_p.origin_offset:=i_p.origin_offset-clamp(i_p.origin_offset-def_inert.origin_offset, -eps, eps);
-  i_p.speed:=def_inert.speed;
-
-  i_p.pitch_offset_r:=i_p.pitch_offset_r+GradientClamp(def_inert.pitch_offset_r, i_p.pitch_offset_r, g_koef, eps);
-  i_p.pitch_offset_n:=i_p.pitch_offset_n+GradientClamp(def_inert.pitch_offset_n, i_p.pitch_offset_n, g_koef, eps);
-  i_p.pitch_offset_d:=i_p.pitch_offset_d+GradientClamp(def_inert.pitch_offset_d, i_p.pitch_offset_d, g_koef, eps);
-  i_p.origin_offset:=i_p.origin_offset+GradientClamp(def_inert.origin_offset, i_p.origin_offset, g_koef, eps);
-  i_p.speed:=def_inert.speed;
-
-  i_p.pitch_offset_r:=i_p.pitch_offset_r-clamp(i_p.pitch_offset_r-def_inert.pitch_offset_r, -eps, eps);
-  i_p.pitch_offset_n:=i_p.pitch_offset_n-clamp(i_p.pitch_offset_n-def_inert.pitch_offset_n, -eps, eps);
-  i_p.pitch_offset_d:=i_p.pitch_offset_d-clamp(i_p.pitch_offset_d-def_inert.pitch_offset_d, -eps, eps);
-  i_p.origin_offset:=i_p.origin_offset+GradientClamp(def_inert.origin_offset, i_p.origin_offset, g_koef, eps);
-  i_p.speed:=def_inert.speed;  }
 end;
 
 
@@ -475,6 +457,10 @@ begin
   SetHandsRotOffset(hid, @def_hud_params.hands_orientation);
 end;
 
+var
+  cached_hud_move_speed_rot:cached_cfg_param_float;
+  cached_hud_move_speed_pos:cached_cfg_param_float;
+
 procedure UpdateWeaponOffset(act:pointer; delta:cardinal);
 var
   itm, det, HID:pointer;
@@ -575,8 +561,8 @@ begin
 
   //смотрим на скорость сдвига
   if not IsActorSuicideNow() and not IsSuicideAnimPlaying(itm) then begin
-    speed_rot:=game_ini_r_single_def(section, 'hud_move_speed_rot', 0.4)*factor/100;
-    speed_pos:=game_ini_r_single_def(section, 'hud_move_speed_pos', 0.1)*factor/100;
+    speed_rot:= GetCachedCfgParamFloatDef(cached_hud_move_speed_rot, section, 'hud_move_speed_rot', 0.4) * factor/100;
+    speed_pos:= GetCachedCfgParamFloatDef(cached_hud_move_speed_pos, section, 'hud_move_speed_pos', 0.1) * factor/100;
   end else begin
     speed_rot:=game_ini_r_single_def(section, 'suicide_speed_rot', 0.002);
     speed_pos:=game_ini_r_single_def(section, 'suicide_speed_pos', 0.2);
