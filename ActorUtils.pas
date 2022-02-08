@@ -1877,6 +1877,9 @@ begin
   end;
 end;
 
+var
+  cached_blowout_disabling_level:cached_cfg_param_float;
+
 procedure ActorUpdate(act:pointer); stdcall;
 var
   itm, det, wpn:pointer;
@@ -2157,7 +2160,7 @@ begin
   is_nv_enabled := false;
   if itm<>nil then begin
     is_nv_enabled:=IsNVSwitchedOn(itm);
-    if game_ini_r_single_def(GetSection(itm), 'blowout_disabling_level', 10)<=CurrentElectronicsProblemsCnt() then begin
+    if GetCachedCfgParamFloatDef(cached_blowout_disabling_level, GetSection(itm), 'blowout_disabling_level', 10) <=CurrentElectronicsProblemsCnt() then begin
       if is_nv_enabled and (game_ini_r_single_def(GetSection(itm), 'blowout_disabling_probability', 1.0)>random) then begin
         if game_ini_r_bool_def(GetSection(itm), 'blowout_disable_only_nv_effector', true) then begin
           if IsNVPostprocessOn(itm) then begin

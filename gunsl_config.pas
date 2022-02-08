@@ -181,6 +181,12 @@ const
   function game_ini_r_int_def(section:PChar; key:PChar; def:integer):integer; stdcall;
   function translate(text:PChar):PChar;stdcall;
 
+  type cached_cfg_param_float = packed record
+    last_section:string;
+    value:single;
+  end;
+  function GetCachedCfgParamFloatDef(var cached:cached_cfg_param_float; section:string; key:string; def:single):single;
+
   //---------------------------специфические функции конфигурации ганса--------------------------------------
 function IsSprintOnHoldEnabled():boolean; stdcall;
 function IsDebug():boolean; stdcall;
@@ -618,6 +624,18 @@ asm
     mov @result, eax
     add esp, 4
   popad
+end;
+
+
+function GetCachedCfgParamFloatDef(var cached:cached_cfg_param_float; section:string; key:string; def:single):single;
+begin
+  if (length(cached.last_section)=length(section)) and (cached.last_section = section) then begin
+    result:=cached.value;
+  end else begin
+    result:=game_ini_r_single_def(PAnsiChar(section), PAnsiChar(key), def);
+    cached.last_section:=section;
+    cached.value:=result;
+  end;
 end;
 
 //--------------------------------------------------Ганс---------------------------------------------------------
