@@ -3288,59 +3288,56 @@ end;
 
 procedure SelectBobbingParams(zoom_mode:boolean; is_limping:boolean; old_phase:psingle; old_freq:psingle; old_amp:psingle; mstate:cardinal; time:single; amp:psingle; st:psingle); stdcall;
 var
-  speed_par, amp_par:pchar;
   crouch_k, amp_tmp, freq_tmp, phase_tmp, dt:single;
-const
-  SECT:PChar='bobbing_effector';  
+  bep:bobbing_effector_params;
 begin
+  bep:=GetBobbingEffectorParams();
+
   if (mstate and actSprint) > 0 then begin
-    amp_par:='sprint_amplitude';
-    speed_par:='sprint_speed';
+    amp_tmp:=bep.sprint.amplitude;
+    freq_tmp:=bep.sprint.speed;
   end else if is_limping then begin
     if zoom_mode then begin
-      amp_par:='zoom_limp_amplitude';
-      speed_par:='zoom_limp_speed';    
+      amp_tmp:=bep.zoom_limp.amplitude;
+      freq_tmp:=bep.zoom_limp.speed;
     end else begin
-      amp_par:='limp_amplitude';
-      speed_par:='limp_speed';
+      amp_tmp:=bep.limp.amplitude;
+      freq_tmp:=bep.limp.speed;
     end;
   end else if ((mstate and actCrouch)>0) and ((mstate and actSlow)>0) then begin
     if zoom_mode then begin
-      amp_par:='zoom_slow_crouch_amplitude';
-      speed_par:='zoom_slow_crouch_speed';
+      amp_tmp:=bep.zoom_slow_crouch.amplitude;
+      freq_tmp:=bep.zoom_slow_crouch.speed;
     end else begin
-      amp_par:='slow_crouch_amplitude';
-      speed_par:='slow_crouch_speed';
+      amp_tmp:=bep.slow_crouch.amplitude;
+      freq_tmp:=bep.slow_crouch.speed;
     end;
   end else if ((mstate and actCrouch)>0) then begin
     if zoom_mode then begin
-      amp_par:='zoom_crouch_amplitude';
-      speed_par:='zoom_crouch_speed';
+      amp_tmp:=bep.zoom_crouch.amplitude;
+      freq_tmp:=bep.zoom_crouch.speed;
     end else begin
-      amp_par:='crouch_amplitude';
-      speed_par:='crouch_speed';
+      amp_tmp:=bep.crouch.amplitude;
+      freq_tmp:=bep.crouch.speed;
     end;
   end else if ((mstate and actSlow)>0) then begin
     if zoom_mode then begin
-      amp_par:='zoom_walk_amplitude';
-      speed_par:='zoom_walk_speed';
+      amp_tmp:=bep.zoom_walk.amplitude;
+      freq_tmp:=bep.zoom_walk.speed;
     end else begin
-      amp_par:='walk_amplitude';
-      speed_par:='walk_speed';    
+      amp_tmp:=bep.walk.amplitude;
+      freq_tmp:=bep.walk.speed;
     end;
   end else begin
     if zoom_mode then begin
-      amp_par:='zoom_run_amplitude';
-      speed_par:='zoom_run_speed';
+      amp_tmp:=bep.zoom_run.amplitude;
+      freq_tmp:=bep.zoom_run.speed;
     end else begin
-      amp_par:='run_amplitude';
-      speed_par:='run_speed';    
+      amp_tmp:=bep.run.amplitude;
+      freq_tmp:=bep.run.speed;
     end;
   end;
-//  Log('Bobbing: '+amp_par+', '+speed_par);
 
-  amp_tmp:=game_ini_r_single_def(SECT, amp_par, 0);
-  freq_tmp:=game_ini_r_single_def(SECT, speed_par, 0);
   phase_tmp:=old_phase^;
 
   if (freq_tmp<>old_freq^) then begin
@@ -3364,7 +3361,7 @@ begin
   if (amp_tmp<>old_amp^) then begin
     //Сделаем уменьшение амплитуды плавным
     //Log('old amp: '+floattostr(old_amp^)+', need amp '+floattostr(amp_tmp));
-    dt:=game_ini_r_single_def(SECT, 'amplitude_delta', 1)*get_device_timedelta();
+    dt:=bep.amplitude_delta*get_device_timedelta();
     if (amp_tmp>old_amp^) then begin
       if amp_tmp-old_amp^>dt then begin
         amp_tmp:=old_amp^+dt;

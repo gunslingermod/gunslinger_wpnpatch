@@ -136,6 +136,27 @@ type boar_hit_params = packed record
   max_condition_decrease:single;
 end;
 
+type bobbing_effector_param = packed record
+  amplitude:single;
+  speed:single;
+end;
+
+type bobbing_effector_params = packed record
+  sprint:bobbing_effector_param;
+  zoom_limp:bobbing_effector_param;
+  limp:bobbing_effector_param;
+  zoom_slow_crouch:bobbing_effector_param;
+  slow_crouch:bobbing_effector_param;
+  zoom_crouch:bobbing_effector_param;
+  crouch:bobbing_effector_param;
+  zoom_walk:bobbing_effector_param;
+  walk:bobbing_effector_param;
+  zoom_run:bobbing_effector_param;
+  run:bobbing_effector_param;
+
+  amplitude_delta:single;
+end;
+
 function Init:boolean;
 
 const
@@ -272,6 +293,8 @@ function GetBoarHitParams():boar_hit_params;
 function GetActorFallHitKoef():single;
 function GetActorBurnRestoreSpeed():single;
 
+function GetBobbingEffectorParams():bobbing_effector_params;
+
 var
   g_pickup_distance:single;
 
@@ -367,6 +390,8 @@ var
   _actor_fall_hit_koef:single;
 
   _actor_burn_restore_speed:single;
+
+  _bobbing_effector_params:bobbing_effector_params;
 
 //данные консольных команд
 //булевские флаги
@@ -785,6 +810,50 @@ begin
   result:=true;
 end;
 
+function ReadBobbingEffectorParams():boolean;
+const
+  SECT:PChar='bobbing_effector';
+begin
+  result:=false;
+
+  _bobbing_effector_params.sprint.amplitude:=game_ini_r_single_def(SECT, 'sprint_amplitude', 0);
+  _bobbing_effector_params.sprint.speed:=game_ini_r_single_def(SECT, 'sprint_speed', 0);
+
+  _bobbing_effector_params.zoom_limp.amplitude:=game_ini_r_single_def(SECT, 'zoom_limp_amplitude', 0);
+  _bobbing_effector_params.zoom_limp.speed:=game_ini_r_single_def(SECT, 'zoom_limp_speed', 0);
+
+  _bobbing_effector_params.limp.amplitude:=game_ini_r_single_def(SECT, 'limp_amplitude', 0);
+  _bobbing_effector_params.limp.speed:=game_ini_r_single_def(SECT, 'limp_speed', 0);
+
+  _bobbing_effector_params.zoom_slow_crouch.amplitude:=game_ini_r_single_def(SECT, 'zoom_slow_crouch_amplitude', 0);
+  _bobbing_effector_params.zoom_slow_crouch.speed:=game_ini_r_single_def(SECT, 'zoom_slow_crouch_speed', 0);
+
+  _bobbing_effector_params.slow_crouch.amplitude:=game_ini_r_single_def(SECT, 'slow_crouch_amplitude', 0);
+  _bobbing_effector_params.slow_crouch.speed:=game_ini_r_single_def(SECT, 'slow_crouch_speed', 0);
+
+  _bobbing_effector_params.zoom_crouch.amplitude:=game_ini_r_single_def(SECT, 'zoom_crouch_amplitude', 0);
+  _bobbing_effector_params.zoom_crouch.speed:=game_ini_r_single_def(SECT, 'zoom_crouch_speed', 0);
+
+  _bobbing_effector_params.crouch.amplitude:=game_ini_r_single_def(SECT, 'crouch_amplitude', 0);
+  _bobbing_effector_params.crouch.speed:=game_ini_r_single_def(SECT, 'crouch_speed', 0);
+
+  _bobbing_effector_params.zoom_walk.amplitude:=game_ini_r_single_def(SECT, 'zoom_walk_amplitude', 0);
+  _bobbing_effector_params.zoom_walk.speed:=game_ini_r_single_def(SECT, 'zoom_walk_speed', 0);
+
+  _bobbing_effector_params.walk.amplitude:=game_ini_r_single_def(SECT, 'walk_amplitude', 0);
+  _bobbing_effector_params.walk.speed:=game_ini_r_single_def(SECT, 'walk_speed', 0);
+
+  _bobbing_effector_params.zoom_run.amplitude:=game_ini_r_single_def(SECT, 'zoom_run_amplitude', 0);
+  _bobbing_effector_params.zoom_run.speed:=game_ini_r_single_def(SECT, 'zoom_run_speed', 0);
+
+  _bobbing_effector_params.run.amplitude:=game_ini_r_single_def(SECT, 'run_amplitude', 0);
+  _bobbing_effector_params.run.speed:=game_ini_r_single_def(SECT, 'run_speed', 0);
+
+  _bobbing_effector_params.amplitude_delta:=game_ini_r_single_def(SECT, 'amplitude_delta', 1);
+
+  result:=true;
+end;
+
 function Init:boolean;
 begin
   result:=false;
@@ -1079,6 +1148,8 @@ begin
 
   _actor_fall_hit_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_fall_hit_koef', 1.0);
   _actor_burn_restore_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_burn_restore_speed', 0.000001);
+
+  if not ReadBobbingEffectorParams() then exit;
 
   result:=true;
 end;
@@ -1458,6 +1529,11 @@ end;
 function GetActorBurnRestoreSpeed():single;
 begin
   result:=_actor_burn_restore_speed;
+end;
+
+function GetBobbingEffectorParams():bobbing_effector_params;
+begin
+  result:=_bobbing_effector_params;
 end;
 
 end.
