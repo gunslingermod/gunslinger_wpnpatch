@@ -1823,7 +1823,7 @@ var
 const
   EPS:single = 0.0001;
 begin
-  if GetActorActiveItem() = _my_wpn then begin
+  if (GetAlterZoomDirectSwitchMixupFactor() > 0) and (GetActorActiveItem() = _my_wpn) then begin
     sect:=GetHUDSection(_my_wpn);
     speed:=ModifyFloatUpgradedValue(_my_wpn, 'alter_zoom_direct_switch_speed', game_ini_r_single_def(sect, 'alter_zoom_direct_switch_speed', 0.0));
 
