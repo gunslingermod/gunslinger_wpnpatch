@@ -212,6 +212,7 @@ function GetHeadlampEnableAnimator():PChar;
 function GetHeadlampDisableAnimator():PChar;
 function GetNVEnableAnimator():PChar;
 function GetNVDisableAnimator():PChar;
+function GetBurnAnimator():PChar;
 function GetKickAnimator():PChar;
 function GetPDAShowAnimator():PChar;
 function GetPDAScreen_kx():single; stdcall;
@@ -269,6 +270,7 @@ function GetUpgradeMenuPointOffsetX(need_16x9:boolean):integer;
 function GetBoarHitParams():boar_hit_params;
 
 function GetActorFallHitKoef():single;
+function GetActorBurnRestoreSpeed():single;
 
 var
   g_pickup_distance:single;
@@ -314,6 +316,7 @@ var
   _nv_enable_animator_section:PChar;
   _headlamp_disable_animator_section:PChar;
   _nv_disable_animator_section:PChar;
+  _burn_animator_section:PChar;
   _kick_animator:PChar;
   _pda_show_animator:PChar;
 
@@ -362,6 +365,8 @@ var
   _boar_hit_params:boar_hit_params;
 
   _actor_fall_hit_koef:single;
+
+  _actor_burn_restore_speed:single;
 
 //данные консольных команд
 //булевские флаги
@@ -961,6 +966,7 @@ begin
 
   _nv_enable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_enable_animator');
   _nv_disable_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'nv_disable_animator');
+  _burn_animator_section:=game_ini_read_string(GUNSL_BASE_SECTION, 'burn_animator');
   _kick_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'kick_animator');
   _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
 
@@ -1072,6 +1078,7 @@ begin
   _boar_hit_params.max_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmax', 0.3);
 
   _actor_fall_hit_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_fall_hit_koef', 1.0);
+  _actor_burn_restore_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_burn_restore_speed', 0.000001);
 
   result:=true;
 end;
@@ -1201,6 +1208,11 @@ end;
 function GetNVDisableAnimator():PChar;
 begin
   result:=_nv_disable_animator_section;
+end;
+
+function GetBurnAnimator():PChar;
+begin
+  result:=_burn_animator_section;
 end;
 
 function GetKickAnimator():PChar;
@@ -1441,6 +1453,11 @@ end;
 function GetActorFallHitKoef():single;
 begin
   result:=_actor_fall_hit_koef;
+end;
+
+function GetActorBurnRestoreSpeed():single;
+begin
+  result:=_actor_burn_restore_speed;
 end;
 
 end.

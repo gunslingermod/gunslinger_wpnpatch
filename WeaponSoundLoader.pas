@@ -210,6 +210,7 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_nv_off', 'sndNVOff', 1, $FFFFFFFF);
 
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_kick', 'sndKick', 1, $FFFFFFFF);
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_burn', 'sndBurned', 1, $FFFFFFFF);  
 
 end;
 

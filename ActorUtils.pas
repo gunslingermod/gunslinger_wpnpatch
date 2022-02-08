@@ -1899,6 +1899,7 @@ var
   canshoot:boolean;
   slot:cardinal;
   act_anm:boolean;
+  tmpstr:string;
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1961,14 +1962,11 @@ begin
   end;
 
   if IsActorBurned() then begin
-    if (itm<>nil) and (IsPlannedKickAnimator(itm, 'burn_kicks')) then begin
-      if length(_planned_kick_animator)>0 then begin
-        CShootingObject__StartFlameParticles(itm);
-      end;
-      //כוקטלסÿ מע מזמדא
+    tmpstr:=GetBurnAnimator();
+    if (itm<>nil) and (GetSection(itm)=tmpstr) then begin
       CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
     end else begin
-      PlanActorKickAnimator('burn_kicks');
+      CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, GetActorBurnRestoreSpeed()*dt, (1 shl EHitType__eHitTypeBurn));
     end;
   end;
 
@@ -2428,6 +2426,11 @@ begin
     end;
   end else if (dik=kQUICK_KICK) then begin
     OnActorKick();
+  end else if (dik=kUSE) then begin
+    if IsActorBurned() then begin
+      OnActorSwithesSmth('disable_burn_anim', GetBurnAnimator(), PChar('anm_burned'), 'sndBurned', 0, @FakeCallback, 0);
+      result:=false;
+    end;
   end;
 
 end;
