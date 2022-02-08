@@ -663,9 +663,11 @@ procedure CMissile__shedule_update(this:pointer); stdcall;
 var
   sect:PChar;
 begin
-  sect:=GetSection(this);
-  if game_ini_line_exist(sect, 'checkout_bones') then begin
-    SetWorldModelMultipleBonesStatus(this, game_ini_read_string(sect, 'checkout_bones'), CMissile__Useful(this))
+  if not CMissile__Useful(this) then begin
+    sect:=GetSection(this);
+    if game_ini_line_exist(sect, 'checkout_bones') then begin
+      SetWorldModelMultipleBonesStatus(this, game_ini_read_string(sect, 'checkout_bones'), false);
+    end;
   end;
 end;
 
