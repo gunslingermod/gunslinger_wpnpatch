@@ -384,13 +384,48 @@ asm
   @finish:
 end;
 //------------------------------------------------------------------------------------------------------------------
+
+type
+ammo_section_params = packed record
+  name:string;
+  box_size:single;
+  box_weight:single;
+end;
+var
+  _ammo_sections_params_cache:array of ammo_section_params;
+function GetAmmoSectionParams(sect:string):ammo_section_params;
+var
+  i:integer;
+  found:boolean;
+begin
+  found:=false;
+  for i:=0 to length(_ammo_sections_params_cache)-1 do begin
+    if (length(_ammo_sections_params_cache[i].name) = length(sect)) then begin
+      if _ammo_sections_params_cache[i].name = sect then begin
+        result:=_ammo_sections_params_cache[i];
+        found:=true;
+        break;
+      end;
+    end;
+  end;
+
+  if not found then begin
+    result.box_size:=game_ini_r_single_def(PAnsiChar(sect), 'box_size', 1);
+    result.box_weight:=game_ini_r_single_def(PAnsiChar(sect), 'inv_weight', 0);
+    result.name:=sect;
+
+    setlength(_ammo_sections_params_cache, length(_ammo_sections_params_cache)+1);
+    _ammo_sections_params_cache[length(_ammo_sections_params_cache)-1]:=result;
+  end;
+end;
+
 procedure CWeapon__Weight_CalcAmmoWeight(wpn:pointer; total_weight:psingle); stdcall;
 var
   weight:single;
   cnt, i:cardinal;
   c:pCCartridge;
-  box_weight, box_count:single;
-  sect:PChar;
+  ammo_params:ammo_section_params;
+  sect:PAnsiChar;
 begin
   if dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponMagazined, false) = nil then exit;
 
@@ -403,10 +438,8 @@ begin
       if c<>nil then begin
         sect:= GetCartridgeSection(c);
         if sect<>nil then begin
-          box_count:=game_ini_r_single_def(sect, 'box_size', 1);
-          box_weight:=game_ini_r_single_def(sect, 'inv_weight', 0);
-
-          weight:=weight+ (box_weight/box_count);
+          ammo_params:=GetAmmoSectionParams(sect);
+          weight:=weight+ (ammo_params.box_weight/ammo_params.box_size);
         end;
       end;
     end;
@@ -419,10 +452,8 @@ begin
       if c<>nil then begin
         sect:= GetCartridgeSection(c);
         if sect<>nil then begin
-          box_count:=game_ini_r_single_def(sect, 'box_size', 1);
-          box_weight:=game_ini_r_single_def(sect, 'inv_weight', 0);
-
-          weight:=weight+ (box_weight/box_count);
+          ammo_params:=GetAmmoSectionParams(sect);
+          weight:=weight+ (ammo_params.box_weight/ammo_params.box_size);
         end;
       end;
     end;
