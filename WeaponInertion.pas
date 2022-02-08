@@ -12,6 +12,13 @@ procedure ResetItmHudOffset(itm:pointer); stdcall;
 implementation
 uses BaseGameData, gunsl_config, HudItemUtils, windows, strutils, MatVectors, ActorUtils, DetectorUtils, sysutils, math, WeaponAdditionalBuffer, ControllerMonster;
 
+type default_hud_coords_params = packed record
+  hud_sect:PAnsiChar;
+  hands_position:FVector3;
+  hands_orientation:FVector3;
+  is16x9:boolean;
+end;
+
 var
   i_p:weapon_inertion_params;
   time_accumulator:cardinal;
@@ -21,12 +28,33 @@ var
   _landing_effect_time_remains:cardinal;
   _landing2_effect_time_remains:cardinal;
   _landing_effect_finish_time_remains:cardinal;
+
+  _last_default_hud_params:default_hud_coords_params;
   
   tocrouch_time_remains, fromcrouch_time_remains:cardinal;
   toslowcrouch_time_remains, fromslowcrouch_time_remains:cardinal;
 
   torlookout_time_remains, fromrlookout_time_remains:cardinal;
   tollookout_time_remains, fromllookout_time_remains:cardinal;
+ 
+function GetDefaultHudCoords(hud_sect:PAnsiChar):default_hud_coords_params;
+var
+  zerovec:FVector3;
+begin
+  if (_last_default_hud_params.hud_sect <> hud_sect) or (Is16x9()<>_last_default_hud_params.is16x9) then begin
+    v_zero(@zerovec);
+    _last_default_hud_params.hud_sect:=hud_sect;
+    _last_default_hud_params.is16x9:=Is16x9();
+    if _last_default_hud_params.is16x9 then begin
+      _last_default_hud_params.hands_position:=game_ini_read_vector3_def(hud_sect, 'hands_position_16x9', @zerovec);
+      _last_default_hud_params.hands_orientation:=game_ini_read_vector3_def(hud_sect, 'hands_orientation_16x9', @zerovec);
+    end else begin
+      _last_default_hud_params.hands_position:=game_ini_read_vector3_def(hud_sect, 'hands_position', @zerovec);
+      _last_default_hud_params.hands_orientation:=game_ini_read_vector3_def(hud_sect, 'hands_orientation', @zerovec);
+    end;
+  end;
+  result:=_last_default_hud_params;
+end;
 
 procedure ResetWpnOffset();
 begin
@@ -433,27 +461,19 @@ end;
 
 procedure ResetItmHudOffset(itm:pointer); stdcall;
 var
-  pos, rot, zerovec:FVector3;
+  zerovec:FVector3;
   hid:pointer;
   section:PChar;
+  def_hud_params:default_hud_coords_params;
 begin
   hid:=CHudItem__HudItemData(itm);
   if hid=nil then exit;
   section:=GetHUDSection(itm);
-  v_zero(@zerovec);
-  if Is16x9() then begin
-    pos:=game_ini_read_vector3_def(section, 'hands_position_16x9', @zerovec);
-    rot:=game_ini_read_vector3_def(section, 'hands_orientation_16x9', @zerovec);
-  end else begin
-    pos:=game_ini_read_vector3_def(section, 'hands_position', @zerovec);
-    rot:=game_ini_read_vector3_def(section, 'hands_orientation', @zerovec);
-  end;
-
-  SetHandsPosOffset(hid, @pos);
-  SetHandsRotOffset(hid, @rot);
+  def_hud_params:=GetDefaultHudCoords(section);
+  
+  SetHandsPosOffset(hid, @def_hud_params.hands_position);
+  SetHandsRotOffset(hid, @def_hud_params.hands_orientation);
 end;
-
-
 
 procedure UpdateWeaponOffset(act:pointer; delta:cardinal);
 var
@@ -462,6 +482,8 @@ var
   factor, speed_pos, speed_rot:single;
   jitter:jitter_params;
   targetpos, targetrot, cur_pos, cur_rot, pos, rot, zerovec:FVector3;
+
+  def_hud_params:default_hud_coords_params;
 begin
   if not IsWeaponmoveEnabled() then exit;
 
@@ -526,13 +548,9 @@ begin
   end;
 
   //прочитаем конфиговые умолчания
-  if Is16x9() then begin
-    pos:=game_ini_read_vector3_def(section, 'hands_position_16x9', @zerovec);
-    rot:=game_ini_read_vector3_def(section, 'hands_orientation_16x9', @zerovec);
-  end else begin
-    pos:=game_ini_read_vector3_def(section, 'hands_position', @zerovec);
-    rot:=game_ini_read_vector3_def(section, 'hands_orientation', @zerovec);
-  end;
+  def_hud_params:=GetDefaultHudCoords(section);
+  pos:=def_hud_params.hands_position;
+  rot:=def_hud_params.hands_orientation;
 
   //вычислим целевое смещение от равновесия
   if (cardinal(GetCurrentState(itm))=EHudStates__eHiding) or ((det<>nil) and (cardinal(GetCurrentState(det))=EHudStates__eHiding)) then begin
@@ -807,6 +825,8 @@ var
   b:byte;
 begin
   result:=false;
+
+  _last_default_hud_params.hud_sect:=nil;
 
   //CWeapon::OnZoomIn - отключаем AllowInertion(false);
   addr:=xrgame_addr+$2c07dc;
