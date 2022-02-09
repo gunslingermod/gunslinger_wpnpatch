@@ -2663,6 +2663,14 @@ asm
 end;
 
 
+var
+  cached_fov_factor:cached_cfg_param_float;
+  cached_hud_fov_factor_wpn:cached_cfg_param_float;
+  cached_hud_fov_factor_scope:cached_cfg_param_float;
+  cached_hud_fov_gl_zoom_factor:cached_cfg_param_float;
+  cached_hud_fov_zoom_factor:cached_cfg_param_float;
+  cached_hud_fov_alter_zoom_factor:cached_cfg_param_float;
+
 procedure UpdateFOV(act:pointer);
 var
     fov, zoom_fov, alter_zoom_fov, alter_zoom_factor, hud_fov, af:single;
@@ -2681,9 +2689,9 @@ begin
   fov:=GetBaseFOV();
 
   if (wpn<>nil) then begin
-   if game_ini_line_exist(GetSection(wpn), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(wpn), 'fov_factor');
+    fov := fov*GetCachedCfgParamFloatDef(cached_fov_factor, GetSection(wpn), 'fov_factor', 1.0);
   end else if (det<>nil) then begin
-   if game_ini_line_exist(GetSection(det), 'fov_factor') then fov := fov*game_ini_r_single(GetSection(det), 'fov_factor');
+    fov := fov*GetCachedCfgParamFloatDef(cached_fov_factor, GetSection(det), 'fov_factor', 1.0);
   end;
   
   SetFOV(fov);
@@ -2692,9 +2700,9 @@ begin
 
   fov:=GetBaseHudFOV();
   if (wpn<>nil) then begin
-    hud_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_factor', 1.0);
+    hud_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_factor_wpn, GetHUDSection(wpn), 'hud_fov_factor', 1.0);
     if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
-      hud_fov:=hud_fov*game_ini_r_single_def(GetCurrentScopeSection(wpn), 'hud_fov_factor', 1.0);
+      hud_fov:=hud_fov*GetCachedCfgParamFloatDef(cached_hud_fov_factor_scope, GetCurrentScopeSection(wpn), 'hud_fov_factor', 1.0);
     end;
     
     if (IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim')) then begin
@@ -2709,7 +2717,7 @@ begin
       end;
 
       if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
-        zoom_fov:=game_ini_r_single_def(GetHUDSection(wpn), 'hud_fov_gl_zoom_factor', hud_fov);
+        zoom_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_gl_zoom_factor, GetHUDSection(wpn), 'hud_fov_gl_zoom_factor', hud_fov);
         zoom_fov_section:=nil;
       end else if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
         zoom_fov_section:=GetCurrentScopeSection(wpn);
@@ -2719,12 +2727,12 @@ begin
 
       if zoom_fov_section<>nil then begin
         if alter_zoom_factor < EPS then begin
-          zoom_fov:=game_ini_r_single_def(zoom_fov_section, 'hud_fov_zoom_factor', hud_fov);
+          zoom_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_zoom_factor, zoom_fov_section, 'hud_fov_zoom_factor', hud_fov);
         end else if alter_zoom_factor > 1-EPS then begin
-          zoom_fov:=game_ini_r_single_def(zoom_fov_section, 'hud_fov_alter_zoom_factor', zoom_fov);
+          zoom_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_alter_zoom_factor, zoom_fov_section, 'hud_fov_alter_zoom_factor', zoom_fov);  
         end else begin
-          zoom_fov:=game_ini_r_single_def(zoom_fov_section, 'hud_fov_zoom_factor', hud_fov);
-          alter_zoom_fov:=game_ini_r_single_def(zoom_fov_section, 'hud_fov_alter_zoom_factor', zoom_fov);
+          zoom_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_zoom_factor, zoom_fov_section, 'hud_fov_zoom_factor', hud_fov);
+          alter_zoom_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_alter_zoom_factor, zoom_fov_section, 'hud_fov_alter_zoom_factor', zoom_fov);
           zoom_fov:=zoom_fov+(alter_zoom_fov-zoom_fov)*alter_zoom_factor;
         end;
       end;
@@ -2734,7 +2742,7 @@ begin
     end;
     fov := fov*hud_fov;
   end else if (det<>nil) then begin
-    hud_fov:=game_ini_r_single_def(GetHUDSection(det), 'hud_fov_factor', 1.0);
+    hud_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_factor_wpn, GetHUDSection(det), 'hud_fov_factor', 1.0);
     fov := fov*hud_fov;
   end;
   SetHudFOV(fov);
