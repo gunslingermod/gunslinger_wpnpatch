@@ -187,6 +187,12 @@ const
   end;
   function GetCachedCfgParamFloatDef(var cached:cached_cfg_param_float; section:string; key:string; def:single):single;
 
+  type cached_cfg_param_bool = packed record
+    last_section:string;
+    value:boolean;
+  end;
+  function GetCachedCfgParamBoolDef(var cached:cached_cfg_param_bool; section:string; key:string; def:boolean):boolean;
+
   //---------------------------специфические функции конфигурации ганса--------------------------------------
 function IsSprintOnHoldEnabled():boolean; stdcall;
 function IsDebug():boolean; stdcall;
@@ -633,6 +639,17 @@ begin
     result:=cached.value;
   end else begin
     result:=game_ini_r_single_def(PAnsiChar(section), PAnsiChar(key), def);
+    cached.last_section:=section;
+    cached.value:=result;
+  end;
+end;
+
+function GetCachedCfgParamBoolDef(var cached:cached_cfg_param_bool; section:string; key:string; def:boolean):boolean;
+begin
+  if (length(cached.last_section)=length(section)) and (cached.last_section = section) then begin
+    result:=cached.value;
+  end else begin
+    result:=game_ini_r_bool_def(PAnsiChar(section), PAnsiChar(key), def);
     cached.last_section:=section;
     cached.value:=result;
   end;

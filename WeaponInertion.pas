@@ -143,70 +143,130 @@ begin
   if abs(result)<eps then result:=(target-current);
 end;
 
+type cached_inertion_params = packed record
+  main:weapon_inertion_params;
+  gl:weapon_inertion_params;
+  aim:weapon_inertion_params;
+
+  section:string;
+end;
+
+var
+  cached_inertion_wpn:cached_inertion_params;
+  cached_inertion_scope:cached_inertion_params;
+  cached_hud_inertion_enabled:cached_cfg_param_bool;
+
+function GetCachedInertionForWeapon(section:string):cached_inertion_params;
+begin
+  if (length(cached_inertion_wpn.section) <> length(section)) or (cached_inertion_wpn.section <> section) then begin
+    cached_inertion_wpn.section:=section;
+
+    cached_inertion_wpn.main.pitch_offset_r:=game_ini_r_single_def(PAnsiChar(section), 'inertion_pitch_offset_r', -1);
+    cached_inertion_wpn.main.pitch_offset_n:=game_ini_r_single_def(PAnsiChar(section), 'inertion_pitch_offset_n', -1);
+    cached_inertion_wpn.main.pitch_offset_d:=game_ini_r_single_def(PAnsiChar(section), 'inertion_pitch_offset_d', -1);
+    cached_inertion_wpn.main.origin_offset:=game_ini_r_single_def(PAnsiChar(section), 'inertion_origin_offset', -1);
+    cached_inertion_wpn.main.speed:=game_ini_r_single_def(PAnsiChar(section), 'inertion_speed', -1);
+
+    cached_inertion_wpn.gl.pitch_offset_r:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_pitch_offset_r', -1);
+    cached_inertion_wpn.gl.pitch_offset_n:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_pitch_offset_n', -1);
+    cached_inertion_wpn.gl.pitch_offset_d:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_pitch_offset_d', -1);
+    cached_inertion_wpn.gl.origin_offset:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_origin_offset', -1);
+    cached_inertion_wpn.gl.speed:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_speed', -1);
+
+    cached_inertion_wpn.aim.pitch_offset_r:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_pitch_offset_r', -1);
+    cached_inertion_wpn.aim.pitch_offset_n:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_pitch_offset_n', -1);
+    cached_inertion_wpn.aim.pitch_offset_d:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_pitch_offset_d', -1);
+    cached_inertion_wpn.aim.origin_offset:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_origin_offset', -1);
+    cached_inertion_wpn.aim.speed:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_speed', -1);
+  end;
+  result:=cached_inertion_wpn;
+end;
+
+function GetCachedInertionForScope(section:string):cached_inertion_params;
+begin
+  if (length(cached_inertion_scope.section) <> length(section)) or (cached_inertion_scope.section <> section) then begin
+    cached_inertion_scope.section:=section;
+
+    cached_inertion_scope.main.pitch_offset_r:=game_ini_r_single_def(PAnsiChar(section), 'inertion_pitch_offset_r_factor', 1.0);
+    cached_inertion_scope.main.pitch_offset_n:=game_ini_r_single_def(PAnsiChar(section), 'inertion_pitch_offset_n_factor', 1.0);
+    cached_inertion_scope.main.pitch_offset_d:=game_ini_r_single_def(PAnsiChar(section), 'inertion_pitch_offset_d_factor', 1.0);
+    cached_inertion_scope.main.origin_offset:=game_ini_r_single_def(PAnsiChar(section), 'inertion_origin_offset_factor', 1.0);
+    cached_inertion_scope.main.speed:=game_ini_r_single_def(PAnsiChar(section), 'inertion_speed_factor', 1.0);
+
+    cached_inertion_scope.gl.pitch_offset_r:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_pitch_offset_r', -1);
+    cached_inertion_scope.gl.pitch_offset_n:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_pitch_offset_n', -1);
+    cached_inertion_scope.gl.pitch_offset_d:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_pitch_offset_d', -1);
+    cached_inertion_scope.gl.origin_offset:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_origin_offset', -1);
+    cached_inertion_scope.gl.speed:=game_ini_r_single_def(PAnsiChar(section), 'inertion_gl_speed', -1);
+
+    cached_inertion_scope.aim.pitch_offset_r:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_pitch_offset_r', -1);
+    cached_inertion_scope.aim.pitch_offset_n:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_pitch_offset_n', -1);
+    cached_inertion_scope.aim.pitch_offset_d:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_pitch_offset_d', -1);
+    cached_inertion_scope.aim.origin_offset:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_origin_offset', -1);
+    cached_inertion_scope.aim.speed:=game_ini_r_single_def(PAnsiChar(section), 'inertion_aim_speed', -1);
+  end;
+  result:=cached_inertion_scope;
+end;
+
+procedure ApplyInertionParamsWithDef(var dest:weapon_inertion_params; new:weapon_inertion_params; def:weapon_inertion_params);
+begin
+  if new.pitch_offset_r < 0 then dest.pitch_offset_r := def.pitch_offset_r else dest.pitch_offset_r := new.pitch_offset_r;
+  if new.pitch_offset_n < 0 then dest.pitch_offset_n := def.pitch_offset_n else dest.pitch_offset_n := new.pitch_offset_n;
+  if new.pitch_offset_d < 0 then dest.pitch_offset_d := def.pitch_offset_d else dest.pitch_offset_d := new.pitch_offset_d;
+  if new.origin_offset  < 0 then dest.origin_offset  := def.origin_offset  else dest.origin_offset  := new.origin_offset;
+  if new.speed          < 0 then dest.speed          := def.speed          else dest.speed          := new.speed;
+end;
+
 procedure UpdateInertion (wpn:pointer);
 var
   koef:single;
   sect, scp:PChar;
   def_inert, aim_inert:weapon_inertion_params;
+  wpn_inert, scope_inert:cached_inertion_params;
 const
   eps:single = 0.0003;
   g_koef:single = 0.07;
 begin
-  if (wpn<>nil) and not game_ini_r_bool_def(GetHUDSection(wpn), 'hud_inertion', true) then begin
-    AllowWeaponInertion(wpn, false);
-  end;
-
   def_inert:=GetStdInertion(false);
   if wpn<>nil then begin
     sect:=GetHUDSection(wpn);
-    def_inert.pitch_offset_r:=game_ini_r_single_def(sect, 'inertion_pitch_offset_r', def_inert.pitch_offset_r);
-    def_inert.pitch_offset_n:=game_ini_r_single_def(sect, 'inertion_pitch_offset_n', def_inert.pitch_offset_n);
-    def_inert.pitch_offset_d:=game_ini_r_single_def(sect, 'inertion_pitch_offset_d', def_inert.pitch_offset_d);
-    def_inert.origin_offset:=game_ini_r_single_def(sect, 'inertion_origin_offset', def_inert.origin_offset);
-    def_inert.speed:=game_ini_r_single_def(sect, 'inertion_speed', def_inert.speed);
+    if not GetCachedCfgParamBoolDef(cached_hud_inertion_enabled, sect, 'hud_inertion', true) then begin
+      AllowWeaponInertion(wpn, false);
+    end;
+
+    wpn_inert:=GetCachedInertionForWeapon(sect);
+    ApplyInertionParamsWithDef(def_inert, wpn_inert.main, def_inert);
 
     if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
       //влияние установленного прицела на инерцию вне зума
       scp:=GetCurrentScopeSection(wpn);
-      def_inert.pitch_offset_r:=def_inert.pitch_offset_r*game_ini_r_single_def(scp, 'inertion_pitch_offset_r_factor', 1.0);
-      def_inert.pitch_offset_n:=def_inert.pitch_offset_n*game_ini_r_single_def(scp, 'inertion_pitch_offset_n_factor', 1.0);
-      def_inert.pitch_offset_d:=def_inert.pitch_offset_d*game_ini_r_single_def(scp, 'inertion_pitch_offset_d_factor', 1.0);
-      def_inert.origin_offset:=def_inert.origin_offset*game_ini_r_single_def(scp, 'inertion_origin_offset_factor', 1.0);
-      def_inert.speed:=def_inert.speed*game_ini_r_single_def(scp, 'inertion_speed_factor', 1.0);
+      scope_inert:=GetCachedInertionForScope(scp);
+
+      def_inert.pitch_offset_r:=def_inert.pitch_offset_r*scope_inert.main.pitch_offset_r;
+      def_inert.pitch_offset_n:=def_inert.pitch_offset_n*scope_inert.main.pitch_offset_n;
+      def_inert.pitch_offset_d:=def_inert.pitch_offset_d*scope_inert.main.pitch_offset_d;
+      def_inert.origin_offset:=def_inert.origin_offset*scope_inert.main.origin_offset;
+      def_inert.speed:=def_inert.speed*scope_inert.main.speed;
     end;
 
     if IsAimNow(wpn) or (leftstr(GetActualCurrentAnim(wpn), length('anm_idle_aim'))='anm_idle_aim')  then begin
       aim_inert:=GetStdInertion(true);
 
       if IsGrenadeMode(wpn) then begin
-        aim_inert.pitch_offset_r:=game_ini_r_single_def(sect, 'inertion_gl_pitch_offset_r', aim_inert.pitch_offset_r);
-        aim_inert.pitch_offset_n:=game_ini_r_single_def(sect, 'inertion_gl_pitch_offset_n', aim_inert.pitch_offset_n);
-        aim_inert.pitch_offset_d:=game_ini_r_single_def(sect, 'inertion_gl_pitch_offset_d', aim_inert.pitch_offset_d);
-        aim_inert.origin_offset:=game_ini_r_single_def(sect, 'inertion_gl_origin_offset', aim_inert.origin_offset);
-        aim_inert.speed:=game_ini_r_single_def(sect, 'inertion_gl_speed', aim_inert.speed);      
+        ApplyInertionParamsWithDef(aim_inert, wpn_inert.gl, aim_inert);
       end else begin
-        aim_inert.pitch_offset_r:=game_ini_r_single_def(sect, 'inertion_aim_pitch_offset_r', aim_inert.pitch_offset_r);
-        aim_inert.pitch_offset_n:=game_ini_r_single_def(sect, 'inertion_aim_pitch_offset_n', aim_inert.pitch_offset_n);
-        aim_inert.pitch_offset_d:=game_ini_r_single_def(sect, 'inertion_aim_pitch_offset_d', aim_inert.pitch_offset_d);
-        aim_inert.origin_offset:=game_ini_r_single_def(sect, 'inertion_aim_origin_offset', aim_inert.origin_offset);
-        aim_inert.speed:=game_ini_r_single_def(sect, 'inertion_aim_speed', aim_inert.speed);
+        ApplyInertionParamsWithDef(aim_inert, wpn_inert.aim, aim_inert);
       end;
 
       if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
-        //влияние установленного прицела на инерцию в зуме      
+        //влияние установленного прицела на инерцию в зуме
         scp:=GetCurrentScopeSection(wpn);
+        scope_inert:=GetCachedInertionForScope(scp);
+
         if IsGrenadeMode(wpn) then begin
-          aim_inert.pitch_offset_r:=game_ini_r_single_def(scp, 'inertion_gl_pitch_offset_r', aim_inert.pitch_offset_r);
-          aim_inert.pitch_offset_n:=game_ini_r_single_def(scp, 'inertion_gl_pitch_offset_n', aim_inert.pitch_offset_n);
-          aim_inert.pitch_offset_d:=game_ini_r_single_def(scp, 'inertion_gl_pitch_offset_d', aim_inert.pitch_offset_d);
-          aim_inert.origin_offset:=game_ini_r_single_def(scp, 'inertion_gl_origin_offset', aim_inert.origin_offset);
-          aim_inert.speed:=game_ini_r_single_def(scp, 'inertion_gl_speed', aim_inert.speed);        
+          ApplyInertionParamsWithDef(aim_inert, scope_inert.gl, aim_inert);
         end else begin
-          aim_inert.pitch_offset_r:=game_ini_r_single_def(scp, 'inertion_aim_pitch_offset_r', aim_inert.pitch_offset_r);
-          aim_inert.pitch_offset_n:=game_ini_r_single_def(scp, 'inertion_aim_pitch_offset_n', aim_inert.pitch_offset_n);
-          aim_inert.pitch_offset_d:=game_ini_r_single_def(scp, 'inertion_aim_pitch_offset_d', aim_inert.pitch_offset_d);
-          aim_inert.origin_offset:=game_ini_r_single_def(scp, 'inertion_aim_origin_offset', aim_inert.origin_offset);
-          aim_inert.speed:=game_ini_r_single_def(scp, 'inertion_aim_speed', aim_inert.speed);
+          ApplyInertionParamsWithDef(aim_inert, scope_inert.aim, aim_inert);
         end;
       end;
 
