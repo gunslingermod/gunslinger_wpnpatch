@@ -139,6 +139,10 @@ asm
   ret
 end;
 
+var
+  cached_bomb_attack:cached_cfg_param_bool;
+  cached_visibility_attack:cached_cfg_param_bool;
+
 procedure CAI_Crow__CheckAttack(crow:pCAI_Crow; crow_sect:PChar; crow_pos:pFVector3; actor_pos:pFVector3); stdcall;
 var
   dir, tmp:FVector3;
@@ -146,7 +150,7 @@ var
 begin
 //  log('crow 0x'+inttohex(cardinal(crow), 8)+' alive! pos = '+floattostr(crow_pos.x)+', '+floattostr(crow_pos.y)+', '+floattostr(crow_pos.z));
 //  log('goal = '+floattostr(crow_pos.x)+', '+floattostr(crow_pos.y)+', '+floattostr(crow_pos.z));
-  if game_ini_r_bool_def(crow_sect, 'bomb_attack', false) then begin
+  if GetCachedCfgParamBoolDef(cached_bomb_attack, crow_sect, 'bomb_attack', false) then begin
     dir:=actor_pos^;
     v_sub(@dir, crow_pos);
     dist_now:=v_length(@dir);
@@ -156,7 +160,7 @@ begin
     end;
   end;
 
-  if game_ini_r_bool_def(crow_sect, 'visibility_attack', false) and not IsDemoRecord() then begin
+  if GetCachedCfgParamBoolDef(cached_visibility_attack, crow_sect, 'visibility_attack', false) and not IsDemoRecord() then begin
     dir:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
     v_sub(@dir, crow_pos);
     dist_now:=v_length(@dir);
