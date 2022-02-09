@@ -389,23 +389,29 @@ begin
 
 end;
 
+var
+  cached_hud_move_stabilize_factor:cached_cfg_param_float;
+  cached_hud_move_slow_crouch_factor:cached_cfg_param_float;
+  cached_hud_move_crouch_factor:cached_cfg_param_float;
+  cached_hud_move_slow_factor:cached_cfg_param_float;
+
 procedure GetCurrentTargetOffset(act:pointer; section:PChar; pos:pFVector3; rot:pFVector3; factor:pSingle);
 var
   zerovec:FVector3;
   koef:single;
 begin
-  factor^:=game_ini_r_single_def(section, 'hud_move_stabilize_factor', 2.0);
+  factor^:=GetCachedCfgParamFloatDef(cached_hud_move_stabilize_factor, section, 'hud_move_stabilize_factor', 2.0);
 
   v_zero(pos);
   v_zero(rot);
   v_zero(@zerovec);
 
   if GetActorActionState(act, actCrouch) and GetActorActionState(act, actSlow) then begin
-    koef:=game_ini_r_single_def(section, 'hud_move_slow_crouch_factor', 1.0);
+    koef:=GetCachedCfgParamFloatDef(cached_hud_move_slow_crouch_factor, section, 'hud_move_slow_crouch_factor', 1.0);
   end else if GetActorActionState(act, actCrouch) then begin
-    koef:=game_ini_r_single_def(section, 'hud_move_crouch_factor', 1.0);
+    koef:=GetCachedCfgParamFloatDef(cached_hud_move_crouch_factor, section, 'hud_move_crouch_factor', 1.0);
   end else if GetActorActionState(act, actSlow) then begin
-    koef:=game_ini_r_single_def(section, 'hud_move_slow_factor', 1.0);
+    koef:=GetCachedCfgParamFloatDef(cached_hud_move_slow_factor, section, 'hud_move_slow_factor', 1.0);
   end else begin
     koef:=1;
   end;
