@@ -518,8 +518,14 @@ begin
 end;
 
 var
+  cached_hud_move_weaponhide_factor:cached_cfg_param_float;
+  cached_hud_move_unzoom_factor:cached_cfg_param_float;
+
   cached_hud_move_speed_rot:cached_cfg_param_float;
   cached_hud_move_speed_pos:cached_cfg_param_float;
+
+  cached_suicide_speed_rot:cached_cfg_param_float;
+  cached_suicide_speed_pos:cached_cfg_param_float;
 
 procedure UpdateWeaponOffset(act:pointer; delta:cardinal);
 var
@@ -602,10 +608,10 @@ begin
   if (cardinal(GetCurrentState(itm))=EHudStates__eHiding) or ((det<>nil) and (cardinal(GetCurrentState(det))=EHudStates__eHiding)) then begin
     v_zero(@targetpos);
     v_zero(@targetrot);
-    factor:=game_ini_r_single_def(section, 'hud_move_weaponhide_factor', 1.0);
+    factor:=GetCachedCfgParamFloatDef(cached_hud_move_weaponhide_factor, section, 'hud_move_weaponhide_factor', 1.0);
   end else if (WpnCanShoot(itm) or IsBino(itm)) and (IsAimNow(itm) or IsHolderInAimState(itm) or (GetAimFactor(itm)>0)) then begin
     GetCurrentTargetOffset_aim(act, section, @targetpos, @targetrot, @factor);
-    factor:=game_ini_r_single_def(section, 'hud_move_unzoom_factor', 1.0);
+    factor:=GetCachedCfgParamFloatDef(cached_hud_move_unzoom_factor, section, 'hud_move_unzoom_factor', 1.0);
   end else begin
     GetCurrentTargetOffset(act, section, @targetpos, @targetrot, @factor);
     if IsActorSuicideNow() and CheckActorVisibilityForController() then begin
@@ -624,8 +630,8 @@ begin
     speed_rot:= GetCachedCfgParamFloatDef(cached_hud_move_speed_rot, section, 'hud_move_speed_rot', 0.4) * factor/100;
     speed_pos:= GetCachedCfgParamFloatDef(cached_hud_move_speed_pos, section, 'hud_move_speed_pos', 0.1) * factor/100;
   end else begin
-    speed_rot:=game_ini_r_single_def(section, 'suicide_speed_rot', 0.002);
-    speed_pos:=game_ini_r_single_def(section, 'suicide_speed_pos', 0.2);
+    speed_rot:=GetCachedCfgParamFloatDef(cached_suicide_speed_rot, section, 'suicide_speed_rot', 0.002);
+    speed_pos:=GetCachedCfgParamFloatDef(cached_suicide_speed_pos, section, 'suicide_speed_pos', 0.2);
   end;
 
   //120 коррекций в секунду к вычисленному положению
