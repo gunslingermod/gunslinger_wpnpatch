@@ -2028,10 +2028,12 @@ var
   buf:WpnBuf;
 begin
   result:=true;
+
+  wpn:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CWeaponMagazined, false);
+  if wpn=nil then exit;
+  buf:=GetBuffer(wpn);
+
   if GetRocketsCount(rl)=0 then begin
-    wpn:=dynamic_cast(rl, 0, RTTI_CRocketLauncher, RTTI_CWeaponMagazined, false);
-    if wpn=nil then exit;
-    buf:=GetBuffer(wpn);
     if (GetAmmoInMagCount(wpn)>0) and (buf<>nil) and (buf.last_frame_rocket_loaded<>GetCurrentFrame()) then begin
       g_name:=game_ini_read_string(GetMainCartridgeSectionByType(wpn, GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1).m_local_ammotype),'fake_grenade_name');
       CRocketLauncher__SpawnRocket(rl, g_name);
