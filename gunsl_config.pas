@@ -174,22 +174,24 @@ const
   function game_ini_read_string_def(section:PChar; key:PChar; def:PChar):PChar;stdcall;  
   function game_ini_read_vector3_def(section:PChar; key:PChar; def:pfvector3):FVector3;stdcall;
   function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
-  function game_ini_r_single_def(section:PChar; key:PChar; def:single):single;stdcall;
+  function game_ini_r_single_def(section:PChar; key:PChar; def:single; is_default:pboolean=nil):single;stdcall;
   function game_ini_r_single(section:PChar; key:PChar):single;stdcall;
   function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
-  function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean):boolean;stdcall;
-  function game_ini_r_int_def(section:PChar; key:PChar; def:integer):integer; stdcall;
+  function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean; is_default:pboolean=nil):boolean;stdcall;
+  function game_ini_r_int_def(section:PChar; key:PChar; def:integer; is_default:pboolean=nil):integer; stdcall;
   function translate(text:PChar):PChar;stdcall;
 
   type cached_cfg_param_float = packed record
     last_section:string;
     value:single;
+    is_default:boolean;
   end;
   function GetCachedCfgParamFloatDef(var cached:cached_cfg_param_float; section:string; key:string; def:single):single;
 
   type cached_cfg_param_bool = packed record
     last_section:string;
     value:boolean;
+    is_default:boolean;
   end;
   function GetCachedCfgParamBoolDef(var cached:cached_cfg_param_bool; section:string; key:string; def:boolean):boolean;
 
@@ -501,7 +503,7 @@ asm
     popad
 end;
 
-function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
+function game_ini_r_bool_int(section:PChar; key:PChar):boolean;stdcall;
 asm
     pushad
     pushfd
@@ -521,7 +523,16 @@ asm
     popad
 end;
 
-function game_ini_read_string(section:PChar; key:PChar):PChar;stdcall;
+function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
+begin
+{$ifdef LOG_RAW_CONFIG_ACCESS}
+  Log('game_ini_r_bool: ' + key + ', ' + section);
+{$endif}
+
+  result:=game_ini_r_bool_int(section, key);
+end;
+
+function game_ini_read_string_int(section:PChar; key:PChar):PChar;stdcall;
 asm
     pushad
     pushfd
@@ -540,6 +551,15 @@ asm
 
     popfd
     popad
+end;
+
+function game_ini_read_string(section:PChar; key:PChar):PChar;stdcall;
+begin
+{$ifdef LOG_RAW_CONFIG_ACCESS}
+  Log('game_ini_read_string: ' + key + ', ' + section);
+{$endif}
+
+  result:=game_ini_read_string_int(section, key);
 end;
 
 function game_ini_read_string_def(section:PChar; key:PChar; def:PChar):PChar;stdcall;
@@ -569,20 +589,26 @@ asm
     popad
 end;
 
-function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean):boolean;stdcall;
+function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean; is_default:pboolean):boolean;stdcall;
 begin
-  if game_ini_line_exist(section, key) then
-    result:=game_ini_r_bool(section, key)
-  else
+  if game_ini_line_exist(section, key) then begin
+    result:=game_ini_r_bool(section, key);
+    if is_default<>nil then is_default^:=false;
+  end else begin
     result:=def;
+    if is_default<>nil then is_default^:=true;
+  end;
 end;
 
-function game_ini_r_int_def(section:PChar; key:PChar; def:integer):integer; stdcall;
+function game_ini_r_int_def(section:PChar; key:PChar; def:integer; is_default:pboolean):integer; stdcall;
 begin
-  if game_ini_line_exist(section, key) then
-    result:=strtointdef(game_ini_read_string(section, key), def)
-  else
+  if game_ini_line_exist(section, key) then begin
+    result:=strtointdef(game_ini_read_string(section, key), def);
+    if is_default<>nil then is_default^:=false;
+  end else begin
     result:=def;
+    if is_default<>nil then is_default^:=true;
+  end;
 end;
 
 function game_ini_r_single(section:PChar; key:PChar):single;stdcall;
@@ -590,13 +616,15 @@ begin
   result:= strtofloatdef(game_ini_read_string(section, key),0);
 end;
 
-
-function game_ini_r_single_def(section:PChar; key:PChar; def:single):single;stdcall;
+function game_ini_r_single_def(section:PChar; key:PChar; def:single; is_default:pboolean):single; stdcall;
 begin
-  if game_ini_line_exist(section, key) then
-    result:=game_ini_r_single(section, key)
-  else
+  if game_ini_line_exist(section, key) then begin
+    result:=game_ini_r_single(section, key);
+    if is_default<>nil then is_default^:=false;
+  end else begin
     result:=def;
+    if is_default<>nil then is_default^:=true;
+  end;
 end;
 
 
@@ -636,9 +664,13 @@ end;
 function GetCachedCfgParamFloatDef(var cached:cached_cfg_param_float; section:string; key:string; def:single):single;
 begin
   if (length(cached.last_section)=length(section)) and (cached.last_section = section) then begin
-    result:=cached.value;
+    if cached.is_default then begin
+      result:=def;
+    end else begin
+      result:=cached.value;
+    end;
   end else begin
-    result:=game_ini_r_single_def(PAnsiChar(section), PAnsiChar(key), def);
+    result:=game_ini_r_single_def(PAnsiChar(section), PAnsiChar(key), def, @cached.is_default);
     cached.last_section:=section;
     cached.value:=result;
   end;
@@ -647,9 +679,13 @@ end;
 function GetCachedCfgParamBoolDef(var cached:cached_cfg_param_bool; section:string; key:string; def:boolean):boolean;
 begin
   if (length(cached.last_section)=length(section)) and (cached.last_section = section) then begin
-    result:=cached.value;
+    if cached.is_default then begin
+      result:=def;
+    end else begin
+      result:=cached.value;
+    end;
   end else begin
-    result:=game_ini_r_bool_def(PAnsiChar(section), PAnsiChar(key), def);
+    result:=game_ini_r_bool_def(PAnsiChar(section), PAnsiChar(key), def, @cached.is_default);
     cached.last_section:=section;
     cached.value:=result;
   end;
