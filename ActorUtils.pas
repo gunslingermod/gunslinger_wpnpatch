@@ -1903,6 +1903,9 @@ var
   slot:cardinal;
   act_anm:boolean;
   tmpstr:string;
+
+  act_conds:pCActorCondition;
+
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1966,10 +1969,11 @@ begin
 
   if IsActorBurned() then begin
     tmpstr:=GetBurnAnimator();
+    act_conds:=GetActorConditions(act);
     if (itm<>nil) and (GetSection(itm)=tmpstr) then begin
-      CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
+      CEntityCondition__ChangeBleeding_custom(@act_conds.base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
     end else begin
-      CEntityCondition__ChangeBleeding_custom(@GetActorConditions(act).base_CEntityCondition, GetActorBurnRestoreSpeed()*dt, (1 shl EHitType__eHitTypeBurn));
+      CEntityCondition__ChangeBleeding_custom(@act_conds.base_CEntityCondition, GetActorBurnRestoreSpeed()*dt, (1 shl EHitType__eHitTypeBurn));
     end;
   end;
 
