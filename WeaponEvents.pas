@@ -743,6 +743,12 @@ var
   c_cur, c_next:pCCartridge;
   ammoc:cardinal;
 begin
+  //[bug] в классе РГ-6 выстрел ракеты происходит до заклина оружия, что может мешать.
+  if (dynamic_cast(wpn, 0, RTTI_CWeaponMagazined, RTTI_CWeaponRG6, false)<>nil) and (game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false)) then begin
+    result:=false;
+    exit;
+  end;
+
   // Если реальный тип патрона в стволе и следующего патрона (того, который будет заряжен после выстрела) отличаются между собой - клинить нельзя!
   // Иначе на дробовиках гильза поменяет цвет после окончания анимации заклина
   result:=false;
@@ -2529,6 +2535,42 @@ asm
   ret
 end;
 
+function CWeaponRG6__FireStart_IsShotProhibited(wpn:pointer):boolean; stdcall;
+var
+  state:integer;
+begin
+  // [bug] баг - заклинивший РГ-6 плюется гренами
+  if IsWeaponJammed(wpn) then begin
+    virtual_CWeaponMagazined__OnEmptyClick(wpn);
+    result:=true;
+    exit;
+  end else if (GetOwner(wpn) = GetActor()) and game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false) and CWeapon__CheckForMisfire(wpn) then begin
+    result:=true;
+    exit;  
+  end;
+
+  result:=false;
+  state:=GetCurrentState(wpn);
+  if (state=EHudStates__eIdle) then exit;
+
+  //Когда бюрер вырвал оружие из рук, оно находится в состоянии EHudStates__eHidden. Учитываем эту возможность
+  if (state=EHudStates__eHidden) and (GetOwner(wpn) = nil) then exit;
+  result:=true;
+end;
+
+procedure CWeaponRG6__FireStart_shootfromhidden_Patch(); stdcall;
+asm
+  //original
+  mov ebp,ecx
+
+  pushad
+  sub ecx, $338
+  push ecx
+  call CWeaponRG6__FireStart_IsShotProhibited
+  test al, al
+  popad
+end;
+
 procedure CWeapon__AddShotEffector_replace_Patch(); stdcall;
 asm
   mov eax, ecx
@@ -2899,6 +2941,11 @@ begin
   if not nop_code(xrgame_addr+$2d0406, 1, chr($01)) then exit;
   if not nop_code(xrgame_addr+$2d0407, 1, chr($00)) then exit;
   if not nop_code(xrgame_addr+$2d0408, 1, chr($00)) then exit;
+
+  //в CWeaponRG6::FireStart модифицируем условие GetState() == eIdle, допуская возможность стрельбы при отсутствии владельца
+  // [bug] также правим баг - если оружие на классе РГ-6 заклинено, оно всё равно выстреливает свои "ракеты"
+  jmp_addr:=xrGame_addr+$2df6db;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__FireStart_shootfromhidden_Patch), 6, true) then exit;
 
   // CWeapon::AddShotEffector (xrGame.dll+2c2ae0) - добавляем проверку на то, что inventory_owner существует, подменяя функцию
   jmp_addr:=xrGame_addr+$2c2ae0;

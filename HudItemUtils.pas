@@ -195,6 +195,8 @@ function GetHudFlags():cardinal; stdcall;
 function GetWeaponZoomUI(wpn:pointer):pCUIWindow; stdcall;
 function IsWeaponNightVisionPPExist(wpn:pointer):boolean; stdcall;
 
+function CWeapon__CheckForMisfire(wpn:pointer):boolean; stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -2326,6 +2328,26 @@ asm
   mov cl, s
   mov [eax+$1bc], cl // wpn_state
   popad
+end;
+
+function CWeapon__CheckForMisfire(wpn:pointer):boolean; stdcall;
+asm
+  push ebx
+  push eax //buf
+  mov ebx, esp
+  mov ecx, wpn
+
+  pushad
+  push ebx
+  mov eax, xrgame_addr
+  add eax, $2bcfe0
+  call eax
+  pop ebx
+  mov [ebx], eax
+  popad
+
+  pop eax // ret val from buf
+  pop ebx
 end;
 
 end.
