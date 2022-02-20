@@ -1845,7 +1845,7 @@ asm
 
   lea ecx, [esp+$28+$8]
   pushad
-  push [ecx]
+  push dword ptr [ecx]
   call NeedSkipStaminaHit
   test al, al
   popad
@@ -1856,18 +1856,49 @@ asm
   @finish:
 end;
 
-procedure RunBurerDropAnimator(); stdcall;
+procedure RunBurerDropAnimator(burer:pointer; do_weapon_drop:byte); stdcall;
 begin
-  PlanActorKickAnimator('burer_kicks');
+  if do_weapon_drop<>0 then begin
+    script_call('gunsl_burer.on_drop_animator', '', GetCObjectID(burer));
+    PlanActorKickAnimator('burer_kicks');
+  end else begin
+    script_call('gunsl_burer.on_stamina_hit_nodrop', '', GetCObjectID(burer));
+  end;
 end;
 
 procedure CBurer__StaminaHit_animateddrop_Patch(); stdcall;
 asm
-  add eax,$2C8 // original
+   mov ecx,[eax+$97C]
+   fstp dword ptr [esp+4] //original
 
   pushad
+    movzx ebx, bl  // do_weapon_drop
+    push ebx
+    push edi
     call RunBurerDropAnimator
-  popad  
+  popad
+end;
+
+procedure anti_aim_ability__start_camera_effector_disablecameffector_Patch(); stdcall;
+asm
+   //original
+   sub edi,[esi+$38]
+   sar edi,02
+
+   cmp edi, 0  // m_effectors.size() == 0
+//   jne @finish
+
+   mov eax, [esi+$60] // m_animation_end_tick
+   mov [esi+$64],eax  // m_camera_effector_end_tick = m_animation_end_tick
+
+   mov [esi+$68], 1 // m_effector_id = 1  - чтобы игра думала, что анима камеры всё-таки проигрывается
+
+   pop eax //ret addr
+   mov eax, xrgame_addr
+   add eax, $cf9b1
+   jmp eax  //skip code before m_callback call
+
+   @finish:
 end;
 
 
@@ -2099,9 +2130,12 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_needskip_Patch), 5, true) then exit;
 
   //в CBurer::StaminaHit запускаем аниматор броска при выхватывании оружия
-  jmp_addr:=xrGame_addr+$1028b5;
-  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_animateddrop_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$1027d9;
+  if not WriteJump(jmp_addr, cardinal(@CBurer__StaminaHit_animateddrop_Patch), 9, true) then exit;
 
+  //в anti_aim_ability::start_camera_effector отключаем воспроизведение анимации камеры в случае, когда прописан пустой вектор m_effectors
+  jmp_addr:=xrGame_addr+$cf8ab;
+  if not WriteJump(jmp_addr, cardinal(@anti_aim_ability__start_camera_effector_disablecameffector_Patch), 6, true) then exit;
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
@@ -2133,6 +2167,8 @@ begin
   //CBurer::UpdateGraviObject - xrgame.dll+103210
   //CStateBurerAntiAim::check_start_conditions - xrgame.dll+106130
   //anti_aim_ability::check_start_condition - xrgame.dll+cf7e0
+  //anti_aim_ability::update_schedule - xrgame.dll+cf9d0
+  //anti_aim_ability::load_from_ini - xrgame.dll+cfeb0
   //CStateManagerBurer::execute - xrGame.dll+1039e0
 
   result:=true;
