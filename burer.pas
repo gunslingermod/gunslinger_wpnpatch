@@ -961,6 +961,12 @@ begin
   end else if NeedCloseProtectionShield(burer) then begin
     LogBurerLogic('NeedStopTeleAttack - NeedCloseProtectionShield');
     result:=true;
+  end else if WpnCanShoot(itm) and (GetCurrentState(itm) = EWeaponStates__eReload) and burer_see_actor and (random < 0.4) then begin
+    LogBurerLogic('NeedStopTeleAttack - Reload');
+    result:=true;
+  end else if WpnCanShoot(itm) and (GetCurrentAmmoCount(itm) = 0) and burer_see_actor and (random < 0.003) then begin
+    LogBurerLogic('NeedStopTeleAttack - Empty');
+    result:=true;
   end else if IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer) and burer_see_actor then begin
     LogBurerLogic('NeedStopTeleAttack - Sniper');
     result:=true;
