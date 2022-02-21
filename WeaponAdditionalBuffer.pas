@@ -183,6 +183,7 @@ type
     loaded_gl_state:boolean;
     last_frame_rocket_loaded:cardinal; //для РПГ
     rocket_launched:boolean;     //от утечек памяти при стрелбе из гранатометов НПСами
+    rg6_misfire_assign_allowed:boolean;
 
     need_update_icon:boolean;
     upgrades_procesing_conditions:upgrades_process_condition;
@@ -479,6 +480,7 @@ begin
   need_update_icon:=false;
 
   upgrades_procesing_conditions.force:=true;
+  rg6_misfire_assign_allowed:=false;
 
   _default_hud_sect:=game_ini_read_string(GetSection(wpn), 'hud');
   _default_hud_sect_sil:=game_ini_read_string_def(GetSection(wpn), 'hud_silencer', nil);

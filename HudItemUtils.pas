@@ -2332,6 +2332,7 @@ end;
 
 function CWeapon__CheckForMisfire(wpn:pointer):boolean; stdcall;
 asm
+  push ecx
   push ebx
   push eax //buf
   mov ebx, esp
@@ -2348,6 +2349,7 @@ asm
 
   pop eax // ret val from buf
   pop ebx
+  pop ecx
 end;
 
 end.

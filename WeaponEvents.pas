@@ -742,11 +742,15 @@ function IsJamProhibited(wpn:pointer):boolean; stdcall;
 var
   c_cur, c_next:pCCartridge;
   ammoc:cardinal;
+  buf:WpnBuf;
 begin
   //[bug] в классе РГ-6 выстрел ракеты происходит до заклина оружия, что может мешать.
   if (dynamic_cast(wpn, 0, RTTI_CWeaponMagazined, RTTI_CWeaponRG6, false)<>nil) and (game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false)) then begin
-    result:=false;
-    exit;
+    buf:=GetBuffer(wpn);
+    if (buf<>nil) and not buf.rg6_misfire_assign_allowed then begin
+      result:=true;
+      exit;
+    end;
   end;
 
   // Если реальный тип патрона в стволе и следующего патрона (того, который будет заряжен после выстрела) отличаются между собой - клинить нельзя!
@@ -2089,25 +2093,6 @@ asm
   @finish:
 end;
 
-procedure EmptyClickIfNeeded(wpn:pointer); stdcall;
-begin
-  if GetCurrentAmmoCount(wpn) = 0 then begin
-    virtual_CWeaponMagazined__OnEmptyClick(wpn);
-  end;
-end;
-
-procedure CWeaponRG6__FireStart_EmptyClicks_Patch(); stdcall;
-asm
-  pushad
-  lea ecx, [ebp-$338]
-  push ecx
-  call EmptyClickIfNeeded
-  popad
-
-  //original
-  lea ecx,[ebp-$358]  
-end;
-
 procedure RPG7ReactiveHit(wpn:pointer); stdcall;
 var
   sect:PAnsiChar;
@@ -2425,6 +2410,7 @@ asm
     cmp al, 0
   popad
   setnz al
+  pop esi //original
   ret
 end;
 
@@ -2538,27 +2524,53 @@ end;
 function CWeaponRG6__FireStart_IsShotProhibited(wpn:pointer):boolean; stdcall;
 var
   state:integer;
+  good_state_for_shot:boolean;
+  buf:WpnBuf;
+  flag:boolean;
+  rl:pCRocketLauncher;
 begin
-  // [bug] баг - заклинивший РГ-6 плюется гренами
-  if IsWeaponJammed(wpn) then begin
-    virtual_CWeaponMagazined__OnEmptyClick(wpn);
+  rl:=dynamic_cast(wpn, 0, RTTI_CWeapon, RTTI_CWeaponRG6, false);
+  R_ASSERT(rl<>nil, PAnsiChar('cannot cast weapon to CWeaponRG6, '+inttohex(cardinal(wpn), 8)), 'CWeaponRG6__FireStart_IsShotProhibited');
+
+  if GetRocketsCount(rl)>0 then begin
+    // ракета уже заспавнилась ранее, надо стрелять
+    result:=false;
+  end else begin
     result:=true;
-    exit;
-  end else if (GetOwner(wpn) = GetActor()) and game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false) and CWeapon__CheckForMisfire(wpn) then begin
-    result:=true;
-    exit;  
+    state:=GetCurrentState(wpn);
+
+    //Когда бюрер вырвал оружие из рук, оно находится в состоянии EHudStates__eHidden. Учитываем эту возможность
+    good_state_for_shot:=(state=EHudStates__eIdle) or ((state=EHudStates__eHidden) and (GetOwner(wpn) = nil));
+    if not good_state_for_shot then begin
+      exit;
+    end;
+
+    // [bug] баг - заклинивший РГ-6 плюется гренами
+    if IsWeaponJammed(wpn) then begin
+      virtual_CWeaponMagazined__OnEmptyClick(wpn);
+      exit;
+    end else if (GetCurrentAmmoCount(wpn)=0) then begin
+      //[bug] баг - в CWeaponRG6::FireStart не реализованы щелчки при попытке выстрелить из пустого оружия. Добавляем вызов OnEmptyClick(); после проверки GetState() == eIdle и перед getRocketCount()    
+      virtual_CWeaponMagazined__OnEmptyClick(wpn);    
+      exit;
+    end else if (GetOwner(wpn) = GetActor()) and game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false) then begin
+      buf:=GetBuffer(wpn);
+      buf.rg6_misfire_assign_allowed:=true;
+      flag:=CWeapon__CheckForMisfire(wpn);
+      buf.rg6_misfire_assign_allowed:=false;
+      if flag then begin
+        exit;
+      end;
+    end;
+
+    //Обновляем скорость вылета гранаты с учетом апгрейдов
+    rl.m_fLaunchSpeed:=ModifyFloatUpgradedValue(wpn, 'launch_speed', game_ini_r_single_def(GetSection(wpn), 'launch_speed', 30.0));
+
+    result:=false;
   end;
-
-  result:=false;
-  state:=GetCurrentState(wpn);
-  if (state=EHudStates__eIdle) then exit;
-
-  //Когда бюрер вырвал оружие из рук, оно находится в состоянии EHudStates__eHidden. Учитываем эту возможность
-  if (state=EHudStates__eHidden) and (GetOwner(wpn) = nil) then exit;
-  result:=true;
 end;
 
-procedure CWeaponRG6__FireStart_shootfromhidden_Patch(); stdcall;
+procedure CWeaponRG6__FireStart_CanShootCheck_Patch(); stdcall;
 asm
   //original
   mov ebp,ecx
@@ -2886,10 +2898,6 @@ begin
   jmp_addr:=xrGame_addr+$2DF7C7;
   if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__FireStart_GrenadeLaunchPoint_Patch), 6, true) then exit;
 
-  //[bug] баг - в CWeaponRG6::FireStart не реализованы щелчки при попытке выстрелить из пустого оружия. Добавляем вызов OnEmptyClick(); после проверки GetState() == eIdle и перед getRocketCount()
-  jmp_addr:=xrGame_addr+$2DF6E7;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__FireStart_EmptyClicks_Patch), 6, true) then exit;
-
   //реализация изменения скорости доставания/убирания оружия при переключении на/со слота аниматоров и прочей юзабельной хрени
   jmp_addr:=xrGame_addr+$2FB5EA;
   if not WriteJump(jmp_addr, cardinal(@CalcMotionSpeed_QuickItems_Patch), 5, false) then exit;
@@ -2899,7 +2907,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__state_Fire_autoaim_patch), 7, true) then exit;
 
   // в CWeapon::CheckForMisfire - после того, как убедились, что осечки быть не должно, подумаем еще раз - а может, все-таки назначить?
-  jmp_addr:=xrGame_addr+$2bd0c4;
+  jmp_addr:=xrGame_addr+$2bd0c3;
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__CheckForMisfire_validate_NoMisfire_patch), 5, false) then exit;
 
   //В Manager::upgrade_install добавляем проверку - если апгрейд не нашелся после upgrade_verify, то и не применяем его вообще
@@ -2945,7 +2953,7 @@ begin
   //в CWeaponRG6::FireStart модифицируем условие GetState() == eIdle, допуская возможность стрельбы при отсутствии владельца
   // [bug] также правим баг - если оружие на классе РГ-6 заклинено, оно всё равно выстреливает свои "ракеты"
   jmp_addr:=xrGame_addr+$2df6db;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__FireStart_shootfromhidden_Patch), 6, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponRG6__FireStart_CanShootCheck_Patch), 6, true) then exit;
 
   // CWeapon::AddShotEffector (xrGame.dll+2c2ae0) - добавляем проверку на то, что inventory_owner существует, подменяя функцию
   jmp_addr:=xrGame_addr+$2c2ae0;
@@ -3002,6 +3010,7 @@ begin
   //CEntityCondition::BleedingSpeed - xrgame.dll+27dd00
   //CAI_Stalker::react_on_member_death - xrgame.dll+192430
   //CStalkerDangerPlanner::update - xrgame.dll+xrgame.dll+1785b0
+  //CRocketLauncher::Load - xrgame.dll+2cc620
 ////////////////////////////////////////////////////////////////////////////////////
 
 
