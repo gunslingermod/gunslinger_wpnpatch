@@ -1036,6 +1036,12 @@ begin
     exit;
   end;
 
+  // [bug] [thx to SkyLoader] баг оригинала - при доставании оружия на секунду мерцает перекркстие. Лечится путём добавления проверки на IsHidden
+  if GetCurrentState(wpn) = EHudStates__eHidden then begin
+    result:=false;
+    exit;
+  end;
+
   buf:=GetBuffer(wpn);
   if (buf<>nil) and ((buf.IsLaserInstalled() and buf.IsLaserEnabled()) or ((GetAimFactor(wpn)>0.001) and IsZoomHideCrosshair(wpn))) then begin
     result:=false;
