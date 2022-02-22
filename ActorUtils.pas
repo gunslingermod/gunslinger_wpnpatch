@@ -416,6 +416,7 @@ var
   _last_pda_zoom_state:boolean;
   _pda_blowout_anim_started:boolean;
   _planned_kick_animator:string;
+  _need_fire_particle:boolean;
 
 //-------------------------------------------------------------------------------------------------------------
 procedure player_hud__load_fixpatched(); stdcall;
@@ -1970,9 +1971,14 @@ begin
   if IsActorBurned() then begin
     tmpstr:=GetBurnAnimator();
     act_conds:=GetActorConditions(act);
-    if (itm<>nil) and (GetSection(itm)=tmpstr) then begin
+    if (itm<>nil) and (GetSection(itm)=tmpstr) and (GetCurrentState(itm)<>EHudStates__eHidden) then begin
       CEntityCondition__ChangeBleeding_custom(@act_conds.base_CEntityCondition, game_ini_r_single_def(GetSection(itm), 'burn_restore', 0)*dt, (1 shl EHitType__eHitTypeBurn));
+      if _need_fire_particle then begin
+        CShootingObject__StartFlameParticles(itm);
+        _need_fire_particle:=false;
+      end;
     end else begin
+      Messenger.SendMessage('gunsl_actor_burned', gd_stalker);
       CEntityCondition__ChangeBleeding_custom(@act_conds.base_CEntityCondition, GetActorBurnRestoreSpeed()*dt, (1 shl EHitType__eHitTypeBurn));
     end;
   end;
@@ -2434,8 +2440,9 @@ begin
   end else if (dik=kQUICK_KICK) then begin
     OnActorKick();
   end else if (dik=kUSE) then begin
-    if IsActorBurned() then begin
+    if IsActorBurned() and ((wpn=nil) or (GetSection(wpn)<>GetBurnAnimator())) then begin
       OnActorSwithesSmth('disable_burn_anim', GetBurnAnimator(), PChar('anm_burned'), 'sndBurned', 0, @FakeCallback, 0);
+      _need_fire_particle:=true;
       result:=false;
     end;
   end;
@@ -2559,6 +2566,8 @@ begin
   _is_pda_lookout_mode:=false;
   _pda_blowout_anim_started:=false;
   _planned_kick_animator:='';
+
+  _need_fire_particle:=false;
 end;
 
 procedure CActor__netSpawn_Patch(); stdcall;
@@ -4197,7 +4206,7 @@ begin
         slot:=game_ini_r_int_def(sect, 'slot', 2);
         dropped:=false;
         if (slot<>1) or (random < (h.power - stamina)) then begin
-          PerformDrop(act);
+          PerformDropFromActorHands();
           if is_actor_see_monster then begin
             PlanActorKickAnimator('boar_front_kicks');
           end else begin
