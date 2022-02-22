@@ -294,7 +294,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 
 var
   register_level_isuishown_ret:cardinal;
-  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr, IsPickupMode_adapter_ptr:pointer;
+  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr, IsActorBurned_adapter_ptr, IsPickupMode_adapter_ptr:pointer;
   ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, valid_saved_game_int_ptr:pointer;
   CUIInventoryUpgradeWnd__m_btn_disassemble:pCUI3tButton;
 
@@ -813,6 +813,17 @@ asm
 end;
 end;
 
+function IsActorBurned_adapter():boolean;
+begin
+asm
+  pushad
+    call IsActorBurned
+    mov @result, al
+  popad
+
+end;
+end;
+
 procedure register_level_isuishown(); stdcall;
 const
   name:PChar='is_ui_shown';
@@ -827,6 +838,7 @@ const
 
   name_get_parameter_upgraded:PChar='get_parameter_upgraded_int';
   name_is_actor_suicide:PChar='is_actor_controlled';
+  name_is_actor_burned:PChar='is_actor_burned';
   name_valid_saved_game_int:PChar='valid_saved_game_int';
 asm
   push eax
@@ -927,6 +939,29 @@ asm
   push ecx
   mov ecx, esp
   push name_is_actor_suicide
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
+  ////////////////////////////
+  push eax
+
+  mov ecx, IsActorBurned_adapter_ptr
+  push ecx
+  mov ecx, esp
+  push name_is_actor_burned
   push ecx
   mov ecx, xrgame_addr
   add ecx, $1FF277;
@@ -2025,6 +2060,7 @@ begin
   GetParameterUpgraded_int_ptr:=@GetParameterUpgraded_int;
   valid_saved_game_int_ptr:=@valid_saved_game_int;
   IsActorControlled_adapter_ptr:=@IsActorControlled_adapter;
+  IsActorBurned_adapter_ptr:=@IsActorBurned_adapter;
 
   ButtonDisassembleCb_ptr:=@ButtonDisassembleCb;
 
