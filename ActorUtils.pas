@@ -4475,9 +4475,6 @@ var
   pwound:pointer;
 begin
   result:=0;
-  //if items_count_in_vector(wounds, sizeof(pointer)) > 0 then begin
-  //  Log('Wounds count: '+inttostr(items_count_in_vector(wounds, sizeof(pointer))));
-  //end;
 
   for i:=0 to items_count_in_vector(@pcond.m_WoundVector, sizeof(pointer))-1 do begin
     pwound:=get_item_from_vector(@pcond.m_WoundVector, i, sizeof(pointer));
@@ -4764,6 +4761,9 @@ begin
   // в CEntityAlive::UpdateFireParticles если существо умерло до остановки отыгрыша партиклов огн€, то продл€ем отыгрыш партикла (пусть "догорает")
   jmp_addr:=xrGame_addr+$27b6dc;
   if not WriteJump(jmp_addr, cardinal(@CEntityAlive__UpdateFireParticles_deadfire_Patch), 5, true) then exit;
+
+  //в CEntityAlive::UpdateFireParticles исправл€ем странное условие burn_size>0 на burn_size>=0, иначе "составна€" рана (с несколькими типами хитов) при заживлении ожога не потухнет
+  nop_code(xrgame_addr+$27b653, 1, chr($72));
 
   //Ќадо вызывать CParticlesPlayer::UpdateParticles из CEntityAlive::shedule_Update, чтобы партиклы корректно удал€лись после смерти
   jmp_addr:=xrGame_addr+$27a768;
