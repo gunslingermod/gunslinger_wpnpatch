@@ -1567,8 +1567,8 @@ const
 
 begin
   act:=GetActorIfAlive();
-  if (act<>nil) and (GetActorHealth(act)>0)  then begin
-    params:=GetBurerFlyParams();
+  params:=GetBurerFlyParams();
+  if params.enabled and (act<>nil) and (GetActorHealth(act)>0)  then begin
 
     burer_pos:=FVector3_copyfromengine(GetEntityPosition(burer));
     act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
@@ -1907,6 +1907,42 @@ asm
    @finish:
 end;
 
+procedure BurerAntiAimAllowed(burer:pointer; aim_allowed:pByte); stdcall;
+begin
+  if aim_allowed^<>0 then begin
+    if not script_bool_call('gunsl_burer.can_start_antiaim', '', GetCObjectID(burer), '') then begin
+      aim_allowed^:=0;
+    end;
+  end;
+end;
+
+
+procedure CStateBurerAntiAim__check_start_conditions_reimpl_Patch(); stdcall;
+asm
+  push ecx //save this
+
+  //original
+  mov eax,[ecx+$10]
+  mov ecx,[eax+$968]
+  mov edx,[ecx]
+  mov eax,[edx+$2C]
+  call eax
+
+  pop ecx //restore this
+
+  push eax //buffer
+  mov eax, esp
+
+  pushad
+  push eax  //buffer
+  mov ecx, [ecx+$10] //this->m_object
+  push ecx
+  call BurerAntiAimAllowed
+  popad
+  pop eax
+
+end;
+
 
 function Init():boolean; stdcall;
 var
@@ -2142,6 +2178,10 @@ begin
   //в anti_aim_ability::start_camera_effector отключаем воспроизведение анимации камеры в случае, когда прописан пустой вектор m_effectors
   jmp_addr:=xrGame_addr+$cf8ab;
   if not WriteJump(jmp_addr, cardinal(@anti_aim_ability__start_camera_effector_disablecameffector_Patch), 6, true) then exit;
+
+  //переписываем CStateBurerAntiAim<Object>::check_start_conditions и дописываем наши проверки
+  jmp_addr:=xrGame_addr+$106130;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAntiAim__check_start_conditions_reimpl_Patch), 5, false) then exit;
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield

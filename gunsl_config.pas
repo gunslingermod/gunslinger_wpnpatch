@@ -107,6 +107,7 @@ type burer_superstamina_hit_params = record
 end;
 
 type burer_fly_params = record
+  enabled:boolean;
   max_dist:single;
   critical_dist:single;
   preferred_dist:single;
@@ -1198,6 +1199,7 @@ begin
 
   _burer_skipfireall_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_skip_fireall_probability', 0.8);
 
+  _burer_fly_params.enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'burer_fly_params_enabled', false);
   _burer_fly_params.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_max_dist', 50);
   _burer_fly_params.critical_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_critical_dist', 5);
   _burer_fly_params.preferred_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_preferred_dist', 20);
