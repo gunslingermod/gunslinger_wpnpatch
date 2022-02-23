@@ -1906,6 +1906,7 @@ var
   tmpstr:string;
 
   act_conds:pCActorCondition;
+  need_skip_cb_in_idle:boolean;
 
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
@@ -2013,7 +2014,10 @@ begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
       treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);
-      if (treasure_time<anim_time) or (act_anm and (GetCurrentState(itm)=EHudStates__eIdle) and (GetSection(itm) <> GetPDAShowAnimator()) then begin
+
+      need_skip_cb_in_idle:=act_anm and ((leftstr(anm_name, length('anm_nv')) = 'anm_nv') or (leftstr(anm_name, length('anm_headlamp')) = 'anm_headlamp'));
+
+      if (treasure_time<anim_time) or (act_anm and (GetCurrentState(itm)=EHudStates__eIdle) and not need_skip_cb_in_idle) then begin
         _action_animator_callback(itm, _action_animator_param);
         _action_animator_callback:=nil;
         _action_animator_param:=0;
