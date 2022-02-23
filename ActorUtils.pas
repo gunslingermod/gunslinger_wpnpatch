@@ -2013,7 +2013,7 @@ begin
       anm_name:=GetActualCurrentAnim(itm);
       anim_time:=GetTimeDeltaSafe(GetAnimTimeState(itm, ANM_TIME_START), GetAnimTimeState(itm, ANM_TIME_CUR));
       treasure_time:=floor(game_ini_r_single_def(GetHUDSection(itm), PChar('mark_'+anm_name),100)*1000);
-      if (treasure_time<anim_time) or (act_anm and (GetCurrentState(itm)=EHudStates__eIdle)) then begin
+      if (treasure_time<anim_time) or (act_anm and (GetCurrentState(itm)=EHudStates__eIdle) and (GetSection(itm) <> GetPDAShowAnimator()) then begin
         _action_animator_callback(itm, _action_animator_param);
         _action_animator_callback:=nil;
         _action_animator_param:=0;
