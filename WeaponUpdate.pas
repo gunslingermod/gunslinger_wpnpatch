@@ -792,6 +792,8 @@ var
 
   upgrade_results:UpgradeProcessResults;
   cur_hud_sect, new_hud_sect:PAnsiChar;
+
+  cb:TAnimationEffector;
 const
   EPS:single = 0.0001;
 begin
@@ -834,7 +836,8 @@ begin
             end;
           end else begin
 //            log(inttostr(GetCurrentState(wpn)));
-            if (GetActorTargetSlot()=GetActorActiveSlot()) and ((GetCurrentState(wpn)<>EHudStates__eIdle)) and IsActorActionAnimatorAutoshow() and ((@GetActorActionCallback<>nil) or not game_ini_r_bool_def(sect, 'disable_autochange_slot', false)) then begin
+            cb:=GetActorActionCallback();
+            if (GetActorTargetSlot()=GetActorActiveSlot()) and ((GetCurrentState(wpn)<>EHudStates__eIdle)) and IsActorActionAnimatorAutoshow() and ((@cb<>nil) or not game_ini_r_bool_def(sect, 'disable_autochange_slot', false)) then begin
               virtual_CHudItem_SwitchState(wpn, EHudStates__eShowing);
             end;
           end;
