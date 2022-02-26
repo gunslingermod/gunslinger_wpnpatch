@@ -267,7 +267,7 @@ begin
 
   // Если мы ранее рискнули выйти из щита с подбрасыванием камеры - временно отключаем щит
   if (pshield_ready^) and script_bool_call('gunsl_burer.need_disable_shield', '', GetCObjectID(burer), '') then begin
-    if big_boom_shooted then begin
+    if not big_boom_shooted then begin
       LogBurerLogic('Script disable shield');
       pshield_ready^:=false;
     end else begin
