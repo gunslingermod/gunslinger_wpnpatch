@@ -2,7 +2,7 @@ unit Misc;
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
-uses MatVectors, windows, xr_strings, BaseGameData;
+uses MatVectors, windows, xr_strings, BaseGameData, vector;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
 type CSE_Abstract = packed record
@@ -29,6 +29,26 @@ type CSE_Abstract = packed record
 end;
 
 type pCSE_Abstract = ^CSE_Abstract;
+
+
+type CSE_ALifeInventoryItem = packed record
+  vftable:pointer;
+  m_fCondition:single;
+  //offset: 0x8
+  m_fMass:single;
+  m_dwCost:cardinal;
+  m_iHealthValue:integer;
+  m_iFoodValue:integer;
+  m_fDeteriorationValue:single;
+  m_self:pointer {CSE_ALifeObject};
+  m_last_update_time:cardinal;
+  //offset: 0x24
+  m_upgrades:xr_vector; {shared_str}
+
+  //to be continued...  
+end;
+
+type pCSE_ALifeInventoryItem = ^CSE_ALifeInventoryItem;
 
 type xr_list_entry_base = packed record
   _Next:pointer; //really xr_list_entry_base or child
@@ -141,6 +161,9 @@ type MouseCoord = TPoint;
 function GetSysMousePoint():MouseCoord;
 procedure SetSysMousePoint(c:MouseCoord);
 
+procedure CSE_ALifeInventoryItem__add_upgrade(itm:pCSE_ALifeInventoryItem; up:pshared_str); stdcall;
+procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem; itm_from:pCSE_ALifeInventoryItem); stdcall;
+
 implementation
 uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable;
 var
@@ -152,7 +175,9 @@ var
 
   get_addons_state_ptr:pointer;
   set_addons_state_ptr:pointer;
-  set_scope_idx_ptr:pointer;  
+  set_scope_idx_ptr:pointer;
+
+  clone_upgrades_ptr:pointer;
 
 procedure ResetElectronicsProblems(); stdcall;
 begin
@@ -1544,6 +1569,48 @@ begin
   end;
 end;
 
+procedure clone_upgrades_adapter(src:pointer); stdcall;
+asm
+  pushad
+  //ecx - dest (this)
+  //cast CSE_ALifeItemWeapon to CSE_ALifeInventoryItem
+  add ecx, $e0
+  mov eax, src
+  add eax, $e0
+
+  push eax
+  push ecx
+  call CSE_ALifeInventoryItem__clone_upgrades
+
+  popad
+end;
+
+procedure CSE_ALifeItemWeapon_exports_Patch(); stdcall;
+const
+  clone_upgrades_name:PChar = 'clone_upgrades';
+asm
+  pop edi //ret addr
+
+  //original call
+  mov eax, xrgame_addr
+  add eax, $3efbd3
+  call eax
+
+
+  //new method
+  mov ecx, eax
+  mov eax, xrgame_addr
+  add eax, $3efbd3
+
+  push 0
+  push [clone_upgrades_ptr]
+  push clone_upgrades_name
+  
+  call eax
+
+  jmp edi;
+end;
+
 procedure CCustomZone__feel_touch_new_detectbolts_Patch(); stdcall;
 asm
   pushad
@@ -1647,6 +1714,11 @@ begin
   jmp_addr:=xrGame_addr+$30c01b;
   if not WriteJump(jmp_addr, cardinal(@CCustomZone__feel_touch_new_detectbolts_Patch), 6, true) then exit;
 
+  // экспорт метода CSE_ALifeItemWeapon::clone_upgrades на основе CSE_ALifeItemWeapon::clone_addons
+  clone_upgrades_ptr:=@clone_upgrades_adapter;
+  jmp_addr:=xrGame_addr+$3f0e35;
+  if not WriteJump(jmp_addr, cardinal(@CSE_ALifeItemWeapon_exports_Patch), 5, true) then exit;
+
   result:=true;
 end;
 
@@ -1678,6 +1750,30 @@ asm
     call eax
     add esp, $c
   popad
+end;
+
+procedure CSE_ALifeInventoryItem__add_upgrade(itm:pCSE_ALifeInventoryItem; up:pshared_str); stdcall;
+asm
+  pushad
+    push up
+    mov ecx, itm
+    mov eax, xrgame_addr
+    add eax, $3e1f90
+    call eax
+  popad
+end;
+
+procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem; itm_from:pCSE_ALifeInventoryItem); stdcall;
+var
+  cnt, i:integer;
+  up:pshared_str;
+begin
+  cnt:=items_count_in_vector(@itm_from.m_upgrades, sizeof(shared_str));
+
+  for i:=0 to cnt-1 do begin
+    up:=get_item_from_vector(@itm_from.m_upgrades, i, sizeof(shared_str));
+    CSE_ALifeInventoryItem__add_upgrade(itm_to, up);
+  end;
 end;
 
 // CInventory::Update - xrgame.dll+2a83a0
