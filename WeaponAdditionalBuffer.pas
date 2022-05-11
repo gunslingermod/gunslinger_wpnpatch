@@ -1024,11 +1024,11 @@ function CanStartAction(wpn:pointer; allow_aim_state:boolean=false):boolean;stdc
 var
 act, det:pointer;
 begin
-  if (wpn=nil) or ((GetOwner(wpn)<>GetActor()) and (GetActor()<>nil)) then begin
+  if (wpn=nil) or (GetActor()=nil) or (GetOwner(wpn)<>GetActor()) then begin
     result:=true;
     exit;
   end;
-  if (GetBuffer(wpn)=nil) or IsActionProcessing(wpn) or (GetCurrentState(wpn)<>0) or ( (not allow_aim_state) and (IsHolderInAimState(wpn) or IsAimNow(wpn)) ) or IsHolderInSprintState(wpn) then
+  if (GetBuffer(wpn)=nil) or IsActionProcessing(wpn) or (GetCurrentState(wpn)<>EHudStates__eIdle) or ( (not allow_aim_state) and (IsHolderInAimState(wpn) or IsAimNow(wpn)) ) or IsHolderInSprintState(wpn) then
     result:=false
   else begin
     result:=true;

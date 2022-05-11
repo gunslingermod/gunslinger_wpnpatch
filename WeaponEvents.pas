@@ -2540,7 +2540,7 @@ begin
     state:=GetCurrentState(wpn);
 
     //Когда бюрер вырвал оружие из рук, оно находится в состоянии EHudStates__eHidden. Учитываем эту возможность
-    good_state_for_shot:=(state=EHudStates__eIdle) or ((state=EHudStates__eHidden) and (GetOwner(wpn) = nil));
+    good_state_for_shot:=(CanStartAction(wpn, true)) or ((state=EHudStates__eHidden) and (GetOwner(wpn) = nil));
     if not good_state_for_shot then begin
       exit;
     end;
