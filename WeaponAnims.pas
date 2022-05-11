@@ -1365,7 +1365,7 @@ begin
   if result then SetActorActionState(act, actModNeedMoveReassign, false);
 end;
 
-procedure IdleSlowFixPatch(); stdcall;
+procedure CActor__g_SetAnimation_ForceIdleMoveReassign_Patch(); stdcall;
 asm
     //делаем вырезанное сравнение
     and eax, $0F
@@ -2031,9 +2031,9 @@ begin
   jump_addr:=xrGame_addr+$26AF60;
   if not WriteJump(jump_addr, cardinal(@SprintAnimLockFix), 10, true) then exit;
 
-  //Фиксим назначение анимы медленного идла
+  //Форсируем переназначение анимы идла (например, в случае медленного идла) в CActor::g_SetAnimation (перед вызовом g_player_hud->OnMovementChanged(mcAnyMove);)
   jump_addr:=xrGame_addr+$2727B3;
-  if not WriteJump(jump_addr, cardinal(@IdleSlowFixPatch), 7, true) then exit;
+  if not WriteJump(jump_addr, cardinal(@CActor__g_SetAnimation_ForceIdleMoveReassign_Patch), 7, true) then exit;
 
   //Для невозможности назначения новой идловой анимы детектору, когда он в состояни идла проигрывает кастомную
   jump_addr:=xrGame_addr+$2F977F;
