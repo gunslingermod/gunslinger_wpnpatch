@@ -1166,10 +1166,6 @@ begin
         end;
       end;
     end;
-  end else if grenade<>nil then begin
-    if CMissile__GetDestroyTime(grenade)<>CMISSILE_NOT_ACTIVATED then begin
-      CMissile__SetDestroyTime(grenade, GetGameTickCount()+2000);
-    end;
   end;
 end;
 
