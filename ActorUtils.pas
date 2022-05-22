@@ -2444,7 +2444,7 @@ begin
   end else if (dik=kQUICK_KICK) then begin
     OnActorKick();
   end else if (dik=kUSE) then begin
-    if IsActorBurned() and ((wpn=nil) or (GetSection(wpn)<>GetBurnAnimator())) then begin
+    if IsActorBurned() and not IsActorControlled() and ((wpn=nil) or (GetSection(wpn)<>GetBurnAnimator())) then begin
       OnActorSwithesSmth('disable_burn_anim', GetBurnAnimator(), PChar('anm_burned'), 'sndBurned', 0, @FakeCallback, 0);
       _need_fire_particle:=true;
       result:=false;
