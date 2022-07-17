@@ -14,6 +14,9 @@ var
   _gren_timer:cardinal;
   _last_superstamina_hit_time:cardinal;
 
+  _last_aimed_burer_id:cardinal;
+  _last_aimed_burer_shield_stop_time:cardinal;
+
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
   BURER_HEAD_CORRECTION_HEIGHT:single = 1;
@@ -660,6 +663,7 @@ function CStateBurerShield__check_completion_MayIgnoreShieldTime(burer:pointer; 
 var
   itm:pointer;
   big_boom_ready, big_boom_shooted, sniper_danger:boolean;
+  under_aim_exact_now, under_aim_exact_recent:boolean;
 begin
   //вообще не снимаем щит, если рядом грены.
   //более того, после взрыва грены щит может сняться слишком рано, и бюрер успеет получить урон. Чтобы этого не происходило, продлеваем действие щита
@@ -681,14 +685,24 @@ begin
     big_boom_ready:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
   end;
 
+  under_aim_exact_now:=IsBurerUnderAim(burer, BurerUnderAimExact);
+  under_aim_exact_recent:=under_aim_exact_now;
+  if under_aim_exact_now then begin
+    _last_aimed_burer_id:=GetCObjectID(burer);
+    _last_aimed_burer_shield_stop_time:=GetGameTickCount()+GetBurerAimShieldDelay();
+  end else if (_last_aimed_burer_id = GetCObjectID(burer)) and (GetGameTickCount() < _last_aimed_burer_shield_stop_time) then begin
+    under_aim_exact_recent:=true;
+  end;
+
+
   sniper_danger:=IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer);
-  result:= NeedCloseProtectionShield(burer) or IsBurerUnderAim(burer, BurerUnderAimNear) or sniper_danger or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
+  result:= NeedCloseProtectionShield(burer) or under_aim_exact_recent or IsBurerUnderAim(burer, BurerUnderAimNear) or sniper_danger or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
 
   if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
 
     result:= random > GetBurerShieldedRiskyFactor();
-    if not result and (IsBurerUnderAim(burer, BurerUnderAimExact) or sniper_danger) then begin
+    if not result and (under_aim_exact_now or sniper_danger) then begin
       // Если решено рискнуть, но мы под прицелом
       result := not script_bool_call('gunsl_burer.on_risky_under_aim', '', GetCObjectID(burer),'');
     end;

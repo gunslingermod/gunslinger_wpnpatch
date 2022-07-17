@@ -296,6 +296,7 @@ function GetBoneNameForBurerTeleFire():PAnsiChar; stdcall;
 function GetBurerGraviImpulseForActor():single; stdcall;
 function GetBurerFlyParams():burer_fly_params;
 function GetSkipFireAllProbability():single; stdcall;
+function GetBurerAimShieldDelay():cardinal; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -392,6 +393,8 @@ var
   _burer_gravi_impulse_for_actor:single;
   _burer_fly_params:burer_fly_params;
   _burer_skipfireall_prob:single;
+  _burer_aim_shield_delay_const:cardinal;
+  _burer_aim_shield_delay_random:cardinal;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
@@ -1190,6 +1193,8 @@ begin
   _burer_critical_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_critical_gren_timer', 1000);
   _burer_forcetelefire_min_delta:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_forcetelefire_min_delta', 1000);
   _burer_gravi_impulse_for_actor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_gravi_impulse_for_actor', 1000);
+  _burer_aim_shield_delay_const:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_aim_shield_delay_const', 500);
+  _burer_aim_shield_delay_random:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_aim_shield_delay_random', 1000);  
 
   _burer_teleweapon_params.impulse:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_impulse', 0.1);
   _burer_teleweapon_params.allowed_angle:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_teleweapon_angle', 0.26);
@@ -1573,6 +1578,11 @@ end;
 function GetSkipFireAllProbability():single; stdcall;
 begin
   result:=_burer_skipfireall_prob;
+end;
+
+function GetBurerAimShieldDelay():cardinal; stdcall;
+begin
+  result:=_burer_aim_shield_delay_const + (random(_burer_aim_shield_delay_random));
 end;
 
 function GetHudSoundVolume():single;
