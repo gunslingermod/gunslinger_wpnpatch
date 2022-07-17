@@ -256,6 +256,8 @@ function GetPDAUpdatePeriod():cardinal; stdcall;
 function IsFastPdaZoom():boolean; stdcall;
 function IsSavePdaZoomState():boolean; stdcall;
 
+function GetInventoryShowAnimator():PChar;
+
 function GetLensRenderFactor():cardinal;  stdcall;
 function IsLensEnabled():boolean;
 function IsForcedLens:boolean;  stdcall;
@@ -358,6 +360,7 @@ var
   _burn_animator_section:PChar;
   _kick_animator:PChar;
   _pda_show_animator:PChar;
+  _inventory_show_animator:PChar;
 
   _quickuse_functor:PChar;
   _nv_mask_update_functor:PChar;
@@ -1114,6 +1117,12 @@ begin
   _kick_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'kick_animator');
   _pda_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'pda_show_animator');
 
+  if game_ini_line_exist(GUNSL_BASE_SECTION, 'inventory_show_animator') then begin
+    _inventory_show_animator:=game_ini_read_string(GUNSL_BASE_SECTION, 'inventory_show_animator');
+  end else begin
+    _inventory_show_animator:=nil;  
+  end;
+
   _is_animated_addons:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'animated_addons', false);
   _is_mandatory_animated_unload_mag:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'mandatory_animated_unload_mag', false);
 
@@ -1372,6 +1381,11 @@ end;
 function GetPDAShowAnimator():PChar;
 begin
   result:=_pda_show_animator;
+end;
+
+function GetInventoryShowAnimator():PChar;
+begin
+  result:=_inventory_show_animator;
 end;
 
 function GetLensRenderFactor():cardinal; stdcall;

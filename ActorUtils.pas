@@ -57,6 +57,7 @@ const
   kfQUICKKICK:cardinal = $8000;
   kfPDAHIDE:cardinal = $10000;
   kfPDASHOW:cardinal = $20000;
+  kfINVENTORYSHOW:cardinal=$40000;
 
 
 type
@@ -341,6 +342,8 @@ procedure CEntityCondition__ChangeBleeding_custom(cond:pCEntityCondition; percen
 
 function IsItemActionAnimator(itm:pointer):boolean; stdcall;
 procedure PlanActorKickAnimator(kick_types_section:string);
+
+procedure OnInventoryShowAttempt(); stdcall;
 
 const
 	eBoostHpRestore:cardinal=0;
@@ -1652,6 +1655,12 @@ begin
     end;
   end;
 
+  if ((_keyflags and kfINVENTORYSHOW)<>0) then begin
+    if (wpn=nil) or CanStartAction(wpn) then begin
+      OnInventoryShowAttempt();
+      SetActorKeyRepeatFlag(kfINVENTORYSHOW, false);
+    end;
+  end;
 
 
 {  //принудительный сброс бега во время действия
@@ -2138,6 +2147,17 @@ begin
       end;      
     end;
     _was_pda_animator_spawned:=false;
+  end;
+
+  // Обработка анимированного рюкзака
+  if (GetInventoryShowAnimator()<>nil) and (GetActorActiveItem()<>nil) and (GetInventoryShowAnimator()=GetSection(GetActorActiveItem())) then begin
+    if not IsInventoryShown() and (GetCurrentState(GetActorActiveItem()) = EHudStates__eIdle) then begin
+      if GetCurrentState(GetActorActiveItem()) = EHudStates__eBore then begin
+        ActivateActorSlot__CInventory(GetActorPreviousSlot(), false); //ActivateActorSlot не сможет скрыть :(
+      end else begin
+        ActivateActorSlot(GetActorPreviousSlot());
+      end;    
+    end;
   end;
 
   if (itm<>nil) and (WpnCanShoot(itm)) then begin
@@ -4561,6 +4581,12 @@ asm
   call CEntityCondition__ChangeBleeding_reimpl
   popad
   ret 4
+end;
+
+procedure OnInventoryShowAttempt(); stdcall;
+begin
+  // Пробуем заспавнить аниматор инвентаря
+  OnActorSwithesSmth(nil, GetInventoryShowAnimator(), nil, nil, kfINVENTORYSHOW, @FakeCallback, 0)
 end;
 
 function Init():boolean; stdcall;

@@ -1685,6 +1685,10 @@ begin
      end else if (leftstr(GetActualCurrentAnim(wpn), length('anm_hide_emerg'))='anm_hide_emerg') then begin
        virtual_CHudItem_SwitchState(wpn, EHudStates__eHidden);
      end;
+  end else if GetSection(wpn)=GetInventoryShowAnimator() then begin
+    if state = EHudStates__eShowing then begin
+      ShowInventory();
+    end;
   end;
 end;
 

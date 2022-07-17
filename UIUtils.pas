@@ -276,6 +276,9 @@ procedure virtual_CUISimpleWindow__SetWndPos(wnd:pCUISimpleWindow; pos:pFVector2
 procedure virtual_CUILightAnimColorConroller__SetColorAnimation(this:pCUILightAnimColorConroller; name:pansichar; flags:pbyte; delay:single); stdcall;
 
 function IsInventoryShown():boolean; stdcall;
+procedure ShowInventory(); stdcall;
+procedure HideInventory(); stdcall;
+
 function IsActorBurned():boolean; stdcall;
 
 function Init():boolean;stdcall;
@@ -432,6 +435,32 @@ asm
 
     @finish:
   popad
+end;
+
+procedure ToggleActorMenu(); stdcall;
+asm
+  pushad
+    call CurrentGameUI
+    cmp eax, 0
+    je @finish
+
+    mov ecx, eax
+    mov ebx, xrgame_addr
+    add ebx, $4b1b80 // CUIGameCustom::ShowActorMenu
+    call ebx
+
+    @finish:
+  popad
+end;
+
+procedure ShowInventory(); stdcall;
+begin
+  if not IsInventoryShown() then ToggleActorMenu();
+end;
+
+procedure HideInventory(); stdcall;
+begin
+  if IsInventoryShown() then ToggleActorMenu();
 end;
 
 function IsPDAWindowEnabled():boolean; stdcall;
@@ -1826,6 +1855,38 @@ asm
   @finish:
 end;
 
+function OnInventoryKeyPress():boolean; stdcall;
+var
+  inventory_animator:PAnsiChar;
+begin
+  // вернуть false если отображать инвентарь сейчас не требуется, иначе true
+  inventory_animator:=GetInventoryShowAnimator();
+
+  result:=true;
+  if inventory_animator<>nil then begin
+    result:=false;
+    OnInventoryShowAttempt();
+  end;
+end;
+
+procedure CUIGameSP__IR_UIOnKeyboardPress_oninventoryopen_Patch(); stdcall;
+asm
+  pushad
+  call OnInventoryKeyPress
+  test al, al
+  popad
+
+  je @skip_inventory_show
+
+  // original
+  lea ecx, [ebx-$10]
+  mov eax, xrgame_addr
+  add eax, $4b1b80
+  call eax // ShowActorMenu();
+
+  @skip_inventory_show:
+end;
+
 function NeedHideMoveToBugItem(slot:cardinal):boolean; stdcall;
 begin
   result:=(slot = 4);
@@ -2004,6 +2065,44 @@ asm
   popad
 
   mov edx,[eax+$150] // original
+end;
+
+procedure UpdateWeaponIcon(wpn:pointer; UIWeaponCellItem:pCUIStatic); stdcall;
+var
+  x, y, dx, dy, w, h:single;
+const
+  CELL_SIZE:single=50;
+begin
+  // обновляем иконку оружия в зависимости от установленных аддонов
+
+  if GetInstalledUpgradesCount(wpn) > 0 then begin
+    dx:=ModifyFloatUpgradedValue(wpn, 'inv_grid_x', 0);
+    dy:=ModifyFloatUpgradedValue(wpn, 'inv_grid_y', 0);
+    if (abs(dx)>0.5) or (abs(dy)>0.5) then begin
+      x:=game_ini_r_single(GetSection(wpn), 'inv_grid_x');
+      y:=game_ini_r_single(GetSection(wpn), 'inv_grid_y');
+      w:=game_ini_r_single(GetSection(wpn), 'inv_grid_width');
+      h:=game_ini_r_single(GetSection(wpn), 'inv_grid_height');
+      UIWeaponCellItem.m_UIStaticItem.TextureRect.lt.x:=floor((x+dx)*CELL_SIZE);
+      UIWeaponCellItem.m_UIStaticItem.TextureRect.lt.y:=floor((y+dy)*CELL_SIZE);
+      UIWeaponCellItem.m_UIStaticItem.TextureRect.rb.x:=floor((x+w+dx)*CELL_SIZE);
+      UIWeaponCellItem.m_UIStaticItem.TextureRect.rb.y:=floor((y+h+dy)*CELL_SIZE);     
+
+    end;
+  end;
+end;
+
+procedure CUIWeaponCellItem__Update_Patch(); stdcall;
+asm
+  pushad
+  mov ecx,[esi+$110] // weapon object from m_pData
+  push esi //this
+  push ecx
+  call UpdateWeaponIcon
+  popad
+
+  //original
+  mov bl,[esi+$C8]
 end;
 
 procedure ui_actor_state_wnd__UpdateActorInfo_burnicon_Patch(); stdcall;
@@ -2188,6 +2287,10 @@ begin
   jmp_addr:=xrGame_addr+$4b620f;
   if not WriteJump(jmp_addr, cardinal(@CUIGameSP__IR_UIOnKeyboardPress_disabletask_Patch), 7, true) then exit;
 
+  // в CUIGameSP::IR_UIOnKeyboardPress добавляем обработку вызова окна инвентаря
+  jmp_addr:=xrGame_addr+$4b61ff;
+  if not WriteJump(jmp_addr, cardinal(@CUIGameSP__IR_UIOnKeyboardPress_oninventoryopen_Patch), 8, true) then exit;
+
   // [bug] в CUIGameSP::OnFrame удаляем отображение активного задания, если мы вошли в прицеливание
   jmp_addr:=xrGame_addr+$4b5983;
   if not WriteJump(jmp_addr, cardinal(@CUIGameSP__OnFrame_disabletask_Patch), 5, true) then exit;
@@ -2216,6 +2319,10 @@ begin
   jmp_addr:=xrGame_addr+$49df80;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_forceaddonupdate_Patch), 11, true) then exit;
 
+  //в CUIWeaponCellItem::Update производим дополнительные действия
+  jmp_addr:=xrGame_addr+$49df67;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_Patch), 6, true) then exit;
+
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
@@ -2234,6 +2341,7 @@ begin
   //CAI_Stalker::update_sell_info - xrgame.dll+18e3b0
   //CAI_Stalker::tradable_item - xrgame.dll+18e240
   //CUIWeaponCellItem::Update - xrgame.dll+49df60
+  //CUIWeaponCellItem::InitAddon - xrgame.dll+49d7c0
   //ui_actor_state_wnd::UpdateActorInfo - xrgame.dll+46ff40
 
   result:=true;
