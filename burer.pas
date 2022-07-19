@@ -5,9 +5,10 @@ interface
 
 function Init():boolean; stdcall;
 function GetLastSuperStaminaHitTime():cardinal; stdcall;
+function IsKnifeSelfKickNeeded():boolean;
 
 implementation
-uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils, vector, physics;
+uses BaseGameData, Misc, MatVectors, ActorUtils, gunsl_config, sysutils, HudItemUtils, RayPick, dynamic_caster, WeaponAdditionalBuffer, HitUtils, Throwable, KeyUtils, math, ScriptFunctors, UIUtils, vector, physics, strutils;
 
 var
   _gren_count:cardinal; //по-хорошему - надо сделать членом класса, но и так сойдет - однопоточность же
@@ -17,6 +18,8 @@ var
   _last_aimed_burer_id:cardinal;
   _last_aimed_burer_shield_stop_time:cardinal;
 
+  _need_knife_selfkick_time:cardinal;
+
 const
   ACTOR_HEAD_CORRECTION_HEIGHT:single = 2;
   BURER_HEAD_CORRECTION_HEIGHT:single = 1;
@@ -24,6 +27,16 @@ const
   MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT:single=0.2;
   MIN_GRAVI_LOCK_TIME_BEFORE_SHOT:single=1.5;
   MAX_TELE_GREN_COUNT:cardinal=3;
+
+function IsKnifeSelfKickNeeded():boolean;
+begin
+  result:=GetGameTickCount()<_need_knife_selfkick_time;
+end;
+
+procedure AssignSelfKick();
+begin
+  _need_knife_selfkick_time:=GetGameTickCount()+GetBurerSelfKickWindowTime();
+end;
 
 
 function IsLongRecharge(itm:pointer; min_time:single):boolean;
@@ -87,12 +100,16 @@ function IsWeaponDangerous(itm:pointer; burer:pointer):boolean; stdcall;
 var
   gl_status:cardinal;
   in_gl:boolean;
+  curanm:PAnsiChar;
 begin
   result:=false;
   if itm=nil then begin
     exit;
   end else if (IsKnife(itm) or (GetKickAnimator() = GetSection(itm))) and IsActorTooClose(burer, GetBurerForceantiaimDist()) then begin
-    result:=true;
+    curanm:=GetActualCurrentAnim(itm);
+    if (leftstr(curanm, length('anm_selfkick'))  <> 'anm_selfkick') and (rightstr(curanm, length('_suicide'))  <> '_suicide') then begin
+      result:=true;
+    end;
   end else if IsBino(itm) then begin
     result:=false;
   end else if IsThrowable(itm) then begin
@@ -596,10 +613,20 @@ begin
 
   if itm<>nil then begin
     if IsKnife(itm) or (GetKickAnimator() = GetSection(itm)) then begin
-      if ss_params.force_hide_items_prob < random then begin
-        script_call('gunsl_burer.on_close_antiknife', '', GetCObjectID(burer));
-        ActivateActorSlot__CInventory(0, true);
-        PlanActorKickAnimator('burer_kicks');
+      if IsKnife(itm) and IsBurerKnifeSelfKick() then begin
+        if (GetCurrentState(itm)<>EWeaponStates__eFire) and (GetCurrentState(itm)<>EWeaponStates__eFire2) then begin
+          LogBurerLogic('antiknife - selfkick');
+          script_call('gunsl_burer.on_close_antiknife_selfkick', '', GetCObjectID(burer));
+          AssignSelfKick();
+          virtual_CHudItem_SwitchState(itm, EWeaponStates__eFire);
+        end;
+      end else begin
+        if ss_params.force_hide_items_prob < random then begin
+          LogBurerLogic('antiknife - forcehide');        
+          script_call('gunsl_burer.on_close_antiknife', '', GetCObjectID(burer));
+          ActivateActorSlot__CInventory(0, true);
+          PlanActorKickAnimator('burer_kicks');
+        end;
       end;
     end else if IsThrowable(itm) then begin
       state:=GetCurrentState(itm);
@@ -674,7 +701,12 @@ begin
   end;
 
   itm:=GetActorActiveItem();
-  if (itm<>nil) and IsLongRecharge(itm, 1.5*MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) then begin
+  if itm = nil then begin
+    result:=false;
+    exit;
+  end;
+
+  if IsLongRecharge(itm, 1.5*MIN_ANTIAIM_LOCK_TIME_BEFORE_SHOT) then begin
     result:=false;
     exit;
   end;
@@ -700,12 +732,16 @@ begin
 
   if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
     //TODO: не снимать щит без проверки возможности anti-aim
-
     result:= random > GetBurerShieldedRiskyFactor();
     if not result and (under_aim_exact_now or sniper_danger) then begin
       // Если решено рискнуть, но мы под прицелом
       result := not script_bool_call('gunsl_burer.on_risky_under_aim', '', GetCObjectID(burer),'');
     end;
+
+    if not result and IsKnife(itm) and IsBurerKnifeSelfKick() then begin
+      AssignSelfKick();
+    end;
+
 
     if not result then begin
       LogBurerLogic('Risky!');
@@ -1873,10 +1909,18 @@ asm
 end;
 
 procedure RunBurerDropAnimator(burer:pointer; do_weapon_drop:byte); stdcall;
+var
+  itm:pointer;
 begin
+  LogBurerLogic('RunBurerDropAnimator ' + inttostr(do_weapon_drop));
+
+  itm:=GetActorActiveItem();
   if do_weapon_drop<>0 then begin
-    script_call('gunsl_burer.on_drop_animator', '', GetCObjectID(burer));
-    PlanActorKickAnimator('burer_kicks');
+    if (itm<>nil) and not (IsKnife(itm) and IsBurerKnifeSelfKick()) then begin
+      script_call('gunsl_burer.on_drop_animator', '', GetCObjectID(burer));
+      PlanActorKickAnimator('burer_kicks');
+      LogBurerLogic('RunBurerDropAnimator - plan kick');
+    end;
   end else begin
     script_call('gunsl_burer.on_stamina_hit_nodrop', '', GetCObjectID(burer));
   end;
@@ -1953,12 +1997,13 @@ asm
 
 end;
 
-
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
 begin
   result:=false;
+
+  _need_knife_selfkick_time:=0;
 
   //в CBurer::StaminaHit (xrgame+102730) - увеличивает урон стамине, если актор слишком близко
   jmp_addr:=xrGame_addr+$1027a2;

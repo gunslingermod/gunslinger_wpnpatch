@@ -199,6 +199,8 @@ begin
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_selfkill', 'sndSelfKill', 1, $80040000);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_stop_suicide', 'sndStopSuicide', 1, $FFFFFFFF);
 
+  HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_selfkick', 'sndSelfKick', 1, $FFFFFFFF);
+
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scream_1', 'sndScream1', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scream_2', 'sndScream2', 1, $FFFFFFFF);
   HUD_SOUND_COLLECTION__LoadSound(hsc, section, 'snd_scream_3', 'sndScream3', 1, $FFFFFFFF);

@@ -1185,6 +1185,10 @@ begin
       NotifySuicideStopCallbackIfNeeded();
       ResetActorControl();
       exit;
+    end else if IsKnifeSelfKickNeeded() then begin
+      CHudItem_Play_Snd(knife, 'sndSelfKick');
+      result:='anm_selfkick';
+      exit;
     end;
   end;
 
@@ -1632,7 +1636,7 @@ begin
   if (wpn=GetActorActiveItem) and (GetActualCurrentAnim(wpn)='anm_selfkill') then begin
     KillActor(act, act);
   end;
-  
+
   //ВНИМАНИЕ! Зачастую CWeapon__OnAnimationEnd и так вызовется из-за передачи управления методу родителя, см. код игры
   CWeapon__OnAnimationEnd(wpn);
 end;

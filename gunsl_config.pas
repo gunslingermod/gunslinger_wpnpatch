@@ -299,6 +299,8 @@ function GetBurerGraviImpulseForActor():single; stdcall;
 function GetBurerFlyParams():burer_fly_params;
 function GetSkipFireAllProbability():single; stdcall;
 function GetBurerAimShieldDelay():cardinal; stdcall;
+function GetBurerSelfKickWindowTime():integer; stdcall;
+function IsBurerKnifeSelfKick():boolean; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -398,6 +400,7 @@ var
   _burer_skipfireall_prob:single;
   _burer_aim_shield_delay_const:cardinal;
   _burer_aim_shield_delay_random:cardinal;
+  _burer_selfkick_window_time:integer;
 
   _burer_superstaminahit_params:burer_superstamina_hit_params;
   _burer_teleweapon_params:burer_teleweapon_params;
@@ -1213,6 +1216,8 @@ begin
 
   _burer_skipfireall_prob:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_skip_fireall_probability', 0.8);
 
+  _burer_selfkick_window_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_knife_selfkick_window_time', 500);
+
   _burer_fly_params.enabled:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'burer_fly_params_enabled', false);
   _burer_fly_params.max_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_max_dist', 50);
   _burer_fly_params.critical_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_fly_params_critical_dist', 5);
@@ -1597,6 +1602,16 @@ end;
 function GetBurerAimShieldDelay():cardinal; stdcall;
 begin
   result:=_burer_aim_shield_delay_const + (random(_burer_aim_shield_delay_random));
+end;
+
+function GetBurerSelfKickWindowTime():integer; stdcall;
+begin
+  result:=_burer_selfkick_window_time;
+end;
+
+function IsBurerKnifeSelfKick():boolean; stdcall;
+begin
+  result:=GetBurerSelfKickWindowTime()>0;
 end;
 
 function GetHudSoundVolume():single;
