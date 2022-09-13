@@ -10,9 +10,6 @@ procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 implementation
 uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster, UIUtils, xr_RocketLauncher, KeyUtils;
 
-var patch_addr:cardinal;
-  tst_light:pointer;
-
 function NeedUpdateBonesCheck(wpn:pointer):boolean;
 var
   buf:WpnBuf;
@@ -933,7 +930,7 @@ begin
 
       need_bones_recheck:=NeedUpdateBonesCheck(wpn);
 
-      if need_bones_recheck then begin
+      if need_bones_recheck or ((GetOwner(wpn)=GetActor()) and (GetActor()<>nil) and (GetCurrentFrame() mod 10 = 0) ) then begin
         //Обработаем установленные апгрейды
         upgrade_results:=ProcessUpgrade(wpn);
         if (GetInstalledUpgradesCount(wpn)>0) and (not upgrade_results.hud_overriden) then begin
@@ -1089,9 +1086,10 @@ asm
 end;
 
 function Init:boolean;
+var
+  patch_addr:cardinal;
 begin
   result:=false;
-  tst_light:=nil;
 
 //может прилететь что-то невалидное - отрубим
 //  patch_addr:=xrGame_addr+$2C04A0;
