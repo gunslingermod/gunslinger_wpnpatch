@@ -345,6 +345,8 @@ procedure PlanActorKickAnimator(kick_types_section:string);
 
 procedure OnInventoryShowAttempt(); stdcall;
 
+function IsTacticHudInstalled():boolean; stdcall;
+
 const
 	eBoostHpRestore:cardinal=0;
 	eBoostPowerRestore:cardinal=1;
@@ -3044,7 +3046,7 @@ asm
   @finish:
 end;
 
-function IsTacticHudInstalled():boolean;
+function IsTacticHudInstalled():boolean; stdcall;
 var
   act:pointer;
   helmet:pointer;

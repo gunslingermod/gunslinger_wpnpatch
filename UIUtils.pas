@@ -297,7 +297,7 @@ uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils,
 
 var
   register_level_isuishown_ret:cardinal;
-  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr, IsActorBurned_adapter_ptr, IsPickupMode_adapter_ptr:pointer;
+  IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr, IsActorBurned_adapter_ptr, IsPickupMode_adapter_ptr, IsTacticHudInstalled_adapter_ptr:pointer;
   ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, valid_saved_game_int_ptr:pointer;
   CUIInventoryUpgradeWnd__m_btn_disassemble:pCUI3tButton;
 
@@ -529,6 +529,17 @@ begin
 asm
   pushad
     call IsInventoryShown
+    mov @result, al
+  popad
+end;
+end;
+
+
+function IsTacticHudInstalled_adapter():boolean; stdcall;
+begin
+asm
+  pushad
+    call IsTacticHudInstalled
     mov @result, al
   popad
 end;
@@ -859,6 +870,7 @@ const
   name2:PChar='indicators_shown';
   name3:PChar='inventory_shown';
   name4:PChar='pickup_mode';
+  name5:PChar='is_tactical_hud';
 
   name_electroproblem_begin:PChar='electronics_break';
   name_electroproblem_end:PChar='electronics_restore';
@@ -1076,6 +1088,7 @@ asm
   push ecx
   mov ecx, eax
   call esi
+
   ////////////////////////////
 
   push eax
@@ -1099,6 +1112,31 @@ asm
   push ecx
   mov ecx, eax
   call esi
+
+  ////////////////////////////
+
+  push eax
+
+  mov ecx, IsTacticHudInstalled_adapter_ptr
+  push ecx
+  mov ecx, esp
+  push name5
+  push ecx
+  mov ecx, xrgame_addr
+  add ecx, $1FF277;
+  call ecx
+
+  pop ecx
+  pop ecx
+  pop ecx
+
+  pop eax
+
+
+  push ecx
+  mov ecx, eax
+  call esi
+
   ///////////////////////////////
   push eax
 
@@ -2151,7 +2189,8 @@ begin
   IsUIShown_ptr:=@IsUIShown;
   IndicatorsShown_adapter_ptr:=@IndicatorsShown_adapter;
   IsInventoryShown_adapter_ptr:=@IsInventoryShown_adapter;
-  IsPickupMode_adapter_ptr:=@IsPickupMode_adapter;  
+  IsPickupMode_adapter_ptr:=@IsPickupMode_adapter;
+  IsTacticHudInstalled_adapter_ptr:=@IsTacticHudInstalled_adapter;
   ElectronicProblemsBegin_ptr:=@ElectronicProblemsBegin;
   ElectronicProblemsEnd_ptr:=@ElectronicProblemsEnd;
   ElectronicProblemsReset_ptr:=@ElectronicProblemsReset;
