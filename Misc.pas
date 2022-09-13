@@ -1719,6 +1719,20 @@ begin
   jmp_addr:=xrGame_addr+$3f0e35;
   if not WriteJump(jmp_addr, cardinal(@CSE_ALifeItemWeapon_exports_Patch), 5, true) then exit;
 
+  // отключаем кеширование шейдеров в CRender::shader_compile
+  if not IsShadersCacheNeeded() then begin
+    // мен€ем test eax, eax на xor eax, eax после FS.exist(file_name), заставл€€ игру думать, что файл не кеширован
+    if xrRender_R1_addr<>0 then begin
+      nop_code(xrRender_R1_addr+$6999, 1, chr($31));    
+    end else if xrRender_R2_addr<>0 then begin
+      nop_code(xrRender_R2_addr+$7fb6, 1, chr($31));    
+    end else if xrRender_R3_addr<>0 then begin
+      nop_code(xrRender_R3_addr+$18af6, 1, chr($31));
+    end else if xrRender_R4_addr<>0 then begin
+      nop_code(xrRender_R4_addr+$18ad6, 1, chr($31));
+    end;
+  end;
+
   result:=true;
 end;
 

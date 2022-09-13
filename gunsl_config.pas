@@ -315,6 +315,8 @@ function GetActorBurnRestoreSpeed():single;
 
 function GetBobbingEffectorParams():bobbing_effector_params;
 
+function IsShadersCacheNeeded():boolean;
+
 var
   g_pickup_distance:single;
 
@@ -467,6 +469,8 @@ var
 
   CCC_pdaautozoom:CCC_Mask;
   CCC_savezoomstate:CCC_Mask;
+
+  _shader_cache_needed:boolean;
 
 //маски для флагов
 const
@@ -1243,6 +1247,8 @@ begin
 
   if not ReadBobbingEffectorParams() then exit;
 
+  _shader_cache_needed:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_shaders_cache', true);
+
   result:=true;
 end;
 
@@ -1646,6 +1652,11 @@ end;
 function GetBobbingEffectorParams():bobbing_effector_params;
 begin
   result:=_bobbing_effector_params;
+end;
+
+function IsShadersCacheNeeded():boolean;
+begin
+  result:=_shader_cache_needed;
 end;
 
 end.
