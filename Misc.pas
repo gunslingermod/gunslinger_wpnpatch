@@ -1723,13 +1723,25 @@ begin
   if not IsShadersCacheNeeded() then begin
     // мен€ем test eax, eax на xor eax, eax после FS.exist(file_name), заставл€€ игру думать, что файл не кеширован
     if xrRender_R1_addr<>0 then begin
-      nop_code(xrRender_R1_addr+$6999, 1, chr($31));    
+      nop_code(xrRender_R1_addr+$6999, 1, chr($31));
     end else if xrRender_R2_addr<>0 then begin
-      nop_code(xrRender_R2_addr+$7fb6, 1, chr($31));    
+      nop_code(xrRender_R2_addr+$7fb6, 1, chr($31));
     end else if xrRender_R3_addr<>0 then begin
       nop_code(xrRender_R3_addr+$18af6, 1, chr($31));
     end else if xrRender_R4_addr<>0 then begin
       nop_code(xrRender_R4_addr+$18ad6, 1, chr($31));
+    end;
+
+    //отключаем попытки записать скомпилированный шейдер в кеш
+    if xrRender_R1_addr<>0 then begin
+      nop_code(xrRender_R1_addr+$6ac6, $CB);
+    end else if xrRender_R2_addr<>0 then begin
+      nop_code(xrRender_R2_addr+$811e, $CC);
+    end else if xrRender_R3_addr<>0 then begin
+      nop_code(xrRender_R3_addr+$18c1f, $CC);
+    end else if xrRender_R4_addr<>0 then begin
+      nop_code(xrRender_R4_addr+$18c1c, $CA);
+      nop_code(xrRender_R4_addr+$18c1c, 1, chr($58));
     end;
   end;
 
