@@ -180,6 +180,7 @@ const
   function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
   function game_ini_r_bool_def(section:PChar; key:PChar; def:boolean; is_default:pboolean=nil):boolean;stdcall;
   function game_ini_r_int_def(section:PChar; key:PChar; def:integer; is_default:pboolean=nil):integer; stdcall;
+  function game_ini_r_line(section:PChar; idx:integer; n:PPAnsiChar; v:PPAnsiChar):boolean;stdcall;
   function translate(text:PChar):PChar;stdcall;
 
   type cached_cfg_param_float = packed record
@@ -662,6 +663,28 @@ begin
     result:=def^;
 end;
 
+function game_ini_r_line(section:PChar; idx:integer; n:PPAnsiChar; v:PPAnsiChar):boolean;stdcall;
+asm
+    pushad
+    pushfd
+
+    push v
+    push n
+    push idx
+    push section
+
+    call GetGameIni
+    mov ecx, eax
+
+    mov eax, xrCore_addr
+    add eax, $18A40
+    call eax
+    mov @result, al
+
+    popfd
+    popad
+end;
+
 function translate(text:PChar):PChar;stdcall;
 asm
   pushad
@@ -895,6 +918,33 @@ begin
   result:=true;
 end;
 
+function FixConsoleCommandsValues():boolean;
+var
+  i, cnt:integer;
+  param, val:PAnsiChar;
+  fix_result:ConsoleCommandFixResult;
+const
+  FIX_SECTION:PAnsiChar = 'gunslinger_fixed_commands';
+begin
+  result:=false;
+
+  i:=0;
+  cnt:=0;
+  while game_ini_r_line(FIX_SECTION, i, @param, @val) do begin
+    fix_result:=FixConsoleCommandValue(param, val);
+    if fix_result<>CONSOLE_FIX_RESULT_SUCCESS then begin
+      Log('Can''t fix "'+param+'" to "'+val+'" - '+ConsoleCommandFixResultToString(fix_result), true);
+    end else begin
+      cnt:=cnt+1;
+    end;
+    i:=i+1;
+  end;
+
+  Log('Fixed commands count: '+inttostr(cnt));
+
+  result:=true;
+end;
+
 function ReadBobbingEffectorParams():boolean;
 const
   SECT:PChar='bobbing_effector';
@@ -1028,6 +1078,8 @@ begin
   fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'fov', 65);
   hud_fov:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'hud_fov', 30);
   _hud_sound_volume:=1.0;
+
+  if not FixConsoleCommandsValues() then exit;
 
   def_zoom_dof.x:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_near', 0.5);
   def_zoom_dof.y:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'default_zoom_dof_focus', 0.8);

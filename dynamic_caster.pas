@@ -49,12 +49,13 @@ const
   RTTI_CTelekinesis:cardinal = $61dbec;
   RTTI_CBurer:cardinal = $620238;
   RTTI_CBaseMonster:cardinal = $61d7f0;
-  RTTI_CUIActorMenu = $63ee68;
-  RTTI_CUICustomMap = $63f030;
-  RTTI_CUIMiniMap = $63f0a4;
-  RTTI_CBolt = $62c520;  
-
-
+  RTTI_CUIActorMenu:cardinal = $63ee68;
+  RTTI_CUICustomMap:cardinal = $63f030;
+  RTTI_CUIMiniMap:cardinal = $63f0a4;
+  RTTI_CBolt:cardinal = $62c520;
+  RTTI_IConsole_Command:cardinal = $635980;
+  RTTI_CCC_Float:cardinal = $638b90;
+  RTTI_CCC_Integer:cardinal = $638310;
 
 implementation
 uses BaseGameData;
