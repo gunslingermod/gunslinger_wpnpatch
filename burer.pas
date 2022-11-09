@@ -686,6 +686,41 @@ asm
   ret
 end;
 
+var
+  g_antiaim_allowed:byte;
+procedure CStateBurerAttack__check_control_start_conditions_reimpl_Patch(); stdcall;
+asm
+  cmp g_antiaim_allowed, 0
+  jne @ret_true
+
+  //original
+  cmp dword ptr [esp+04],$12 // if ( type == ControlCom::eAntiAim )
+  jne @ret_true
+  mov al,[ecx+$32] // m_allow_anti_aim
+  ret 4
+
+  @ret_true:
+  mov al, 1
+  ret 4
+end;
+
+function IsAntiAimReady(burer:pointer):boolean; stdcall;
+asm
+  pushad
+
+  mov eax,burer
+  mov ecx,[eax+$968] // CBurer.m_anti_aim
+  mov edx,[ecx]
+  mov eax,[edx+$2C]
+
+  mov g_antiaim_allowed, 1
+  call eax           // call check_start_condition
+  mov g_antiaim_allowed, 0
+
+  mov @result, al
+  popad
+end;
+
 function CStateBurerShield__check_completion_MayIgnoreShieldTime(burer:pointer; last_shield_started:pcardinal):boolean; stdcall;
 var
   itm:pointer;
@@ -717,7 +752,7 @@ begin
     big_boom_ready:=IsWeaponReadyForBigBoom(itm, @big_boom_shooted);
   end;
 
-  under_aim_exact_now:=IsBurerUnderAim(burer, BurerUnderAimExact);
+  under_aim_exact_now:=IsBurerUnderAim(burer, BurerUnderAimNear);
   under_aim_exact_recent:=under_aim_exact_now;
   if under_aim_exact_now then begin
     _last_aimed_burer_id:=GetCObjectID(burer);
@@ -730,8 +765,7 @@ begin
   sniper_danger:=IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer);
   result:= NeedCloseProtectionShield(burer) or under_aim_exact_recent or IsBurerUnderAim(burer, BurerUnderAimNear) or sniper_danger or big_boom_shooted or (big_boom_ready and (GetCurrentState(itm) <> EWeaponStates__eReload) and not IsActorLookTurnedAway(burer));
 
-  if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) then begin
-    //TODO: не снимать щит без проверки возможности anti-aim
+  if result and not big_boom_shooted and (GetCurrentState(itm)=EHudStates__eIdle) and IsAntiAimReady(burer) then begin
     result:= random > GetBurerShieldedRiskyFactor();
     if not result and (under_aim_exact_now or sniper_danger) then begin
       // Если решено рискнуть, но мы под прицелом
@@ -741,7 +775,6 @@ begin
     if not result and IsKnife(itm) and IsBurerKnifeSelfKick() then begin
       AssignSelfKick();
     end;
-
 
     if not result then begin
       LogBurerLogic('Risky!');
@@ -2238,6 +2271,11 @@ begin
   jmp_addr:=xrGame_addr+$106130;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAntiAim__check_start_conditions_reimpl_Patch), 5, false) then exit;
 
+  //переписываем CStateBurerAttack<Object>::check_control_start_conditions - игнорируем проверку на m_allow_anti_aim (так как выставить этот флаг нами проблематично) при проверке нами возможности старта антиаима бюрером
+  jmp_addr:=xrGame_addr+$10ab00;
+  if not WriteJump(jmp_addr, cardinal(@CStateBurerAttack__check_control_start_conditions_reimpl_Patch), 5, false) then exit;
+  g_antiaim_allowed:=0;
+
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield
 
@@ -2271,6 +2309,7 @@ begin
   //anti_aim_ability::update_schedule - xrgame.dll+cf9d0
   //anti_aim_ability::load_from_ini - xrgame.dll+cfeb0
   //CStateManagerBurer::execute - xrGame.dll+1039e0
+  //CStateBurerAttack<Object>::check_control_start_conditions - xrgame.dll+10ab00
 
   result:=true;
 end;
