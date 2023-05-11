@@ -1053,7 +1053,7 @@ begin
   end else if IsSniperWeapon(itm) and not IsActorLookTurnedAway(burer) and burer_see_actor then begin
     LogBurerLogic('NeedStopTeleAttack - Sniper');
     result:=true;
-  end else if IsBurerUnderAim(burer, BurerUnderAimNear) then begin
+  end else if IsBurerUnderAim(burer, BurerUnderAimNear) and ((GetCurrentState(itm)=EWeaponStates__eFire) or (GetCurrentState(itm)=EWeaponStates__eFire2) or is_long_tele or IsBurerUnderAim(burer, BurerUnderAimExact) ) then begin
     LogBurerLogic('NeedStopTeleAttack - UnderAim');
     result:=true;
   end else if IsWeaponReadyForBigBoom(itm, nil) and not IsActorLookTurnedAway(burer) and burer_see_actor then begin
