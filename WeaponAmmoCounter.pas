@@ -68,7 +68,7 @@ begin
   if (((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 
   //посмотрим, каков размер магазина у оружия и сколько патронов в нем сейчас
-  def_magsize:=GetMagCapacityInCurrentWeaponMode(wpn);
+  def_magsize:=GetMagCapacity(wpn);
   curammocnt:=GetCurrentAmmoCount(wpn);
 
   //теперь посмотрим на состояние оружия и подумаем, сколько патронов в него запихнуть
@@ -87,6 +87,7 @@ begin
   SetMagCapacityInCurrentWeaponMode(wpn, mod_magsize);
   virtual_CWeaponMagazined__ReloadMagazine(wpn);
   SetMagCapacityInCurrentWeaponMode(wpn, def_magsize);
+  buf.SetJustAfterReloadStatus(true);
 end;
 
 
@@ -278,6 +279,7 @@ begin
         SwapLastPrevAmmo(wpn);
       end;
     end;
+    buf.SetJustAfterReloadStatus(true);
   end else begin
     virtual_CWeaponShotgun__AddCartridge(wpn, 1); //дань оригинальному коду ;)
   end;

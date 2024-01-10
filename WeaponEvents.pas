@@ -26,14 +26,28 @@ var
 
 //-------------------------------Разряжание магазина-----------------------------
 procedure OnUnloadInEndOfAnim(wpn:pointer; param:integer);stdcall;
+var
+  buf:WpnBuf;
 begin
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    buf.SetJustAfterReloadStatus(false);
+  end;
+
   virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   ForceWpnHudBriefUpdate(wpn);
   SetAnimForceReassignStatus(wpn, true);
 end;
 
 procedure OnUnloadInMiddleAnim(wpn:pointer; param:integer);stdcall;
+var
+  buf:WpnBuf;
 begin
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    buf.SetJustAfterReloadStatus(false);
+  end;
+  
   virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   ForceWpnHudBriefUpdate(wpn);
   MakeLockByConfigParam(wpn, GetHUDSection(wpn), PChar('lock_time_end_'+GetActualCurrentAnim(wpn)));
@@ -543,6 +557,10 @@ begin
   end;
   SetAnimForceReassignStatus(wpn, true);
 
+  if GetAmmoInMagCount(wpn) = GetMagCapacity(wpn) then begin
+    buf.SetJustAfterReloadStatus(true);
+  end;
+
 end;
 
 procedure CWeapon_NetSpawn_Patch_middle();
@@ -758,6 +776,12 @@ begin
   result:=false;
 
   if IsGrenadeMode(wpn) then exit;
+
+  buf:=GetBuffer(wpn);
+  if (buf<>nil) and buf.IsJustAfterReload() and game_ini_r_bool_def(GetSection(wpn), 'no_jam_in_first_shot', false) then begin
+    result:=true;
+    exit;
+  end;
 
   ammoc:=GetAmmoInMagCount(wpn);
   if ammoc <= 0 then exit;
@@ -2713,6 +2737,25 @@ asm
   mov ecx, [edi+$38]
 end;
 
+procedure CWeaponMagazined__state_Fire_OnShot(wpn:pointer); stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then begin
+    buf.SetJustAfterReloadStatus(false);
+  end;
+end;
+
+procedure CWeaponMagazined__state_Fire_OnShot_Patch(); stdcall;
+asm
+  mov ecx, dword ptr [esi+$774]
+  pushad
+  push esi
+  call CWeaponMagazined__state_Fire_OnShot
+  popad
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -2996,6 +3039,10 @@ begin
 
   //В CWeaponMagazined::OnMagazineEmpty ликвидируем переход в стейт eMagEmpty
   if not nop_code(xrgame_addr+$2ccb20, 1, chr($eb)) then exit;
+
+  // в CWeaponMagazined::state_Fire обрабатываем событие выстрела (сразу после вызова OnShot)
+  jmp_addr:=xrGame_addr+$2d065c;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__state_Fire_OnShot_Patch), 6, true) then exit;
 
   result:=true;
 

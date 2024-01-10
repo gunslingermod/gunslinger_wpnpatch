@@ -198,6 +198,8 @@ begin
           anim_name:=anim_name+'_jammed';
         end else if (GetAmmoInMagCount(wpn)<=0) and not IsBM16(wpn) then begin
           anim_name:=anim_name+'_empty';
+        end else if IsFirstShotAnimationNeeded(wpn) and IsJustAfterReload(wpn) then begin
+          anim_name:=anim_name+'_first';
         end;
 
         ModifierGL(wpn, anim_name);
@@ -303,6 +305,8 @@ begin
         base_anim:=base_anim+'_jammed';
       end else if (GetAmmoInMagCount(wpn)<=0) and (not IsBM16(wpn)) then begin
         base_anim:=base_anim+'_empty';
+      end else if IsFirstShotAnimationNeeded(wpn) and IsJustAfterReload(wpn) then begin
+        base_anim:=base_anim+'_first';
       end;
 
       if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(base_anim+'_detector')) then begin
@@ -604,6 +608,10 @@ begin
       buf.SetPreloadedStatus(false);
     end;
 
+    if buf.IsFinalCloseAnimNeeded() and (GetMagCapacity(wpn) = GetAmmoInMagCount(wpn)) then begin
+      anim_name:=anim_name+'_final';    
+    end;
+
     buf.SetReloaded(false);
     hud_sect:=GetHUDSection(wpn);
     MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_'+anim_name));
@@ -884,6 +892,10 @@ begin
       modifier:=modifier+'_last';
     end;
 
+    if IsFirstShotAnimationNeeded(wpn) and IsJustAfterReload(wpn) then begin
+      anim_name:=anim_name+'_first';
+    end;
+
     if (IsActorSuicideNow() or IsSuicideInreversible()) and game_ini_r_bool_def(hud_sect, 'custom_suicide_shot', false) then begin
       modifier:=modifier+'_suicide';
     end;
@@ -1002,6 +1014,10 @@ begin
       end;
     end;
 
+    if IsFirstShotAnimationNeeded(wpn) and IsJustAfterReload(wpn) then begin
+      anim_name:=anim_name+'_first';
+    end;
+
     if IsHolderHasActiveDetector(wpn) and game_ini_line_exist(hud_sect, PChar(anim_name+'_detector')) then begin
        //log ('det+rel');
       anim_name:=anim_name+'_detector';
@@ -1071,6 +1087,8 @@ begin
       anim_name:=anim_name+'_jammed';
     end else if (GetAmmoInMagCount(wpn)<=0) then begin
       anim_name:=anim_name+'_empty';
+    end else if IsFirstShotAnimationNeeded(wpn) and IsJustAfterReload(wpn) then begin
+      anim_name:=anim_name+'_first';
     end;   
 
     if (GetCurrentAmmoCount(wpn)>0) and  (GetAmmoTypeChangingStatus(wpn)<>$FF) then begin
@@ -2264,7 +2282,6 @@ begin
   // в CWeaponMagazined::OnShot пропускаем вызовы назначения новых звуков выстрела, если у нас зацикленная анимка
   jump_addr:=xrGame_addr+$2ccc88;
   if not WriteJump(jump_addr, cardinal(@CWeaponMagazined__OnShot_SkipAssignSound_Patch), 7, true) then exit;
-  
 
   result:=true;
 end;

@@ -87,6 +87,9 @@ type
 
     _reloaded:boolean;
     _ammocnt_before_reload:integer;
+    _is_just_after_reload:boolean;
+    _need_first_shoot_anims:boolean;
+    _need_final_close_anim:boolean;
 
     _needs_unzoom:boolean;
 
@@ -205,6 +208,10 @@ type
     function IsReloaded():boolean;stdcall;
     procedure SetReloaded(status:boolean);stdcall;
 
+    function IsJustAfterReload():boolean; stdcall;
+    procedure SetJustAfterReloadStatus(status:boolean); stdcall;
+    function IsFirstShootAnimationsEnabled():boolean; stdcall;
+
     procedure SetAnimForceReassignStatus(status:boolean);stdcall;
     function GetAnimForceReassignStatus():boolean;stdcall;
 
@@ -261,6 +268,8 @@ type
     function IsPreloadMode():boolean;
     function IsPreloaded():boolean;
     procedure SetPreloadedStatus(status:boolean);
+
+    function IsFinalCloseAnimNeeded():boolean;
 
     function NeedPermanentLensRendering():boolean;
     procedure SetPermanentLensRenderingStatus(status:boolean);
@@ -331,6 +340,8 @@ type
 
   function IsReloaded(wpn:pointer):boolean;stdcall;
   procedure SetReloaded(wpn:pointer; status:boolean);stdcall;
+  function IsJustAfterReload(wpn:pointer):boolean;stdcall;
+  function IsFirstShotAnimationNeeded(wpn:pointer):boolean;stdcall;
   procedure SetBeforeReloadAmmoCnt(wpn:pointer; cnt:integer);stdcall;
   function GetBeforeReloadAmmoCnt(wpn:pointer):integer;stdcall;
   procedure SetAnimForceReassignStatus(wpn:pointer; status:boolean);stdcall;
@@ -486,6 +497,10 @@ begin
   _default_hud_sect_sil:=game_ini_read_string_def(GetSection(wpn), 'hud_silencer', nil);
   _default_hud_sect_gl:=game_ini_read_string_def(GetSection(wpn), 'hud_gl', nil);
   _default_hud_sect_scope:=game_ini_read_string_def(GetSection(wpn), 'hud_scope', nil);
+
+  _is_just_after_reload:=false;
+  _need_first_shoot_anims:=game_ini_r_bool_def(GetSection(wpn), 'need_first_shoot_anims', false);
+  _need_final_close_anim:=game_ini_r_bool_def(GetSection(wpn), 'need_final_close_anims', false);
 
 end;
 
@@ -660,6 +675,21 @@ end;
 procedure WpnBuf.SetReloaded(status: boolean); stdcall;
 begin
   self._reloaded:=status;
+end;
+
+function WpnBuf.IsJustAfterReload():boolean; stdcall;
+begin
+  result:=_is_just_after_reload;
+end;
+
+procedure WpnBuf.SetJustAfterReloadStatus(status:boolean); stdcall;
+begin
+  _is_just_after_reload:=status;
+end;
+
+function WpnBuf.IsFirstShootAnimationsEnabled():boolean; stdcall;
+begin
+  result:=_need_first_shoot_anims;
 end;
 
 procedure WpnBuf.SetAnimForceReassignStatus(status:boolean);stdcall;
@@ -1096,6 +1126,28 @@ begin
   if buf<>nil then buf.SetReloaded(status);
 end;
 
+function IsJustAfterReload(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.IsJustAfterReload()
+  else
+    result:=false;
+end;
+
+function IsFirstShotAnimationNeeded(wpn:pointer):boolean;stdcall;
+var
+  buf:WpnBuf;
+begin
+  buf:=GetBuffer(wpn);
+  if buf<>nil then
+    result:=buf.IsFirstShootAnimationsEnabled()
+  else
+    result:=false;
+end;
+
 procedure SetBeforeReloadAmmoCnt(wpn:pointer; cnt:integer);stdcall;
 var
   buf:WpnBuf;
@@ -1513,6 +1565,11 @@ end;
 procedure WpnBuf.SetPreloadedStatus(status: boolean);
 begin
   _preloaded:=status;
+end;
+
+function WpnBuf.IsFinalCloseAnimNeeded():boolean;
+begin
+  result:=_need_final_close_anim;
 end;
 
 function WpnBuf.NeedPermanentLensRendering(): boolean;

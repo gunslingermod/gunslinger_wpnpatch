@@ -92,7 +92,7 @@ function GetActualCurrentAnim(wpn:pointer):PChar; stdcall;
 procedure CSE_SetPosition(swpn:pointer; pos:pointer); stdcall;
 procedure CSE_SetAngle(swpn:pointer; ang:pointer); stdcall;
 procedure SetCurrentParticles(wpn:pointer; name:PChar; part_type:cardinal); stdcall;
-function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+function GetMagCapacity(wpn:pointer):cardinal; stdcall;
 procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;
 function GetNextState(wpn:pointer):integer; stdcall;
 procedure SetWeaponMisfireStatus(wpn:pointer; status:boolean); stdcall;
@@ -1414,25 +1414,35 @@ asm
 
 end;
 
-function GetMagCapacityInCurrentWeaponMode_LL(wpn:pointer):integer; stdcall;
-asm
-  mov eax, wpn
-  mov eax, [eax+$694]
-  mov @result, eax
-end;
-
-function GetMagCapacityInCurrentWeaponMode(wpn:pointer):integer; stdcall;
+// Размер основного магазина независимо от того, активен подствол или нет
+function GetMagCapacity(wpn:pointer):cardinal; stdcall;
 var
+  ptr:pointer;
   ammotype:integer;
   param:string;
   sect:PChar;
+  gl_status:cardinal;
 begin
-  result:=GetMagCapacityInCurrentWeaponMode_LL(wpn);
-  ammotype:=GetAmmoTypeToReload(wpn);
-  param:='ammo_mag_size_for_type_'+inttostr(ammotype);
-  sect:=GetSection(wpn);
-  result:=game_ini_r_int_def(GetSection(wpn), PAnsiChar(param), result);
-  result:=FindIntValueInUpgradesDef(wpn, PAnsiChar(param), result);
+  result:=0;
+  if wpn = nil then exit;
+
+  gl_status:=GetGLStatus(wpn);
+
+  if ((gl_status=1) or ((gl_status=2) and (IsGLAttached(wpn)))) and IsGLEnabled(wpn) then begin
+    ptr:= PChar(wpn)+$7E8;
+    ammotype:=-1;
+  end else begin
+    ptr:= PChar(wpn)+$694;
+    ammotype:=GetAmmoTypeToReload(wpn);
+  end;
+
+  result:=(pcardinal(ptr))^;
+  if ammotype >= 0 then begin
+    param:='ammo_mag_size_for_type_'+inttostr(ammotype);
+    sect:=GetSection(wpn);
+    result:=game_ini_r_int_def(GetSection(wpn), PAnsiChar(param), result);
+    result:=FindIntValueInUpgradesDef(wpn, PAnsiChar(param), result);
+  end;
 end;
 
 procedure SetMagCapacityInCurrentWeaponMode(wpn:pointer; cnt:integer); stdcall;

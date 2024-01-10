@@ -10,12 +10,21 @@ uses BaseGameData, HudItemUtils, WeaponAdditionalBuffer, sysutils, xr_Cartridge,
 
 
 //загрузка/сохранение игры
+
+const
+  CWEAPON_SAVE_FLAG_LASER_ENABLED:cardinal = $1;
+  CWEAPON_SAVE_FLAG_JUST_AFTER_RELOAD:cardinal = $2;
+  CWEAPON_SAVE_FLAG_EXPLOSED_STATUS:cardinal = $4;  
+  CWEAPON_SAVE_FLAG_TORCH_ENABLED:cardinal = $100;
+  CWEAPON_SAVE_FLAG_MISFIRE_STATUS:cardinal = $10000;
+  CWEAPON_SAVEDATA_VERSION:cardinal = 0;
+  
 procedure CWeapon__load(wpn:pointer; packet:pIReader); stdcall;
 var
   buf:WpnBuf;
   tmp_bool:boolean;
   tmp_byte,tmp_byte2:byte;
-  tmp_cardinal:cardinal;  
+  tmp_cardinal:cardinal;
   tmp_single:single;
   tmp_int:integer;
   ammos_in_mag, i, cnt, cnt_total:word;
@@ -32,18 +41,12 @@ begin
     buf:=WpnBuf.Create(wpn);
   end;
 
-  ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
-  buf.SetLaserEnabledStatus(tmp_bool);
-
-  ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
-  buf.SwitchTorch(tmp_bool);
-
-  ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
-  SetWeaponMisfireStatus(wpn, tmp_bool);
-
-  ReadFromReader(packet, @tmp_bool, sizeof(tmp_bool));
-  buf.SetExplosed(tmp_bool);
-
+  ReadFromReader(packet, @tmp_cardinal, sizeof(tmp_cardinal));
+  buf.SetLaserEnabledStatus((tmp_cardinal and CWEAPON_SAVE_FLAG_LASER_ENABLED) <> 0);
+  buf.SwitchTorch((tmp_cardinal and CWEAPON_SAVE_FLAG_TORCH_ENABLED) <> 0);
+  SetWeaponMisfireStatus(wpn, (tmp_cardinal and CWEAPON_SAVE_FLAG_MISFIRE_STATUS) <> 0);
+  buf.SetExplosed((tmp_cardinal and CWEAPON_SAVE_FLAG_EXPLOSED_STATUS) <> 0);
+  buf.SetJustAfterReloadStatus((tmp_cardinal and CWEAPON_SAVE_FLAG_JUST_AFTER_RELOAD) <> 0);
 
   lens_params:=buf.GetLensParams();
   ReadFromReader(packet, @lens_params.target_position, sizeof(lens_params.target_position));
@@ -93,14 +96,28 @@ begin
   buf:=GetBuffer(wpn);
   if buf = nil then exit;
 
-  tmp_bool:=buf.IsLaserEnabled();
-  WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
-  tmp_bool:=buf.IsTorchEnabled();
-  WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
-  tmp_bool:=IsWeaponJammed(wpn);
-  WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
-  tmp_bool:=buf.IsExplosed();
-  WriteToPacket(packet, @tmp_bool, sizeof(tmp_bool));
+  tmp_cardinal:=CWEAPON_SAVEDATA_VERSION shl 24;
+  if buf.IsLaserEnabled() then begin
+    tmp_cardinal:=tmp_cardinal or CWEAPON_SAVE_FLAG_LASER_ENABLED;
+  end;
+
+  if buf.IsTorchEnabled() then begin
+    tmp_cardinal:=tmp_cardinal or CWEAPON_SAVE_FLAG_TORCH_ENABLED;
+  end;
+
+  if IsWeaponJammed(wpn) then begin
+    tmp_cardinal:=tmp_cardinal or CWEAPON_SAVE_FLAG_MISFIRE_STATUS;
+  end;
+
+  if buf.IsExplosed() then begin
+    tmp_cardinal:=tmp_cardinal or CWEAPON_SAVE_FLAG_EXPLOSED_STATUS;
+  end;
+
+  if buf.IsJustAfterReload() then begin
+    tmp_cardinal:=tmp_cardinal or CWEAPON_SAVE_FLAG_JUST_AFTER_RELOAD;
+  end;
+
+  WriteToPacket (packet, @tmp_cardinal, sizeof(tmp_cardinal));
 
   lens_params:=buf.GetLensParams();
   WriteToPacket(packet, @lens_params.target_position, sizeof(lens_params.target_position));
