@@ -977,9 +977,10 @@ begin
   result:=false;
   //if (GetCurrentState(wpn)<>EWeaponStates__eReload) then exit;        //если делать так - не будет нормально работать досрочное убирание ствола
 
-  if leftstr(GetActualCurrentAnim(wpn), length('anm_reload'))<>'anm_reload' then exit;
-  delay:=floor(game_ini_r_single_def(GetHUDSection(wpn), PChar('early_reload_end_delta_'+GetActualCurrentAnim(wpn)),0)*1000);
-  result:= GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_CUR), GetAnimTimeState(wpn, ANM_TIME_END))<delay;
+  if (leftstr(GetActualCurrentAnim(wpn), length('anm_reload'))='anm_reload') or (leftstr(GetActualCurrentAnim(wpn), length('anm_close'))='anm_close') then begin
+    delay:=floor(game_ini_r_single_def(GetHUDSection(wpn), PChar('early_reload_end_delta_'+GetActualCurrentAnim(wpn)),0)*1000);
+    result:= GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_CUR), GetAnimTimeState(wpn, ANM_TIME_END))<delay;
+  end;
 end;
 
 function OnShoot_CanShootNow(wpn:pointer):boolean;stdcall;
