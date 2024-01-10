@@ -56,6 +56,8 @@ const
   RTTI_IConsole_Command:cardinal = $635980;
   RTTI_CCC_Float:cardinal = $638b90;
   RTTI_CCC_Integer:cardinal = $638310;
+  RTTI_CUIWeaponCellItem:cardinal = $6410ce;
+  RTTI_CUICellItem:cardinal = $640afb;
 
 implementation
 uses BaseGameData;

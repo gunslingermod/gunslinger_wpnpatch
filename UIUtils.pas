@@ -140,6 +140,7 @@ CUIStatic = packed record
   m_stat_hint_text:shared_str;
 end;
 pCUIStatic=^CUIStatic;
+ppCUIStatic=^pCUIStatic;
 
 SCachedValues = packed record
   m_updatedFrame:cardinal;
@@ -282,6 +283,27 @@ procedure HideInventory(); stdcall;
 function IsActorBurned():boolean; stdcall;
 
 function Init():boolean;stdcall;
+
+type
+upgrade_icon_data = packed record
+  offset:FVector2;
+  icon_section:PAnsiChar;
+  icon:pCUIStatic;
+  enabled:boolean;  
+end;
+
+CellItemBuffer = class
+protected
+  _my_item:pointer;
+  _my_cell:pointer;
+  _up_icons:array of upgrade_icon_data;
+  procedure _ProcessUpgrade(section:PAnsiChar);
+public
+  constructor Create(itm:pointer; cell:pointer);
+  destructor Destroy(); override;
+  procedure Update();
+end;
+pCellItemBuffer = ^CellItemBuffer;
 
 const
   LA_CYCLIC:byte = 1;
@@ -2177,6 +2199,205 @@ asm
   fabs
 end;
 
+procedure CreateAddonIcon(ppicon:ppCUIStatic; cell:pointer); stdcall;
+asm
+  // Нужно выполнить все те действия, что и в CUIWeaponCellItem::CreateIcon, создав иконку и сохранив указатель на нее в буфере, на который указывает ppicon
+  pushad
+  mov esi, xrgame_addr
+  mov ecx, [esi+$5127b4]        // xrMemory instance
+  push $DC                      // sizeof(CUIStatic)
+  call [esi+$5127b0]            //xrMemory::mem_alloc
+  mov ebx, [ppicon]
+  mov [ebx], eax
+
+  push eax                      //save for further use in this proc
+
+  mov ecx, eax
+  mov edx, xrgame_addr
+  add edx, $47b250
+  call edx                      //CUIStatic constructor
+
+  mov eax, [esp]                //allocated CUIStatic ptr
+  mov byte ptr [eax+$4c], 01    //SetAutoDelete	(true)
+
+  mov ecx, [cell]
+  mov eax, [ecx]                //vtable
+  mov edx,[eax+$18]             //virtual AttachChild ptr
+  push [esp]                    //pass allocated CUIStatic ptr
+  call edx                      //CUIWeaponCellItem::AttachChild
+
+  mov edx, xrgame_addr
+  add edx, $465600
+  call edx                      //InventoryUtilities::GetEquipmentIconsShader
+
+  mov ecx, [esp]                //allocated CUIStatic ptr  
+  push eax
+  mov edx, xrgame_addr
+  add edx, $47ace0
+  call edx                      //SetShader
+
+  mov ecx, [cell]
+  lea ecx, [ecx+$54]            //cast cell to ITextureOwner
+  mov eax,[ecx]                 //vtable
+  mov edx,[eax+$18]             //virtual GetTextureColor ptr
+  call edx
+
+  mov ecx, [esp]                //allocated CUIStatic ptr
+  push eax  
+  lea ecx, [ecx+$54]            //cast it to ITextureOwner
+  mov eax,[ecx]                 //vtable
+  mov edx,[eax+$14]             //virtual SetTextureColor ptr
+  call edx
+
+  pop eax                       //restore saved ptr to CUIStatic
+  popad
+end;
+
+procedure CUIWeaponCellItem__InitAddon(cell:pointer; picon:pCUIStatic; section:PAnsiChar; offset_x:single; offset_y:single); stdcall;
+asm
+  pushad
+  mov ecx, [cell]
+  movzx eax, byte ptr [ecx+$C8] // m_bHeading
+  push eax
+  mov eax, [offset_y]
+  push eax
+  mov eax, [offset_x]
+  push eax
+  mov eax, [section]
+  push eax
+  mov eax, [picon]
+  push eax
+
+  mov eax, xrgame_addr
+  add eax, $49d7c0
+  call eax
+  popad
+end;
+
+
+{ CellItemBuffer }
+
+constructor CellItemBuffer.Create(itm:pointer; cell:pointer);
+begin
+  _my_item:=itm;
+  _my_cell:=cell;
+  setlength(_up_icons, 0);
+end;
+
+destructor CellItemBuffer.Destroy;
+begin
+  setlength(_up_icons, 0);
+  inherited;
+end;
+
+procedure CellItemBuffer._ProcessUpgrade(section:PAnsiChar);
+var
+  i:integer;
+  icon_section:PAnsiChar;
+const
+  UPGRADE_ICON_PARAM_NAME:PAnsiChar='upgrade_addon_icon';
+  UPGRADE_ICON_OFFSET_X_PARAM_NAME:PAnsiChar='upgrade_addon_icon_offset_x';
+  UPGRADE_ICON_OFFSET_Y_PARAM_NAME:PAnsiChar='upgrade_addon_icon_offset_y';
+begin
+  i:=length(_up_icons);
+  setlength(_up_icons, i+1);
+  section:=game_ini_read_string(section, 'section');
+  if game_ini_line_exist(section, UPGRADE_ICON_PARAM_NAME) then begin
+    _up_icons[i].enabled:=true;
+    _up_icons[i].icon_section:=game_ini_read_string(section, UPGRADE_ICON_PARAM_NAME);
+    _up_icons[i].offset.x:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_X_PARAM_NAME, 0);
+    _up_icons[i].offset.y:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_Y_PARAM_NAME, 0);
+
+    CreateAddonIcon(@_up_icons[i].icon, _my_cell);
+    CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y);
+    log('Created icon '+inttohex(cardinal(_up_icons[i].icon),8) +' for upgrade '+ _up_icons[i].icon_section+', offset '+floattostr(_up_icons[i].offset.x)+' '+floattostr(_up_icons[i].offset.y));
+  end else begin
+    _up_icons[i].enabled:=false;
+  end;
+end;
+
+procedure CellItemBuffer.Update();
+var
+  ups_count, i, old_cnt:integer;
+begin
+//  Log('Update for wpn '+ inttohex(cardinal(_my_item), 8));
+  ups_count:=GetInstalledUpgradesCount(_my_item);
+  if ups_count > length(_up_icons) then begin
+    old_cnt:=length(_up_icons);
+    for i:=old_cnt to ups_count - 1 do begin
+      _ProcessUpgrade(GetInstalledUpgradeSection(_my_item, i));
+    end;
+  end;
+end;
+
+procedure CreateCellItemBuffer(p:pCellItemBuffer; data:pointer; cell:pointer); stdcall;
+begin
+  Log('Create buffer for CellItem '+inttohex(cardinal(p), 8)+', weapon '+inttohex(cardinal(data), 8));
+  p^:=CellItemBuffer.Create(data, cell);
+end;
+
+procedure FreeCellItemBuffer(p:pCellItemBuffer); stdcall;
+begin
+  if p^<>nil then begin
+    Log('Destroy buffer for CellItem '+inttohex(cardinal(p), 8));
+    FreeAndNil(p^);
+  end;
+end;
+
+procedure CUICellItem__init_zeroupgradepos_Patch();stdcall;
+asm
+  mov [esi+$108], 0 // m_upgrade_pos.x
+  mov [esi+$10c], 0 // m_upgrade_pos.y  
+end;
+
+procedure CUIWeaponCellItem__constructor_CreateBuffer_Patch(); stdcall
+asm
+  pushad
+  push esi            //this
+  mov eax, [esi+$110] // m_pData
+  push eax
+  lea edi, [esi+$108] // m_upgrade_pos.x
+  push edi
+  call CreateCellItemBuffer
+  popad
+
+  mov [esi+$124],eax // original
+end;
+
+procedure CUICellItem__destructor_FreeBuffer_Patch(); stdcall;
+asm
+  pushad
+  lea esi, [esi+$108] // m_upgrade_pos.x
+  push esi
+  call FreeCellItemBuffer
+  mov [esi], 0  
+  popad
+
+  cmp byte ptr [esi+$11C],00 //original
+end;
+
+procedure UpdateCellItemBuffer(p:pCellItemBuffer); stdcall;
+begin
+  if p^<>nil then begin
+    p^.Update();
+  end;
+end;
+
+procedure CUICellItem__Update_Patch();stdcall;
+asm
+  mov ecx,[esi+$104] // CUICellItem::m_upgrade
+  mov edx,[ecx+$5]   // m_upgrade.m_wndPos.x
+  mov [esp+$18],edx
+  mov edx,[ecx+$9]  // m_upgrade.m_wndPos.y
+  mov [esp+$1c], edx
+
+  pushad
+  lea esi, [esi+$108] // m_upgrade_pos.x
+  push esi
+  call UpdateCellItemBuffer
+  popad
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -2362,6 +2583,23 @@ begin
   jmp_addr:=xrGame_addr+$49df67;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_Patch), 6, true) then exit;
 
+  //В CUICellItem::Update меняем pos.set(m_upgrade_pos) на pos.set(m_upgrade->GetWndPos()) чтобы сделать m_upgrade_pos неиспользуемым + вызываем апдейт буфера
+  jmp_addr:=xrGame_addr+$49efc0;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__Update_Patch), 6, true) then exit;
+
+  // В CUICellItem::init вырезаем присваивание m_upgrade_pos и вставляем вместо него обнуление
+  jmp_addr:=xrGame_addr+$49ea56;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__init_zeroupgradepos_Patch), 18, true) then exit;
+
+  //В CUICellItem::~CUICellItem добавляем уничтожение буфера
+  jmp_addr:=xrGame_addr+$49f6a4;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__destructor_FreeBuffer_Patch), 7, true) then exit;
+
+  //В CUIWeaponCellItem::CUIWeaponCellItem добавляем конструирование буфера
+  jmp_addr:=xrGame_addr+$49dd54;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__constructor_CreateBuffer_Patch), 6, true) then exit;
+
+
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
@@ -2382,6 +2620,11 @@ begin
   //CUIWeaponCellItem::Update - xrgame.dll+49df60
   //CUIWeaponCellItem::InitAddon - xrgame.dll+49d7c0
   //ui_actor_state_wnd::UpdateActorInfo - xrgame.dll+46ff40
+  //CUICellItem::Update - xrgame.dll+49ee80
+  //CUICellItem::~CUICellItem - xrgame.dll+49f6a0
+  //CUIWeaponCellItem::CUIWeaponCellItem - xrgame.dll+49dd30
+  //CUIWeaponCellItem::CreateIcon - xrgame.dll+49d730
+  //CUIWeaponCellItem::InitAddon - xrgame.dll+49d7c0
 
   result:=true;
 end;

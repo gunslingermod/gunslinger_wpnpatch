@@ -209,7 +209,7 @@ begin
       pushad
       pushf
 
-      push text
+      push paramText
 
       mov eax, xrCore_addr
       add eax, $158B0
