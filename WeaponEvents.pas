@@ -1360,7 +1360,72 @@ begin
 end;
 
 //---------------------------------------------------------------------------------------------------------
-procedure OnZoomAlterButton(wpn:pointer; flags:cardinal);
+var
+  _use_alter_zoom_now:boolean;
+procedure OnZoomAlterButton_ClickSwitchScheme(wpn:pointer; flags:cardinal);
+var
+  buf:WpnBuf;
+  aim_now, alter_aim_now, can_use_alter:boolean;
+  act:pointer;
+begin
+  buf:=GetBuffer(wpn);
+  if (buf = nil) then exit;
+
+  can_use_alter:=CanUseAlterScope(wpn);
+  act:=GetActor();
+  if (act=nil) or (act<>GetOwner(wpn)) then exit;
+
+  aim_now:=IsAimNow(wpn);
+  alter_aim_now:=IsAlterZoom(wpn);
+
+  if flags=kActPress then begin
+    if aim_now then begin
+      // ћы сейчас в режиме прицеливани€ - надо сменить режим
+      if alter_aim_now or can_use_alter then begin
+        _use_alter_zoom_now:=not _use_alter_zoom_now;
+        buf.SetLastZoomAlter(_use_alter_zoom_now);
+        buf.SetAlterZoomMode(_use_alter_zoom_now);
+        buf.StartAlterZoomDirectSwitchMixup();
+        RefreshZoomDOF(wpn);
+      end;
+    end else begin
+      // Ќикакое прицеливание не активно, по возможности используем альтернативное
+      _use_alter_zoom_now:=can_use_alter;
+      virtual_Action(wpn, kWPN_ZOOM, kActPress);
+    end;
+  end;
+end;
+
+function OnZoomButton_ClickSwitchScheme(wpn:pointer; flags:cardinal):boolean;
+var
+  buf:WpnBuf;
+  aim_now:boolean;
+begin
+  result:=false;
+
+  buf:=GetBuffer(wpn);
+  if buf = nil then exit;
+
+  aim_now:=IsAimNow(wpn);
+  if IsAimToggle() then begin
+    if flags=kActPress then begin
+      if not aim_now then begin
+        buf.SetAlterZoomMode(_use_alter_zoom_now);
+      end else begin
+        _use_alter_zoom_now:=false;      
+      end;
+    end;
+  end else begin
+    if flags=kActPress then begin
+      buf.SetAlterZoomMode(_use_alter_zoom_now);
+    end else begin
+      _use_alter_zoom_now:=false;
+    end;
+  end;
+end;
+
+
+procedure OnZoomAlterButton_ClassicScheme(wpn:pointer; flags:cardinal);
 var
   buf:WpnBuf;
   act:pointer;
@@ -1439,12 +1504,20 @@ begin
     end;
 end;
 
-function OnZoomButton(wpn:pointer; flags:cardinal):boolean;
+procedure OnZoomAlterButton(wpn:pointer; flags:cardinal);
+begin
+  if (IsAlterZoomClickSwitchScheme()) then begin
+    OnZoomAlterButton_ClickSwitchScheme(wpn, flags);
+  end else begin
+    OnZoomAlterButton_ClassicScheme(wpn, flags);
+  end;
+end;
+
+function OnZoomButton_ClassicScheme(wpn:pointer; flags:cardinal):boolean;
 var
   buf:WpnBuf;
   aim_now, alter_aim_now:boolean;  
 begin
-  //≈сли вернем true - нажатие будет считатьс€ обработанным и дальше не пойдет
   result:=false;
   buf:=GetBuffer(wpn);
   if buf = nil then exit;
@@ -1509,6 +1582,16 @@ begin
         end;
       end;
     end;
+  end;
+end;
+
+function OnZoomButton(wpn:pointer; flags:cardinal):boolean;
+begin
+  //≈сли вернем true - нажатие будет считатьс€ обработанным и дальше не пойдет
+  if (IsAlterZoomClickSwitchScheme()) then begin
+    result:=OnZoomButton_ClickSwitchScheme(wpn, flags);  
+  end else begin
+    result:=OnZoomButton_ClassicScheme(wpn, flags);
   end;
 end;
 
@@ -2769,6 +2852,8 @@ var
   jmp_addr:cardinal;
 begin
   result:=false;
+
+  _use_alter_zoom_now:=false;
 
   //—обытие назначени€ клина ( внутри CWeapon::CheckForMisfire)
   jmp_addr:= xrGame_addr+$2BD0AF;

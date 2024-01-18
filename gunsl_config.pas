@@ -256,6 +256,7 @@ function GetPDAScreen_kx():single; stdcall;
 function GetPDAUpdatePeriod():cardinal; stdcall;
 function IsFastPdaZoom():boolean; stdcall;
 function IsSavePdaZoomState():boolean; stdcall;
+function IsAlterZoomClickSwitchScheme():boolean; stdcall;
 
 function GetInventoryShowAnimator():PChar;
 
@@ -302,6 +303,7 @@ function GetSkipFireAllProbability():single; stdcall;
 function GetBurerAimShieldDelay():cardinal; stdcall;
 function GetBurerSelfKickWindowTime():integer; stdcall;
 function IsBurerKnifeSelfKick():boolean; stdcall;
+function IsAlterZoomClickSwitchScheme():boolean; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -471,6 +473,8 @@ var
   CCC_pdaautozoom:CCC_Mask;
   CCC_savezoomstate:CCC_Mask;
 
+  CCC_alterzoomclickswitch:CCC_Mask;
+
   _shader_cache_needed:boolean;
 
 //маски для флагов
@@ -486,6 +490,7 @@ const
   _mask_dynupdrate:cardinal=$100;
   _mask_pdaautozoom:cardinal=$200;
   _mask_pdasavezoomstate:cardinal=$400;
+  _mask_alterzoomclickswitch:cardinal=$800;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
 function GetGameIni():pointer;stdcall;
@@ -1068,6 +1073,8 @@ begin
   CConsole__AddCommand(@(CCC_pdaautozoom.base));
   CCC_Mask__CCC_Mask(@CCC_savezoomstate, 'pda_savezoomstate', @_console_bool_flags, _mask_pdasavezoomstate);
   CConsole__AddCommand(@(CCC_savezoomstate.base));
+  CCC_Mask__CCC_Mask(@CCC_alterzoomclickswitch, 'alter_zoom_switch_on_click', @_console_bool_flags, _mask_alterzoomclickswitch);
+  CConsole__AddCommand(@(CCC_alterzoomclickswitch.base));
 
   CCC_Float__CCC_Float(@CCC_fov, 'g_fov', @fov, 60, 100);
   CConsole__AddCommand(@(CCC_fov.base));
@@ -1545,6 +1552,11 @@ end;
 function IsSavePdaZoomState():boolean; stdcall;
 begin
   result:=_console_bool_flags and _mask_pdasavezoomstate <> 0
+end;
+
+function IsAlterZoomClickSwitchScheme():boolean; stdcall;
+begin
+  result:= (_console_bool_flags and _mask_alterzoomclickswitch)<>0;
 end;
 
 function GetBaseLookoutParams():lookout_params; stdcall;

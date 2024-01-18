@@ -1581,7 +1581,7 @@ begin
       SetActorKeyRepeatFlag(kfUNZOOM, false);
     end;
   end else if IsActionKeyPressedInGame(kWPN_ZOOM_ALTER) then begin
-    if not IsAimToggle() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
+    if not IsAimToggle() and not IsAlterZoomClickSwitchScheme() and CanAimNow(wpn) and not IsAimNow(wpn) then begin
       virtual_Action(wpn, kWPN_ZOOM_ALTER, kActPress);
       SetActorKeyRepeatFlag(kfUNZOOM, false);
     end;

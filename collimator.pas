@@ -132,9 +132,14 @@ begin
     section:=GetCurrentScopeSection(wpn);
   end;
 
-  if (buf<>nil) and CanUseAlterScope(wpn) and (buf.IsAlterZoomMode() or ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter())) then begin
-    is_alter:=true;
-  end;
+  if (buf<>nil) and CanUseAlterScope(wpn) then begin
+    if ((GetAimFactor(wpn)>0) and buf.IsLastZoomAlter()) then begin
+      //Уже были в альтернативном прицеливании, остаемся в нем до выхода
+      is_alter:=true;
+    end else if buf.IsAlterZoomMode() then begin
+      is_alter:=true;
+    end;
+  end;    
 
   if last_hud_data<>nil then begin
     if IsGrenadeMode(wpn) then begin
