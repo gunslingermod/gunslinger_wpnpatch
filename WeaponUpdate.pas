@@ -212,9 +212,15 @@ begin
 end;
 
 function GetOrdinalAmmoType(wpn:pointer):byte; stdcall;
+var
+  buf:WpnBuf;
 begin
-  if game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
-    //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона
+  buf:=GetBuffer(wpn);
+  if (buf <> nil) and game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_previous_shot_type', false) then begin
+    //за тип секции отвечает тип последнего патрона, которым был произведен выстрел
+    result:=buf.GetLastShotAmmoType();
+  end else if game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_last_cartridge_type', false) and (GetAmmoInMagCount(wpn)>0) then begin
+    //если указан этот параметр, то в остальных режимах за тип секции отвечает тип последнего патрона в магазине
     result:=GetCartridgeType(GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1));
   end else begin
     result:=GetAmmoTypeIndex(wpn, IsGrenadeMode(wpn));
@@ -234,6 +240,8 @@ var
   cnt, ammotype:integer;
   sect_w_ammotype:string;
   g_b:boolean;
+  ejection_delay:cardinal;
+  param:string;
 begin
   hud_sect:=GetHUDSection(wpn);
   g_b:=IsGrenadeMode(wpn);
@@ -255,8 +263,16 @@ begin
       ammotype:=GetOrdinalAmmoType(wpn);
     end else if IsTriStateReload(wpn)  then begin
       //идет перезарядка по типу дробовика
+      if (leftstr(GetActualCurrentAnim(wpn), length('anm_open'))='anm_open') then begin
+        // если в anm_open есть извлечение предыдущей гильзы - остановим обновление костей на это время
+        param:='ejection_delay_'+GetActualCurrentAnim(wpn);
+        ejection_delay:=game_ini_r_int_def(GetHUDSection(wpn), PAnsiChar(param), 0);
+        if (ejection_delay > 0) and (GetTimeDeltaSafe(GetAnimTimeState(wpn, ANM_TIME_START), GetAnimTimeState(wpn, ANM_TIME_CUR)) < ejection_delay) then begin
+          exit;
+        end;
+      end;
+
       ammotype:=GetAmmoTypeToReload(wpn);
-      cnt:=cnt+1;
     end else begin
       //идет обычная перезарядка
       //патрон в патроннике может быть старого типа! учитываем это
@@ -694,6 +710,8 @@ begin
 	AddSuffixIfStringExist(sect, '_jammed', anm);
   end else if (GetAmmoInMagCount(wpn)<=0) and (state<>EWeaponStates__eFire) then begin
     AddSuffixIfStringExist(sect, '_empty', anm);
+  end else if (IsFirstShotAnimationNeeded(wpn)) and IsJustAfterReload(wpn) and (state<>EWeaponStates__eFire) then begin
+    AddSuffixIfStringExist(sect, '_first', anm);
   end;
 
   AddSuffixIfStringExist(sect,PChar(GetFiremodeSuffix(wpn)), anm);
@@ -703,6 +721,10 @@ begin
   end else if (GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn)) then begin
 	AddSuffixIfStringExist(sect, '_w_gl', anm);
   end;
+
+if GetSection(wpn)='wpn_protecta' then begin
+  log('play '+ anm);
+end;
 
   PlayCycle(wpn, game_ini_read_string(sect,PChar(anm)), bmixin);
 

@@ -91,6 +91,8 @@ type
     _need_first_shoot_anims:boolean;
     _need_final_close_anim:boolean;
 
+    _last_shot_ammotype:integer;
+
     _needs_unzoom:boolean;
 
     _do_action_after_anim_played:TAnimationEffector;
@@ -201,6 +203,9 @@ type
 
     procedure SetBeforeReloadAmmoCnt(cnt:integer);
     function GetBeforeReloadAmmoCnt():integer;
+
+    procedure SetLastShotAmmoType(ammotype:integer);
+    function GetLastShotAmmoType():integer;
 
     function IsExplosed():boolean;stdcall;
     procedure SetExplosed(status:boolean);stdcall;
@@ -384,6 +389,8 @@ begin
   _wanim_force_assign:=false;
   ammo_cnt_to_reload:=-1;     //только 2стволы, максимальное число заряжаемых патронов
 
+  _last_shot_ammotype:=0;
+
   _laser_enabled:= (Random>0.5);
   _laser_installed:=false;
   _laserdot_particle_object:=nil;
@@ -539,6 +546,16 @@ begin
     pop ebx
     pop eax
   end;
+end;
+
+procedure WpnBuf.SetLastShotAmmoType(ammotype:integer);
+begin
+  _last_shot_ammotype:=ammotype;
+end;
+
+function WpnBuf.GetLastShotAmmoType():integer;
+begin
+  result:=_last_shot_ammotype;
 end;
 
 function WpnBuf.GetBeforeReloadAmmoCnt(): integer;

@@ -22,7 +22,8 @@ const
   RTTI_CWeaponBinoculars:cardinal = $6376D8;
   RTTI_CWeaponBM16:cardinal = $6377C8;
   RTTI_CWeaponRG6:cardinal = $63779C;  
-  RTTI_CWeaponShotgun:cardinal = $637720;  
+  RTTI_CWeaponShotgun:cardinal = $637720;
+  RTTI_CWeaponAutomaticShotgun:cardinal = $637748;    
   RTTI_CCustomDetector:cardinal = $62C4B8;      
   RTTI_CObject:cardinal = $616020;
   RTTI_CGameObject:cardinal = $619C60;  

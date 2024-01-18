@@ -17,7 +17,7 @@ const
   CWEAPON_SAVE_FLAG_EXPLOSED_STATUS:cardinal = $4;  
   CWEAPON_SAVE_FLAG_TORCH_ENABLED:cardinal = $100;
   CWEAPON_SAVE_FLAG_MISFIRE_STATUS:cardinal = $10000;
-  CWEAPON_SAVEDATA_VERSION:cardinal = 0;
+  CWEAPON_SAVEDATA_VERSION:cardinal = 2;
   
 procedure CWeapon__load(wpn:pointer; packet:pIReader); stdcall;
 var
@@ -32,6 +32,7 @@ var
   so:pointer;
 
   lens_params:lens_zoom_params;
+  ver:byte;
 begin
 
   if not WpnCanShoot(wpn) then exit;
@@ -42,6 +43,8 @@ begin
   end;
 
   ReadFromReader(packet, @tmp_cardinal, sizeof(tmp_cardinal));
+  ver:=tmp_cardinal shr 24;
+
   buf.SetLaserEnabledStatus((tmp_cardinal and CWEAPON_SAVE_FLAG_LASER_ENABLED) <> 0);
   buf.SwitchTorch((tmp_cardinal and CWEAPON_SAVE_FLAG_TORCH_ENABLED) <> 0);
   SetWeaponMisfireStatus(wpn, (tmp_cardinal and CWEAPON_SAVE_FLAG_MISFIRE_STATUS) <> 0);
@@ -75,6 +78,11 @@ begin
 
   if (IsExplosed(wpn)) then begin
     OnWeaponExplode_AfterAnim(wpn, 0);
+  end;
+
+  if ver >= 2 then begin
+    ReadFromReader(packet, @tmp_byte, sizeof(tmp_byte));
+    buf.SetLastShotAmmoType(tmp_byte);
   end;
 end;
 
@@ -153,6 +161,9 @@ begin
     WriteToPacket(packet, @cnt, sizeof(cnt));
     WriteToPacket(packet, @ammotype, sizeof(ammotype));
   end;
+
+  tmp_byte:=buf.GetLastShotAmmoType();
+  WriteToPacket(packet, @tmp_byte, sizeof(tmp_byte));
 end;
 
 

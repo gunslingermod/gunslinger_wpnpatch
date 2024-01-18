@@ -771,17 +771,19 @@ begin
     end;
   end;
 
-  // ≈сли реальный тип патрона в стволе и следующего патрона (того, который будет зар€жен после выстрела) отличаютс€ между собой - клинить нельз€!
-  // »наче на дробовиках гильза помен€ет цвет после окончани€ анимации заклина
   result:=false;
 
   if IsGrenadeMode(wpn) then exit;
 
+  // «апрет клина в первом выстреле после перезар€дке - надо дл€ протекты
   buf:=GetBuffer(wpn);
   if (buf<>nil) and buf.IsJustAfterReload() and game_ini_r_bool_def(GetSection(wpn), 'no_jam_in_first_shot', false) then begin
     result:=true;
     exit;
   end;
+
+  // ≈сли реальный тип патрона в стволе и следующего патрона (того, который будет зар€жен после выстрела) отличаютс€ между собой - клинить нельз€!
+  // »наче на дробовиках гильза помен€ет цвет после окончани€ анимации заклина
 
   ammoc:=GetAmmoInMagCount(wpn);
   if ammoc <= 0 then exit;
@@ -792,6 +794,11 @@ begin
   end else begin
     c_next:=GetCartridgeFromMagVector(wpn, ammoc-2);
     result:=GetCartridgeType(c_cur)<>GetCartridgeType(c_next);
+  end;
+
+  // на бараьанных дробовиках при "шахматной" зар€дке при заклине будет извлекатьс€ гильза не того цвета - если предыдущий выстрел сделан патроном не того типа, клинить нельз€
+  if (buf <> nil) and (buf.GetLastShotAmmoType() <> GetCartridgeType(c_cur)) and (game_ini_r_bool_def(GetHUDSection(wpn), 'ammo_params_use_previous_shot_type', false)) then begin
+    result:=true;
   end;
 end;
 
@@ -2737,23 +2744,24 @@ asm
   mov ecx, [edi+$38]
 end;
 
-procedure CWeaponMagazined__state_Fire_OnShot(wpn:pointer); stdcall;
+procedure CWeaponMagazined__FireTrace_BeforeCartridgePop(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
   if buf<>nil then begin
     buf.SetJustAfterReloadStatus(false);
+    buf.SetLastShotAmmoType(GetCartridgeType(GetCartridgeFromMagVector(wpn, GetAmmoInMagCount(wpn)-1)));
   end;
 end;
 
-procedure CWeaponMagazined__state_Fire_OnShot_Patch(); stdcall;
+procedure CWeaponMagazined__FireTrace_BeforeCartridgePop_Patch(); stdcall;
 asm
-  mov ecx, dword ptr [esi+$774]
   pushad
   push esi
-  call CWeaponMagazined__state_Fire_OnShot
+  call CWeaponMagazined__FireTrace_BeforeCartridgePop
   popad
+  add dword ptr [esi+$6CC],-$3C  
 end;
 
 function Init:boolean;
@@ -3040,9 +3048,9 @@ begin
   //¬ CWeaponMagazined::OnMagazineEmpty ликвидируем переход в стейт eMagEmpty
   if not nop_code(xrgame_addr+$2ccb20, 1, chr($eb)) then exit;
 
-  // в CWeaponMagazined::state_Fire обрабатываем событие выстрела (сразу после вызова OnShot)
-  jmp_addr:=xrGame_addr+$2d065c;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__state_Fire_OnShot_Patch), 6, true) then exit;
+  // ¬ CWeapon::FireTrace обрабатываем событие уменьшени€ счетчика патронов
+  jmp_addr:=xrGame_addr+$2c32d4;
+  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__FireTrace_BeforeCartridgePop_Patch), 7, true) then exit;
 
   result:=true;
 
