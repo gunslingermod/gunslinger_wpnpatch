@@ -893,7 +893,7 @@ begin
     end;
 
     if IsFirstShotAnimationNeeded(wpn) and IsJustAfterReload(wpn) then begin
-      anim_name:=anim_name+'_first';
+      modifier:=modifier+'_first';
     end;
 
     if (IsActorSuicideNow() or IsSuicideInreversible()) and game_ini_r_bool_def(hud_sect, 'custom_suicide_shot', false) then begin
