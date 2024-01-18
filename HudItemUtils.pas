@@ -540,8 +540,18 @@ asm
     push wpn
     call dynamic_cast
     cmp eax, 0
+    jne @retval
+
+    push 0
+    push RTTI_CWeapon
+    push RTTI_CWeaponAutomaticShotgun
+    push 0
+    push wpn
+    call dynamic_cast
+    cmp eax, 0
     je @finish
 
+    @retval:
     mov ecx, wpn
     mov al, [ecx+$458]
     mov @result, al
