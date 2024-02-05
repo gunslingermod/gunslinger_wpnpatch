@@ -303,7 +303,6 @@ function GetSkipFireAllProbability():single; stdcall;
 function GetBurerAimShieldDelay():cardinal; stdcall;
 function GetBurerSelfKickWindowTime():integer; stdcall;
 function IsBurerKnifeSelfKick():boolean; stdcall;
-function IsAlterZoomClickSwitchScheme():boolean; stdcall;
 
 function GetOverriddenBoneMassForVisual(visual:PAnsiChar; def:single):single; stdcall;
 
@@ -1001,6 +1000,8 @@ begin
   if not EnableConfigsInjections() then exit;
 
   _console_bool_flags:=0;
+  _console_bool_flags:=_console_bool_flags or _mask_alterzoomclickswitch;
+
   _lens_render_factor:=1;
   _lens_enabled:=true;
 //--------------------------------Uncut console commands-----------------------------------------------------------
