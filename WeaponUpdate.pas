@@ -722,10 +722,6 @@ begin
 	AddSuffixIfStringExist(sect, '_w_gl', anm);
   end;
 
-if GetSection(wpn)='wpn_protecta' then begin
-  log('play '+ anm);
-end;
-
   PlayCycle(wpn, game_ini_read_string(sect,PChar(anm)), bmixin);
 
   SetAnimForceReassignStatus(wpn, false);
