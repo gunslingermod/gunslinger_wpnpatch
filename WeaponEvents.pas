@@ -2383,12 +2383,43 @@ asm
   ret
 end;
 
+function IsForceCamAnimStopNeeded(anm_name:PAnsiChar):boolean; stdcall;
+var
+  wpn:pointer;
+  hud_sect:PAnsiChar;
+  param:string;
+begin
+  result:=false;
+  wpn:=GetActorActiveItem();
+  if wpn = nil then exit;
+
+  hud_sect:=GetHUDSection(wpn);
+  param:='force_cam_anim_'+anm_name;
+  result:=game_ini_r_bool_def(hud_sect, PAnsiChar(param), false);
+end;
+
 procedure attachable_hud_item__anim_play_cameff_patch; stdcall;
 asm
   //если эффектор анимации оружия уже назначен - принудительно завершаем
   test eax, eax
   je @finish
-    push $12
+
+  mov eax, [esp+$55C] // anm_name_b
+  pushad
+  test eax, eax
+  je @skip_check
+  mov eax, [eax]
+  test eax, eax
+  je @skip_check
+  add eax, $10
+  push eax
+  call IsForceCamAnimStopNeeded
+  @skip_check:
+  test al, al
+  popad
+
+  je @finish
+    push $12 // eCEWeaponAction
     call CCameraManager__RemoveCamEffector
   @finish:
 end;
@@ -3137,6 +3168,10 @@ begin
   jmp_addr:=xrGame_addr+$2c32d4;
   if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__FireTrace_BeforeCartridgePop_Patch), 7, true) then exit;
 
+  //[bug] баг с неназначением нового эффектора камеры при неоконченном старом - thanks to SkyLoader
+  jmp_addr:=xrGame_addr+$2FEC28;
+  if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;
+
   result:=true;
 
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
@@ -3167,10 +3202,6 @@ begin
 //  jmp_addr:=xrGame_addr+$2D980B;
 //  if not WriteJump(jmp_addr, cardinal(@CWeaponRPG7__OnEvent_RemoveAmmoAfterRocketShot), 5, true) then exit;
 
-  //[bug] баг с неназначением нового эффектора камеры при неоконченном старом - thanks to SkyLoader
-  //[upd ломается кой-чего еще... Отключаем, лучше уж так
-  //jmp_addr:=xrGame_addr+$2FEC28;
-  //if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;
 end;
 
 
