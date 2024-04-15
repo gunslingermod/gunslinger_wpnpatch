@@ -302,6 +302,7 @@ public
   constructor Create(itm:pointer; cell:pointer);
   destructor Destroy(); override;
   procedure Update();
+  procedure SetItem(new_item:pointer);
 end;
 pCellItemBuffer = ^CellItemBuffer;
 
@@ -2330,6 +2331,11 @@ begin
   end;
 end;
 
+procedure CellItemBuffer.SetItem(new_item:pointer);
+begin
+  _my_item:=new_item;
+end;
+
 procedure CreateCellItemBuffer(p:pCellItemBuffer; data:pointer; cell:pointer); stdcall;
 begin
   Log('Create buffer for CellItem '+inttohex(cardinal(p), 8)+', weapon '+inttohex(cardinal(data), 8));
@@ -2383,6 +2389,13 @@ begin
   end;
 end;
 
+procedure SetCellItemBufferItem(p:pCellItemBuffer; itm:pointer); stdcall;
+begin
+  if p^<>nil then begin
+    p^.SetItem(itm);
+  end;
+end;
+
 procedure CUICellItem__Update_Patch();stdcall;
 asm
   mov ecx,[esi+$104] // CUICellItem::m_upgrade
@@ -2395,6 +2408,34 @@ asm
   lea esi, [esi+$108] // m_upgrade_pos.x
   push esi
   call UpdateCellItemBuffer
+  popad
+  test eax, $FFFFFFFC // restore flags register value
+end;
+
+procedure CUICellItem__PopChild_Patch(); stdcall;
+asm
+  push ecx //save this
+
+  // original
+  mov edx, [eax+$7c]
+  call edx // UpdateItemText
+
+  pop ecx // restore this
+
+  pushad
+  mov eax, [ecx+$110] // this.m_pData
+  lea esi, [ecx+$108] // this.m_upgrade_pos.x
+  push eax
+  push esi
+  call SetCellItemBufferItem
+  popad
+
+  pushad
+  mov eax, [esi+$110] // itm.m_pData
+  lea esi, [esi+$108] // itm.m_upgrade_pos.x
+  push eax
+  push esi
+  call SetCellItemBufferItem
   popad
 end;
 
@@ -2599,6 +2640,9 @@ begin
   jmp_addr:=xrGame_addr+$49dd54;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__constructor_CreateBuffer_Patch), 6, true) then exit;
 
+  // В CUICellItem::PopChild заставляем вызвать апдейты иконок
+  jmp_addr:=xrGame_addr+$49f2d3;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__PopChild_Patch), 5, true) then exit;
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
