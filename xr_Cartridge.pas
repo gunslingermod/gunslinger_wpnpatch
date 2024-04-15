@@ -45,7 +45,6 @@ function GetGrenadeCartridgeFromGLVector(wpn:pointer; index:cardinal):pCCartridg
 function GetMainAmmoTypesCount(wpn:pointer):integer; stdcall;
 function GetMainCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
 function GetCurrentCartridgeSectionByType(wpn:pointer; ammotype:byte):PChar; stdcall;
-procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
 function GetAmmoTypeChangingStatus(wpn:pointer):byte; stdcall;
 procedure SetAmmoTypeChangingStatus(wpn:pointer; status:byte); stdcall;
 function GetAmmoTypeIndex(wpn:pointer; second:boolean=false):byte; stdcall;
@@ -64,17 +63,6 @@ procedure FreeCartridge(c:pCCartridge); stdcall;
 
 implementation
 uses  math, HudItemUtils, BaseGameData;
-
-
-procedure ChangeAmmoVectorStart(wpn:pointer; bytes:integer); stdcall;
-asm
-  pushad
-  mov eax, wpn
-  mov ebx, bytes
-  add [eax+$6c8], ebx
-
-  popad
-end;
 
 
 procedure CopyCartridge(var src:CCartridge; var dst:CCartridge); stdcall;

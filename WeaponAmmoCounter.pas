@@ -102,6 +102,34 @@ end;
 
 
 //---------------------------------------------------Несмена типа патрона в патроннике в релоаде-------------------------
+function CWeaponMagazined__UnloadMagazine_need_stop_unload(wpn:pointer):boolean; stdcall
+var
+  cnt:cardinal;
+  buf:WpnBuf;
+begin
+  result:=false;
+  buf := GetBuffer(wpn);
+  if IsGrenadeMode(wpn) then begin
+    cnt:=GetAmmoInGLCount(wpn);
+  end else begin
+    cnt:=GetAmmoInMagCount(wpn);
+  end;
+  if cnt = 0 then begin
+    result:=true;
+  end else if (buf<>nil) and (buf.is_firstlast_ammo_swapped) and (cnt = 1) then begin
+    result:=true;
+  end;
+end;
+
+procedure CWeaponMagazined__UnloadMagazine_need_stop_unload_cycle_Patch(); stdcall;
+asm
+  pushad
+  push ebp
+  call CWeaponMagazined__UnloadMagazine_need_stop_unload
+  cmp al, 1
+  popad
+end;
+
 procedure PerformUnloadAmmo(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
@@ -121,9 +149,6 @@ begin
       //После этого на месте первого патрона оказывается патрон из патронника
       SwapFirstLastAmmo(wpn);
       buf.is_firstlast_ammo_swapped:=true;
-
-      // Хак - смещаем указатель на первый элемент из вектора патронов, чтобы его не разрядило
-      ChangeAmmoVectorStart(wpn, sizeof(CCartridge));
     end;
   end;
 
@@ -154,11 +179,6 @@ begin
   if need_unload then begin
     virtual_CWeaponMagazined__UnloadMagazine(wpn, true);
   end;
-
-  if (buf<>nil) and buf.is_firstlast_ammo_swapped then begin
-    //Откатываем сделанные хаком изменения в векторе - неразряженный патрон из патронника магическим образом появляется обратно
-    ChangeAmmoVectorStart(wpn, (-1)*sizeof(CCartridge));
-  end;  
 end;
 
 procedure CWeaponMagazined__ReloadMagazine_OnUnloadMag_Patch(); stdcall;
@@ -807,8 +827,13 @@ begin
   addr:=xrGame_addr+$2D3810;
   if not WriteJump(addr, cardinal(@CWeaponMagazinedWGrenade__PerformSwitchGL_ammoinverse_Patch), 6, false) then exit;
 
+  // в CWeaponMagazined::UnloadMagazine (xrgame.dll+2cf660) не разряжаем патрон из патронника
+  addr:=xrGame_addr+$2cf67e;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__UnloadMagazine_need_stop_unload_cycle_Patch), 12, true) then exit;
+  addr:=xrGame_addr+$2cf7e1;
+  if not WriteJump(addr, cardinal(@CWeaponMagazined__UnloadMagazine_need_stop_unload_cycle_Patch), 12, true) then exit;
 
-  setlength(debug_bytes, 0);  
+  setlength(debug_bytes, 0);
   result:=true;
 
 end;
