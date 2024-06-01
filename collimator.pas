@@ -535,7 +535,7 @@ begin
   if (buf<>nil) and (GetOwner(wpn)<>nil) and (GetOwner(wpn)=GetActor()) and (IsWeaponNightVisionPPExist(wpn)) then begin
     val:=buf.GetNightPPEFactor();
     if val >= 0 then begin
-      set_pp_effector_factor(effNightvision, val, 100000);
+      set_pp_effector_factor2(effNightvision, val);
     end;
   end;
 end;

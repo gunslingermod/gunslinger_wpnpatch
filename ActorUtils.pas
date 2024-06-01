@@ -2050,19 +2050,19 @@ begin
         if _action_ppe<0 then begin
           _action_ppe:=2014;
           add_pp_effector(ppe, _action_ppe, false);
-          set_pp_effector_factor(_action_ppe, 1.0, 10000);
+          set_pp_effector_factor2(_action_ppe, 1.0);
         end;
       end else begin
         //выключим рре, если он включен
         if _action_ppe>=0 then begin
-          set_pp_effector_factor(_action_ppe, 0.001, 10000);
+          set_pp_effector_factor2(_action_ppe, 0.001);
           remove_pp_effector(_action_ppe);
           _action_ppe:=-1;
         end;
       end;
     end else begin
       if (_action_ppe>=0) then begin
-        set_pp_effector_factor(_action_ppe, 0.001, 10000);
+        set_pp_effector_factor2(_action_ppe, 0.001);
         remove_pp_effector(_action_ppe);
         _action_ppe:=-1;
       end;
@@ -2623,7 +2623,7 @@ begin
 
   if _action_ppe>=0 then begin
     //снимаем постэффект
-    set_pp_effector_factor(_action_ppe, 0.001, 10000);
+    set_pp_effector_factor2(_action_ppe, 0.001);
     remove_pp_effector(_action_ppe);
     _action_ppe:=-1;
   end;
@@ -3582,7 +3582,7 @@ asm
     push id
 
     mov eax, xrgame_addr
-    add eax, $242fd0
+    add eax, $243030
     call eax
 
     add esp, 8
@@ -3597,7 +3597,7 @@ asm
     push id
 
     mov eax, xrgame_addr
-    add eax, $243030
+    add eax, $242fd0
     call eax
 
     add esp, $C
