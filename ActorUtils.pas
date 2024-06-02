@@ -371,7 +371,7 @@ var
 
 
 implementation
-uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, LensDoubleRender, xr_strings, RayPick;
+uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, LensDoubleRender, xr_strings, RayPick, materials;
 
 type
   TCursorDirection = (Idle, Up, Down, Left, Right, UpLeft, DownLeft, DownRight, UpRight, Click);
@@ -1919,6 +1919,11 @@ var
   act_conds:pCActorCondition;
   need_skip_cb_in_idle:boolean;
 
+  material_id:word;
+  material_manager:pCMaterialManager;
+  material:pSGameMtl;
+  material_burn_restore_speed:single;
+
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -1990,6 +1995,16 @@ begin
         _need_fire_particle:=false;
       end;
     end else begin
+      material_manager:=GetMaterialManager(act);
+      if material_manager<>nil then begin
+        material_id:=material_manager^.m_last_material_idx;
+        material:=GetMaterialByIdx(material_id);
+        material_burn_restore_speed:=GetMaterialBurnRestoreSpeed(get_string_value(@material^.m_Name));
+        if material_burn_restore_speed>0 then begin
+          CEntityCondition__ChangeBleeding_custom(@act_conds.base_CEntityCondition, material_burn_restore_speed*dt, (1 shl EHitType__eHitTypeBurn));
+        end;
+      end;
+
       Messenger.SendMessage('gunsl_actor_burned', gd_stalker);
       CEntityCondition__ChangeBleeding_custom(@act_conds.base_CEntityCondition, GetActorBurnRestoreSpeed()*dt, (1 shl EHitType__eHitTypeBurn));
     end;
@@ -4739,7 +4754,7 @@ begin
   jmp_addr:= xrgame_addr+$458393;
   if not WriteJump(jmp_addr, cardinal(@CUIHudStatesWnd__UpdateZones_Patch), 8, true) then exit;
 
-  //звук шагов экзы
+  //Дергаем скриптовый колбэк из CStepManager::material_sound::play_next для звука шагов экзы 
   jmp_addr:= xrgame_addr+$78F9C;
   if not WriteJump(jmp_addr, cardinal(@CStepManager__material_sound__play_next_OnStepSnd), 5, true) then exit;
 

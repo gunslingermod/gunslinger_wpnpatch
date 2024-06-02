@@ -314,6 +314,7 @@ function GetBoarHitParams():boar_hit_params;
 
 function GetActorFallHitKoef():single;
 function GetActorBurnRestoreSpeed():single;
+function GetMaterialBurnRestoreSpeed(material:string):single;
 
 function GetBobbingEffectorParams():bobbing_effector_params;
 
@@ -420,6 +421,9 @@ var
   _actor_burn_restore_speed:single;
 
   _bobbing_effector_params:bobbing_effector_params;
+
+  _burn_restore_materials:string;
+  _burn_restore_material_speed:single;
 
 //данные консольных команд
 //булевские флаги
@@ -1309,6 +1313,9 @@ begin
 
   _shader_cache_needed:=game_ini_r_bool_def(GUNSL_BASE_SECTION, 'enable_shaders_cache', true);
 
+  _burn_restore_materials:=game_ini_read_string(GUNSL_BASE_SECTION, 'burn_restore_materials');
+  _burn_restore_material_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burn_restore_material_speed', 0.0);
+
   result:=true;
 end;
 
@@ -1722,6 +1729,14 @@ end;
 function IsShadersCacheNeeded():boolean;
 begin
   result:=_shader_cache_needed;
+end;
+
+function GetMaterialBurnRestoreSpeed(material:string):single;
+begin
+  result:=0;
+  if Pos(material, _burn_restore_materials) > 0 then begin
+    result:=_burn_restore_material_speed;
+  end;
 end;
 
 end.
