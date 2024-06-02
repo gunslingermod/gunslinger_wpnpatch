@@ -4591,6 +4591,28 @@ begin
   OnActorSwithesSmth(nil, GetInventoryShowAnimator(), nil, nil, kfINVENTORYSHOW, @FakeCallback, 0)
 end;
 
+function IsBloodmarkNeededForHitType(hit_type:cardinal):boolean; stdcall;
+begin
+  result:=(hit_type = EHitType__eHitTypeFireWound) or (hit_type = EHitType__eHitTypeWound) or (hit_type = EHitType__eHitTypeWound_2);
+end;
+
+procedure CEntityAlive__Hit_bloodmarks_condition_Patch(); stdcall;
+asm
+  pushad
+  push ecx  // HDS.hit_type
+  call IsBloodmarkNeededForHitType
+  test al, al
+  popad
+  jne @finish
+
+  add esp, 4
+  mov eax, xrgame_addr
+  add eax, $27be83
+  jmp eax
+
+  @finish:
+end;
+
 function Init():boolean; stdcall;
 var jmp_addr:cardinal;
 begin
@@ -4798,7 +4820,11 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CEntityAlive__shedule_Update_updateparticles_Patch), 6, true) then exit;
 
   //В CEntityAlive::Hit можно отключить вопроизведение партикла горения для типа eHitTypeLightBurn
-  nop_code(xrgame_addr+$27be23, 2); 
+  nop_code(xrgame_addr+$27be23, 2);
+
+  //В CEntityAlive::Hit отключаем выпадение бладмарков не только для телепатического хита, но и eHitTypeLightBurn
+  jmp_addr:=xrGame_addr+$27be4b;
+  if not WriteJump(jmp_addr, cardinal(@CEntityAlive__Hit_bloodmarks_condition_Patch), 5, true) then exit;
 
   // [bug] баг в CEntityCondition::BleedingSpeed - из-за того, что итоговое кровотечение берется как среднее от всех ран, то при заживании небольшой раны кровотечение усиливается
   // Для исправления заменяем функцию на нашу реализацию, заодно учитывающую и коэффициенты в завсимости от типа хита
