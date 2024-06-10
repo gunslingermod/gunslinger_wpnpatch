@@ -2957,8 +2957,8 @@ begin
 
 
   //добавим анимы смены режима стрельбы
-  if not InitChangeFireMode(xrGame_addr+$2CE2E0,0) then exit;
-  if not InitChangeFireMode(xrGame_addr+$2CE340,1) then exit;
+  if not InitChangeFireMode(xrGame_addr+$2CE2E0,0) then exit;   //CWeaponMagazined::OnNextFireMode
+  if not InitChangeFireMode(xrGame_addr+$2CE340,1) then exit;   //CWeaponMagazined::OnPrevFireMode
 
 
   //модифицированный обработчик отображения сообщения о клине

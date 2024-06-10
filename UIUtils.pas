@@ -1389,7 +1389,7 @@ begin
 
   pos.x:=x_start+dx*item_col;
   pos.y:=y_start+dy*item_row;
-  Log('Slot '+inttostr(index)+' : ('+inttostr(floor(pos.x))+', '+inttostr(floor(pos.y))+')');
+//  Log('Slot '+inttostr(index)+' : ('+inttostr(floor(pos.x))+', '+inttostr(floor(pos.y))+')');
 end;
 
 procedure CorrectBeltListOver(); stdcall;
@@ -2311,7 +2311,7 @@ begin
 
     CreateAddonIcon(@_up_icons[i].icon, _my_cell);
     CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y);
-    log('Created icon '+inttohex(cardinal(_up_icons[i].icon),8) +' for upgrade '+ _up_icons[i].icon_section+', offset '+floattostr(_up_icons[i].offset.x)+' '+floattostr(_up_icons[i].offset.y));
+//    log('Created icon '+inttohex(cardinal(_up_icons[i].icon),8) +' for upgrade '+ _up_icons[i].icon_section+', offset '+floattostr(_up_icons[i].offset.x)+' '+floattostr(_up_icons[i].offset.y));
   end else begin
     _up_icons[i].enabled:=false;
   end;
@@ -2338,14 +2338,14 @@ end;
 
 procedure CreateCellItemBuffer(p:pCellItemBuffer; data:pointer; cell:pointer); stdcall;
 begin
-  Log('Create buffer for CellItem '+inttohex(cardinal(p), 8)+', weapon '+inttohex(cardinal(data), 8));
+//  Log('Create buffer for CellItem '+inttohex(cardinal(p), 8)+', weapon '+inttohex(cardinal(data), 8));
   p^:=CellItemBuffer.Create(data, cell);
 end;
 
 procedure FreeCellItemBuffer(p:pCellItemBuffer); stdcall;
 begin
   if p^<>nil then begin
-    Log('Destroy buffer for CellItem '+inttohex(cardinal(p), 8));
+//    Log('Destroy buffer for CellItem '+inttohex(cardinal(p), 8));
     FreeAndNil(p^);
   end;
 end;
