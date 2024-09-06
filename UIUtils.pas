@@ -297,7 +297,10 @@ protected
   _my_item:pointer;
   _my_cell:pointer;
   _up_icons:array of upgrade_icon_data;
+  _uniq_icon:upgrade_icon_data;
+  _uniq_icon_inited:boolean;
   procedure _ProcessUpgrade(section:PAnsiChar);
+  procedure _InitUniqIcon();
 public
   constructor Create(itm:pointer; cell:pointer);
   destructor Destroy(); override;
@@ -2283,6 +2286,7 @@ begin
   _my_item:=itm;
   _my_cell:=cell;
   setlength(_up_icons, 0);
+  _uniq_icon_inited:=false;
 end;
 
 destructor CellItemBuffer.Destroy;
@@ -2294,7 +2298,6 @@ end;
 procedure CellItemBuffer._ProcessUpgrade(section:PAnsiChar);
 var
   i:integer;
-  icon_section:PAnsiChar;
 const
   UPGRADE_ICON_PARAM_NAME:PAnsiChar='upgrade_addon_icon';
   UPGRADE_ICON_OFFSET_X_PARAM_NAME:PAnsiChar='upgrade_addon_icon_offset_x';
@@ -2317,6 +2320,31 @@ begin
   end;
 end;
 
+procedure CellItemBuffer._InitUniqIcon();
+var
+  sect:PAnsiChar;
+const
+  UNIQ_ICON_PARAM_NAME:PAnsiChar='uniq_icon';
+  UNIQ_ICON_OFFSET_X_PARAM_NAME:PAnsiChar='uniq_icon_offset_x';
+  UNIQ_ICON_OFFSET_Y_PARAM_NAME:PAnsiChar='uniq_icon_offset_y';
+begin
+  _uniq_icon.enabled:=false;
+  sect:=GetSection(_my_item);
+
+  if game_ini_line_exist(sect, UNIQ_ICON_PARAM_NAME) then begin
+    _uniq_icon.icon_section:=game_ini_read_string(sect, UNIQ_ICON_PARAM_NAME);
+
+    if length(_uniq_icon.icon_section) > 0 then begin
+      _uniq_icon.enabled:=true;
+      _uniq_icon.offset.x:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_X_PARAM_NAME, 0);
+      _uniq_icon.offset.y:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_Y_PARAM_NAME, 0);
+
+      CreateAddonIcon(@_uniq_icon.icon, _my_cell);
+      CUIWeaponCellItem__InitAddon(_my_cell, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y);
+    end;
+  end;
+end;
+
 procedure CellItemBuffer.Update();
 var
   ups_count, i, old_cnt:integer;
@@ -2328,6 +2356,11 @@ begin
     for i:=old_cnt to ups_count - 1 do begin
       _ProcessUpgrade(GetInstalledUpgradeSection(_my_item, i));
     end;
+  end;
+
+  if not _uniq_icon_inited then begin
+    _InitUniqIcon();
+    _uniq_icon_inited:=true;
   end;
 end;
 
