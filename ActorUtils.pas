@@ -3990,11 +3990,18 @@ end;
 function CanActorTakeItems(inventoryitem:pointer):boolean; stdcall;
 var
   sect:PAnsiChar;
+  fun:PAnsiChar;
 begin
   result:=true;
-  if IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() then begin
+  sect:=GetSection(inventoryitem);
+
+  if (sect<>nil) and game_ini_line_exist(sect, 'can_take_function') then begin
+    fun:=game_ini_read_string(sect, 'can_take_function');
+    result:=script_bool_call(fun, '', GetID(inventoryitem), '');
+  end;
+
+  if result and IsActorControlled() or IsActorSuicideNow() or IsActorPlanningSuicide() then begin
     result:=false;
-    sect:=GetSection(inventoryitem);
     if (sect<>nil) and game_ini_r_bool_def(sect, 'can_take_when_controlled', false) then begin
       result:=true;
     end;

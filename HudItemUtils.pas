@@ -46,7 +46,7 @@ function FindStrValueInUpgradesDef(wpn:pointer; key:PChar; def:PChar):PChar; std
 function FindIntValueInUpgradesDef(wpn:pointer; key:PChar; def:integer):integer; stdcall;
 function ModifyFloatUpgradedValue(wpn:pointer; key:PChar; def:single):single; stdcall;
 function GetSection(wpn:pointer):PChar; stdcall;
-function GetID(wpn:pointer):word; stdcall;
+function GetID(inventoryitem:pointer):word; stdcall;
 function GetWeaponVisualName(wpn:pointer):pchar; stdcall;
 function GetHUDSection(wpn:pointer):PChar; stdcall;
 function GetScopeStatus(wpn:pointer):cardinal; stdcall;
@@ -736,9 +736,9 @@ asm
     mov @result, eax
 end;
 
-function GetID(wpn:pointer):word; stdcall;
+function GetID(inventoryitem:pointer):word; stdcall;
 asm
-  mov eax, [wpn]
+  mov eax, [inventoryitem]
   movzx eax, word ptr [eax+$18c]
   mov @result, ax
 end;
