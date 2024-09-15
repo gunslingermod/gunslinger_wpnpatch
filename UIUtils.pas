@@ -302,6 +302,7 @@ protected
   procedure _ProcessUpgrade(section:PAnsiChar);
   procedure _InitUniqIcon();
   procedure _UpdateIcons(use_heading:byte);
+  procedure _InitDragItemIcons(drag_wnd:pCUIWindow);
 public
   constructor Create(itm:pointer; cell:pointer);
   destructor Destroy(); override;
@@ -2204,7 +2205,7 @@ asm
   fabs
 end;
 
-procedure CreateAddonIcon(ppicon:ppCUIStatic; cell:pointer); stdcall;
+procedure CreateAddonIcon(ppicon:ppCUIStatic; parent_static:pointer); stdcall;
 asm
   // Нужно выполнить все те действия, что и в CUIWeaponCellItem::CreateIcon, создав иконку и сохранив указатель на нее в буфере, на который указывает ppicon
   pushad
@@ -2225,7 +2226,7 @@ asm
   mov eax, [esp]                //allocated CUIStatic ptr
   mov byte ptr [eax+$4c], 01    //SetAutoDelete	(true)
 
-  mov ecx, [cell]
+  mov ecx, [parent_static]
   mov eax, [ecx]                //vtable
   mov edx,[eax+$18]             //virtual AttachChild ptr
   push [esp]                    //pass allocated CUIStatic ptr
@@ -2241,7 +2242,7 @@ asm
   add edx, $47ace0
   call edx                      //SetShader
 
-  mov ecx, [cell]
+  mov ecx, [parent_static]
   lea ecx, [ecx+$54]            //cast cell to ITextureOwner
   mov eax,[ecx]                 //vtable
   mov edx,[eax+$18]             //virtual GetTextureColor ptr
@@ -2361,6 +2362,23 @@ begin
       CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, use_heading);
     end;
   end;
+
+  if _uniq_icon.enabled then begin
+      CUIWeaponCellItem__InitAddon(_my_cell, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y, use_heading);
+  end;
+end;
+
+procedure CellItemBuffer._InitDragItemIcons(drag_wnd:pCUIWindow);
+var
+  i:integer;
+  pstatic:pCUIStatic;
+begin
+  for i:=0 to length(_up_icons)-1 do begin
+    if _up_icons[i].enabled then begin
+      CreateAddonIcon(@pstatic, drag_wnd);
+      CUIWeaponCellItem__InitAddon(_my_cell, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
+    end;
+  end;
 end;
 
 procedure CellItemBuffer.Update();
@@ -2403,8 +2421,8 @@ end;
 
 procedure CUICellItem__init_zeroupgradepos_Patch();stdcall;
 asm
-  mov [esi+$108], 0 // m_upgrade_pos.x
-  mov [esi+$10c], 0 // m_upgrade_pos.y  
+  mov dword ptr [esi+$108], 0 // m_upgrade_pos.x
+  mov dword ptr [esi+$10c], 0 // m_upgrade_pos.y  
 end;
 
 procedure CUIWeaponCellItem__constructor_CreateBuffer_Patch(); stdcall
@@ -2492,7 +2510,6 @@ end;
 
 
 function CUIDragDropListEx__GetVerticalPlacement(this:pointer):byte; stdcall;
-begin
 asm
   mov @result, 0
   pushad
@@ -2506,13 +2523,11 @@ asm
   mov @result, 1
   @finish:
 end;
-end;
 
 procedure CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons(p:pCellItemBuffer; need_heading:byte); stdcall;
 begin
-    Log('OnAfterChild for CellItem '+inttohex(cardinal(p), 8));
-    if p <> nil then begin
-      p._UpdateIcons(need_heading);
+    if p^ <> nil then begin
+      p^._UpdateIcons(need_heading);
     end;
 end;
 
@@ -2529,6 +2544,28 @@ asm
     push esi
     call CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons
   popad
+end;
+
+procedure CreateAddonIconsForDragItem(p:pCellItemBuffer;drag_item_wnd:pCUIWindow); stdcall;
+begin
+//  Log('CreateAddonIconsForDragItem '+inttohex(cardinal(p), 8));
+  if p^<>nil then begin
+    p^._InitDragItemIcons(drag_item_wnd);
+  end;
+end;
+
+procedure CUIWeaponCellItem__CreateDragItem_Patch(); stdcall;
+asm
+  pushad
+    lea ecx, [ebx+$5c] // i->wnd()
+    push ecx
+    lea esi, [esi+$108] // this->m_upgrade_pos.x
+    push esi
+    call CreateAddonIconsForDragItem
+  popad
+
+  // original
+  cmp dword ptr [esi+$124],00
 end;
 
 function Init():boolean;stdcall;
@@ -2740,6 +2777,13 @@ begin
   jmp_addr:=xrGame_addr+$49e1a5;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__OnAfterChild_Patch), 6, true) then exit;
 
+  //В CUIWeaponCellItem::CreateDragItem добавляем иконки апгрейдов на создающийся для перетаскивания элемент
+  jmp_addr:=xrGame_addr+$49e348;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateDragItem_Patch), 7, true) then exit;
+
+  //в CUIDragItem::Init в вызове SetTextureColor меняем значение альфа-канала на FF для избавления от прозрачности, чтобы перекрытые иконками апгрейдов элементы не были заметны
+  nop_code(xrGame_addr+$49eb68, 1, CHR($FF));
+
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
@@ -2762,10 +2806,12 @@ begin
   //ui_actor_state_wnd::UpdateActorInfo - xrgame.dll+46ff40
   //CUICellItem::Update - xrgame.dll+49ee80
   //CUICellItem::~CUICellItem - xrgame.dll+49f6a0
+  //CUICellItem::CreateDragItem - xrgame.dll+49f570
   //CUIWeaponCellItem::CUIWeaponCellItem - xrgame.dll+49dd30
   //CUIWeaponCellItem::CreateIcon - xrgame.dll+49d730
   //CUIWeaponCellItem::OnAfterChild - xrgame.dll+49e1a0
   //CUIWeaponCellItem::CreateDragItem - xrgame.dll+49e300
+  //CUIDragItem::Init - xrgame.dll+49eaf0
 
   //CUIInventoryCellItem::CUIInventoryCellItem - xrgame.dll+49d520
 
