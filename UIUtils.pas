@@ -301,6 +301,7 @@ protected
   _uniq_icon_inited:boolean;
   procedure _ProcessUpgrade(section:PAnsiChar);
   procedure _InitUniqIcon();
+  procedure _UpdateIcons(use_heading:byte);
 public
   constructor Create(itm:pointer; cell:pointer);
   destructor Destroy(); override;
@@ -2257,11 +2258,17 @@ asm
   popad
 end;
 
-procedure CUIWeaponCellItem__InitAddon(cell:pointer; picon:pCUIStatic; section:PAnsiChar; offset_x:single; offset_y:single); stdcall;
+procedure CUIWeaponCellItem__InitAddon(cell:pointer; picon:pCUIStatic; section:PAnsiChar; offset_x:single; offset_y:single; use_heading:byte=$FF); stdcall;
 asm
   pushad
   mov ecx, [cell]
+
+  movzx eax,  byte ptr [use_heading]
+  cmp al, $FF
+  jne @push_heading
   movzx eax, byte ptr [ecx+$C8] // m_bHeading
+
+  @push_heading:
   push eax
   mov eax, [offset_y]
   push eax
@@ -2341,6 +2348,17 @@ begin
 
       CreateAddonIcon(@_uniq_icon.icon, _my_cell);
       CUIWeaponCellItem__InitAddon(_my_cell, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y);
+    end;
+  end;
+end;
+
+procedure CellItemBuffer._UpdateIcons(use_heading:byte);
+var
+  i:integer;
+begin
+  for i:=0 to length(_up_icons)-1 do begin
+    if _up_icons[i].enabled then begin
+      CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, use_heading);
     end;
   end;
 end;
@@ -2469,6 +2487,47 @@ asm
   push eax
   push esi
   call SetCellItemBufferItem
+  popad
+end;
+
+
+function CUIDragDropListEx__GetVerticalPlacement(this:pointer):byte; stdcall;
+begin
+asm
+  mov @result, 0
+  pushad
+  mov ecx, [this]
+  mov eax, xrgame_addr
+  add eax, $49faa0 // CUIDragDropListEx::GetVerticalPlacement
+  call eax
+  test al, al
+  popad
+  je @finish
+  mov @result, 1
+  @finish:
+end;
+end;
+
+procedure CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons(p:pCellItemBuffer; need_heading:byte); stdcall;
+begin
+    Log('OnAfterChild for CellItem '+inttohex(cardinal(p), 8));
+    if p <> nil then begin
+      p._UpdateIcons(need_heading);
+    end;
+end;
+
+procedure CUIWeaponCellItem__OnAfterChild_Patch(); stdcall;
+asm
+  mov ecx,[esi+$110]
+  mov eax, [esp+$14] // parent_list
+  pushad
+    push eax
+    call CUIDragDropListEx__GetVerticalPlacement
+    lea esi, [esi+$108] // this->m_upgrade_pos.x
+    
+    push eax
+    push esi
+    call CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons
   popad
 end;
 
@@ -2677,6 +2736,10 @@ begin
   jmp_addr:=xrGame_addr+$49f2d3;
   if not WriteJump(jmp_addr, cardinal(@CUICellItem__PopChild_Patch), 5, true) then exit;
 
+  // В CUIWeaponCellItem::OnAfterChild производим реинит иконок аддонов
+  jmp_addr:=xrGame_addr+$49e1a5;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__OnAfterChild_Patch), 6, true) then exit;
+
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
@@ -2701,7 +2764,17 @@ begin
   //CUICellItem::~CUICellItem - xrgame.dll+49f6a0
   //CUIWeaponCellItem::CUIWeaponCellItem - xrgame.dll+49dd30
   //CUIWeaponCellItem::CreateIcon - xrgame.dll+49d730
-  //CUIWeaponCellItem::InitAddon - xrgame.dll+49d7c0
+  //CUIWeaponCellItem::OnAfterChild - xrgame.dll+49e1a0
+  //CUIWeaponCellItem::CreateDragItem - xrgame.dll+49e300
+
+  //CUIInventoryCellItem::CUIInventoryCellItem - xrgame.dll+49d520
+
+  //create_cell_item - xrgame.dll+49f730
+
+  //CUIActorMenu::SetMenuMode - xrgame.dll+467f50
+  //CUIActorMenu::InitInventoryMode - xrgame.dll+46e530
+  //CUIActorMenu::InitInventoryContents - xrgame.dll+46e310
+
 
   result:=true;
 end;
