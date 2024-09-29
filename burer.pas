@@ -98,8 +98,6 @@ end;
 
 function IsWeaponDangerous(itm:pointer; burer:pointer):boolean; stdcall;
 var
-  gl_status:cardinal;
-  in_gl:boolean;
   curanm:PAnsiChar;
 begin
   result:=false;
@@ -115,9 +113,7 @@ begin
   end else if IsThrowable(itm) then begin
     result:=false;
   end else if WpnCanShoot(itm) and (GetCurrentAmmoCount(itm) > 0) then begin
-    gl_status:=GetGLStatus(itm);
-    in_gl:= ((gl_status=1) or ((gl_status=2) and IsGLAttached(itm))) and IsGLEnabled(itm);
-    if in_gl then begin
+    if IsGrenadeMode(itm) then begin
       result:=true;
     end else if IsWeaponJammed(itm) or (GetCurrentState(itm) = EWeaponStates__eReload) then begin
       result:=false;
@@ -129,7 +125,6 @@ end;
 
 function IsWeaponReadyForBigBoom(itm:pointer; was_shot:pboolean):boolean; stdcall;
 var
-  gl_status:cardinal;
   buf:WpnBuf;
 const
   SHOT_SAFETY_TIME_DELTA:cardinal=2000;
@@ -142,8 +137,7 @@ begin
   if itm<>nil then begin
     result:=(dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponRG6, false)<>nil) or (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponRPG7, false)<>nil);
     if not result and WpnCanShoot(itm) then begin
-      gl_status:=GetGLStatus(itm);
-      if ((gl_status=1) or ((gl_status=2) and IsGLAttached(itm))) and IsGLEnabled(itm) then begin
+      if IsGrenadeMode(itm) then begin
         result:=true;
       end;
     end;
@@ -774,6 +768,7 @@ begin
 
     if not result and IsKnife(itm) and IsBurerKnifeSelfKick() then begin
       AssignSelfKick();
+      virtual_CHudItem_SwitchState(itm, EWeaponStates__eFire);
     end;
 
     if not result then begin
@@ -2275,6 +2270,8 @@ begin
   jmp_addr:=xrGame_addr+$10ab00;
   if not WriteJump(jmp_addr, cardinal(@CStateBurerAttack__check_control_start_conditions_reimpl_Patch), 5, false) then exit;
   g_antiaim_allowed:=0;
+
+  // [todo] В anti_aim_ability::check_update_condition можно добавить завершение, если актор скрылся из поля зрения
 
   //CPHCollisionDamageReceiver::CollisionHit - xrgame+28f970
   //xrgame+$101c60 - CBurer::DeactivateShield

@@ -173,7 +173,7 @@ asm
   pushad
     mov ecx, CMissile
     movzx eax, [status]
-    mov [ecx+$33c], eax
+    mov [ecx+$33c], eax // m_throw
   popad
 end;
 

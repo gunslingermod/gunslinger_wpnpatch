@@ -891,7 +891,6 @@ function CanAimNow(wpn:pointer):boolean;stdcall;
 var
   tmp:pointer;
   sect:PAnsiChar;
-  gl_status:integer;
 begin
   result:=true;
   if IsActorSuicideNow() or IsActorPlanningSuicide() or IsControllerPreparing() then begin
@@ -911,8 +910,7 @@ begin
     end;
 
     if result then begin
-      gl_status:=GetGLStatus(wpn);
-      if ((gl_status=1) or ((gl_status=2) and (IsGLAttached(wpn)))) and IsGLEnabled(wpn) then begin
+      if IsGrenadeMode(wpn) then begin
         if IsScopeAttached(wpn) then begin
           sect:=GetCurrentScopeSection(wpn);
         end else begin

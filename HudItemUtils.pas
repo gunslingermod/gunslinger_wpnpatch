@@ -35,7 +35,7 @@ procedure set_addons_state(wpn:pointer; state:cardinal); stdcall;
 function IsScopeAttached(wpn:pointer):boolean; stdcall;
 function IsSilencerAttached(wpn:pointer):boolean; stdcall;
 function IsGLAttached(wpn:pointer):boolean; stdcall;
-function IsGLEnabled(wpn:pointer):boolean; stdcall;       //перед вызовом - обязательно убедиться, что гранатомет на оружии вообще ЕСТЬ! Некоторые классы оружия не поддерживают гранатомет, и тогда функция может возвратить мусор или даже сгенерировать вылет!
+function IsGLEnabled(wpn:pointer):boolean; stdcall;       //UNSAFE! Лучше использовать IsGrenadeMode! Если не выходит, то перед вызовом обязательно убедиться, что гранатомет на оружии вообще ЕСТЬ! Некоторые классы оружия не поддерживают гранатомет, и тогда функция может возвратить мусор или даже сгенерировать вылет!
 procedure SetGLEnabled(wpn:pointer; state:boolean); stdcall;
 function IsWeaponJammed(wpn:pointer):boolean; stdcall;
 function CurrentQueueSize(wpn:pointer):integer; stdcall;
@@ -243,7 +243,7 @@ const
 
 
 implementation
-uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster, xr_Cartridge, xr_strings;
+uses BaseGameData, gunsl_config, sysutils, ActorUtils, Misc, xr_BoneUtils, windows, dynamic_caster, xr_Cartridge, xr_strings, Vector;
 var
   PlayHudAnim_Func:cardinal;
   _pps_HudFlags:pcardinal;
@@ -424,50 +424,29 @@ begin
 end;
 
 function GetAmmoInMagCount(wpn:pointer):cardinal; stdcall;
-asm
-    pushad
-    pushfd
-    mov ebx, wpn
+var
+  pstart, pend:cardinal;
+  ptr:pxr_vector;
+begin
+  result:=0;
+  if wpn = nil then exit;
 
-    pushad
-    push ebx
-    call GetGLStatus
-    cmp eax, 0
-    popad
-    je @use_main
-    
-    push ebx
-    call IsGLEnabled
-    cmp al, 0
-    jne @use_alter
+  if not IsGrenadeMode(wpn) then
+    ptr:= pxr_vector(PChar(wpn)+$6C8)
+  else
+    ptr:= pxr_vector(PChar(wpn)+$7EC);
 
-    @use_main:
-    mov edx, [ebx+$6CC]
-    sub edx, [ebx+$6C8]
-    jmp @divide
+  pstart:=cardinal(ptr.start);
+  pend:=cardinal(ptr.last);
 
-    @use_alter:
-    mov edx, [ebx+$7F0]
-    sub edx, [ebx+$7EC]
-    jmp @divide
-
-    @divide:
-    movzx eax, dx
-    shr edx, 16
-    mov ebx, $3c;
-    div bx
-
-    mov @result, eax
-
-    popfd
-    popad
+  result:=(pend-pstart) div sizeof(CCartridge);
 end;
 
 
 function GetAmmoInGLCount(wpn:pointer):cardinal; stdcall;
 var
   pstart, pend, gl_status:cardinal;
-  ptr:pointer;
+  ptr:pxr_vector;
 begin
   result:=0;
 
@@ -475,13 +454,14 @@ begin
 
   gl_status:=GetGLStatus(wpn);
   if (gl_status=0) or ((gl_status=2) and not IsGLAttached(wpn)) then exit;
-  if IsGrenadeMode(wpn) then
-    ptr:= PChar(wpn)+$6C8
-  else
-    ptr:= PChar(wpn)+$7EC;
 
-  pstart:=(pcardinal(ptr))^;
-  pend:=(pcardinal(PChar(ptr)+4))^;
+  if IsGrenadeMode(wpn) then
+    ptr:= pxr_vector(PChar(wpn)+$6C8)
+  else
+    ptr:= pxr_vector(PChar(wpn)+$7EC);
+
+  pstart:=cardinal(ptr.start);
+  pend:=cardinal(ptr.last);
 
   result:=(pend-pstart) div sizeof(CCartridge);
 end;
@@ -837,6 +817,7 @@ asm
     @finish:
 end;
 
+// UNSAFE! Try to use IsGrenadeMode instead
 function IsGLEnabled(wpn:pointer):boolean; stdcall;
 asm
     mov @result, 0
@@ -1431,14 +1412,11 @@ var
   ammotype:integer;
   param:string;
   sect:PChar;
-  gl_status:cardinal;
 begin
   result:=0;
   if wpn = nil then exit;
 
-  gl_status:=GetGLStatus(wpn);
-
-  if ((gl_status=1) or ((gl_status=2) and (IsGLAttached(wpn)))) and IsGLEnabled(wpn) then begin
+  if IsGrenadeMode(wpn) then begin
     ptr:= PChar(wpn)+$7E8;
     ammotype:=-1;
   end else begin

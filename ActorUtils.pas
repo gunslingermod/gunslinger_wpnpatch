@@ -2770,7 +2770,7 @@ begin
         end;
       end;
 
-      if ((GetGLStatus(wpn)=1) or ((GetGLStatus(wpn)=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then begin
+      if IsGrenadeMode(wpn) then begin
         zoom_fov:=GetCachedCfgParamFloatDef(cached_hud_fov_gl_zoom_factor, GetHUDSection(wpn), 'hud_fov_gl_zoom_factor', hud_fov);
         zoom_fov_section:=nil;
       end else if (GetScopeStatus(wpn)=2) and IsScopeAttached(wpn) then begin
@@ -3539,7 +3539,7 @@ asm
 
   movzx eax, status
   mov ebx, xrgame_addr
-  mov byte ptr [ebx+$64db8a], al 
+  mov byte ptr [ebx+$64db8a], al // g_bDisableAllInput
 
   pop ebx
   pop eax
@@ -4030,6 +4030,35 @@ asm
   @normal:
   test eax, eax
   jmp edx
+end;
+
+procedure SetTakeItemHint(hint:pshared_str; inventory_item:pointer); stdcall;
+var
+  sect:PAnsiChar;
+  fun:PAnsiChar;
+  hint_text:PAnsiChar;
+begin
+  sect:=GetSection(inventory_item);
+
+  if (sect<>nil) and game_ini_line_exist(sect, 'take_hint_function') then begin
+    fun:=game_ini_read_string(sect, 'take_hint_function');
+    hint_text:=script_pchar_call(fun, '', GetID(inventory_item), false, '');
+    assign_string(hint, hint_text)
+  end;
+end;
+
+procedure CActor__shedule_Update_changetakeitemmessage_Patch(); stdcall;
+asm
+  pushad
+  mov ecx,[esi+$510]
+  mov edx,[ecx]
+  mov eax,[edx+$8C]
+  call eax // m_pObjectWeLookingAt->cast_inventory_item()
+  push eax
+  lea ecx,[esi+$518]   //m_sDefaultObjAction
+  push ecx
+  call SetTakeItemHint
+  popad
 end;
 
 function GetActorTorchDist():single; stdcall;
@@ -4736,7 +4765,7 @@ begin
   jmp_addr:= xrgame_addr+$2F8102;
   if not WriteJump(jmp_addr, cardinal(@OnOutfitOrHelmInRuck_Patch), 5, true) then exit;
 
-
+  // в CActor__g_cl_CheckControls корректируем скорость движения актора (после scale	=	m_fWalkAccel/scale домножаем на дополнительный коэффициент)
   jmp_addr:= xrgame_addr+$269ab0;
   if not WriteJump(jmp_addr, cardinal(@CorrectActorSpeed), 6, true) then exit;
 
@@ -4754,6 +4783,7 @@ begin
   jmp_addr:= xrgame_addr+$45CA70;
   if not WriteJump(jmp_addr, cardinal(@CUIMotionIcon__Update_Patch), 8, true) then exit;
 
+  // Коррекция движений мыши в CActor::IR_OnMouseMove после вычисления scale
   jmp_addr:= xrgame_addr+$277CC3;
   if not WriteJump(jmp_addr, cardinal(@CActor__IR_OnMouseMove_CorrectMouseSense_Patch), 16, true) then exit;
 
@@ -4790,7 +4820,11 @@ begin
   jmp_addr:=xrGame_addr+$2a9ce3;
   if not WriteJump(jmp_addr, cardinal(@CInventory__CanTakeItem_Conditions), 5, true) then exit;
 
-  // Удлиненние рук актора - чтобы мог взять хабар из нычек в кабинах и т.п
+  //В CActor::shedule_Update кастомизируем выбор сообщения для m_sInventoryItemUseAction
+  jmp_addr:=xrGame_addr+$262c02;
+  if not WriteJump(jmp_addr, cardinal(@CActor__shedule_Update_changetakeitemmessage_Patch), 20, true) then exit;
+
+  // Удлиненние рук актора - чтобы мог взять хабар из нычек в кабинах и т.п (патч в CActor::shedule_Update выражения RQ.range<2.0f)
   jmp_addr:=cardinal(@g_pickup_distance);
   if not WriteBufAtAdr(xrGame_addr+$2629a3, @jmp_addr, sizeof(jmp_addr)) then exit;
 

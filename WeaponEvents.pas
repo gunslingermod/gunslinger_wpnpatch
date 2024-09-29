@@ -527,8 +527,6 @@ begin
   if WpnCanShoot(wpn) then begin
     buf:=GetBuffer(wpn);
     if (buf<>nil) then begin
-//      if (IsGLAttached(wpn))  then log(booltostr(ISGLEnabled(wpn), true));
-
       if (length(buf.ammos)>0) and (length(buf.ammos)=integer(GetAmmoInMagCount(wpn))) then begin
         for i:=0 to length(buf.ammos)-1 do begin
           sect:=GetMainCartridgeSectionByType(wpn, buf.ammos[i]);
@@ -946,7 +944,7 @@ begin
   anm_started:=false;
 
   //ѕри патчинге мы вырезали воспроизведение звука. »справим это недоразумение одновременно с проигрыванием анимы.
-  if not (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and IsWeaponJammed(wpn) then begin
+  if not IsGrenadeMode(wpn) and IsWeaponJammed(wpn) then begin
     txt := 'gunsl_msg_weapon_jammed';
     if IsAimNow(wpn) or IsHolderInAimState(wpn) then begin
       anm_started:=WeaponAdditionalBuffer.PlayCustomAnimStatic(wpn, 'anm_fakeshoot_aim', 'sndJammedClick', nil, 0, false, true)
@@ -1908,7 +1906,7 @@ var
   buf:WpnBuf;
   scope_sect:PChar;
 begin
-  if IsGLAttached(wpn) and IsGLEnabled(wpn) then begin
+  if IsGrenadeMode(wpn) then begin
     scope_sect:=GetSection(wpn);
     if game_ini_line_exist(scope_sect, 'gl_zoom_factor') then begin
       SetZoomFactor(wpn, game_ini_r_single(scope_sect, 'gl_zoom_factor'));

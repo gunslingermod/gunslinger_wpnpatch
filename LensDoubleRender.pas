@@ -427,7 +427,7 @@ begin
     // Линза отключена в настройках. Если мы в режиме прицеливания - все кадры рендерим с указанным фов
     wpn:=GetActorActiveItem();
     wpn:=dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CWeapon, false);
-    if (wpn<>nil) and (GetAimFactor(wpn) > 0.999) and not (((GetGLStatus(wpn)=1) or IsGLAttached(wpn)) and IsGLEnabled(wpn)) and IsLensedScopeInstalled(wpn) then begin
+    if (wpn<>nil) and (GetAimFactor(wpn) > 0.999) and (not IsGrenadeMode(wpn)) and IsLensedScopeInstalled(wpn) then begin
        buf:=GetBuffer(wpn);
        if (buf=nil) or not buf.IsAlterZoomMode() then begin
           value^:=GetLensFOV(value^);

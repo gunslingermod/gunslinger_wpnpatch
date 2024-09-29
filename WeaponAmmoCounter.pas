@@ -17,10 +17,9 @@ procedure SwapFirstLastAmmo(wpn:pointer);stdcall;
 var
   cs, ce:pCCartridge;
   tmp:CCartridge;
-  cnt, gl_status:cardinal;
+  cnt:cardinal;
 begin
-  gl_status:=GetGLStatus(wpn);
-  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
+  if IsGrenadeMode(wpn) then exit;
   cnt:=GetAmmoInMagCount(wpn);
   if cnt>1 then begin
     cnt:=cnt-1;
@@ -36,10 +35,9 @@ procedure SwapLastPrevAmmo(wpn:pointer);stdcall;
 var
   cs, ce:pCCartridge;
   tmp:CCartridge;
-  cnt, gl_status:cardinal;
+  cnt:cardinal;
 begin
-  gl_status:=GetGLStatus(wpn);
-  if ((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn) then exit;
+  if IsGrenadeMode(wpn) then exit;
   cnt:=GetAmmoInMagCount(wpn);
   if cnt>1 then begin
     cnt:=cnt-1;
@@ -57,15 +55,13 @@ procedure CWeaponMagazined__OnAnimationEnd_DoReload(wpn:pointer); stdcall;
 var
   buf: WpnBuf;
   def_magsize, mod_magsize, curammocnt:integer;
-  gl_status:cardinal;
 begin
   buf:=GetBuffer(wpn);
   //если буфера нет или мы уже перезарядилиcь или у нас режим подствола - ничего особенного не делаем
   if (buf=nil) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 
   if buf.IsReloaded() then begin buf.SetReloaded(false); exit; end;
-  gl_status:=GetGLStatus(wpn);
-  if (((gl_status=1) or ((gl_status=2) and IsGLAttached(wpn))) and IsGLEnabled(wpn)) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
+  if IsGrenadeMode(wpn) then begin virtual_CWeaponMagazined__ReloadMagazine(wpn); exit; end;
 
   //посмотрим, каков размер магазина у оружия и сколько патронов в нем сейчас
   def_magsize:=GetMagCapacity(wpn);
@@ -514,7 +510,7 @@ begin
     exit;
   end;
 
-  g_m:=IsGLEnabled(wpn);
+  g_m:=IsGrenadeMode(wpn);
   cnt:=GetGLAmmoTypesCount(wpn);
   result:=0;
 

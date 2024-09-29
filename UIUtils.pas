@@ -537,6 +537,7 @@ end;
 end;
 
 function IsInventoryShown():boolean; stdcall;
+// CurrentGameUI()->ActorMenu().IsShown()
 begin
 asm
   mov @result, 0
@@ -2820,6 +2821,8 @@ begin
   //CUIActorMenu::SetMenuMode - xrgame.dll+467f50
   //CUIActorMenu::InitInventoryMode - xrgame.dll+46e530
   //CUIActorMenu::InitInventoryContents - xrgame.dll+46e310
+
+  //CUICustomMap::Initialize - xrgame.dll+447210
 
 
   result:=true;
