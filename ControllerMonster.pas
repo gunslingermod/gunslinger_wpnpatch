@@ -748,21 +748,21 @@ begin
 
 
   //фантомчики
-  if GetCurrentDifficulty()>=gd_stalker then begin
-    p:=GetControllerPhantomsParams();
-    i:=random(p.max_cnt-p.min_cnt)+p.min_cnt;
-    va:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
 
-    for j:=1 to i do begin
-      v.x:=random(1000)-500;
-      v.y:=random(200);
-      v.z:=random(1000)-500;
-      radius:= ((p.max_radius-p.min_radius)*random(1000)/1000)+p.min_radius;
-      v_setlength(@v, radius);
-      v_add(@v, @va);
-      spawn_phantom(@v);
-    end;
+  p:=GetControllerPhantomsParams();
+  i:=random(p.max_cnt-p.min_cnt)+p.min_cnt;
+  va:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+
+  for j:=1 to i do begin
+    v.x:=random(1000)-500;
+    v.y:=random(200);
+    v.z:=random(1000)-500;
+    radius:= ((p.max_radius-p.min_radius)*random(1000)/1000)+p.min_radius;
+    v_setlength(@v, radius);
+    v_add(@v, @va);
+    spawn_phantom(@v);
   end;
+
 end;
 
 function IsNeedPsiHitOverride():boolean;
