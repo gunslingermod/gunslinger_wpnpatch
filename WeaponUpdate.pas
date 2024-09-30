@@ -1127,6 +1127,7 @@ begin
 
   //CActor::PickupModeUpdate - xrgame+268b10
   //CActor::PickupModeUpdate_COD - xrgame+267de0
+  //CActor::CanPickItem - xrgame.dll+267950
 
   //[bug] Баг - в CActor::PickupModeUpdate кто-то поставил условие !m_pUsableObject->nonscript_usable() на поднятие с земли
   //Из-за этого при отключенном COD-режиме с земли вообще ничего не поднимается, а при включенном - не поднимается то, центр чего игра видимым не считает

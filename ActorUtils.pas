@@ -368,7 +368,8 @@ const
 
 var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
-
+  psMouseSens:psingle;
+  psMouseSensScale:psingle;
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, LensDoubleRender, xr_strings, RayPick, materials;
@@ -1924,6 +1925,8 @@ var
   material:pSGameMtl;
   material_burn_restore_speed:single;
 
+  keyboard_move_k_corrected:single;
+
 const
   PDA_CURSOR_MOVE_TREASURE:cardinal=2;
 begin
@@ -2273,14 +2276,15 @@ begin
 
   if GetCurrentControllerInputCorrectionParams().active then begin
     contr_k:=GetControllerMouseControlParams();
+    keyboard_move_k_corrected:=contr_k.keyboard_move_k / (psMouseSens^ * psMouseSensScale^);
     if GetActorActionState(act, actMovingLeft, mState_REAL) then begin
-      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.min_offset), floor(contr_k.keyboard_move_k*contr_k.max_offset));
+      virtual_CActor__IR_OnMouseMove(act, floor(keyboard_move_k_corrected*contr_k.min_offset), floor(keyboard_move_k_corrected*contr_k.max_offset));
     end else if GetActorActionState(act, actMovingRight, mState_REAL) then begin
-      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.max_offset), floor(contr_k.keyboard_move_k*contr_k.max_offset));
+      virtual_CActor__IR_OnMouseMove(act, floor(keyboard_move_k_corrected*contr_k.max_offset), floor(keyboard_move_k_corrected*contr_k.max_offset));
     end else if GetActorActionState(act, actMovingForward, mState_REAL) then begin
-      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.min_offset), floor(contr_k.keyboard_move_k*contr_k.max_offset));
+      virtual_CActor__IR_OnMouseMove(act, floor(keyboard_move_k_corrected*contr_k.min_offset), floor(keyboard_move_k_corrected*contr_k.max_offset));
     end else if GetActorActionState(act, actMovingBack, mState_REAL) then begin
-      virtual_CActor__IR_OnMouseMove(act, floor(contr_k.keyboard_move_k*contr_k.min_offset), floor(contr_k.keyboard_move_k*contr_k.min_offset));
+      virtual_CActor__IR_OnMouseMove(act, floor(keyboard_move_k_corrected*contr_k.min_offset), floor(keyboard_move_k_corrected*contr_k.min_offset));
     end;
   end;
 end;
@@ -4032,18 +4036,65 @@ asm
   jmp edx
 end;
 
+function CanActorPickUpItem(CObject:pointer):boolean; stdcall;
+var
+  ii:pointer;
+begin
+  result:=true;
+  if CObject = nil then exit;
+
+  ii:=dynamic_cast(CObject, 0, RTTI_CObject, RTTI_CInventoryItem, false);
+  if ii<>nil then begin
+    result:=CanActorTakeItems(ii);
+  end;
+end;
+
+procedure CActor__CanPickItem_Patch(); stdcall;
+asm
+  // original check (item->getVisible())
+  test [ebx+$A4],$02000000
+  je @finish
+  
+  pushad
+  push ebx
+  call CanActorPickUpItem
+  test al, al
+  popad
+  @finish:
+end;
+
+var
+  info_buffer:array[0..255] of char;
+
 procedure SetTakeItemHint(hint:pshared_str; inventory_item:pointer); stdcall;
 var
   sect:PAnsiChar;
   fun:PAnsiChar;
   hint_text:PAnsiChar;
+  new_text:PAnsiChar;
+  l:integer;  
 begin
   sect:=GetSection(inventory_item);
+  hint_text:=nil;
 
   if (sect<>nil) and game_ini_line_exist(sect, 'take_hint_function') then begin
     fun:=game_ini_read_string(sect, 'take_hint_function');
     hint_text:=script_pchar_call(fun, '', GetID(inventory_item), false, '');
-    assign_string(hint, hint_text)
+    if length(hint_text)=0 then hint_text:=nil;
+  end else begin
+    hint_text:='inventory_item_use';
+  end;
+  assign_string(hint, hint_text);
+
+  info_buffer[0]:=chr(0);
+  if (sect<>nil) and game_ini_line_exist(sect, 'info_function') then begin
+    fun:=game_ini_read_string(sect, 'info_function');
+    new_text:=script_pchar_call(fun, '', GetID(inventory_item), false, '');
+    l:=length(new_text);
+    if (l>0) and (l < length(info_buffer)-1) then begin
+      strcopy(@info_buffer[0], new_text);
+      info_buffer[length(info_buffer)-1]:=chr(0);
+    end;
   end;
 end;
 
@@ -4059,6 +4110,33 @@ asm
   push ecx
   call SetTakeItemHint
   popad
+end;
+
+
+procedure OverrideInventoryItemInfoText(inventory_item:pointer; text:ppansichar); stdcall;
+begin
+  if info_buffer[0] <> chr(0) then begin
+    text^:=@info_buffer[0];
+  end;
+end;
+
+procedure CHUDTarget__Render_changedisplayeditemname_Patch(); stdcall;
+const
+  fmtstr:PAnsiChar='%s';
+asm
+  pop edx
+  push eax
+
+  mov eax, esp //ptr to string
+  mov ecx,[esp+$20] //l_pI
+  pushad
+    push eax
+    push ecx
+    call OverrideInventoryItemInfoText
+  popad
+
+  push fmtstr
+  jmp edx;
 end;
 
 function GetActorTorchDist():single; stdcall;
@@ -4688,6 +4766,9 @@ begin
   _pda_cursor_state.last_click_time:=0;
   _is_pda_lookout_mode:=false;
 
+  psMouseSens:=psingle(xrengine_addr+$90d8c);
+  psMouseSensScale:=psingle(xrengine_addr+$90f5c);
+
 
   result:=false;
   jmp_addr:=xrGame_addr+$261DF6; //CActor::UpdateCL
@@ -4820,9 +4901,17 @@ begin
   jmp_addr:=xrGame_addr+$2a9ce3;
   if not WriteJump(jmp_addr, cardinal(@CInventory__CanTakeItem_Conditions), 5, true) then exit;
 
+  //Аналогично - проверяем в CActor::CanPickItem возможность подъема предмета
+  jmp_addr:=xrGame_addr+$267958;
+  if not WriteJump(jmp_addr, cardinal(@CActor__CanPickItem_Patch), 10, true) then exit;
+
   //В CActor::shedule_Update кастомизируем выбор сообщения для m_sInventoryItemUseAction
   jmp_addr:=xrGame_addr+$262c02;
-  if not WriteJump(jmp_addr, cardinal(@CActor__shedule_Update_changetakeitemmessage_Patch), 20, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CActor__shedule_Update_changetakeitemmessage_Patch), 18, true) then exit;
+
+  //В CHUDTarget::Render вместо l_pI->NameItem() выводим сообщение по нашему выбору
+  jmp_addr:=xrGame_addr+$4d91be;
+  if not WriteJump(jmp_addr, cardinal(@CHUDTarget__Render_changedisplayeditemname_Patch), 6, true) then exit;
 
   // Удлиненние рук актора - чтобы мог взять хабар из нычек в кабинах и т.п (патч в CActor::shedule_Update выражения RQ.range<2.0f)
   jmp_addr:=cardinal(@g_pickup_distance);
@@ -4896,5 +4985,7 @@ end;
 
 // CEntityCondition::ChangeBleeding - xrGame.dll+27dc60
 // CActor::UpdateArtefactsOnBeltAndOutfit - xrGame.dll+262cd0
+// CUIMainIngameWnd::RenderQuickInfos - xrgame.dll+459280
+// CHUDTarget::Render - xrgame.dll+4d8c30
 
 end.
