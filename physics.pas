@@ -237,4 +237,6 @@ asm
   popad
 end;
 
+// CPHMovementControl::Calculate - xrgame.dll+5012d0
+// CPHActorCharacter::Jump - xrphysics.dll+1db60
 end.

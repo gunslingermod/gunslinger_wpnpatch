@@ -370,6 +370,7 @@ var
   _is_pda_lookout_mode:boolean; //за что отвечает мышь: обзор или курсор
   psMouseSens:psingle;
   psMouseSensScale:psingle;
+  NET_Jump:psingle;
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, LensDoubleRender, xr_strings, RayPick, materials;
@@ -521,7 +522,7 @@ end;
 
 procedure PerformDropFromActorHands(); stdcall;
 var
-  act, det, itm:pointer;
+  act, det:pointer;
 begin
   act:=GetActorIfAlive();
   if act=nil then exit;
@@ -1835,6 +1836,21 @@ asm
   popad
 end;
 
+procedure MoveMouse(mouse_dx:integer; mouse_dy:integer; correction:boolean);
+var
+  act:pointer;
+begin
+  act:=GetActorIfAlive();
+  if act = nil then exit;
+
+  if correction then begin
+    mouse_dx:=floor(mouse_dx / (psMouseSens^ * psMouseSensScale^));
+    mouse_dy:=floor(mouse_dy / (psMouseSens^ * psMouseSensScale^));
+  end;
+
+  virtual_CActor__IR_OnMouseMove(act, mouse_dx, mouse_dy);
+end;
+
 function IsPDAShowToZoomNow():boolean;
 begin
   result:=_need_pda_zoom;
@@ -1913,7 +1929,6 @@ var
 
   ss:shared_str;
   canshoot:boolean;
-  slot:cardinal;
   act_anm:boolean;
   tmpstr:string;
 
@@ -2252,9 +2267,8 @@ begin
       if (itm=nil) or (canshoot and CanStartAction(itm)) or (not canshoot and (GetCurrentState(itm) = EHudStates__eIdle)) then begin
         //Log('Hide slots for hud section change');
         ChangeSlotsBlockStatus(true);
-        slot:=GetActorActiveSlot();
-        if slot < 0 then slot:=0;
-        _slot_to_restore_after_outfit_change:=slot;
+        _slot_to_restore_after_outfit_change:=GetActorActiveSlot();
+        if _slot_to_restore_after_outfit_change < 0 then _slot_to_restore_after_outfit_change:=0;
         ActivateActorSlot(0);
         if (det <> nil) then begin
           ForceHideDetector(det);
@@ -4321,65 +4335,113 @@ asm
   mov edx,[ebx+$254]
 end;
 
-procedure OnMonsterHit(h:pSHit); stdcall;
+procedure DropWeaponOnMonsterHit(h:pSHit; itm_drop_params:monster_item_drop_params; animator_monster_name:string; use_directions:boolean);
 var
-  source, dest:pointer;
-  boar, act:pointer;
+  dest:pointer;
+  act:pointer;
   stamina:single;
   itm:pointer;
   sect:PAnsiChar;
-  slot:cardinal;
   dropped:boolean;
   cond_dec:single;
-  hit_params:boar_hit_params;
+  stamina_hit_power:single;
 
   look_v:FVector3;
   is_actor_see_monster:boolean;
+  dist:FVector3;
+  unconditional_weapon_drop:boolean;
+  new_stamina:single;
+  x, y:single;
 begin
   dest:=GetObjectById(h.DestID);
   act:=GetActor();
   if (dest<>nil) and (dest = act) then begin
-    source:=GetObjectById(h.whoId);
-    boar:=dynamic_cast(source, 0, RTTI_CObject, RTTI_CAI_Boar, false);
-    if boar<>nil then begin
       itm:=GetActorActiveItem();
       stamina:=GetActorStamina(act);
 
       look_v:=FVector3_copyfromengine(CRenderDevice__GetCamdir());
       is_actor_see_monster:=GetAngleCos(@h.dir, @look_v) < 0;
 
-      if stamina > h.power then begin
-        SetActorStamina(act, stamina-h.power);
-      end else if itm = nil then begin
-        if is_actor_see_monster then begin
-          PlanActorKickAnimator('boar_front_kicks');
-        end else begin
-          PlanActorKickAnimator('boar_back_kicks');
+      stamina_hit_power:= h.power * itm_drop_params.stamina_hit_k;
+      new_stamina:=stamina-stamina_hit_power;
+      if new_stamina < 0 then new_stamina:=0;
+
+
+      unconditional_weapon_drop:=false;
+      if itm_drop_params.unconditional_weapon_drop_dist > 0 then begin
+        dist:=FVector3_copyfromengine(GetEntityPosition(act));
+        v_sub(@dist, GetEntityPosition(GetObjectById(h.whoId)));
+        if v_length(@dist) < itm_drop_params.unconditional_weapon_drop_dist then begin
+          unconditional_weapon_drop:=true;
         end;
+      end;
+
+      if not unconditional_weapon_drop and (new_stamina > 0) then begin
+        SetActorStamina(act, new_stamina);
+      end else if itm = nil then begin
+        if use_directions then begin
+          if is_actor_see_monster then begin
+            PlanActorKickAnimator(animator_monster_name+'_front_kicks');
+          end else begin
+            PlanActorKickAnimator(animator_monster_name+'_back_kicks');
+          end;
+        end else begin
+          PlanActorKickAnimator(animator_monster_name+'_kicks');
+        end;
+        SetActorStamina(act, new_stamina);
+
+        x:=(itm_drop_params.mouse_x_min+((itm_drop_params.mouse_x_max-itm_drop_params.mouse_x_min)*random))*h.power;
+        y:=(itm_drop_params.mouse_y_min+((itm_drop_params.mouse_y_max-itm_drop_params.mouse_y_min)*random))*h.power;
+        if random > 0.5 then x:=x*-1;
+        MoveMouse(floor(x), floor(y), true);
       end else begin
         sect:=GetSection(itm);
-        slot:=game_ini_r_int_def(sect, 'slot', 2);
         dropped:=false;
-        if (slot<>1) or (random < (h.power - stamina)) then begin
+
+        if unconditional_weapon_drop or (random < (stamina_hit_power - stamina)) then begin
           PerformDropFromActorHands();
-          if is_actor_see_monster then begin
-            PlanActorKickAnimator('boar_front_kicks');
+
+          if use_directions then begin
+            if is_actor_see_monster then begin
+              PlanActorKickAnimator(animator_monster_name+'_front_kicks');
+            end else begin
+              PlanActorKickAnimator(animator_monster_name+'_back_kicks');
+            end;
           end else begin
-            PlanActorKickAnimator('boar_back_kicks');
+            PlanActorKickAnimator(animator_monster_name+'_kicks');
           end;
+
           dropped:=true;
         end;
 
         if dropped and (dynamic_cast(itm, 0, RTTI_CHudItemObject, RTTI_CWeaponMagazined, false)<>nil) then begin
-          hit_params:=GetBoarHitParams();
-          cond_dec:=hit_params.min_condition_decrease + random * (hit_params.max_condition_decrease - hit_params.min_condition_decrease);
+          cond_dec:=itm_drop_params.min_condition_decrease + random * (itm_drop_params.max_condition_decrease - itm_drop_params.min_condition_decrease);
           cond_dec:=GetCurrentCondition(itm)-cond_dec;
           if cond_dec < 0 then cond_dec:=0;
           SetCondition(itm, cond_dec);
         end;
 
-        SetActorStamina(act, 0);
+        SetActorStamina(act, new_stamina);
+        
+        x:=(itm_drop_params.mouse_x_min+((itm_drop_params.mouse_x_max-itm_drop_params.mouse_x_min)*random))*h.power;
+        y:=(itm_drop_params.mouse_y_min+((itm_drop_params.mouse_y_max-itm_drop_params.mouse_y_min)*random))*h.power;
+        if random > 0.5 then x:=x*-1;
+        MoveMouse(floor(x), floor(y), true);        
       end;
+  end;
+end;
+
+procedure OnMonsterHit(h:pSHit); stdcall;
+var
+  source, act:pointer;
+
+begin
+  source:=GetObjectById(h.whoId);
+  if source<>nil then begin
+    if dynamic_cast(source, 0, RTTI_CObject, RTTI_CAI_Boar, false)<>nil then begin
+      DropWeaponOnMonsterHit(h, GetBoarHitParams(), 'boar', true);
+    end else if dynamic_cast(source, 0, RTTI_CObject, RTTI_CPseudoGigant, false)<>nil then begin
+      DropWeaponOnMonsterHit(h, GetPseudogiantHitParams(), 'pseudogiant', true);
     end;
   end;
 end;
@@ -4396,6 +4458,127 @@ asm
   popad
 
   ret
+end;
+
+procedure CPseudoGigant__on_threaten_execute_HitActor(h:pSHit); stdcall;
+var
+  cphmc,act:pointer;
+  dir:FVector3;
+  threaten_params:giant_threaten_params;
+  x,y:single;
+begin
+  act:=GetActor();
+  if act<>nil then begin
+    NET_Jump^:=1;
+
+    threaten_params:=GetPseudogiantThreatenParams();
+    DropWeaponOnMonsterHit(h, threaten_params.item_drop, 'pseudogiant_threaten', false);
+  end;
+end;
+
+procedure CPseudoGigant__on_threaten_execute_Patch(); stdcall;
+asm
+  //original
+  mov [esp+$6C+4],00000007
+
+  pushad
+  push ecx
+  call CPseudoGigant__on_threaten_execute_HitActor
+  popad
+end;
+
+procedure CPseudoGigant__check_start_conditions_maxdist_Patch(); stdcall;
+asm
+  fld dword ptr [esi+$A80] // m_threaten_dist_max
+  push $40000000
+  fld [esp]
+  add esp, 4
+  fdivp
+end;
+
+procedure ModifyGiantThreatenDelay(giant:pointer; r:pcardinal; min_delay:cardinal); stdcall;
+var
+  act:pointer;
+  act_pos, giant_pos:FVector3;
+  dist_xz:single;
+  params:giant_threaten_params;
+begin
+  act:=GetActorIfAlive();
+  if act=nil then exit;
+  act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
+  giant_pos:=FVector3_copyfromengine(GetEntityPosition(giant));
+
+  params:=GetPseudogiantThreatenParams();
+  if giant_pos.y>=act_pos.y-params.low_delay_height_delta then exit;
+
+  dist_xz:= sqrt((act_pos.x-giant_pos.x)*(act_pos.x-giant_pos.x)+(act_pos.z-giant_pos.z)*(act_pos.z-giant_pos.z));
+  if dist_xz > params.low_delay_distance then begin
+    r^:=min_delay;
+  end else begin
+    r^:=params.low_delay_time;
+  end;
+
+end;
+
+procedure CPseudoGigant__on_activate_control_time_Patch(); stdcall;
+asm
+  pop eax // ret addr
+  pop edi           //original edi restore
+  add edx,ebx // add min to random
+
+  push edx //buf
+  mov ecx, esp
+  pushad
+  push [esi+$A74] // m_threaten_delay_min
+  push ecx //result buf
+  push esi // CPseudoGigant
+  call ModifyGiantThreatenDelay
+  popad
+  pop edx
+  add edx,ebp // add time() from ebp to result
+
+  jmp eax
+end;
+
+function CanIgnoreFaceTargetForThreaten(monster:pointer; enemy:pointer):boolean; stdcall;
+var
+  monster_pos, enemy_pos:FVector3;
+  dist_xz:single;
+begin
+  result:=false;
+  if (monster=nil) or (enemy=nil) then exit;
+
+  monster_pos:=FVector3_copyfromengine(GetEntityPosition(monster));
+  enemy_pos:=FVector3_copyfromengine(GetEntityPosition(enemy));
+
+  dist_xz:= sqrt((monster_pos.x-enemy_pos.x)*(monster_pos.x-enemy_pos.x)+(monster_pos.z-enemy_pos.z)*(monster_pos.z-enemy_pos.z));
+  if dist_xz < 2 then begin
+    result:=true;
+  end;
+end;
+
+procedure CControlThreaten__check_start_conditions_Patch(); stdcall;
+asm
+  mov eax,[eax+$5B8] // original - enemy
+  test eax, eax
+  je @finish
+
+  pushad
+  push eax // enemy
+  push [esi+8] //m_object
+  call CanIgnoreFaceTargetForThreaten
+  test al, al
+  popad
+
+  je @finish
+
+  //return from check_start_conditions
+  mov eax, 1
+  pop esi //ret addr
+  pop esi // orig
+  ret
+
+  @finish:
 end;
 
 procedure CorrectActorPhysicsHit(phit:pSHit); stdcall;
@@ -4769,6 +4952,7 @@ begin
   psMouseSens:=psingle(xrengine_addr+$90d8c);
   psMouseSensScale:=psingle(xrengine_addr+$90f5c);
 
+  NET_Jump:=psingle(xrgame_addr+$64e238);
 
   result:=false;
   jmp_addr:=xrGame_addr+$261DF6; //CActor::UpdateCL
@@ -4933,6 +5117,22 @@ begin
   jmp_addr:=xrGame_addr+$c96e5;
   if not WriteJump(jmp_addr, cardinal(@CBaseMonster__HitEntity_WeaponDrop_Patch), 10, true) then exit;
 
+  //в CPseudoGigant::on_threaten_execute добавляем возможность сброса оружие при ударе псевдогиганта по земле
+  jmp_addr:=xrGame_addr+$1111f2;
+  if not WriteJump(jmp_addr, cardinal(@CPseudoGigant__on_threaten_execute_Patch), 8, true) then exit;
+
+  //в CPseudoGigant::check_start_conditions вместо условия (dist > m_threaten_dist_max) ставим (dist > m_threaten_dist_max/2), чтобы цель не убежала и получила побольше урона
+  jmp_addr:=xrGame_addr+$110726;
+  if not WriteJump(jmp_addr, cardinal(@CPseudoGigant__check_start_conditions_maxdist_Patch), 6, true) then exit;
+
+  //в CPseudoGigant::on_activate_control модифицируем время следующего удара по земле
+  jmp_addr:=xrGame_addr+$10fd9a;
+  if not WriteJump(jmp_addr, cardinal(@CPseudoGigant__on_activate_control_time_Patch), 5, true) then exit;
+
+  //[bug] баг в CControlThreaten::check_start_conditions - is_face_target не учитывает возможности нахождения цели точно над (или под) нами
+  jmp_addr:=xrGame_addr+$edd5c;
+  if not WriteJump(jmp_addr, cardinal(@CControlThreaten__check_start_conditions_Patch), 6, true) then exit;
+
   // в CActor::UpdateCL добавляем сохранение активного режима подъема предметов
   jmp_addr:=xrGame_addr+$261e8e;
   if not WriteJump(jmp_addr, cardinal(@CActor__UpdateCL_PickupMode_Patch), 6, true) then exit;
@@ -4987,5 +5187,10 @@ end;
 // CActor::UpdateArtefactsOnBeltAndOutfit - xrGame.dll+262cd0
 // CUIMainIngameWnd::RenderQuickInfos - xrgame.dll+459280
 // CHUDTarget::Render - xrgame.dll+4d8c30
+// CPseudoGigant::on_threaten_execute - xrgame.dll+110c30
+// CPseudoGigant::check_start_conditions - xrgame.dll+1106b0
+// CPseudoGigant::on_activate_control - xrgame.dll+10fd20
+// CControlManagerCustom::check_threaten - xrgame.dll+df040
+// CControlThreaten::check_start_conditions - xrgame.dll+edd40
 
 end.

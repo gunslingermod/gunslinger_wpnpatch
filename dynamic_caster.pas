@@ -49,6 +49,7 @@ const
   RTTI_CPhysicsShellHolder:cardinal = $61d4f4;
   RTTI_CTelekinesis:cardinal = $61dbec;
   RTTI_CBurer:cardinal = $620238;
+  RTTI_CPseudoGigant:cardinal = $6214c0;
   RTTI_CBaseMonster:cardinal = $61d7f0;
   RTTI_CUIActorMenu:cardinal = $63ee68;
   RTTI_CUICustomMap:cardinal = $63f030;

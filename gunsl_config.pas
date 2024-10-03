@@ -132,9 +132,24 @@ type weapon_physics_damage_params = packed record
   speed:single;
 end;
 
-type boar_hit_params = packed record
+type monster_item_drop_params = packed record
   min_condition_decrease:single;
   max_condition_decrease:single;
+  stamina_hit_k:single;
+  unconditional_weapon_drop_dist:single;
+
+  mouse_x_min:single;
+  mouse_x_max:single;
+  mouse_y_min:single;
+  mouse_y_max:single;  
+end;
+
+type giant_threaten_params = record
+  item_drop:monster_item_drop_params;
+
+  low_delay_height_delta:single;
+  low_delay_distance:single;
+  low_delay_time:cardinal;
 end;
 
 type bobbing_effector_param = packed record
@@ -310,7 +325,9 @@ function GetHudSoundVolume():single;
 
 function GetUpgradeMenuPointOffsetX(need_16x9:boolean):integer;
 
-function GetBoarHitParams():boar_hit_params;
+function GetBoarHitParams():monster_item_drop_params;
+function GetPseudogiantHitParams():monster_item_drop_params;
+function GetPseudogiantThreatenParams():giant_threaten_params;
 
 function GetActorFallHitKoef():single;
 function GetActorBurnRestoreSpeed():single;
@@ -414,7 +431,9 @@ var
   _upgrade_menu_points_offset_x:integer;
   _upgrade_menu_points_offset_x_16x9:integer;
 
-  _boar_hit_params:boar_hit_params;
+  _boar_hit_params:monster_item_drop_params;
+  _pseudogiant_hit_params:monster_item_drop_params;
+  _pseudogiant_threaten_params:giant_threaten_params;
 
   _actor_fall_hit_koef:single;
 
@@ -1305,6 +1324,34 @@ begin
 
   _boar_hit_params.min_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmin', 0.15);
   _boar_hit_params.max_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_conditiondecmax', 0.3);
+  _boar_hit_params.stamina_hit_k:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_stamina_hit_k', 1);
+  _boar_hit_params.unconditional_weapon_drop_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_unconditional_weapon_drop_dist', 0);
+  _boar_hit_params.mouse_x_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_mouse_x_min', 10);
+  _boar_hit_params.mouse_x_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_mouse_x_max', 20);
+  _boar_hit_params.mouse_y_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_mouse_y_min', 5);
+  _boar_hit_params.mouse_y_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'boar_hit_mouse_y_max', 10);
+
+  _pseudogiant_hit_params.min_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_conditiondecmin', 0.15);
+  _pseudogiant_hit_params.max_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_conditiondecmax', 0.3);
+  _pseudogiant_hit_params.stamina_hit_k:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_stamina_hit_k', 1);
+  _pseudogiant_hit_params.unconditional_weapon_drop_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_unconditional_weapon_drop_dist', 0);
+  _pseudogiant_hit_params.mouse_x_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_mouse_x_min', 30);
+  _pseudogiant_hit_params.mouse_x_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_mouse_x_max', 40);
+  _pseudogiant_hit_params.mouse_y_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_mouse_y_min', 5);
+  _pseudogiant_hit_params.mouse_y_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_hit_mouse_y_max', 10);
+
+  _pseudogiant_threaten_params.item_drop.min_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_conditiondecmin', 0.15);
+  _pseudogiant_threaten_params.item_drop.max_condition_decrease:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_conditiondecmax', 0.3);
+  _pseudogiant_threaten_params.item_drop.stamina_hit_k:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_stamina_hit_k', 1);
+  _pseudogiant_threaten_params.item_drop.unconditional_weapon_drop_dist:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_unconditional_weapon_drop_dist', 5);
+  _pseudogiant_threaten_params.item_drop.mouse_x_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_mouse_x_min', 40);
+  _pseudogiant_threaten_params.item_drop.mouse_x_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_mouse_x_max', 40);
+  _pseudogiant_threaten_params.item_drop.mouse_y_min:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_mouse_y_min', 5);
+  _pseudogiant_threaten_params.item_drop.mouse_y_max:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_mouse_y_max', 10);
+  _pseudogiant_threaten_params.low_delay_height_delta:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_low_delay_height_delta', 2);
+  _pseudogiant_threaten_params.low_delay_distance:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_low_delay_distance', 5);  
+  _pseudogiant_threaten_params.low_delay_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_low_delay_time', 1000);
+
 
   _actor_fall_hit_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_fall_hit_koef', 1.0);
   _actor_burn_restore_speed:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_burn_restore_speed', 0.000001);
@@ -1706,9 +1753,19 @@ begin
   end;
 end;
 
-function GetBoarHitParams(): boar_hit_params;
+function GetBoarHitParams(): monster_item_drop_params;
 begin
   result:=_boar_hit_params;
+end;
+
+function GetPseudogiantHitParams():monster_item_drop_params;
+begin
+  result:=_pseudogiant_hit_params;
+end;
+
+function GetPseudogiantThreatenParams():giant_threaten_params;
+begin
+  result:=_pseudogiant_threaten_params;
 end;
 
 function GetActorFallHitKoef():single;
