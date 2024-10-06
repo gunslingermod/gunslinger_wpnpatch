@@ -133,7 +133,7 @@ asm
   popad
 end;
 
-function CMissile__Useful(this:pointer):boolean; stdcall;
+function CGrenade__Useful(this:pointer):boolean; stdcall;
 asm
   pushad
     mov ecx, this
@@ -662,11 +662,15 @@ end;
 procedure CMissile__shedule_update(this:pointer); stdcall;
 var
   sect:PChar;
+  grenade:pointer;
 begin
-  if not CMissile__Useful(this) then begin
-    sect:=GetSection(this);
-    if game_ini_line_exist(sect, 'checkout_bones') then begin
-      SetWorldModelMultipleBonesStatus(this, game_ini_read_string(sect, 'checkout_bones'), false);
+  grenade:=dynamic_cast(this, 0, RTTI_CMissile, RTTI_CGrenade, false);
+  if grenade<>nil then begin
+    if not CGrenade__Useful(grenade) then begin
+      sect:=GetSection(grenade);
+      if game_ini_line_exist(sect, 'checkout_bones') then begin
+        SetWorldModelMultipleBonesStatus(grenade, game_ini_read_string(sect, 'checkout_bones'), false);
+      end;
     end;
   end;
 end;
@@ -769,7 +773,7 @@ begin
 
   if game_ini_line_exist(sect, 'explosion_on_hit') and game_ini_r_bool(sect, 'explosion_on_hit') then begin
     if CGrenade__GetDetonationTresholdHit(grenade)<SHit.power then begin
-      if (not CMissile__Useful(grenade)) or (not game_ini_line_exist(sect, 'explosive_while_not_activated')) or game_ini_r_bool(sect, 'explosive_while_not_activated') then begin
+      if (not CGrenade__Useful(grenade)) or (not game_ini_line_exist(sect, 'explosive_while_not_activated')) or game_ini_r_bool(sect, 'explosive_while_not_activated') then begin
         if game_ini_line_exist(sect, 'explosion_hit_types') then begin
           if pos(inttostr(SHit.hit_type), game_ini_read_string(sect, 'explosion_hit_types'))<>0 then result:=true;
         end else begin
