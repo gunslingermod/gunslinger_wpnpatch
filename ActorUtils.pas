@@ -4496,6 +4496,46 @@ asm
   fdivp
 end;
 
+function CPseudoGigant__check_start_conditions_customchecks(enemy:pointer; giant:pointer; next_threaten_time:pcardinal):boolean; stdcall;
+var
+  act_pos, giant_pos:FVector3;
+  dist_xz:single;
+  params:giant_threaten_params;
+begin
+  if (enemy<>nil) and (GetActorIfAlive()=enemy) then begin
+    act_pos:=FVector3_copyfromengine(GetEntityPosition(enemy));
+    giant_pos:=FVector3_copyfromengine(GetEntityPosition(giant));
+
+    params:=GetPseudogiantThreatenParams();
+    if giant_pos.y<act_pos.y-params.low_delay_height_delta then begin
+      dist_xz:= sqrt((act_pos.x-giant_pos.x)*(act_pos.x-giant_pos.x)+(act_pos.z-giant_pos.z)*(act_pos.z-giant_pos.z));
+      if (dist_xz <= params.low_delay_distance) and (next_threaten_time^ > GetGameTickCount() + params.std_to_low_delay_time) then begin
+        next_threaten_time^:=GetGameTickCount() + params.std_to_low_delay_time;
+      end;
+    end;
+  end;
+
+  result:=next_threaten_time^ <= GetGameTickCount();
+end;
+
+procedure CPseudoGigant__check_start_conditions_checkthreatentime_Patch(); stdcall;
+asm
+  mov eax,[esi+$5B8] // original - EnemyMan.get_enemy()
+  test eax, eax
+  je @finish
+  
+  pushad
+  lea edx, [esi+$A70] 
+  push edx
+  push esi
+  push eax
+  call CPseudoGigant__check_start_conditions_customchecks
+  test al, al
+  popad
+
+  @finish:
+end;
+
 procedure ModifyGiantThreatenDelay(giant:pointer; r:pcardinal; min_delay:cardinal); stdcall;
 var
   act:pointer;
@@ -5124,6 +5164,13 @@ begin
   //в CPseudoGigant::check_start_conditions вместо условия (dist > m_threaten_dist_max) ставим (dist > m_threaten_dist_max/2), чтобы цель не убежала и получила побольше урона
   jmp_addr:=xrGame_addr+$110726;
   if not WriteJump(jmp_addr, cardinal(@CPseudoGigant__check_start_conditions_maxdist_Patch), 6, true) then exit;
+
+  //в CPseudoGigant::check_start_conditions вырезаем проверку со времени предыдущего удара по земле (m_time_next_threaten > time(), ее сделаем позже сами), чтобы первой выполнялась проверка наличия врага
+  nop_code(xrGame_addr+$1106e2, 2);
+
+  // Добавляем нашу проверку времени после EnemyMan.get_enemy()
+  jmp_addr:=xrGame_addr+$1106e4;
+  if not WriteJump(jmp_addr, cardinal(@CPseudoGigant__check_start_conditions_checkthreatentime_Patch), 8, true) then exit;
 
   //в CPseudoGigant::on_activate_control модифицируем время следующего удара по земле
   jmp_addr:=xrGame_addr+$10fd9a;
