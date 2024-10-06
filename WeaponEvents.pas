@@ -852,6 +852,7 @@ begin
     if (random<curprob) then begin
       //Осечка! Сбрасываем флаг клина, а стрелять не даем
       SetWeaponMisfireStatus(wpn, false);
+      virtual_CShootingObject__FireEnd(wpn);
       result:=false;
 
       //начало названия метки - обязательно anm_shoot, иначе будет отрубаться по таймеру выстрела - не сработает антибаг
@@ -864,7 +865,7 @@ begin
           if GetActorActiveItem()=wpn then begin
             buf.ApplyLensRecoil(buf.GetMisfireRecoil);
           end;
-        end;        
+        end;
       end;
       anm:= ModifierStd(wpn, anm);
       PlayHUDAnim(wpn, PChar(anm), true);
@@ -879,8 +880,13 @@ begin
 
   //Клин оружия. Посмотрим, до выстрела он или после
   result:= not game_ini_r_bool_def(GetHUDSection(wpn), 'no_jam_fire', false);
+
   //если до выстрела - играем аниму перехода в клин вручную
-  if not result then PlayHUDAnim(wpn, anm_shots_selector(wpn, true), true);
+  if not result then begin
+    PlayHUDAnim(wpn, anm_shots_selector(wpn, true), true);
+  end else begin
+    virtual_CShootingObject__FireEnd(wpn);
+  end;
 end;
 
 procedure WeaponJammed_Patch(); stdcall;
@@ -2532,7 +2538,7 @@ asm
 end; }
 
 
-function CWeaponMagazined__CheckForMisfire_validate_NoMisfire(wpn:pointer):boolean; stdcall;
+function CWeapon__CheckForMisfire_validate_NoMisfire(wpn:pointer):boolean; stdcall;
 var
   buf:WpnBuf;
   problems_lvl:single;
@@ -2547,17 +2553,18 @@ begin
   buf:=GetBuffer(wpn);
   problems_lvl:=buf.GetMisfireProblemsLevel();
   if (buf<>nil) and (problems_lvl>0) and (CurrentElectronicsProblemsCnt()>=problems_lvl) then begin
+    // Повторяем оригинальный код, выполняющийся при назначении осечки (FireEnd нами убран и перенесан в OnWeaponJam) 
     SetWeaponMisfireStatus(wpn, true);
     virtual_CHudItem_SwitchState(wpn, EWeaponStates__eMisfire);
     result:= not OnWeaponJam(wpn);
   end;
 end;
 
-procedure CWeaponMagazined__CheckForMisfire_validate_NoMisfire_patch(); stdcall;
+procedure CWeapon__CheckForMisfire_validate_NoMisfire_patch(); stdcall;
 asm
   pushad
     push esi
-    call CWeaponMagazined__CheckForMisfire_validate_NoMisfire
+    call CWeapon__CheckForMisfire_validate_NoMisfire
     cmp al, 0
   popad
   setnz al
@@ -3081,7 +3088,10 @@ begin
 
   // в CWeapon::CheckForMisfire - после того, как убедились, что осечки быть не должно, подумаем еще раз - а может, все-таки назначить?
   jmp_addr:=xrGame_addr+$2bd0c3;
-  if not WriteJump(jmp_addr, cardinal(@CWeaponMagazined__CheckForMisfire_validate_NoMisfire_patch), 5, false) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__CheckForMisfire_validate_NoMisfire_patch), 5, false) then exit;
+
+  // в CWeapon::CheckForMisfire nop'им вызов FireEnd - перенесен в OnWeaponJam
+  nop_code(xrgame_addr+$2bd09f, 2);
 
   //В Manager::upgrade_install добавляем проверку - если апгрейд не нашелся после upgrade_verify, то и не применяем его вообще
   jmp_addr:=xrGame_addr+$af4e1;

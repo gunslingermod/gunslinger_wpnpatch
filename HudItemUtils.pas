@@ -166,6 +166,7 @@ procedure CShootingObject__UpdateParticles(wpn:pointer; CParticlesObject:pointer
 procedure CShootingObject__StartParticles(wpn:pointer; CParticlesObject:pointer; particles_name:PChar; pos:pFVector3; vel:pFVector3; auto_remove_flag:boolean);stdcall;
 procedure CShootingObject__StopParticles(wpn:pointer; CParticlesObject:pointer); stdcall;
 procedure SetParticlesHudStatus(CParticlesObject:pointer; status:boolean); stdcall;
+procedure virtual_CShootingObject__FireEnd(wpn:pointer); stdcall;
 
 function GetLastFP(wpn:pointer):FVector3;
 function GetLastFD(wpn:pointer):FVector3;
@@ -2051,6 +2052,17 @@ asm
     push eax
     call edx
     @finish:
+  popad
+end;
+
+procedure virtual_CShootingObject__FireEnd(wpn:pointer); stdcall;
+asm
+  pushad
+    mov esi, [wpn]
+    mov edx,[esi+$338]
+    mov eax,[edx+$1C]
+    lea ecx,[esi+$338]
+    call eax
   popad
 end;
 
