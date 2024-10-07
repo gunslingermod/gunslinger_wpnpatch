@@ -436,7 +436,7 @@ begin
       end else if (dynamic_cast(wpn, 0, RTTI_CHudItemObject, RTTI_CGrenade, false)<>nil) and  (DistToContr()>game_ini_r_single_def(GetHUDSection(wpn), 'controller_g_attack_min_dist', 10)) and (GetCurrentState(wpn) = EHudStates__eIdle) and (not game_ini_r_bool_def(GetHUDSection(wpn), 'prohibit_suicide', false)) then begin
         //атакуем игрока его же греной
         virtual_CHudItem_SwitchState(wpn, EMissileStates__eThrowStart);
-      end else if CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+      end else if CanUseItemForSuicide(ItemInSlot(act, KNIFE_SLOT)) then begin
         ActivateActorSlot__CInventory(1, false);
       end else begin
         ActivateActorSlot__CInventory(0, false);
@@ -450,7 +450,7 @@ begin
           PerformDrop(act);
         end;
         //А можно ли ножом?
-        if CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+        if CanUseItemForSuicide(ItemInSlot(act, KNIFE_SLOT)) then begin
           ActivateActorSlot__CInventory(1, false);
           _planning_suicide:=true;
           _suicide_now:=false;
@@ -606,7 +606,7 @@ begin
   end;
 
   if (wpn=nil) then begin
-    {if (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+    {if (GetCurrentDifficulty()>=gd_master) and CanUseItemForSuicide(ItemInSlot(act, KNIFE_SLOT)) then begin
       _planning_suicide:=true;
        result:=true;
     end else begin
@@ -614,7 +614,7 @@ begin
       result:=false;
     end;}
 
-    if CanUseItemForSuicide(ItemInSlot(act, 1)) then begin
+    if CanUseItemForSuicide(ItemInSlot(act, KNIFE_SLOT)) then begin
       _planning_suicide:=true;
        result:=true;
     end else begin

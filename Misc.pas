@@ -76,7 +76,9 @@ pNET_Packet = ^NET_Packet;
 pxr_list_entry_base = ^xr_list_entry_base;
 
 const
+  M_EVENT:word = 8;
   GE_HIT:word = 5;
+  GEG_PLAYER_ITEM2RUCK:word = 40;
 
 function Init():boolean;stdcall;
 function dxGeomUserData__get_ph_ref_object(dxGeomUserData:pointer):pointer;

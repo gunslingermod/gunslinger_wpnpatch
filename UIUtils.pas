@@ -2698,7 +2698,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__DeInitUpgradeMode_Patch), 5, true) then exit;
 
   // в UIUpgrade::update_upgrade_state (xrgame.dll+440cd0) делаем подсветку группы, когда на один из ее элементов наведен курсор:
-  // в блоке "case BUTTON_FREE:" добавляем: если есть выбранный апгрейд (CUIActorMenu::m_upgrade_info::m_upgrade!=nullptr) и его группа совпадает с группой нашего (получаем наш вызовом UIUpgrade::get_upgrade) - ставим STATE_DISABLED_GROUP
+  // в начало блока "case BUTTON_FREE:" добавляем: если есть выбранный апгрейд (CUIActorMenu::m_upgrade_info::m_upgrade!=nullptr) и его группа совпадает с группой нашего (получаем наш вызовом UIUpgrade::get_upgrade) - ставим STATE_DISABLED_GROUP
   jmp_addr:=xrGame_addr+$440d21;
   if not WriteJump(jmp_addr, cardinal(@UIUpgrade__update_upgrade_state_Patch), 5, true) then exit;
 
@@ -2799,6 +2799,10 @@ begin
   // UIUpgrade::Update - xrgame.dll+440f00
 
   //CUIActorMenu::InitPartnerInventoryContents - xrgame.dll+46ebe0
+  //CUIActorMenu::ToBag - xrgame.dll+46c300
+  //CUIActorMenu::MoveArtefactsToBag - xrgame.dll+46c590
+  //CUIActorMenu::ToSlot - xrgame.dll+46d020
+  //CUIActorMenu::UpdateOutfit - xrgame.dll+46c9c0
   //CAI_Stalker::can_sell - xrgame.dll+18e4f0
   //CAI_Stalker::update_sell_info - xrgame.dll+18e3b0
   //CAI_Stalker::tradable_item - xrgame.dll+18e240

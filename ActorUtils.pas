@@ -61,6 +61,43 @@ const
 
 
 type
+  priority_group = packed record
+    m_sections:xr_set;
+  end;
+  ppriority_group = ^priority_group;
+
+  CInventory = packed record
+    vftable:pointer;
+    m_all:xr_vector;
+    m_ruck:xr_vector;
+    m_belt:xr_vector;
+    m_activ_last_items:xr_vector;
+    m_slots:xr_vector;
+    m_iActiveSlot:word;
+    m_iNextActiveSlot:word;
+    m_iPrevActiveSlot:word;
+    _unused1:word;
+    m_pOwner:pointer;
+    m_bBeltUseful:byte;
+    m_bSlotsUseful:byte;
+    _unused2:word;
+    m_fMaxWeight:single;
+    m_fTotalWeight:single;
+    m_dwModifyFrame:cardinal;
+    m_drop_last_frame:byte;
+    _unused3:byte;
+    _unused4:word;
+    m_slot2_priorities:array[0..4] of ppriority_group;
+    m_slot3_priorities:array[0..4] of ppriority_group;
+    m_groups: array [0..4] of priority_group;
+    m_null_priority:priority_group;
+    m_next_items_exceptions:xr_set;
+    m_next_item_iteration_time:cardinal;
+    m_blocked_slots:array[0..12] of byte;
+  end;
+  pCInventory=^CInventory;
+
+
   lefthanded_torchlight_params = packed record
     base:torchlight_params;
     aim_offset:FVector3;
@@ -238,6 +275,7 @@ function GetActor():pointer; stdcall;
 function GetActorIfAlive():pointer; stdcall;
 function GetActorTargetSlot():integer; stdcall;
 function GetActorActiveSlot():integer; stdcall;
+function GetActorInventory(act:pointer):pCInventory; stdcall;
 //для быстрого использования
 function GetActorPreviousSlot():integer; stdcall;
 procedure RestoreLastActorDetector(); stdcall;
@@ -258,6 +296,7 @@ function GetActorKeyRepeatFlag(mask:cardinal):boolean;
 procedure ClearActorKeyRepeatFlags();
 procedure ResetActorFlags(act:pointer);
 procedure UpdateSlots(act:pointer);
+procedure UpdateBelt(act:pointer);
 procedure UpdateFOV(act:pointer);
 function GetSlotOfActorHUDItem(act:pointer; itm:pointer):integer; stdcall;
 procedure ActivateActorSlot(slot:cardinal); stdcall;
@@ -294,7 +333,8 @@ procedure CActor__set_inventory_disabled(this:pointer; status:boolean); stdcall;
 function CActor__get_inventory_disabled(this:pointer):boolean; stdcall;
 
 function CInventory__CalcTotalWeight(this:pointer):single; stdcall;
-function CInventoryOwner__GetInventory(this:pointer):pointer; stdcall;
+function CInventory__BeltWidth(this:pointer):integer; stdcall;
+function CInventoryOwner__GetInventory(this:pointer):pCInventory; stdcall;
 
 procedure SetDisableInputStatus(status:boolean); stdcall;
 
@@ -371,6 +411,14 @@ var
   psMouseSens:psingle;
   psMouseSensScale:psingle;
   NET_Jump:psingle;
+
+const
+  KNIFE_SLOT:byte=1;
+  GRENADE_SLOT:byte=4;
+  OUTFIT_SLOT:byte=7;
+  DETECTOR_SLOT:byte=9;
+  TORCH_SLOT:byte=10;
+  HELMET_SLOT:byte=12;
 
 implementation
 uses Messenger, BaseGameData, HudItemUtils, Misc, DetectorUtils, sysutils, UIUtils, KeyUtils, gunsl_config, WeaponEvents, Throwable, dynamic_caster, WeaponUpdate, ActorDOF, WeaponInertion, strutils, Math, collimator, xr_BoneUtils, ControllerMonster, Level, ScriptFunctors, Crows, LensDoubleRender, xr_strings, RayPick, materials;
@@ -608,9 +656,9 @@ begin
   result:=true;
   act:=GetActor();
   if (act=nil) or (GetOwner(CTorch)<>act) then exit;
-  
-  helmet := ItemInSlot(act, 12);
-  outfit := ItemInSlot(act, 7);
+
+  helmet := ItemInSlot(act, HELMET_SLOT);
+  outfit := ItemInSlot(act, OUTFIT_SLOT);
   result := IsItemAllowsUsingTorch(helmet) or IsItemAllowsUsingTorch(outfit);
 end;
 //--------------------------------------------------------------------------------------------------
@@ -698,8 +746,8 @@ begin
   act:=GetActor();
   if (act=nil) or (GetOwner(CTorch)<>act) then exit;
 
-  helm:=ItemInSlot(act, 12);
-  outfit:=ItemInSlot(act, 7);
+  helm:=ItemInSlot(act, HELMET_SLOT);
+  outfit:=ItemInSlot(act, OUTFIT_SLOT);
 
   if helm<>nil then helm:=dynamic_cast(helm, 0, RTTI_CInventoryItem, RTTI_CHelmet, false);
   if outfit<>nil then outfit:=dynamic_cast(outfit, 0, RTTI_CInventoryItem, RTTI_CCustomOutfit, false);
@@ -855,7 +903,7 @@ var
 begin
   act:=GetActor();
   if act=nil then exit;
-  CTorch:=ItemInSlot(act, 10);
+  CTorch:=ItemInSlot(act, TORCH_SLOT);
   if CTorch=nil then exit;
   CTorch__Switch(CTorch, param>0);
 
@@ -873,7 +921,7 @@ var
 begin
   act:=GetActor();
   if act=nil then exit;
-  CTorch:=ItemInSlot(act, 10);
+  CTorch:=ItemInSlot(act, TORCH_SLOT);
   if CTorch=nil then exit;
   CTorch__SwitchNightVision(CTorch, param>0, true);
 
@@ -966,8 +1014,7 @@ begin
       virtual_Action(wpn, kWPN_FIRE, kActPress);
     end else begin
       //проверяем, можем ли вообще бить сейчас
-      //if ((wpn=nil) and (ItemInSlot(act, 1)=nil)) or ((wpn<>nil) and not FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false))) then exit;
-      if ((wpn=nil) or FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false), true)) and (ItemInSlot(act, 1)=nil) then exit;
+      if ((wpn=nil) or FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim', false), true)) and (ItemInSlot(act, KNIFE_SLOT)=nil) then exit;
 
       if (wpn<>nil) and (IsScopeAttached(wpn)) and FindBoolValueInUpgradesDef(wpn, 'disable_kick_anim_when_scope_attached', game_ini_r_bool_def(GetSection(wpn), 'disable_kick_anim_when_scope_attached', false), true) then begin
         OnActorSwithesSmth('disable_kick_anim_when_scope_attached', GetKickAnimator(), 'anm_kick', 'sndKick', kfQUICKKICK, KickCallback, 0);
@@ -1029,7 +1076,18 @@ asm
   fstp @result
 end;
 
-function CInventoryOwner__GetInventory(this:pointer):pointer; stdcall;
+function CInventory__BeltWidth(this:pointer):integer; stdcall;
+asm
+  pushad
+    mov ecx, this
+    mov eax, xrgame_addr
+    add eax, $2A9D30
+    call eax
+    mov @result, eax
+  popad
+end;
+
+function CInventoryOwner__GetInventory(this:pointer):pCInventory; stdcall;
 asm
   mov eax, this
   mov eax, [eax+$1c]
@@ -1299,104 +1357,89 @@ begin
   end
 end;
 
-
-{asm
-  pushfd
-
-  mov eax, xrGame_addr
-  add eax, $64F0E4
-  mov eax, [eax]              //g_player_hud
-  mov eax, [eax+$94]          //first attachable_item
-  cmp eax, 0
-  je @finish
-  mov eax, [eax+4]
-  sub eax, $2e0
-
-  @finish:
-  popfd
+function CastCActorToCInventoryOwner(act:pointer):pointer; stdcall;
+asm
+  mov eax, [act]
+  add eax, $2c8
   mov @result, eax
-end; }
+end;
+
+function GetActorInventory(act:pointer):pCInventory; stdcall;
+var
+  cio:pointer;
+begin
+  result:=nil;
+  if act = nil then exit;
+  
+  cio:=CastCActorToCInventoryOwner(act);
+  result:=CInventoryOwner__GetInventory(cio);
+end;
 
 function GetActorActiveSlot():integer; stdcall;
+var
+  act:pointer;
+  inv:pCInventory;
 begin
-asm
-  mov @result, -1;
-  pushad
-  pushfd
-
-  call GetActor        //получаем актора
-
-  test eax, eax
-  je @finish
-
-  mov eax, [eax+$2e4]   //получаем его CInventory
-  test eax, eax
-  je @finish
-
-  mov ax, [eax+$40]     //получаем текущий активный слот актора
-  movzx eax, ax
-  mov @result, eax
-
-  @finish:
-  popfd
-  popad
+  result:=-1;
+  act:=GetActor();
+  if act = nil then exit;
+  inv:=GetActorInventory(act);
+  if inv=nil then exit;
+  result:=inv.m_iActiveSlot;
 end;
+
+procedure ActivateActorSlot(slot:cardinal); stdcall;
+var
+  act:pointer;
+  inv:pCInventory;
+begin
+  act:=GetActor();
+  if act = nil then exit;
+  inv:=GetActorInventory(act);
+  if inv=nil then exit;
+
+  inv.m_iNextActiveSlot:=slot;
+end;
+
+function GetActorTargetSlot():integer; stdcall;
+var
+  act:pointer;
+  inv:pCInventory;
+begin
+  result:=-1;
+  act:=GetActor();
+  if act = nil then exit;
+  inv:=GetActorInventory(act);
+  if inv=nil then exit;
+  result:=inv.m_iNextActiveSlot;
 end;
 
 function GetActorSlotBlockedCounter(slot:cardinal):cardinal; stdcall;
-asm
-  mov @result, 0;
-  pushfd
-  pushad
-  sub slot, 1
-  cmp slot, 12
-  jge @finish
+var
+  act:pointer;
+  inv:pCInventory;
+begin
+  result:=0;
+  act:=GetActor();
+  if act = nil then exit;
+  inv:=GetActorInventory(act);
+  if inv=nil then exit;
 
-  call GetActor        //получаем актора
-
-  test eax, eax
-  je @finish
-
-  mov eax, [eax+$2e4]   //получаем его CInventory
-  test eax, eax
-  je @finish
-
-  lea eax, [eax+$135]
-  add eax, slot
-  movzx eax, byte ptr [eax]
-  mov @result, eax
-
-  @finish:
-  popad
-  popfd
+  if (slot>=length(inv.m_blocked_slots)) then exit;
+  result:=inv.m_blocked_slots[slot];
 end;
 
 procedure SetActorSlotBlockedCounter(slot:cardinal; cnt:byte); stdcall;
-asm
-  pushad
-  pushfd
-  sub slot, 1
-  cmp slot, 12
-  jge @finish
-
-  call GetActor        //получаем актора
-
-  test eax, eax
-  je @finish
-
-  mov eax, [eax+$2e4]   //получаем его CInventory
-  test eax, eax
-  je @finish
-
-  lea eax, [eax+$135]
-  add eax, slot
-
-  mov bl, cnt
-  mov byte ptr [eax], bl
-
-  @finish:
-  popfd
-  popad
+var
+  act:pointer;
+  inv:pCInventory;
+begin
+  act:=GetActor();
+  if act = nil then exit;
+  inv:=GetActorInventory(act);
+  if inv=nil then exit;
+  if (slot>=length(inv.m_blocked_slots)) then exit;
+  inv.m_blocked_slots[slot]:=cnt;
 end;
 
 procedure ActivateActorSlot__CInventory(slot:word; forced:boolean); stdcall;
@@ -1446,32 +1489,6 @@ begin
       end;
     end;
   end;
-end;
-
-function GetActorTargetSlot():integer; stdcall;
-begin
-asm
-  mov @result, -1;
-  pushad
-  pushfd
-
-  call GetActor        //получаем актора
-
-  test eax, eax
-  je @finish
-
-  mov eax, [eax+$2e4]   //получаем его CInventory
-  test eax, eax
-  je @finish
-
-  mov ax, [eax+$42]     //получаем целевой слот актора
-  movzx eax, ax
-  mov @result, eax
-
-  @finish:
-  popfd
-  popad
-end;
 end;
 
 procedure ResetActorFlags(act:pointer);
@@ -1555,7 +1572,7 @@ begin
 
   if (_keyflags and kfHEADLAMP)<>0 then begin
     if CanStartAction(wpn) then begin
-      torch:=ItemInSlot(act, 10);
+      torch:=ItemInSlot(act, TORCH_SLOT);
       if torch<>nil then OnActorSwithesTorch(torch);
       SetActorKeyRepeatFlag(kfHEADLAMP, false);
     end;
@@ -1563,7 +1580,7 @@ begin
 
   if (_keyflags and kfNIGHTVISION)<>0 then begin
     if CanStartAction(wpn) then begin
-      torch:=ItemInSlot(act, 10);
+      torch:=ItemInSlot(act, TORCH_SLOT);
       if torch<>nil then OnActorSwithesNV(torch);
       SetActorKeyRepeatFlag(kfNIGHTVISION, false);
     end;
@@ -1680,7 +1697,7 @@ var
 begin
   act:=GetActor();
   if not (WasLastDetectorHiddenManually()) then begin
-    detector:=ItemInSlot(act, 9);
+    detector:=ItemInSlot(act, DETECTOR_SLOT);
     if (detector<>nil) and (not GetDetectorActiveStatus(detector)) then begin
       SetDetectorForceUnhide(detector, true);
       SetActorActionState(act, actShowDetectorNow, true);
@@ -1748,12 +1765,53 @@ begin
   _last_act_slot:=GetActorActiveSlot();
 end;
 
+procedure ActorItem2ActorRuck(act:pointer; iitem:pointer);
+var
+  p:NET_Packet;
+  tmp_cardinal:cardinal;
+  id:word;
+begin
+  ClearNetPacket(@p);
+  WriteToPacket(@p, @M_EVENT, sizeof(M_EVENT));
+  tmp_cardinal:=GetGameTickCount();
+  WriteToPacket(@p, @tmp_cardinal, sizeof(tmp_cardinal));
+  WriteToPacket(@p, @GEG_PLAYER_ITEM2RUCK, sizeof(GEG_PLAYER_ITEM2RUCK));
+  id:=GetCObjectID(act);
+  WriteToPacket(@p, @id, sizeof(id));
+  id:=GetID(iitem);
+  WriteToPacket(@p, @id, sizeof(id));
+  SendNetPacket(@p);
+end;
+
+procedure UpdateBelt(act:pointer);
+var
+  inv:pCInventory;
+  i, cnt:integer;
+  pitem, ppitem:pointer;
+begin
+  inv:=GetActorInventory(act);
+  if inv = nil then exit;
+
+  // [bug] баг - артефакты на поясе не удаляются при операциях с броней, выполненных не через UI
+  // Например, скриптовая передача или удаление текущей брони приведет к "зависанию" артефактов и вылету при попытке сменить броню на другую, с меньшим числом контейнеров
+  // Решение - в апдейте просто выбрасываем все артефакты с пояса при обнаружении проблемной ситуации
+  if inv.m_belt.start<>inv.m_belt.last then begin
+    cnt:=items_count_in_vector(@inv.m_belt, sizeof(pointer));
+    if CInventory__BeltWidth(inv) < cnt then begin
+      for i:=0 to cnt-1 do begin
+        ppitem:=get_item_from_vector(@inv.m_belt, i, sizeof(pointer));
+        ActorItem2ActorRuck(act, pointer(pcardinal(ppitem)^));
+      end;
+    end;
+  end;
+end;
+
 
 procedure DisableNVIfNeeded(act:pointer); stdcall;
 var
   CTorch:pointer;
 begin
-  CTorch:=ItemInSlot(act, 10);
+  CTorch:=ItemInSlot(act, TORCH_SLOT);
   if CTorch=nil then exit;
   if (IsNVSwitchedOn(CTorch) or IsNVPostprocessOn(CTorch)) and not CanUseNV(CTorch) then begin
     CTorch__SwitchNightVision(CTorch, false, true);
@@ -1764,7 +1822,7 @@ procedure DisableTorchIfNeeded(act:pointer); stdcall;
 var
   CTorch:pointer;
 begin
-  CTorch:=ItemInSlot(act, 10);
+  CTorch:=ItemInSlot(act, TORCH_SLOT);
   if CTorch=nil then exit;
   if IsTorchSwitchedOn(CTorch) and not CanUseTorch(CTorch) then begin
     CTorch__Switch(CTorch, false);
@@ -1952,8 +2010,9 @@ begin
 //  log(inttohex(cardinal(dynamic_cast(act, 0, RTTI_CActor, RTTI_CInventoryItemOwner, false)), 8));
 
   UpdateSlots(act);
+  UpdateBelt(act);
 
-  det:=ItemInSlot(act, 9);
+  det:=ItemInSlot(act, DETECTOR_SLOT);
 
   if det <> nil then begin
     if GetActorActionState(act, actShowDetectorNow) and (GetActiveDetector(act)=nil) then begin
@@ -2225,7 +2284,7 @@ begin
     end;
   end;
 
-  itm:=ItemInSlot(act, 10);
+  itm:=ItemInSlot(act, TORCH_SLOT);
   is_nv_enabled := false;
   if itm<>nil then begin
     is_nv_enabled:=IsNVSwitchedOn(itm);
@@ -2491,7 +2550,7 @@ begin
   end else if (dik=kQUICK_GRENADE) then begin
     if (GetActorActiveSlot()=4) or (GetActorSlotBlockedCounter(4)>0) or IsActorControlled() or (IsActorSuicideNow()) or (IsActorPlanningSuicide()) then exit;
 
-    itm:=ItemInSlot(act, 4);
+    itm:=ItemInSlot(act, GRENADE_SLOT);
     if (itm<>nil) and game_ini_r_bool_def(GetSection(itm), 'supports_quick_throw', false) then begin
       SetForcedQuickthrow(true);
       ActivateActorSlot__CInventory(4, false);
@@ -2679,28 +2738,6 @@ begin
     if ItemInSlot(act, result)=itm then exit;
   end;
   result:=-1;
-end;
-
-procedure ActivateActorSlot(slot:cardinal); stdcall;
-asm
-  pushad
-  pushfd
-
-  call GetActor        //получаем актора
-
-  test eax, eax
-  je @finish
-
-  mov eax, [eax+$2e4]   //получаем его CInventory
-  test eax, eax
-  je @finish
-
-  mov ecx, slot
-  mov [eax+$42], cx     //пишем желаемый слот актора
-
-  @finish:
-  popfd  
-  popad
 end;
 
 function RecalcZoomFOV(scope_factor:single):single; stdcall;
@@ -3086,7 +3123,7 @@ var
 begin
   result:=false;
   act:=GetActor();
-  if act<>nil then helmet:=ItemInSlot(act, 12) else helmet := nil;
+  if act<>nil then helmet:=ItemInSlot(act, HELMET_SLOT) else helmet := nil;
 
   if helmet<>nil then begin
     helmet:=dynamic_cast(helmet, 0, RTTI_CInventoryItem, RTTI_CHelmet, false);
@@ -3505,13 +3542,15 @@ asm
 end;
 
 function CanMoveItem(CObject:pointer):boolean; stdcall;
+var
+  inv:pCInventory;
 begin
   result:=true;
   CObject:=dynamic_cast(CObject, 0, RTTI_CObject, RTTI_CInventoryItemOwner, false);
   if CObject=nil then exit;
-  CObject:=CInventoryOwner__GetInventory(CObject);
-  if CObject=nil then exit;
-  result:=(CInventory__CalcTotalWeight(CObject)<GetMaxCorpseWeight);
+  inv:=CInventoryOwner__GetInventory(CObject);
+  if inv=nil then exit;
+  result:=(CInventory__CalcTotalWeight(inv)<GetMaxCorpseWeight);
   if not result then SendMessage('gunsl_corpse_overweighted', gd_stalker);
 end;
 
@@ -3735,7 +3774,7 @@ begin
   act:=GetActor();
   if act=nil then exit;
 
-  det:=ItemInSlot(act, 9);
+  det:=ItemInSlot(act, DETECTOR_SLOT);
   if det=nil then exit;
 
   det:=dynamic_cast(det, 0, RTTI_CInventoryItem, RTTI_CCustomDetector, false);
@@ -4166,7 +4205,7 @@ begin
   if act=nil then exit;
 
   //Включен ли налобный фонарь
-  CTorch:=ItemInSlot(act, 10);
+  CTorch:=ItemInSlot(act, TORCH_SLOT);
   if (CTorch<>nil) and IsTorchSwitchedOn(CTorch) then begin
     result:=GetHeadlampTreasureDist;
     exit;
@@ -5239,5 +5278,6 @@ end;
 // CPseudoGigant::on_activate_control - xrgame.dll+10fd20
 // CControlManagerCustom::check_threaten - xrgame.dll+df040
 // CControlThreaten::check_start_conditions - xrgame.dll+edd40
-
+// CInventory::Ruck - xrgame.dll+2a89d0
+// CInventory::BeltWidth - xrgame.dll+2a9d30
 end.

@@ -2,6 +2,11 @@ unit Vector;
 
 interface
 
+type xr_set = packed record
+  data:array [0..$17] of byte;
+end;
+
+
 type xr_vector = packed record
   start:pointer;
   last:pointer;

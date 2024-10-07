@@ -1096,7 +1096,7 @@ begin
     
     SetActorActionState(act, actSprint, false, mState_WISHFUL);
     ResetActorFlags(act);
-    det:=ItemInSlot(act, 9);
+    det:=ItemInSlot(act, DETECTOR_SLOT);
     if (det<>nil) and not CanUseDetectorWithItem(wpn) then begin
       ForceHideDetector(det);
       SetDetectorForceUnhide(det, false);

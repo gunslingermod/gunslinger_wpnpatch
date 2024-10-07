@@ -150,6 +150,7 @@ type giant_threaten_params = record
   low_delay_height_delta:single;
   low_delay_distance:single;
   low_delay_time:cardinal;
+  std_to_low_delay_time:cardinal;
 end;
 
 type bobbing_effector_param = packed record
@@ -1351,6 +1352,7 @@ begin
   _pseudogiant_threaten_params.low_delay_height_delta:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_low_delay_height_delta', 2);
   _pseudogiant_threaten_params.low_delay_distance:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_low_delay_distance', 5);  
   _pseudogiant_threaten_params.low_delay_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_low_delay_time', 1000);
+  _pseudogiant_threaten_params.std_to_low_delay_time:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'pseudogiant_threaten_std_to_low_delay_time', 3000);
 
 
   _actor_fall_hit_koef:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'actor_fall_hit_koef', 1.0);

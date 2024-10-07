@@ -270,7 +270,7 @@ begin
   if (act=nil) or (act<>GetOwner(wpn)) then exit;
 
   itm:=GetActorActiveItem();
-  det:=ItemInSlot(act, 9);
+  det:=ItemInSlot(act, DETECTOR_SLOT);
   if (itm <> nil) and (itm=wpn) and (det<>nil) then begin
     SetActorActionState(act, actShowDetectorNow, true);
 
@@ -534,7 +534,7 @@ begin
   end;
 
   // Фиксим невозможность достать детектор, который почему-то убрался без проигрывания анимации завершения спринта
-  if (ItemInSlot(act, 9)=det) and (GetCurrentState(det)=EHudStates__eHidden) then begin
+  if (ItemInSlot(act, DETECTOR_SLOT)=det) and (GetCurrentState(det)=EHudStates__eHidden) then begin
     SetActorActionState(act, actModDetectorSprintStarted, false);  
   end;
 end;

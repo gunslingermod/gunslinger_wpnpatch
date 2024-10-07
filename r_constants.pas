@@ -130,7 +130,7 @@ begin
   if act=nil then begin
     RCache__set(C, -1,-1,-1,-1);
   end;
-  outfit:=ItemInSlot(act, 7);
+  outfit:=ItemInSlot(act, OUTFIT_SLOT);
   if (outfit<>nil) then outfit:=dynamic_cast(outfit, 0, RTTI_CInventoryItem, RTTI_CCustomOutfit, false);
   if (outfit<>nil) then begin
     actor_outfit_cond:=GetCurrentCondition(outfit);
