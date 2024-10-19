@@ -3,6 +3,11 @@ unit MatVectors;
 
 interface
 
+  type IVector2 = packed record
+    x:integer;
+    y:integer;
+  end;
+
   type FVector2 = packed record
     x:single;
     y:single;
@@ -39,6 +44,7 @@ interface
     rb:FVector2;
   end;
 
+  type pIVector2 = ^IVector2;
   type PFVector2 = ^FVector2;
   type PFVector3 = ^FVector3;
   type PFVector4 = ^FVector4;

@@ -288,21 +288,49 @@ type
 upgrade_icon_data = packed record
   offset:FVector2;
   icon_section:PAnsiChar;
-  icon:pCUIStatic;
-  enabled:boolean;  
+  hide_sections:PAnsiChar;
+  banned_addons_mask:byte;
+
+  icon:pCUIStatic; // если enabled = false, то всегда nil; если enabled=true, то может быть nil при установленном несовместимом аддоне
+
+
+  enabled:boolean; // true означает, что отображение иконки может быть активно, но при этом icon не всегда ненулевой
+                   // (он обнул€етс€ при установке несовместимого аддона и пересоздаетс€ после его сн€ти€)
+                   // false означает, что соответствующа€ данному апгрейду иконка (если прописана) не будет показыватьс€
 end;
+pupgrade_icon_data = ^upgrade_icon_data;
 
 CellItemBuffer = class
 protected
   _my_item:pointer;
   _my_cell:pointer;
+  _elements:array of upgrade_icon_data;
   _up_icons:array of upgrade_icon_data;
   _uniq_icon:upgrade_icon_data;
-  _uniq_icon_inited:boolean;
+  _inited:boolean;
+  _addons_flags:byte;
+  
+  _grid_size_default:IVector2;
+  _grid_lt_default:IVector2;
+  _grid_size_dt:IVector2;
+  _grid_size_updated_dt:IVector2;  
+  _grid_lt_dt:IVector2;
+  _grid_addons_correction_delta:IVector2;
+
+  _need_update_icon_rect:boolean;
+  _need_reposition_icons:boolean; 
+
+  procedure _UpdateItemIconStatus(icon:pupgrade_icon_data; section:string; status:boolean);
+  procedure _UpdateTotalElementsStatus(elements_sections:PAnsiChar; status:boolean);
+  procedure _CreateElements();
   procedure _ProcessUpgrade(section:PAnsiChar);
   procedure _InitUniqIcon();
-  procedure _UpdateIcons(use_heading:byte);
+  procedure _UpdateIconsPos(use_heading:byte);
   procedure _InitDragItemIcons(drag_wnd:pCUIWindow);
+  function _GetItemAddonsFlags():byte;
+  procedure _CheckAddonFlags(icon:pupgrade_icon_data; new_flags:byte);
+  procedure _OnAddonFlagsChanged(new_flags:byte);
+  procedure _CorrectAddonsOffsets(offset_launcher:pFVector2; offset_scope:pFVector2; offset_sil:pFVector2);
 public
   constructor Create(itm:pointer; cell:pointer);
   destructor Destroy(); override;
@@ -2134,44 +2162,6 @@ asm
   mov edx,[eax+$150] // original
 end;
 
-procedure UpdateWeaponIcon(wpn:pointer; UIWeaponCellItem:pCUIStatic); stdcall;
-var
-  x, y, dx, dy, w, h:single;
-const
-  CELL_SIZE:single=50;
-begin
-  // обновл€ем иконку оружи€ в зависимости от установленных аддонов
-
-  if GetInstalledUpgradesCount(wpn) > 0 then begin
-    dx:=ModifyFloatUpgradedValue(wpn, 'inv_grid_x', 0);
-    dy:=ModifyFloatUpgradedValue(wpn, 'inv_grid_y', 0);
-    if (abs(dx)>0.5) or (abs(dy)>0.5) then begin
-      x:=game_ini_r_single(GetSection(wpn), 'inv_grid_x');
-      y:=game_ini_r_single(GetSection(wpn), 'inv_grid_y');
-      w:=game_ini_r_single(GetSection(wpn), 'inv_grid_width');
-      h:=game_ini_r_single(GetSection(wpn), 'inv_grid_height');
-      UIWeaponCellItem.m_UIStaticItem.TextureRect.lt.x:=floor((x+dx)*CELL_SIZE);
-      UIWeaponCellItem.m_UIStaticItem.TextureRect.lt.y:=floor((y+dy)*CELL_SIZE);
-      UIWeaponCellItem.m_UIStaticItem.TextureRect.rb.x:=floor((x+w+dx)*CELL_SIZE);
-      UIWeaponCellItem.m_UIStaticItem.TextureRect.rb.y:=floor((y+h+dy)*CELL_SIZE);     
-
-    end;
-  end;
-end;
-
-procedure CUIWeaponCellItem__Update_Patch(); stdcall;
-asm
-  pushad
-  mov ecx,[esi+$110] // weapon object from m_pData
-  push esi //this
-  push ecx
-  call UpdateWeaponIcon
-  popad
-
-  //original
-  mov bl,[esi+$C8]
-end;
-
 procedure ui_actor_state_wnd__UpdateActorInfo_burnicon_Patch(); stdcall;
 asm
   // так как код оригинала подразумевает только 3 варианта иконок состо€ни€ (и в кровотечении они все использованы) - добавл€ем иконку в здоровье (там по умолчанию только прогрессбар)
@@ -2204,6 +2194,28 @@ asm
   @original:
   fld [esp+$58]
   fabs
+end;
+
+procedure virtual_CUIWindow_DetachChild(this:ppCUIWindow; ppchild:ppCUIWindow); stdcall;
+asm
+  pushad
+  mov ecx,[ppchild]
+  mov eax,[this]
+  mov eax, [eax]
+  mov edx,[eax+$1C]
+  push ecx
+  mov ecx,[this]
+  call edx
+  popad
+end;
+
+procedure DestroyAddonIcon(ppicon:ppCUIStatic; parent_static:pointer); stdcall;
+var
+  picon:pCUIStatic;
+begin
+  picon:=ppicon^;
+  virtual_CUIWindow_DetachChild(parent_static, @picon.base_CUIWindow);
+  ppicon^:=nil;
 end;
 
 procedure CreateAddonIcon(ppicon:ppCUIStatic; parent_static:pointer); stdcall;
@@ -2287,45 +2299,232 @@ asm
   popad
 end;
 
+function CUICellItem__GetGridSize(pCUICellItem:pointer):pivector2; stdcall;
+asm
+  mov eax, pCUICellItem
+  lea eax, [eax+$f0]  // m_grid_size
+  mov @result, eax
+end;
+
 
 { CellItemBuffer }
 
 constructor CellItemBuffer.Create(itm:pointer; cell:pointer);
+var
+   v:pIVector2;
+
+   d:single;
 begin
   _my_item:=itm;
   _my_cell:=cell;
+  setlength(_elements, 0);
   setlength(_up_icons, 0);
-  _uniq_icon_inited:=false;
+  _inited:=false;
+  _addons_flags:=0;
+
+  _need_update_icon_rect:=true;
+  _need_reposition_icons:=false;  
+
+  _grid_size_default:=CUICellItem__GetGridSize(_my_cell)^;
+  _grid_lt_default.x:=game_ini_r_int_def(GetSection(itm), 'inv_grid_x', 0);
+  _grid_lt_default.y:=game_ini_r_int_def(GetSection(itm), 'inv_grid_y', 0);
+
+  _grid_size_dt.x:=0;
+  _grid_size_dt.y:=0;
+  _grid_lt_dt.x:=0;
+  _grid_lt_dt.y:=0;
+
+  _grid_size_updated_dt.x:=0;
+  _grid_size_updated_dt.y:=0;  
+
+  _grid_addons_correction_delta.x:=0;
+  _grid_addons_correction_delta.y:=0;
+
+  if GetInstalledUpgradesCount(itm) > 0 then begin
+    v:=CUICellItem__GetGridSize(_my_cell);
+    d:=ModifyFloatUpgradedValue(itm, 'inv_grid_width', 0);
+    if abs(d) > 0.5 then begin
+      _grid_size_dt.x:=floor(d);
+      v^.x:=v^.x+_grid_size_dt.x;
+    end;
+
+    d:=ModifyFloatUpgradedValue(itm, 'inv_grid_height', 0);
+    if abs(d) > 0.5 then begin
+      _grid_size_dt.y:=floor(d);
+      v^.y:=v^.y+_grid_size_dt.y;
+    end;
+  end;
 end;
 
 destructor CellItemBuffer.Destroy;
 begin
   setlength(_up_icons, 0);
+  setlength(_elements, 0);  
   inherited;
+end;
+
+procedure CellItemBuffer._UpdateItemIconStatus(icon:pupgrade_icon_data; section:string; status:boolean);
+begin
+  if (icon.icon_section<>nil) and (section = icon.icon_section) then begin
+    if (status = false) and (icon.enabled) then begin
+      if (icon.icon<>nil) then begin
+        DestroyAddonIcon(@icon.icon, self._my_cell);
+      end;
+      icon.enabled:=false;
+    end else if (status = true) and (not icon.enabled) then begin
+      CreateAddonIcon(@icon.icon, _my_cell);
+      CUIWeaponCellItem__InitAddon(_my_cell, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
+      icon.enabled:=true;
+    end;
+  end
+end;
+
+procedure CellItemBuffer._UpdateTotalElementsStatus(elements_sections: PAnsiChar; status: boolean);
+var
+  s, sect:string;
+  i:integer;
+begin
+  s:=elements_sections;
+  while (GetNextSubStr(s, sect, ',')) do begin
+    for i:=0 to length(_elements)-1 do begin
+      _UpdateItemIconStatus(@_elements[i], sect, status);
+    end;
+
+    for i:=0 to length(_up_icons)-1 do begin
+      _UpdateItemIconStatus(@_up_icons[i], sect, status);
+    end;
+  end;
+end;
+
+procedure CellItemBuffer._CreateElements();
+var
+  section:PAnsiChar;
+  i:integer;
+
+const
+  ELEMENT_ICON_PARAM_NAME:string='element_icon_';
+  ELEMENT_ICON_OFFSET_X_PARAM_NAME:string='element_icon_offset_x_';
+  ELEMENT_ICON_OFFSET_Y_PARAM_NAME:string='element_icon_offset_y_';
+  ELEMENT_ICON_HIDE_ICONS_NAME:string='element_icon_hide_';
+  ELEMENT_ICON_BANNED_ADDONS_MASK:string='element_icon_banned_addons_mask_';
+begin
+  if length(_elements)>0 then exit;
+
+  section:=GetSection(_my_item);
+  i:=0;
+  while(game_ini_line_exist(section, PAnsiChar(ELEMENT_ICON_PARAM_NAME+inttostr(i)))) do begin
+    setlength(_elements, i+1);
+    _elements[i].enabled:=true;
+    _elements[i].icon:=nil;
+    _elements[i].icon_section:=game_ini_read_string(section, PAnsiChar(ELEMENT_ICON_PARAM_NAME+inttostr(i)) );
+    _elements[i].offset.x:=game_ini_r_single_def(section, PAnsiChar(ELEMENT_ICON_OFFSET_X_PARAM_NAME+inttostr(i)), 0)+_grid_addons_correction_delta.x;
+    _elements[i].offset.y:=game_ini_r_single_def(section, PAnsiChar(ELEMENT_ICON_OFFSET_Y_PARAM_NAME+inttostr(i)), 0)+_grid_addons_correction_delta.y;
+    _elements[i].banned_addons_mask:=game_ini_r_int_def(section, PAnsiChar(ELEMENT_ICON_BANNED_ADDONS_MASK+inttostr(i)), 0);    
+
+    if game_ini_line_exist(section, PAnsiChar(ELEMENT_ICON_HIDE_ICONS_NAME+inttostr(i))) then begin
+      _elements[i].hide_sections:=game_ini_read_string(section, PAnsiChar(ELEMENT_ICON_HIDE_ICONS_NAME+inttostr(i)));
+    end;
+
+    CreateAddonIcon(@_elements[i].icon, _my_cell);
+    CUIWeaponCellItem__InitAddon(_my_cell, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y);
+
+    i:=i+1;
+  end;
+
+  for i:=0 to length(_elements)-1 do begin
+    if _elements[i].hide_sections<>nil then begin
+      _UpdateTotalElementsStatus(_elements[i].hide_sections, false);
+    end;
+  end;
 end;
 
 procedure CellItemBuffer._ProcessUpgrade(section:PAnsiChar);
 var
-  i:integer;
+  i,x,y:integer;
+
 const
   UPGRADE_ICON_PARAM_NAME:PAnsiChar='upgrade_addon_icon';
   UPGRADE_ICON_OFFSET_X_PARAM_NAME:PAnsiChar='upgrade_addon_icon_offset_x';
   UPGRADE_ICON_OFFSET_Y_PARAM_NAME:PAnsiChar='upgrade_addon_icon_offset_y';
+  UPGRADE_ICON_HIDE_ICONS_NAME:PAnsiChar='upgrade_addon_icons_hide';
+  UPGRADE_ICON_BANNED_ADDONS_MASK:PAnsiChar='upgrade_addon_icon_banned_addons_mask';
+
+  CELL_SIZE:single=50;
 begin
-  i:=length(_up_icons);
-  setlength(_up_icons, i+1);
   section:=game_ini_read_string(section, 'section');
+  x:=game_ini_r_int_def(section, 'inv_grid_x', 0);
+  y:=game_ini_r_int_def(section, 'inv_grid_y', 0);
+
+  if (x<>0) or (y<>0) then begin
+    _grid_lt_dt.x:=_grid_lt_dt.x+x;
+    _grid_lt_dt.y:=_grid_lt_dt.y+y;
+    _need_update_icon_rect:=true;
+  end;
+
+  x:=game_ini_r_int_def(section, 'inv_grid_width', 0);
+  y:=game_ini_r_int_def(section, 'inv_grid_height', 0);
+  if (x<>0) or (y<>0) then begin
+    _grid_size_updated_dt.x:=_grid_size_updated_dt.x+x;
+    _grid_size_updated_dt.y:=_grid_size_updated_dt.y+y;
+    _need_update_icon_rect:=true;
+  end;
+
+  x:=game_ini_r_int_def(section, 'inv_addons_correction_x', 0);
+  y:=game_ini_r_int_def(section, 'inv_addons_correction_y', 0);
+  if (x<>0) or (y<>0) then begin
+    for i:=0 to length(_elements)-1 do begin
+      _elements[i].offset.x:=_elements[i].offset.x+x;
+      _elements[i].offset.y:=_elements[i].offset.y+y;
+    end;
+
+    for i:=0 to length(_up_icons)-1 do begin
+      _up_icons[i].offset.x:=_up_icons[i].offset.x+x;
+      _up_icons[i].offset.y:=_up_icons[i].offset.y+y;
+    end;
+
+    _uniq_icon.offset.x:=_uniq_icon.offset.x+x;
+    _uniq_icon.offset.y:=_uniq_icon.offset.y+y;    
+
+    _grid_addons_correction_delta.x:=_grid_addons_correction_delta.x+x;
+    _grid_addons_correction_delta.y:=_grid_addons_correction_delta.y+y;
+    _need_reposition_icons:=true;    
+  end;
+
+  i:=length(_up_icons);
+  setlength(_up_icons, i+1);  
+  _up_icons[i].enabled:=false;
+  _up_icons[i].icon:=nil;
+  _up_icons[i].icon_section:=nil;
+  _up_icons[i].hide_sections:=nil;
+
+  if game_ini_line_exist(section, UPGRADE_ICON_HIDE_ICONS_NAME) then begin
+    _up_icons[i].hide_sections:=game_ini_read_string(section, UPGRADE_ICON_HIDE_ICONS_NAME);
+  end;
+
   if game_ini_line_exist(section, UPGRADE_ICON_PARAM_NAME) then begin
     _up_icons[i].enabled:=true;
     _up_icons[i].icon_section:=game_ini_read_string(section, UPGRADE_ICON_PARAM_NAME);
-    _up_icons[i].offset.x:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_X_PARAM_NAME, 0);
-    _up_icons[i].offset.y:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_Y_PARAM_NAME, 0);
+    _up_icons[i].offset.x:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_X_PARAM_NAME, 0)+_grid_addons_correction_delta.x;
+    _up_icons[i].offset.y:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_Y_PARAM_NAME, 0)+_grid_addons_correction_delta.y;
+    _up_icons[i].banned_addons_mask:=game_ini_r_int_def(section, UPGRADE_ICON_BANNED_ADDONS_MASK, 0);
 
     CreateAddonIcon(@_up_icons[i].icon, _my_cell);
     CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y);
+
 //    log('Created icon '+inttohex(cardinal(_up_icons[i].icon),8) +' for upgrade '+ _up_icons[i].icon_section+', offset '+floattostr(_up_icons[i].offset.x)+' '+floattostr(_up_icons[i].offset.y));
-  end else begin
-    _up_icons[i].enabled:=false;
+  end;
+
+
+  for i:=0 to length(_elements)-1 do begin
+    if _elements[i].hide_sections<>nil then begin
+      _UpdateTotalElementsStatus(_elements[i].hide_sections, false);
+    end;
+  end;
+
+  for i:=0 to length(_up_icons)-1 do begin
+    if _up_icons[i].hide_sections<>nil then begin
+      _UpdateTotalElementsStatus(_up_icons[i].hide_sections, false);
+    end;
   end;
 end;
 
@@ -2338,6 +2537,8 @@ const
   UNIQ_ICON_OFFSET_Y_PARAM_NAME:PAnsiChar='uniq_icon_offset_y';
 begin
   _uniq_icon.enabled:=false;
+  _uniq_icon.icon_section:=nil;
+  _uniq_icon.hide_sections:=nil;
   sect:=GetSection(_my_item);
 
   if game_ini_line_exist(sect, UNIQ_ICON_PARAM_NAME) then begin
@@ -2345,8 +2546,8 @@ begin
 
     if length(_uniq_icon.icon_section) > 0 then begin
       _uniq_icon.enabled:=true;
-      _uniq_icon.offset.x:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_X_PARAM_NAME, 0);
-      _uniq_icon.offset.y:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_Y_PARAM_NAME, 0);
+      _uniq_icon.offset.x:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_X_PARAM_NAME, 0)+_grid_addons_correction_delta.x;
+      _uniq_icon.offset.y:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_Y_PARAM_NAME, 0)+_grid_addons_correction_delta.y;
 
       CreateAddonIcon(@_uniq_icon.icon, _my_cell);
       CUIWeaponCellItem__InitAddon(_my_cell, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y);
@@ -2354,12 +2555,18 @@ begin
   end;
 end;
 
-procedure CellItemBuffer._UpdateIcons(use_heading:byte);
+procedure CellItemBuffer._UpdateIconsPos(use_heading:byte);
 var
   i:integer;
 begin
+  for i:=0 to length(_elements)-1 do begin
+    if _elements[i].enabled and (_elements[i].icon<>nil) then begin
+      CUIWeaponCellItem__InitAddon(_my_cell, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, use_heading);
+    end;
+  end;
+
   for i:=0 to length(_up_icons)-1 do begin
-    if _up_icons[i].enabled then begin
+    if _up_icons[i].enabled and (_up_icons[i].icon<>nil) then begin
       CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, use_heading);
     end;
   end;
@@ -2369,13 +2576,60 @@ begin
   end;
 end;
 
+function CellItemBuffer._GetItemAddonsFlags():byte;
+begin
+  result:=0;
+  if _my_item<>nil then begin
+    result:=get_addons_state(_my_item);
+  end;
+end;
+
+procedure CellItemBuffer._CheckAddonFlags(icon:pupgrade_icon_data; new_flags:byte);
+var
+  need_disable:boolean;
+begin
+  if (icon.icon_section <> nil) and (icon.enabled)  then begin
+    need_disable:=(new_flags and icon.banned_addons_mask) <> 0;
+    if need_disable then begin
+      if icon.icon<>nil then begin
+        DestroyAddonIcon(@icon.icon, self._my_cell);
+      end;
+    end else begin
+      if icon.icon = nil then begin
+        CreateAddonIcon(@icon.icon, _my_cell);
+        CUIWeaponCellItem__InitAddon(_my_cell, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
+      end;
+    end;
+  end;
+end;
+
+procedure CellItemBuffer._OnAddonFlagsChanged(new_flags:byte);
+var
+  i:integer;
+begin
+  for i:=0 to length(_elements)-1 do begin
+    _CheckAddonFlags(@_elements[i], new_flags);
+  end;
+
+  for i:=0 to length(_up_icons)-1 do begin
+    _CheckAddonFlags(@_up_icons[i], new_flags);
+  end;
+end;
+
 procedure CellItemBuffer._InitDragItemIcons(drag_wnd:pCUIWindow);
 var
   i:integer;
   pstatic:pCUIStatic;
 begin
+  for i:=0 to length(_elements)-1 do begin
+    if _elements[i].enabled and (_elements[i].icon<>nil) then begin
+      CreateAddonIcon(@pstatic, drag_wnd);
+      CUIWeaponCellItem__InitAddon(_my_cell, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
+    end;
+  end;
+
   for i:=0 to length(_up_icons)-1 do begin
-    if _up_icons[i].enabled then begin
+    if _up_icons[i].enabled and (_up_icons[i].icon<>nil) then begin
       CreateAddonIcon(@pstatic, drag_wnd);
       CUIWeaponCellItem__InitAddon(_my_cell, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
     end;
@@ -2384,26 +2638,80 @@ end;
 
 procedure CellItemBuffer.Update();
 var
+  up_sect:PAnsiChar;
   ups_count, i, old_cnt:integer;
+  new_flags:byte;
+
+  new_lt:IVector2;
+  new_rb:IVector2;
+  piconstatic:pCUIStatic;
+const
+  CELL_SIZE:integer=50;
 begin
 //  Log('Update for wpn '+ inttohex(cardinal(_my_item), 8));
+
+  if not _inited then begin
+    _CreateElements();
+  end;
+
   ups_count:=GetInstalledUpgradesCount(_my_item);
   if ups_count > length(_up_icons) then begin
     old_cnt:=length(_up_icons);
     for i:=old_cnt to ups_count - 1 do begin
-      _ProcessUpgrade(GetInstalledUpgradeSection(_my_item, i));
+      up_sect:=GetInstalledUpgradeSection(_my_item, i);
+      _ProcessUpgrade(up_sect);
     end;
   end;
 
-  if not _uniq_icon_inited then begin
+  if not _inited then begin
     _InitUniqIcon();
-    _uniq_icon_inited:=true;
+    _inited:=true;
+  end;
+
+  new_flags:=_GetItemAddonsFlags();
+  if _addons_flags<>new_flags then begin
+    _OnAddonFlagsChanged(new_flags);
+    _addons_flags:=new_flags;
+  end;
+
+  if _need_update_icon_rect then begin
+    piconstatic:=pCUIStatic(_my_cell);
+    new_lt.x:=_grid_lt_default.x+_grid_lt_dt.x;
+    new_lt.y:=_grid_lt_default.y+_grid_lt_dt.y;
+    
+    new_rb.x:= new_lt.x+_grid_size_default.x+_grid_size_dt.x;
+    new_rb.y:= new_lt.y+_grid_size_default.y+_grid_size_dt.y;
+    piconstatic.m_UIStaticItem.TextureRect.lt.x:=new_lt.x*CELL_SIZE;
+    piconstatic.m_UIStaticItem.TextureRect.lt.y:=new_lt.y*CELL_SIZE;
+    piconstatic.m_UIStaticItem.TextureRect.rb.x:=new_rb.x*CELL_SIZE;
+    piconstatic.m_UIStaticItem.TextureRect.rb.y:=new_rb.y*CELL_SIZE;
+    _need_update_icon_rect:=false;
+  end;
+
+  if _need_reposition_icons then begin
+    _UpdateIconsPos($FF);
+    _need_reposition_icons:=false;
   end;
 end;
 
 procedure CellItemBuffer.SetItem(new_item:pointer);
 begin
   _my_item:=new_item;
+end;
+
+procedure CellItemBuffer._CorrectAddonsOffsets(offset_launcher:pFVector2; offset_scope:pFVector2; offset_sil:pFVector2);
+begin
+  if (_grid_addons_correction_delta.x <> 0) then begin
+    offset_sil.x:=offset_sil.x+_grid_addons_correction_delta.x;
+    offset_scope.x:=offset_scope.x+_grid_addons_correction_delta.x;
+    offset_launcher.x:=offset_launcher.x+_grid_addons_correction_delta.x;
+  end;
+
+  if (_grid_addons_correction_delta.y <> 0) then begin
+    offset_sil.y:=offset_sil.y+_grid_addons_correction_delta.y;
+    offset_scope.y:=offset_scope.y+_grid_addons_correction_delta.y;
+    offset_launcher.y:=offset_launcher.y+_grid_addons_correction_delta.y;
+  end;
 end;
 
 procedure CreateCellItemBuffer(p:pCellItemBuffer; data:pointer; cell:pointer); stdcall;
@@ -2528,7 +2836,7 @@ end;
 procedure CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons(p:pCellItemBuffer; need_heading:byte); stdcall;
 begin
     if p^ <> nil then begin
-      p^._UpdateIcons(need_heading);
+      p^._UpdateIconsPos(need_heading);
     end;
 end;
 
@@ -2567,6 +2875,41 @@ asm
 
   // original
   cmp dword ptr [esi+$124],00
+end;
+
+procedure CorrectAddonsOffsets(p:pCellItemBuffer; offset_launcher:pFVector2; offset_scope:pFVector2; offset_sil:pFVector2); stdcall;
+begin
+  if p^<>nil then begin
+    p^._CorrectAddonsOffsets(offset_launcher, offset_scope, offset_sil);
+  end;
+end;
+
+procedure CUIWeaponCellItem__RefreshOffset_Patch(); stdcall;
+asm
+  //Original code
+  je @finish
+  mov eax,[esi+$110]
+  mov ecx,[eax+$490]
+  cvtsi2ss xmm0,[eax+$48C]
+  movss [esi+$140],xmm0
+  cvtsi2ss xmm0,ecx
+  movss [esi+$144],xmm0
+  
+  @finish:
+  //Our code (in the end of procedure)
+  pushad
+
+    lea eax, [esi+$130]
+    push eax
+    add eax, 8
+    push eax
+    add eax, 8
+    push eax
+
+    lea esi, [esi+$108] // this->m_upgrade_pos.x    
+    push esi
+    call CorrectAddonsOffsets
+  popad
 end;
 
 function Init():boolean;stdcall;
@@ -2750,9 +3093,9 @@ begin
   jmp_addr:=xrGame_addr+$49df80;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_forceaddonupdate_Patch), 11, true) then exit;
 
-  //в CUIWeaponCellItem::Update производим дополнительные действи€
+{  //в CUIWeaponCellItem::Update производим дополнительные действи€
   jmp_addr:=xrGame_addr+$49df67;
-  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_Patch), 6, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_Patch), 6, true) then exit;}
 
   //¬ CUICellItem::Update мен€ем pos.set(m_upgrade_pos) на pos.set(m_upgrade->GetWndPos()) чтобы сделать m_upgrade_pos неиспользуемым + вызываем апдейт буфера
   jmp_addr:=xrGame_addr+$49efc0;
@@ -2785,6 +3128,11 @@ begin
   //в CUIDragItem::Init в вызове SetTextureColor мен€ем значение альфа-канала на FF дл€ избавлени€ от прозрачности, чтобы перекрытые иконками апгрейдов элементы не были заметны
   nop_code(xrGame_addr+$49eb68, 1, CHR($FF));
 
+  //¬ CUIWeaponCellItem::RefreshOffset добавл€ем оффсеты при изменении размеров и координат иконок
+  jmp_addr:=xrGame_addr+$49df33;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__RefreshOffset_Patch), 42, true) then exit;
+
+
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
   // UIUpgrade::OnMouseAction - xrgame.dll+440f40
@@ -2808,6 +3156,7 @@ begin
   //CAI_Stalker::tradable_item - xrgame.dll+18e240
   //CUIWeaponCellItem::Update - xrgame.dll+49df60
   //CUIWeaponCellItem::InitAddon - xrgame.dll+49d7c0
+  //CUIWeaponCellItem::RefreshOffset - xrgame.dll+49de60
   //ui_actor_state_wnd::UpdateActorInfo - xrgame.dll+46ff40
   //CUICellItem::Update - xrgame.dll+49ee80
   //CUICellItem::~CUICellItem - xrgame.dll+49f6a0
