@@ -1003,16 +1003,56 @@ asm
   jmp eax
 end;
 
+function TeleAttackCondition(burer:pointer):boolean; stdcall;
+var
+  act:pointer;
+  cam_pos, act_pos:FVector3;
+  itm:pointer;
+begin
+  result:=true;
+  act:=GetActorIfAlive();
+  if act<>nil then begin
+    itm:=GetActorActiveItem();
+    act_pos:=FVector3_copyfromengine(GetEntityPosition(act));
+    cam_pos:=FVector3_copyfromengine(CRenderDevice__GetCamPos());
+    act_pos.y:=act_pos.y+ACTOR_HEAD_CORRECTION_HEIGHT;
+
+    if IsBurerUnderAim(burer, BurerUnderAimExact)
+      or ((itm<>nil) and (GetCurrentState(itm)<>EHudStates__eIdle))
+      or IsObjectSeePoint(burer, act_pos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true)
+      or IsObjectSeePoint(burer, cam_pos, UNCONDITIONAL_VISIBLE_DIST, BURER_HEAD_CORRECTION_HEIGHT, true)
+    then begin
+      result:=true;
+    end else if not GetActorActionState(act, actMovingForward+actMovingBack+actMovingLeft+actMovingRight+actJump+actFall+actLanding+actLanding2+actSprint, mState_REAL) then begin
+      result:=false;
+    end;
+  end;  
+end;
+
 procedure CStateBurerAttackTele__CheckTeleStart_AfterObjectsSearch_Patch(); stdcall;
 asm
-  pop esi
-  pop ecx
   setne al
 
   cmp _gren_count, 0
-  je @finish
+  je @callcheck
   mov al, 1
-  @finish:
+  jmp @doret
+
+  @callcheck:
+  cmp al, 0
+  je @doret
+  
+  pushad
+  push [esi+$10]
+  call TeleAttackCondition
+  test al, al
+  popad
+  jne @doret
+  xor al, al
+
+  @doret:
+  pop esi
+  pop ecx  
   ret
 end;
 
@@ -1864,7 +1904,36 @@ asm
   pop eax
 end;
 
-function IsFireAllowed(o:pCTelekineticObject):boolean; stdcall;
+procedure StopRefSound(ref_sound:pointer); stdcall;
+asm
+  //	if (sound_hold._handle() && sound_hold._feedback()) sound_hold.stop();
+  pushad
+  
+  mov ecx, [ref_sound]
+  mov eax,[ecx]
+  mov eax,[eax]
+  mov edx,eax
+  neg edx
+  sbb edx,edx
+
+  mov ebx, [xrgame_addr]
+  add ebx, $49720
+  test edx, ebx
+  je @finish
+  cmp dword ptr [eax+$08],00
+  je @finish
+  cmp dword ptr [eax+$0C],00
+  je @finish
+
+  mov ebx, [xrgame_addr]
+  add ebx, $6e7a0
+  call ebx
+
+  @finish:
+  popad
+end;
+
+function IsFireAllowed(o:pCTelekineticObject; burer:pointer):boolean; stdcall;
 begin
   if o = nil then begin
     result:=false;
@@ -1874,8 +1943,15 @@ begin
     result:=true;
   end else begin
     result:=random < GetSkipFireAllProbability();
+    if result then begin
+      result:=TeleAttackCondition(burer);
+    end;
   end;
+end;
 
+procedure StopTeleObjectSound(o:pCTelekineticObject); stdcall;
+begin
+  StopRefSound(@o.sound_hold);
 end;
 
 procedure CStateBurerAttackTele__FireAllToEnemy_CheckSkipTeleFire_Patch(); stdcall;
@@ -1884,6 +1960,12 @@ asm
   lea ecx, [esp+$2C] //original
 
   pushad
+  push ecx // current pCTelekineticObject
+  call StopTeleObjectSound
+  popad
+
+  pushad
+  push [edi+$10] // object - ptr to burer
   push ecx // current pCTelekineticObject
   call IsFireAllowed
   test al, al
@@ -2285,6 +2367,7 @@ begin
   //CTelekineticObject::raise_update - xrgame.dll+da720
   //CTelekineticObject::update_state - xrgame.dll+da480
   //CTelekinesis::schedule_update - xrgame.dll+da0f0
+  //CTelekinesis::fire_t - xrgame.dll+d9d60
   //CStateBurerAttackGravi::execute - xrgame.dll+105800
   //CStateBurerAttackGravi::ExecuteGraviContinue - xrgame.dll+105730
   //CStateBurerAttackTele::critical_finalize - xrgame.dll+1092a0
