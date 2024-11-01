@@ -343,7 +343,7 @@ pupgrade_icon_data = ^upgrade_icon_data;
 CellItemBuffer = class
 protected
   _my_item:pointer;
-  _my_cell:pointer;
+  _my_cell:pCUIWeaponCellItem;
   _elements:array of upgrade_icon_data;
   _up_icons:array of upgrade_icon_data;
   _uniq_icon:upgrade_icon_data;
@@ -378,7 +378,7 @@ protected
   function _ReadAdditionalIconParams(addon_section:PAnsiChar; name:PPAnsiChar; offset:PFVector2):boolean;
   procedure _UpdateAddonAdditionalIcon(new_addon:PAnsiChar; old_addon:PAnsiChar);
 public
-  constructor Create(itm:pointer; cell:pointer);
+  constructor Create(itm:pointer; cell:pCUIWeaponCellItem);
   destructor Destroy(); override;
   procedure Update();
   procedure SetItem(new_item:pointer);
@@ -2319,7 +2319,7 @@ asm
   popad
 end;
 
-procedure CUIWeaponCellItem__InitAddon(cell:pointer; picon:pCUIStatic; section:PAnsiChar; offset_x:single; offset_y:single; use_heading:byte=$FF); stdcall;
+procedure CUIWeaponCellItem__InitAddon(cell:pCUICellItem; picon:pCUIStatic; section:PAnsiChar; offset_x:single; offset_y:single; use_heading:byte=$FF); stdcall;
 asm
   pushad
   mov ecx, [cell]
@@ -2346,17 +2346,14 @@ asm
   popad
 end;
 
-function CUICellItem__GetGridSize(pCUICellItem:pointer):pivector2; stdcall;
-asm
-  mov eax, pCUICellItem
-  lea eax, [eax+$f0]  // m_grid_size
-  mov @result, eax
+function CUICellItem__GetGridSize(cell:pCUICellItem):pivector2; stdcall;
+begin
+  result:=@cell.m_grid_size;
 end;
-
 
 { CellItemBuffer }
 
-constructor CellItemBuffer.Create(itm:pointer; cell:pointer);
+constructor CellItemBuffer.Create(itm:pointer; cell:pCUIWeaponCellItem);
 var
    v:pIVector2;
 
@@ -2374,7 +2371,7 @@ begin
   _need_update_icon_rect:=true;
   _need_reposition_icons:=false;  
 
-  _grid_size_default:=CUICellItem__GetGridSize(_my_cell)^;
+  _grid_size_default:=CUICellItem__GetGridSize(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem)^;
   _grid_lt_default.x:=game_ini_r_int_def(GetSection(itm), 'inv_grid_x', 0);
   _grid_lt_default.y:=game_ini_r_int_def(GetSection(itm), 'inv_grid_y', 0);
 
@@ -2390,7 +2387,7 @@ begin
   _grid_addons_correction_delta.y:=0;
 
   if GetInstalledUpgradesCount(itm) > 0 then begin
-    v:=CUICellItem__GetGridSize(_my_cell);
+    v:=CUICellItem__GetGridSize(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem);
     d:=ModifyFloatUpgradedValue(itm, 'inv_grid_width', 0);
     if abs(d) > 0.5 then begin
       _grid_size_dt.x:=floor(d);
@@ -2424,7 +2421,7 @@ begin
       icon.enabled:=false;
     end else if (status = true) and (not icon.enabled) then begin
       CreateAddonIcon(@icon.icon, _my_cell);
-      CUIWeaponCellItem__InitAddon(_my_cell, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
       icon.enabled:=true;
     end;
   end
@@ -2461,7 +2458,7 @@ begin
   _elements[i].banned_addons_mask:=0;
   _elements[i].hide_sections:=nil;
   CreateAddonIcon(@_elements[i].icon, _my_cell);
-  CUIWeaponCellItem__InitAddon(_my_cell, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y);
+  CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y);
   result:=@_elements[i];
 end;
 
@@ -2578,7 +2575,7 @@ begin
     _up_icons[i].banned_addons_mask:=game_ini_r_int_def(section, UPGRADE_ICON_BANNED_ADDONS_MASK, 0);
 
     CreateAddonIcon(@_up_icons[i].icon, _my_cell);
-    CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y);
+    CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y);
 
 //    log('Created icon '+inttohex(cardinal(_up_icons[i].icon),8) +' for upgrade '+ _up_icons[i].icon_section+', offset '+floattostr(_up_icons[i].offset.x)+' '+floattostr(_up_icons[i].offset.y));
   end;
@@ -2619,7 +2616,7 @@ begin
       _uniq_icon.offset.y:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_Y_PARAM_NAME, 0)+_grid_addons_correction_delta.y;
 
       CreateAddonIcon(@_uniq_icon.icon, _my_cell);
-      CUIWeaponCellItem__InitAddon(_my_cell, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y);
     end;
   end;
 end;
@@ -2630,18 +2627,18 @@ var
 begin
   for i:=0 to length(_elements)-1 do begin
     if _elements[i].enabled and (_elements[i].icon<>nil) then begin
-      CUIWeaponCellItem__InitAddon(_my_cell, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, use_heading);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, use_heading);
     end;
   end;
 
   for i:=0 to length(_up_icons)-1 do begin
     if _up_icons[i].enabled and (_up_icons[i].icon<>nil) then begin
-      CUIWeaponCellItem__InitAddon(_my_cell, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, use_heading);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, use_heading);
     end;
   end;
 
   if _uniq_icon.enabled then begin
-      CUIWeaponCellItem__InitAddon(_my_cell, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y, use_heading);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y, use_heading);
   end;
 end;
 
@@ -2666,7 +2663,7 @@ begin
     end else begin
       if icon.icon = nil then begin
         CreateAddonIcon(@icon.icon, _my_cell);
-        CUIWeaponCellItem__InitAddon(_my_cell, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);        
+        CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);        
       end;
     end;
   end;
@@ -2748,7 +2745,12 @@ begin
   _UpdateAddonAdditionalIcon(new_gl, _gl);
   _UpdateAddonAdditionalIcon(new_sil, _silencer);
 
-  // TODO: remove addons icons for re-creation on the front of icons
+  for i:=0 to length(_my_cell.m_addons)-1 do begin
+    if _my_cell.m_addons[i]<>nil then begin
+      DestroyAddonIcon(@_my_cell.m_addons[i], _my_cell);
+    end;
+  end;
+
 end;
 
 procedure CellItemBuffer._InitDragItemIcons(drag_wnd:pCUIWindow);
@@ -2759,14 +2761,14 @@ begin
   for i:=0 to length(_elements)-1 do begin
     if _elements[i].enabled and (_elements[i].icon<>nil) then begin
       CreateAddonIcon(@pstatic, drag_wnd);
-      CUIWeaponCellItem__InitAddon(_my_cell, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
     end;
   end;
 
   for i:=0 to length(_up_icons)-1 do begin
     if _up_icons[i].enabled and (_up_icons[i].icon<>nil) then begin
       CreateAddonIcon(@pstatic, drag_wnd);
-      CUIWeaponCellItem__InitAddon(_my_cell, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
     end;
   end;
 end;
@@ -2780,7 +2782,6 @@ var
 
   new_lt:IVector2;
   new_rb:IVector2;
-  piconstatic:pCUIStatic;
 const
   CELL_SIZE:integer=50;
 begin
@@ -2831,16 +2832,15 @@ begin
   end;
 
   if _need_update_icon_rect then begin
-    piconstatic:=pCUIStatic(_my_cell);
     new_lt.x:=_grid_lt_default.x+_grid_lt_dt.x;
     new_lt.y:=_grid_lt_default.y+_grid_lt_dt.y;
     
     new_rb.x:= new_lt.x+_grid_size_default.x+_grid_size_dt.x;
     new_rb.y:= new_lt.y+_grid_size_default.y+_grid_size_dt.y;
-    piconstatic.m_UIStaticItem.TextureRect.lt.x:=new_lt.x*CELL_SIZE;
-    piconstatic.m_UIStaticItem.TextureRect.lt.y:=new_lt.y*CELL_SIZE;
-    piconstatic.m_UIStaticItem.TextureRect.rb.x:=new_rb.x*CELL_SIZE;
-    piconstatic.m_UIStaticItem.TextureRect.rb.y:=new_rb.y*CELL_SIZE;
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.m_UIStaticItem.TextureRect.lt.x:=new_lt.x*CELL_SIZE;
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.m_UIStaticItem.TextureRect.lt.y:=new_lt.y*CELL_SIZE;
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.m_UIStaticItem.TextureRect.rb.x:=new_rb.x*CELL_SIZE;
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.m_UIStaticItem.TextureRect.rb.y:=new_rb.y*CELL_SIZE;
     _need_update_icon_rect:=false;
   end;
 
@@ -2876,13 +2876,13 @@ begin
   Log('Get buffer for Cell '+inttohex(cardinal(cell), 8)+' - '+inttohex(cardinal(result), 8));
 end;
 
-procedure CreateCellItemBuffer(cell:pCUICellItem); stdcall;
+procedure CreateCellItemBuffer(cell:pCUIWeaponCellItem); stdcall;
 var
   buf:CellItemBuffer;
 begin
-  buf:=CellItemBuffer.Create(cell.m_pData, cell);
-  Log('Create buffer '+inttohex(cardinal(buf), 8)+'for Cell '+inttohex(cardinal(cell), 8)+', item '+inttohex(cardinal(cell.m_pData), 8));
-  pCellItemBuffer(@cell.m_upgrade_pos.x)^:=buf;
+  buf:=CellItemBuffer.Create(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData, cell);
+//  Log('Create buffer '+inttohex(cardinal(buf), 8)+'for Cell '+inttohex(cardinal(cell), 8)+', item '+inttohex(cardinal(cell.m_pData), 8));
+  pCellItemBuffer(@cell.base_CUIInventoryCellItem.base_CUICellItem.m_upgrade_pos.x)^:=buf;
 end;
 
 procedure FreeCellItemBuffer(cell:pCUICellItem); stdcall;
@@ -2891,7 +2891,7 @@ var
 begin
   buf:=GetCellBuffer(cell);
   if buf<>nil then begin
-    Log('Destroy buffer for Cell '+inttohex(cardinal(cell), 8));
+//    Log('Destroy buffer for Cell '+inttohex(cardinal(cell), 8));
     FreeAndNil(buf);
   end;
 end;
