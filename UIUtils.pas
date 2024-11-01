@@ -2,7 +2,7 @@ unit UIUtils;
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
-uses MatVectors, xr_strings;
+uses MatVectors, xr_strings, vector;
 
 type
 
@@ -168,6 +168,7 @@ CUICellItem = packed record   //sizeof = 0x124
   _unused1:byte;
   _unused2:word;  
 end;
+pCUICellItem = ^CUICellItem;
 
 CUIInventoryCellItem = packed record
   base_CUICellItem:CUICellItem;
@@ -179,6 +180,7 @@ CUIWeaponCellItem = packed record
   //offset:0x130
   m_addon_offset:array[0..2] of FVector2;
 end;
+pCUIWeaponCellItem = ^CUIWeaponCellItem;
 
 SCachedValues = packed record
   m_updatedFrame:cardinal;
@@ -2181,11 +2183,11 @@ asm
   ret
 end;
 
-procedure CheckForForceUpdateAddonsIcons(wpn:pointer; cellbuf:pCellItemBuffer; needforceupdate:pbyte); stdcall;
+procedure CheckForForceUpdateAddonsIcons(cell:pCUIWeaponCellItem; needforceupdate:pbyte); stdcall;
 var
   buf:WpnBuf;
 begin
-  buf:=GetBuffer(wpn);
+  buf:=GetBuffer(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData);
   if (buf <> nil) then begin
     if (buf.need_update_icon) then begin
       needforceupdate^:=1;
@@ -2200,10 +2202,7 @@ asm
   lea edx, [esp+$0B+4]
   pushad
   push edx
-  lea ecx, [esi+$108] // this->m_upgrade_pos.x
-  push ecx
-  mov ecx,[esi+$110]
-  push ecx
+  push esi // this
   call CheckForForceUpdateAddonsIcons
   popad
 
@@ -2871,34 +2870,51 @@ begin
   end;
 end;
 
-procedure CreateCellItemBuffer(p:pCellItemBuffer; data:pointer; cell:pointer); stdcall;
+function GetCellBuffer(cell:pCUICellItem):CellItemBuffer; stdcall;
 begin
-//  Log('Create buffer for CellItem '+inttohex(cardinal(p), 8)+', weapon '+inttohex(cardinal(data), 8));
-  p^:=CellItemBuffer.Create(data, cell);
+  result:=CellItemBuffer(cell.m_upgrade_pos.x);
+  Log('Get buffer for Cell '+inttohex(cardinal(cell), 8)+' - '+inttohex(cardinal(result), 8));
 end;
 
-procedure FreeCellItemBuffer(p:pCellItemBuffer); stdcall;
+procedure CreateCellItemBuffer(cell:pCUICellItem); stdcall;
+var
+  buf:CellItemBuffer;
 begin
-  if p^<>nil then begin
-//    Log('Destroy buffer for CellItem '+inttohex(cardinal(p), 8));
-    FreeAndNil(p^);
+  buf:=CellItemBuffer.Create(cell.m_pData, cell);
+  Log('Create buffer '+inttohex(cardinal(buf), 8)+'for Cell '+inttohex(cardinal(cell), 8)+', item '+inttohex(cardinal(cell.m_pData), 8));
+  pCellItemBuffer(@cell.m_upgrade_pos.x)^:=buf;
+end;
+
+procedure FreeCellItemBuffer(cell:pCUICellItem); stdcall;
+var
+  buf:CellItemBuffer;
+begin
+  buf:=GetCellBuffer(cell);
+  if buf<>nil then begin
+    Log('Destroy buffer for Cell '+inttohex(cardinal(cell), 8));
+    FreeAndNil(buf);
   end;
 end;
 
-procedure CUICellItem__init_zeroupgradepos_Patch();stdcall;
+procedure CUICellItem__init_AddActions(this:pCUICellItem); stdcall;
+begin
+  this.m_index:=0;
+  this.m_upgrade_pos.x:=0;
+  this.m_upgrade_pos.y:=0;
+end;
+
+procedure CUICellItem__init_Patch();stdcall;
 asm
-  mov dword ptr [esi+$108], 0 // m_upgrade_pos.x
-  mov dword ptr [esi+$10c], 0 // m_upgrade_pos.y  
+  pushad
+    push esi
+    call CUICellItem__init_AddActions
+  popad
 end;
 
 procedure CUIWeaponCellItem__constructor_CreateBuffer_Patch(); stdcall
 asm
   pushad
   push esi            //this
-  mov eax, [esi+$110] // m_pData
-  push eax
-  lea edi, [esi+$108] // m_upgrade_pos.x
-  push edi
   call CreateCellItemBuffer
   popad
 
@@ -2908,26 +2924,31 @@ end;
 procedure CUICellItem__destructor_FreeBuffer_Patch(); stdcall;
 asm
   pushad
-  lea esi, [esi+$108] // m_upgrade_pos.x
   push esi
   call FreeCellItemBuffer
-  mov [esi], 0  
   popad
 
   cmp byte ptr [esi+$11C],00 //original
 end;
 
-procedure UpdateCellItemBuffer(p:pCellItemBuffer); stdcall;
+procedure UpdateCellItemBuffer(cell:pCUICellItem); stdcall;
+var
+  buf:CellItemBuffer;
 begin
-  if p^<>nil then begin
-    p^.Update();
+  buf:=GetCellBuffer(cell);
+
+  if buf<>nil then begin
+    buf.Update();
   end;
 end;
 
-procedure SetCellItemBufferItem(p:pCellItemBuffer; itm:pointer); stdcall;
+procedure SetCellItemBufferItem(cell:pCUICellItem); stdcall;
+var
+  buf:CellItemBuffer;
 begin
-  if p^<>nil then begin
-    p^.SetItem(itm);
+  buf:=GetCellBuffer(cell);
+  if buf<>nil then begin
+    buf.SetItem(cell.m_pData);
   end;
 end;
 
@@ -2940,8 +2961,7 @@ asm
   mov [esp+$1c], edx
 
   pushad
-  lea esi, [esi+$108] // m_upgrade_pos.x
-  push esi
+  push esi // this
   call UpdateCellItemBuffer
   popad
   test eax, $FFFFFFFC // restore flags register value
@@ -2958,18 +2978,12 @@ asm
   pop ecx // restore this
 
   pushad
-  mov eax, [ecx+$110] // this.m_pData
-  lea esi, [ecx+$108] // this.m_upgrade_pos.x
-  push eax
-  push esi
+  push ecx // this
   call SetCellItemBufferItem
   popad
 
   pushad
-  mov eax, [esi+$110] // itm.m_pData
-  lea esi, [esi+$108] // itm.m_upgrade_pos.x
-  push eax
-  push esi
+  push esi // itm
   call SetCellItemBufferItem
   popad
 end;
@@ -2990,11 +3004,14 @@ asm
   @finish:
 end;
 
-procedure CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons(p:pCellItemBuffer; need_heading:byte); stdcall;
+procedure CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons(cell:pCUICellItem; need_heading:byte); stdcall;
+var
+  buf:CellItemBuffer;
 begin
-    if p^ <> nil then begin
-      p^._UpdateIconsPos(need_heading);
-    end;
+  buf:=GetCellBuffer(cell);
+  if buf <> nil then begin
+    buf._UpdateIconsPos(need_heading);
+  end;
 end;
 
 procedure CUIWeaponCellItem__OnAfterChild_Patch(); stdcall;
@@ -3004,19 +3021,22 @@ asm
   pushad
     push eax
     call CUIDragDropListEx__GetVerticalPlacement
-    lea esi, [esi+$108] // this->m_upgrade_pos.x
-    
+
     push eax
-    push esi
+    push esi // this
     call CUIWeaponCellItem__OnAfterChild_ReinitUpgradesIcons
   popad
 end;
 
-procedure CreateAddonIconsForDragItem(p:pCellItemBuffer;drag_item_wnd:pCUIWindow); stdcall;
+procedure CreateAddonIconsForDragItem(cell:pCUICellItem; drag_item_wnd:pCUIWindow); stdcall;
+var
+  buf:CellItemBuffer;
 begin
-//  Log('CreateAddonIconsForDragItem '+inttohex(cardinal(p), 8));
-  if p^<>nil then begin
-    p^._InitDragItemIcons(drag_item_wnd);
+  buf:=GetCellBuffer(cell);
+
+  //  Log('CreateAddonIconsForDragItem '+inttohex(cardinal(p), 8));
+  if buf<>nil then begin
+    buf._InitDragItemIcons(drag_item_wnd);
   end;
 end;
 
@@ -3025,8 +3045,7 @@ asm
   pushad
     lea ecx, [ebx+$5c] // i->wnd()
     push ecx
-    lea esi, [esi+$108] // this->m_upgrade_pos.x
-    push esi
+    push esi // this
     call CreateAddonIconsForDragItem
   popad
 
@@ -3034,10 +3053,13 @@ asm
   cmp dword ptr [esi+$124],00
 end;
 
-procedure CorrectAddonsOffsets(p:pCellItemBuffer; offset_launcher:pFVector2; offset_scope:pFVector2; offset_sil:pFVector2); stdcall;
+procedure CorrectAddonsOffsets(cell:pCUIWeaponCellItem); stdcall;
+var
+  buf:CellItemBuffer;
 begin
-  if p^<>nil then begin
-    p^._CorrectAddonsOffsets(offset_launcher, offset_scope, offset_sil);
+  buf:=GetCellBuffer(@cell.base_CUIInventoryCellItem.base_CUICellItem);
+  if buf<>nil then begin
+    buf._CorrectAddonsOffsets(@cell.m_addon_offset[2], @cell.m_addon_offset[1], @cell.m_addon_offset[1]);
   end;
 end;
 
@@ -3055,16 +3077,7 @@ asm
   @finish:
   //Our code (in the end of procedure)
   pushad
-
-    lea eax, [esi+$130]
-    push eax
-    add eax, 8
-    push eax
-    add eax, 8
-    push eax
-
-    lea esi, [esi+$108] // this->m_upgrade_pos.x    
-    push esi
+    push esi // this
     call CorrectAddonsOffsets
   popad
 end;
@@ -3260,7 +3273,7 @@ begin
 
   // В CUICellItem::init вырезаем присваивание m_upgrade_pos и вставляем вместо него обнуление
   jmp_addr:=xrGame_addr+$49ea56;
-  if not WriteJump(jmp_addr, cardinal(@CUICellItem__init_zeroupgradepos_Patch), 18, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CUICellItem__init_Patch), 18, true) then exit;
 
   //В CUICellItem::~CUICellItem добавляем уничтожение буфера
   jmp_addr:=xrGame_addr+$49f6a4;
