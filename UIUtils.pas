@@ -114,7 +114,7 @@ CUIStaticItem = packed record
 end;
 pCUIStaticItem=^CUIStaticItem;
 
-CUIStatic = packed record
+CUIStatic = packed record  //sizeof = 0xdc
   base_CUIWindow:CUIWindow;
   //offset = 0x54
   base_ITextureOwner:ITextureOwner;
@@ -141,6 +141,44 @@ CUIStatic = packed record
 end;
 pCUIStatic=^CUIStatic;
 ppCUIStatic=^pCUIStatic;
+
+CUICellItem = packed record   //sizeof = 0x124
+  base_CUIStatic:CUIStatic;
+  m_childs:xr_vector; {xr_vector<CUICellItem*>}
+  m_pParentList:pointer; {CUIDragDropListEx*}
+  m_pConditionState:pointer; {CUIProgressBar*}
+  //offset:0xf0
+  m_grid_size:IVector2;
+  m_custom_draw:pointer; {ICustomDrawCellItem*}
+  m_accelerator:cardinal;
+  //offset:0x100
+  m_text:pCUIStatic;
+  m_upgrade:pCUIStatic;
+  m_upgrade_pos:FVector2;
+  //offset:0x110
+  m_pData:pointer;
+  m_index:cardinal; //unused?!
+  m_drawn_frame:cardinal;
+  m_b_destroy_childs:byte;
+  m_selected:byte;
+  m_select_armament:byte;
+  m_cur_mark:byte;
+  //offset:0x120  
+  m_has_upgrade:byte;
+  _unused1:byte;
+  _unused2:word;  
+end;
+
+CUIInventoryCellItem = packed record
+  base_CUICellItem:CUICellItem;
+end;
+
+CUIWeaponCellItem = packed record
+  base_CUIInventoryCellItem:CUIInventoryCellItem;
+  m_addons:array [0..2] of pCUIStatic;
+  //offset:0x130
+  m_addon_offset:array[0..2] of FVector2;
+end;
 
 SCachedValues = packed record
   m_updatedFrame:cardinal;
@@ -310,6 +348,8 @@ protected
   _inited:boolean;
   _addons_flags:byte;
   _scope:PAnsiChar;
+  _gl:PAnsiChar;
+  _silencer:PAnsiChar;
   
   _grid_size_default:IVector2;
   _grid_lt_default:IVector2;
@@ -319,7 +359,7 @@ protected
   _grid_addons_correction_delta:IVector2;
 
   _need_update_icon_rect:boolean;
-  _need_reposition_icons:boolean; 
+  _need_reposition_icons:boolean;
 
   function _UpdateItemIconStatus(icon:pupgrade_icon_data; section:string; status:boolean):boolean;
   procedure _UpdateTotalElementsStatus(elements_sections:PAnsiChar; status:boolean);
@@ -331,8 +371,10 @@ protected
   procedure _InitDragItemIcons(drag_wnd:pCUIWindow);
   function _GetItemAddonsFlags():byte;
   procedure _CheckAddonFlags(icon:pupgrade_icon_data; new_flags:byte);
-  procedure _OnAddonFlagsChanged(new_flags:byte; new_scope:PAnsiChar);
+  procedure _OnAddonFlagsChanged(new_flags:byte; new_scope:PAnsiChar; new_gl:PAnsiChar; new_sil:PAnsiChar);
   procedure _CorrectAddonsOffsets(offset_launcher:pFVector2; offset_scope:pFVector2; offset_sil:pFVector2);
+  function _ReadAdditionalIconParams(addon_section:PAnsiChar; name:PPAnsiChar; offset:PFVector2):boolean;
+  procedure _UpdateAddonAdditionalIcon(new_addon:PAnsiChar; old_addon:PAnsiChar);
 public
   constructor Create(itm:pointer; cell:pointer);
   destructor Destroy(); override;
@@ -2139,13 +2181,15 @@ asm
   ret
 end;
 
-procedure CheckForForceUpdateAddonsIcons(wpn:pointer; needforceupdate:pbyte); stdcall;
+procedure CheckForForceUpdateAddonsIcons(wpn:pointer; cellbuf:pCellItemBuffer; needforceupdate:pbyte); stdcall;
 var
   buf:WpnBuf;
 begin
   buf:=GetBuffer(wpn);
-  if (buf <> nil) and (buf.need_update_icon) then begin
-    needforceupdate^:=1;
+  if (buf <> nil) then begin
+    if (buf.need_update_icon) then begin
+      needforceupdate^:=1;
+    end;
   end;
 end;
 
@@ -2156,6 +2200,8 @@ asm
   lea edx, [esp+$0B+4]
   pushad
   push edx
+  lea ecx, [esi+$108] // this->m_upgrade_pos.x
+  push ecx
   mov ecx,[esi+$110]
   push ecx
   call CheckForForceUpdateAddonsIcons
@@ -2324,6 +2370,7 @@ begin
   _inited:=false;
   _addons_flags:=0;
   _scope:=nil;
+  _gl:=nil;
 
   _need_update_icon_rect:=true;
   _need_reposition_icons:=false;  
@@ -2435,8 +2482,11 @@ begin
   if length(_elements)>0 then exit;
 
   section:=GetSection(_my_item);
+  i:=0;
   while(game_ini_line_exist(section, PAnsiChar(ELEMENT_ICON_PARAM_NAME+inttostr(i)))) do begin
     icon_section:=game_ini_read_string(section, PAnsiChar(ELEMENT_ICON_PARAM_NAME+inttostr(i)) );
+    if length(icon_section) = 0 then break;
+    
     offset.x:=game_ini_r_single_def(section, PAnsiChar(ELEMENT_ICON_OFFSET_X_PARAM_NAME+inttostr(i)), 0)+_grid_addons_correction_delta.x;
     offset.y:=game_ini_r_single_def(section, PAnsiChar(ELEMENT_ICON_OFFSET_Y_PARAM_NAME+inttostr(i)), 0)+_grid_addons_correction_delta.y;
 
@@ -2617,22 +2667,75 @@ begin
     end else begin
       if icon.icon = nil then begin
         CreateAddonIcon(@icon.icon, _my_cell);
-        CUIWeaponCellItem__InitAddon(_my_cell, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
+        CUIWeaponCellItem__InitAddon(_my_cell, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);        
       end;
     end;
   end;
 end;
 
-procedure CellItemBuffer._OnAddonFlagsChanged(new_flags:byte; new_scope:PAnsiChar);
+function CellItemBuffer._ReadAdditionalIconParams(addon_section:PAnsiChar; name:PPAnsiChar; offset:PFVector2):boolean;
 var
-  i:integer;
-  scope_additional_icon:PAnsiChar;
+  item_section:PAnsiChar;
+  icon_param_name:string;
+  icon_offset_x_param_name:string;
+  icon_offset_y_param_name:string;  
+const
+  ADDITIONAL_ICON_PARAM:PAnsiChar='additional_icon_element';
+  ADDITIONAL_ICON_OFFSET_X_PARAM:PAnsiChar='additional_icon_element_offset_x';
+  ADDITIONAL_ICON_OFFSET_Y_PARAM:PAnsiChar='additional_icon_element_offset_y';
+begin
+  result:=false;
+  if game_ini_line_exist(addon_section, ADDITIONAL_ICON_PARAM) then begin
+    name^:=game_ini_read_string(addon_section, ADDITIONAL_ICON_PARAM);
+    offset.x:=game_ini_r_single_def(addon_section, ADDITIONAL_ICON_OFFSET_X_PARAM, 0)+_grid_addons_correction_delta.x;
+    offset.y:=game_ini_r_single_def(addon_section, ADDITIONAL_ICON_OFFSET_Y_PARAM, 0)+_grid_addons_correction_delta.y;
+    result:=true;
+  end else begin
+    icon_param_name:=ADDITIONAL_ICON_PARAM+'_'+addon_section;
+    item_section:=GetSection(_my_item);
+    if game_ini_line_exist(item_section, PAnsiChar(icon_param_name)) then begin
+      icon_offset_x_param_name:=ADDITIONAL_ICON_OFFSET_X_PARAM+'_'+addon_section;
+      icon_offset_y_param_name:=ADDITIONAL_ICON_OFFSET_Y_PARAM+'_'+addon_section;
+      name^:=game_ini_read_string(item_section, PAnsiChar(icon_param_name));
+      offset.x:=game_ini_r_single_def(item_section, PAnsiChar(icon_offset_x_param_name), 0)+_grid_addons_correction_delta.x;
+      offset.y:=game_ini_r_single_def(item_section, PAnsiChar(icon_offset_y_param_name), 0)+_grid_addons_correction_delta.y;
+      result:=true;
+    end;
+  end;
+end;
+
+procedure CellItemBuffer._UpdateAddonAdditionalIcon(new_addon:PAnsiChar; old_addon:PAnsiChar);
+var
+  additional_icon:PAnsiChar;
   found:boolean;
   offset:FVector2;
-const
-  SCOPE_ADDITIONAL_ICON_PARAM:PAnsiChar='additional_icon_element';
-  SCOPE_ADDITIONAL_ICON_OFFSET_X_PARAM:PAnsiChar='additional_icon_element_offset_x';
-  SCOPE_ADDITIONAL_ICON_OFFSET_Y_PARAM:PAnsiChar='additional_icon_element_offset_y';
+  i:integer;
+begin
+
+  if (new_addon<>old_addon) then begin
+    if (old_addon<>nil) and _ReadAdditionalIconParams(old_addon, @additional_icon, @offset) then begin
+      for i:=0 to length(_elements)-1 do begin
+        _UpdateItemIconStatus(@_elements[i], additional_icon, false);
+      end;
+    end;
+
+    if (new_addon<>nil) and _ReadAdditionalIconParams(new_addon, @additional_icon, @offset) then begin
+      found:=false;
+      for i:=0 to length(_elements)-1 do begin
+        if _UpdateItemIconStatus(@_elements[i], additional_icon, true) then begin
+          found:=true;
+        end;
+      end;
+      if not found then begin
+        _CreateElement(additional_icon, @offset);
+      end;
+    end;
+  end;
+end;
+
+procedure CellItemBuffer._OnAddonFlagsChanged(new_flags:byte; new_scope:PAnsiChar; new_gl:PAnsiChar; new_sil:PAnsiChar);
+var
+  i:integer;
 begin
   for i:=0 to length(_elements)-1 do begin
     _CheckAddonFlags(@_elements[i], new_flags);
@@ -2642,30 +2745,11 @@ begin
     _CheckAddonFlags(@_up_icons[i], new_flags);
   end;
 
-  if (new_scope<>_scope) then begin
-    if (_scope<>nil) and game_ini_line_exist(_scope, SCOPE_ADDITIONAL_ICON_PARAM) then begin
-      scope_additional_icon:=game_ini_read_string(_scope, SCOPE_ADDITIONAL_ICON_PARAM);
-      for i:=0 to length(_elements)-1 do begin
-        _UpdateItemIconStatus(@_elements[i], scope_additional_icon, false);
-      end;
-    end;
+  _UpdateAddonAdditionalIcon(new_scope, _scope);
+  _UpdateAddonAdditionalIcon(new_gl, _gl);
+  _UpdateAddonAdditionalIcon(new_sil, _silencer);
 
-    if (new_scope<>nil) and game_ini_line_exist(new_scope, SCOPE_ADDITIONAL_ICON_PARAM) then begin
-      scope_additional_icon:=game_ini_read_string(new_scope, SCOPE_ADDITIONAL_ICON_PARAM);
-      found:=false;
-      for i:=0 to length(_elements)-1 do begin
-        if _UpdateItemIconStatus(@_elements[i], scope_additional_icon, true) then begin
-          found:=true;
-        end;
-      end;
-      if not found then begin
-        offset.x:=game_ini_r_single_def(new_scope, SCOPE_ADDITIONAL_ICON_OFFSET_X_PARAM, 0)+_grid_addons_correction_delta.x;
-        offset.y:=game_ini_r_single_def(new_scope, SCOPE_ADDITIONAL_ICON_OFFSET_Y_PARAM, 0)+_grid_addons_correction_delta.y;
-        
-        _CreateElement(scope_additional_icon, @offset);
-      end;
-    end;
-  end;
+  // TODO: remove addons icons for re-creation on the front of icons
 end;
 
 procedure CellItemBuffer._InitDragItemIcons(drag_wnd:pCUIWindow);
@@ -2693,7 +2777,7 @@ var
   up_sect:PAnsiChar;
   ups_count, i, old_cnt:integer;
   new_flags:byte;
-  new_scope:PAnsiChar;
+  new_scope, new_gl, new_sil:PAnsiChar;
 
   new_lt:IVector2;
   new_rb:IVector2;
@@ -2723,8 +2807,16 @@ begin
 
   new_flags:=_GetItemAddonsFlags();
   new_scope:=nil;
-  if IsScopeAttached(_my_item) then begin
+  new_gl:=nil;
+  new_sil:=nil;
+  if IsScopeAttached(_my_item) and (GetScopeStatus(_my_item)=2) then begin
     new_scope:=GetCurrentScopeSection(_my_item);
+  end;
+  if IsGLAttached(_my_item) and (GetGLStatus(_my_item)=2) then begin
+    new_gl:=GetGLSection(_my_item);
+  end;
+  if IsSilencerAttached(_my_item) and (GetSilencerStatus(_my_item)=2) then begin
+    new_sil:=GetSilencerSection(_my_item);
   end;
 
   if (_addons_flags<>new_flags) or (new_scope<>_scope) then begin
@@ -2732,9 +2824,11 @@ begin
       new_scope:=nil;
     end;
 
-    _OnAddonFlagsChanged(new_flags, new_scope);
+    _OnAddonFlagsChanged(new_flags, new_scope, new_gl, new_sil);
     _addons_flags:=new_flags;
     _scope:=new_scope;
+    _gl:=new_gl;
+    _silencer:=new_sil;
   end;
 
   if _need_update_icon_rect then begin
@@ -3245,3 +3339,4 @@ begin
 end;
 
 end.
+
