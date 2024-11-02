@@ -330,6 +330,7 @@ upgrade_icon_data = packed record
   icon_section:PAnsiChar;
   hide_sections:PAnsiChar;
   banned_addons_mask:byte;
+  always_on_front:boolean;
 
   icon:pCUIStatic; // если enabled = false, то всегда nil; если enabled=true, то может быть nil при установленном несовместимом аддоне
 
@@ -362,7 +363,9 @@ protected
 
   _need_update_icon_rect:boolean;
   _need_reposition_icons:boolean;
+  _need_reorder_icons:boolean;
 
+  procedure _CreateAddonIcon(icon:pupgrade_icon_data);
   function _UpdateItemIconStatus(icon:pupgrade_icon_data; section:string; status:boolean):boolean;
   procedure _UpdateTotalElementsStatus(elements_sections:PAnsiChar; status:boolean);
   function _CreateElement(section:PAnsiChar; offset:pFVector2):pupgrade_icon_data;
@@ -377,6 +380,8 @@ protected
   procedure _CorrectAddonsOffsets(offset_launcher:pFVector2; offset_scope:pFVector2; offset_sil:pFVector2);
   function _ReadAdditionalIconParams(addon_section:PAnsiChar; name:PPAnsiChar; offset:PFVector2):boolean;
   procedure _UpdateAddonAdditionalIcon(new_addon:PAnsiChar; old_addon:PAnsiChar);
+  procedure _ReorderIcons();
+  procedure _ToFront(icon:pupgrade_icon_data);
 public
   constructor Create(itm:pointer; cell:pCUIWeaponCellItem);
   destructor Destroy(); override;
@@ -2369,7 +2374,8 @@ begin
   _gl:=nil;
 
   _need_update_icon_rect:=true;
-  _need_reposition_icons:=false;  
+  _need_reposition_icons:=false;
+  _need_reorder_icons:=false;
 
   _grid_size_default:=CUICellItem__GetGridSize(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem)^;
   _grid_lt_default.x:=game_ini_r_int_def(GetSection(itm), 'inv_grid_x', 0);
@@ -2420,7 +2426,7 @@ begin
       end;
       icon.enabled:=false;
     end else if (status = true) and (not icon.enabled) then begin
-      CreateAddonIcon(@icon.icon, _my_cell);
+      _CreateAddonIcon(icon);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
       icon.enabled:=true;
     end;
@@ -2444,6 +2450,12 @@ begin
   end;
 end;
 
+procedure CellItemBuffer._CreateAddonIcon(icon:pupgrade_icon_data);
+begin
+  CreateAddonIcon(@icon.icon, _my_cell);
+  _need_reorder_icons:=true;
+end;
+
 function CellItemBuffer._CreateElement(section:PAnsiChar; offset:pFVector2):pupgrade_icon_data;
 var
   i:integer;
@@ -2457,7 +2469,8 @@ begin
   _elements[i].offset.y:=offset.y;
   _elements[i].banned_addons_mask:=0;
   _elements[i].hide_sections:=nil;
-  CreateAddonIcon(@_elements[i].icon, _my_cell);
+  _elements[i].always_on_front:=false;
+  _CreateAddonIcon(@_elements[i]);
   CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _elements[i].icon, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y);
   result:=@_elements[i];
 end;
@@ -2474,6 +2487,7 @@ const
   ELEMENT_ICON_OFFSET_Y_PARAM_NAME:string='element_icon_offset_y_';
   ELEMENT_ICON_HIDE_ICONS_NAME:string='element_icon_hide_';
   ELEMENT_ICON_BANNED_ADDONS_MASK:string='element_icon_banned_addons_mask_';
+  ELEMENT_ICON_ALWAYS_FRONT:string='element_icon_always_front_';
 begin
   if length(_elements)>0 then exit;
 
@@ -2489,6 +2503,7 @@ begin
     element:=_CreateElement(icon_section, @offset);
     if element<>nil then begin
       element.banned_addons_mask:=game_ini_r_int_def(section, PAnsiChar(ELEMENT_ICON_BANNED_ADDONS_MASK+inttostr(i)), 0);
+      element.always_on_front:=game_ini_r_bool_def(section, PAnsiChar(ELEMENT_ICON_ALWAYS_FRONT+inttostr(i)), false);
 
       if game_ini_line_exist(section, PAnsiChar(ELEMENT_ICON_HIDE_ICONS_NAME+inttostr(i))) then begin
         element.hide_sections:=game_ini_read_string(section, PAnsiChar(ELEMENT_ICON_HIDE_ICONS_NAME+inttostr(i)));
@@ -2514,6 +2529,7 @@ const
   UPGRADE_ICON_OFFSET_Y_PARAM_NAME:PAnsiChar='upgrade_addon_icon_offset_y';
   UPGRADE_ICON_HIDE_ICONS_NAME:PAnsiChar='upgrade_addon_icons_hide';
   UPGRADE_ICON_BANNED_ADDONS_MASK:PAnsiChar='upgrade_addon_icon_banned_addons_mask';
+  UPGRADE_ICON_HIDE_ALWAYS_FRONT:PAnsiChar='upgrade_addon_always_front';
 
   CELL_SIZE:single=50;
 begin
@@ -2573,8 +2589,9 @@ begin
     _up_icons[i].offset.x:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_X_PARAM_NAME, 0)+_grid_addons_correction_delta.x;
     _up_icons[i].offset.y:=game_ini_r_single_def(section, UPGRADE_ICON_OFFSET_Y_PARAM_NAME, 0)+_grid_addons_correction_delta.y;
     _up_icons[i].banned_addons_mask:=game_ini_r_int_def(section, UPGRADE_ICON_BANNED_ADDONS_MASK, 0);
+    _up_icons[i].always_on_front:=game_ini_r_bool_def(section, UPGRADE_ICON_HIDE_ALWAYS_FRONT, false);
 
-    CreateAddonIcon(@_up_icons[i].icon, _my_cell);
+    _CreateAddonIcon(@_up_icons[i]);
     CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _up_icons[i].icon, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y);
 
 //    log('Created icon '+inttohex(cardinal(_up_icons[i].icon),8) +' for upgrade '+ _up_icons[i].icon_section+', offset '+floattostr(_up_icons[i].offset.x)+' '+floattostr(_up_icons[i].offset.y));
@@ -2615,7 +2632,7 @@ begin
       _uniq_icon.offset.x:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_X_PARAM_NAME, 0)+_grid_addons_correction_delta.x;
       _uniq_icon.offset.y:=game_ini_r_single_def(sect, UNIQ_ICON_OFFSET_Y_PARAM_NAME, 0)+_grid_addons_correction_delta.y;
 
-      CreateAddonIcon(@_uniq_icon.icon, _my_cell);
+      _CreateAddonIcon(@_uniq_icon);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, _uniq_icon.icon, _uniq_icon.icon_section, _uniq_icon.offset.x, _uniq_icon.offset.y);
     end;
   end;
@@ -2662,7 +2679,7 @@ begin
       end;
     end else begin
       if icon.icon = nil then begin
-        CreateAddonIcon(@icon.icon, _my_cell);
+        _CreateAddonIcon(icon);
         CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);        
       end;
     end;
@@ -2750,7 +2767,7 @@ begin
       DestroyAddonIcon(@_my_cell.m_addons[i], _my_cell);
     end;
   end;
-
+  _need_reorder_icons:=true;
 end;
 
 procedure CellItemBuffer._InitDragItemIcons(drag_wnd:pCUIWindow);
@@ -2762,6 +2779,7 @@ begin
     if _elements[i].enabled and (_elements[i].icon<>nil) then begin
       CreateAddonIcon(@pstatic, drag_wnd);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
+      _need_reorder_icons:=true;
     end;
   end;
 
@@ -2769,6 +2787,7 @@ begin
     if _up_icons[i].enabled and (_up_icons[i].icon<>nil) then begin
       CreateAddonIcon(@pstatic, drag_wnd);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
+      _need_reorder_icons:=true;
     end;
   end;
 end;
@@ -2847,6 +2866,42 @@ begin
   if _need_reposition_icons then begin
     _UpdateIconsPos($FF);
     _need_reposition_icons:=false;
+  end;
+
+  if _need_reorder_icons then begin
+    _ReorderIcons();
+    _need_reorder_icons:=false;
+  end;
+
+end;
+
+procedure CellItemBuffer._ReorderIcons();
+var
+  i:integer;
+begin
+  for i:=0 to length(_elements)-1 do begin
+    if _elements[i].enabled and (_elements[i].icon<>nil) and _elements[i].always_on_front then begin
+      _ToFront(@_elements[i])
+    end;
+  end;
+
+  for i:=0 to length(_up_icons)-1 do begin
+    if _up_icons[i].enabled and (_up_icons[i].icon<>nil) and _up_icons[i].always_on_front then begin
+      _ToFront(@_up_icons[i]);
+    end;
+  end;
+
+  if _uniq_icon.enabled then begin
+    _ToFront(@_uniq_icon);
+  end;
+end;
+
+procedure CellItemBuffer._ToFront(icon:pupgrade_icon_data);
+begin
+  if icon.enabled and (icon.icon<>nil) then begin
+      DestroyAddonIcon(@icon.icon, self._my_cell);
+      _CreateAddonIcon(icon);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, icon.icon, icon.icon_section, icon.offset.x, icon.offset.y);
   end;
 end;
 
