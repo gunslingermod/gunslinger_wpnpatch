@@ -382,6 +382,7 @@ protected
   procedure _UpdateAddonAdditionalIcon(new_addon:PAnsiChar; old_addon:PAnsiChar);
   procedure _ReorderIcons();
   procedure _ToFront(icon:pupgrade_icon_data);
+  procedure _UiElementsToFrontOfIcons();
 public
   constructor Create(itm:pointer; cell:pCUIWeaponCellItem);
   destructor Destroy(); override;
@@ -2248,7 +2249,7 @@ asm
   fabs
 end;
 
-procedure virtual_CUIWindow_DetachChild(this:ppCUIWindow; ppchild:ppCUIWindow); stdcall;
+procedure virtual_CUIWindow_DetachChild(this:pCUIWindow; ppchild:pCUIWindow); stdcall;
 asm
   pushad
   mov ecx,[ppchild]
@@ -2354,6 +2355,73 @@ end;
 function CUICellItem__GetGridSize(cell:pCUICellItem):pivector2; stdcall;
 begin
   result:=@cell.m_grid_size;
+end;
+
+function GetCellBuffer(cell:pCUICellItem):CellItemBuffer; stdcall;
+begin
+  result:=CellItemBuffer(cell.m_upgrade_pos.x);
+//  Log('Get buffer for Cell '+inttohex(cardinal(cell), 8)+' - '+inttohex(cardinal(result), 8));
+end;
+
+procedure SetCellBuffer(cell:pCUICellItem; buf:CellItemBuffer); stdcall;
+begin
+//  Log('Set buffer for Cell '+inttohex(cardinal(cell), 8)+' - '+inttohex(cardinal(buf), 8));
+  pCellItemBuffer(@cell.m_upgrade_pos.x)^:=buf;
+end;
+
+procedure CreateCellItemBuffer(cell:pCUIWeaponCellItem); stdcall;
+var
+  buf:CellItemBuffer;
+begin
+  buf:=CellItemBuffer.Create(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData, cell);
+//  Log('Create buffer '+inttohex(cardinal(buf), 8)+'for Cell '+inttohex(cardinal(cell), 8)+', item '+inttohex(cardinal(cell.m_pData), 8));
+  SetCellBuffer(@cell.base_CUIInventoryCellItem.base_CUICellItem, buf);
+end;
+
+procedure FreeCellItemBuffer(cell:pCUICellItem); stdcall;
+var
+  buf:CellItemBuffer;
+begin
+  buf:=GetCellBuffer(cell);
+  if buf<>nil then begin
+//    Log('Destroy buffer for Cell '+inttohex(cardinal(cell), 8));
+    FreeAndNil(buf);
+  end;
+end;
+
+procedure CUICellItem__init_AddActions(this:pCUICellItem); stdcall;
+begin
+  this.m_index:=0;
+  this.m_upgrade_pos.x:=0;
+  this.m_upgrade_pos.y:=0;
+end;
+
+procedure CUICellItem__init_Patch();stdcall;
+asm
+  pushad
+    push esi
+    call CUICellItem__init_AddActions
+  popad
+end;
+
+procedure CUIWeaponCellItem__constructor_CreateBuffer_Patch(); stdcall
+asm
+  pushad
+  push esi            //this
+  call CreateCellItemBuffer
+  popad
+
+  mov [esi+$124],eax // original
+end;
+
+procedure CUICellItem__destructor_FreeBuffer_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call FreeCellItemBuffer
+  popad
+
+  cmp byte ptr [esi+$11C],00 //original
 end;
 
 { CellItemBuffer }
@@ -2792,6 +2860,26 @@ begin
   end;
 end;
 
+procedure CUICellItem__init(cell:pCUICellItem); stdcall;
+asm
+  pushad
+  mov ecx, cell
+  mov eax, xrgame_addr
+  add eax, $49e970 // CUICellItem::init
+  call eax
+  popad
+end;
+
+procedure CUICellItem__UpdateConditionProgressBar(cell:pCUICellItem); stdcall;
+asm
+  pushad
+  mov ecx, cell
+  mov eax, xrgame_addr
+  add eax, $49f010 // CUICellItem::UpdateConditionProgressBar
+  call eax
+  popad
+end;
+
 procedure CellItemBuffer.Update();
 var
   up_sect:PAnsiChar;
@@ -2870,9 +2958,25 @@ begin
 
   if _need_reorder_icons then begin
     _ReorderIcons();
+    _UiElementsToFrontOfIcons();
     _need_reorder_icons:=false;
   end;
 
+end;
+
+procedure CellItemBuffer._UiElementsToFrontOfIcons();
+begin
+    virtual_CUIWindow_DetachChild(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.base_CUIWindow, _my_cell.base_CUIInventoryCellItem.base_CUICellItem.m_pConditionState);
+    virtual_CUIWindow_DetachChild(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.base_CUIWindow, @_my_cell.base_CUIInventoryCellItem.base_CUICellItem.m_upgrade.base_CUIWindow);
+    virtual_CUIWindow_DetachChild(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem.base_CUIStatic.base_CUIWindow, @_my_cell.base_CUIInventoryCellItem.base_CUICellItem.m_text.base_CUIWindow);
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.m_pConditionState:=nil;
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.m_upgrade:=nil;
+    _my_cell.base_CUIInventoryCellItem.base_CUICellItem.m_text:=nil;
+
+    CUICellItem__init(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem);
+    SetCellBuffer(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, self); // make sure the buffer is properly stored after reinit
+
+    CUICellItem__UpdateConditionProgressBar(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem);
 end;
 
 procedure CellItemBuffer._ReorderIcons();
@@ -2925,66 +3029,6 @@ begin
   end;
 end;
 
-function GetCellBuffer(cell:pCUICellItem):CellItemBuffer; stdcall;
-begin
-  result:=CellItemBuffer(cell.m_upgrade_pos.x);
-  Log('Get buffer for Cell '+inttohex(cardinal(cell), 8)+' - '+inttohex(cardinal(result), 8));
-end;
-
-procedure CreateCellItemBuffer(cell:pCUIWeaponCellItem); stdcall;
-var
-  buf:CellItemBuffer;
-begin
-  buf:=CellItemBuffer.Create(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData, cell);
-//  Log('Create buffer '+inttohex(cardinal(buf), 8)+'for Cell '+inttohex(cardinal(cell), 8)+', item '+inttohex(cardinal(cell.m_pData), 8));
-  pCellItemBuffer(@cell.base_CUIInventoryCellItem.base_CUICellItem.m_upgrade_pos.x)^:=buf;
-end;
-
-procedure FreeCellItemBuffer(cell:pCUICellItem); stdcall;
-var
-  buf:CellItemBuffer;
-begin
-  buf:=GetCellBuffer(cell);
-  if buf<>nil then begin
-//    Log('Destroy buffer for Cell '+inttohex(cardinal(cell), 8));
-    FreeAndNil(buf);
-  end;
-end;
-
-procedure CUICellItem__init_AddActions(this:pCUICellItem); stdcall;
-begin
-  this.m_index:=0;
-  this.m_upgrade_pos.x:=0;
-  this.m_upgrade_pos.y:=0;
-end;
-
-procedure CUICellItem__init_Patch();stdcall;
-asm
-  pushad
-    push esi
-    call CUICellItem__init_AddActions
-  popad
-end;
-
-procedure CUIWeaponCellItem__constructor_CreateBuffer_Patch(); stdcall
-asm
-  pushad
-  push esi            //this
-  call CreateCellItemBuffer
-  popad
-
-  mov [esi+$124],eax // original
-end;
-
-procedure CUICellItem__destructor_FreeBuffer_Patch(); stdcall;
-asm
-  pushad
-  push esi
-  call FreeCellItemBuffer
-  popad
-
-  cmp byte ptr [esi+$11C],00 //original
-end;
 
 procedure UpdateCellItemBuffer(cell:pCUICellItem); stdcall;
 var
@@ -3318,9 +3362,6 @@ begin
   jmp_addr:=xrGame_addr+$49df80;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_forceaddonupdate_Patch), 11, true) then exit;
 
-{  //в CUIWeaponCellItem::Update производим дополнительные действия
-  jmp_addr:=xrGame_addr+$49df67;
-  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__Update_Patch), 6, true) then exit;}
 
   //В CUICellItem::Update меняем pos.set(m_upgrade_pos) на pos.set(m_upgrade->GetWndPos()) чтобы сделать m_upgrade_pos неиспользуемым + вызываем апдейт буфера
   jmp_addr:=xrGame_addr+$49efc0;
