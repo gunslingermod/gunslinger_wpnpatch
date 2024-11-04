@@ -2844,18 +2844,30 @@ var
   pstatic:pCUIStatic;
 begin
   for i:=0 to length(_elements)-1 do begin
-    if _elements[i].enabled and (_elements[i].icon<>nil) then begin
+    if _elements[i].enabled and (_elements[i].icon<>nil) and not _elements[i].always_on_front then begin
       CreateAddonIcon(@pstatic, drag_wnd);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
-      _need_reorder_icons:=true;
     end;
   end;
 
   for i:=0 to length(_up_icons)-1 do begin
-    if _up_icons[i].enabled and (_up_icons[i].icon<>nil) then begin
+    if _up_icons[i].enabled and (_up_icons[i].icon<>nil) and not _up_icons[i].always_on_front then begin
       CreateAddonIcon(@pstatic, drag_wnd);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
-      _need_reorder_icons:=true;
+    end;
+  end;
+
+  for i:=0 to length(_elements)-1 do begin
+    if _elements[i].enabled and (_elements[i].icon<>nil) and _elements[i].always_on_front then begin
+      CreateAddonIcon(@pstatic, drag_wnd);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
+    end;
+  end;
+
+  for i:=0 to length(_up_icons)-1 do begin
+    if _up_icons[i].enabled and (_up_icons[i].icon<>nil) and _up_icons[i].always_on_front then begin
+      CreateAddonIcon(@pstatic, drag_wnd);
+      CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
     end;
   end;
 end;
