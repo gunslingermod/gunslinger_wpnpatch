@@ -3170,7 +3170,7 @@ var
 begin
   buf:=GetCellBuffer(@cell.base_CUIInventoryCellItem.base_CUICellItem);
   if buf<>nil then begin
-    buf._CorrectAddonsOffsets(@cell.m_addon_offset[2], @cell.m_addon_offset[1], @cell.m_addon_offset[1]);
+    buf._CorrectAddonsOffsets(@cell.m_addon_offset[2], @cell.m_addon_offset[1], @cell.m_addon_offset[0]);
   end;
 end;
 
