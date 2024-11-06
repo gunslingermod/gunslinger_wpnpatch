@@ -198,6 +198,8 @@ function IsWeaponNightVisionPPExist(wpn:pointer):boolean; stdcall;
 
 function CWeapon__CheckForMisfire(wpn:pointer):boolean; stdcall;
 
+function CInventoryItem__BaseSlot(this:pointer):integer; stdcall;
+
 const
   OFFSET_PARTICLE_WEAPON_CURFLAME:cardinal = $42C;
   OFFSET_PARTICLE_WEAPON_CURSHELLS:cardinal = $410;
@@ -2360,6 +2362,13 @@ asm
   pop eax // ret val from buf
   pop ebx
   pop ecx
+end;
+
+function CInventoryItem__BaseSlot(this:pointer):integer; stdcall;
+asm
+  mov eax, [this]
+  movzx eax, byte ptr [eax+$a0]
+  mov @result, eax
 end;
 
 end.

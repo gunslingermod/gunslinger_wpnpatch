@@ -75,6 +75,16 @@ pNET_Packet = ^NET_Packet;
 
 pxr_list_entry_base = ^xr_list_entry_base;
 
+DLL_Pure = packed record
+  vtable:pointer;
+  _unknown1:cardinal;
+  CLS_ID:int64;
+end;
+
+pureFrame = packed record
+  vtable:pointer;
+end;
+
 const
   M_EVENT:word = 8;
   GE_HIT:word = 5;

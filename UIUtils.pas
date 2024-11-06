@@ -2,7 +2,7 @@ unit UIUtils;
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
 interface
-uses MatVectors, xr_strings, vector;
+uses MatVectors, xr_strings, vector, misc;
 
 type
 
@@ -286,10 +286,48 @@ type CUICursor = packed record
 end;
 pCUICursor=^CUICursor;
 
+type CDialogHolder = packed record //sizeof = 0x2c
+  base_pureFrame:pureFrame;
+  m_input_receivers:xr_vector; {xr_vector<recvItem>}
+  m_dialogsToRender:xr_vector; {xr_vector<dlgItem>}
+  m_dialogsToRender_new:xr_vector; {xr_vector<dlgItem>}
+  m_b_in_update:byte;
+  _unused1:byte;
+  _unused2:word;
+end;
+
+type CUIGameCustom = packed record //sizeof = 0x68
+  base_DLL_Pure:DLL_Pure;
+  base_CDialogHolder:CDialogHolder;
+  //offset: 0x3c
+  m_window:pCUIWindow;
+  m_msgs_xml:pointer; {CUIXml*}
+  m_custom_statics:xr_vector; { xr_vector<SDrawStaticStruct*>}
+  //offset: 0x50
+  m_ActorMenu:pointer; {CUIActorMenu*}
+  m_PdaMenu:pointer; {CUIPdaWnd*}
+  m_bShowGameIndicators:byte;
+  _unused1:byte;
+  _unused2:word;
+  UIMainIngameWnd:pointer; {CUIMainIngameWnd*}
+  m_pMessagesWnd:pointer; {CUIMessagesWindow*}
+  _unknown:cardinal;
+end;
+pCUIGameCustom = ^CUIGameCustom;
+
+type CUIGameSP = packed record
+  base_CUIGameCustom:CUIGameCustom;
+  //offset: 0x68
+  m_game:pointer; {game_cl_Single* }
+  TalkMenu:pointer; {CUITalkWnd* }
+  UIChangeLevelWnd:pointer; {CChangeLevelWnd*}
+  m_game_objective:pointer; {SDrawStaticStruct*}
+end;
+
 
 function GetUICursor():pCUICursor; stdcall;
 
-function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
+function CurrentGameUI():pCUIGameCustom; stdcall;
 function AddCustomStatic(cuigamecustom_this: pointer; id:PChar; bSingleInstance: boolean): {SDrawStaticStruct*} pointer; stdcall;
 
 function g_hud():{CCustomHUD*}pointer; stdcall;
@@ -391,6 +429,10 @@ public
 end;
 pCellItemBuffer = ^CellItemBuffer;
 
+function CUIActorMenu__GetSlotList(this:pointer; slot_id:cardinal):pointer; stdcall; {CUIDragDropListEx*}
+function CUIDragDropListEx__GetItemIdx(this:pointer; idx:cardinal):pCUICellItem; stdcall;
+function CUIActorMenu__ToBag(this:pointer; itm:pCUICellItem; b_use_cursor_pos:byte):byte; stdcall;
+
 const
   LA_CYCLIC:byte = 1;
   LA_ONLYALPHA:byte = 2;
@@ -401,7 +443,7 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, misc, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils, WeaponAdditionalBuffer;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils, WeaponAdditionalBuffer;
 
 var
   register_level_isuishown_ret:cardinal;
@@ -423,7 +465,7 @@ asm
   popad
 end;
 
-function CurrentGameUI(): {CUIGameCustom*} pointer; stdcall;
+function CurrentGameUI(): pCUIGameCustom; stdcall;
 begin
 asm
   pushad
@@ -3193,6 +3235,124 @@ asm
   popad
 end;
 
+procedure CUIActorMenu__CanSetItemToList_assaultinpistolslot_Patch(); stdcall;
+asm
+  cmp ecx,[edi+$C4] // original - l==m_pInventoryPistolList
+  jne @finish
+  mov eax, [esp+$10] // item
+
+  pushad
+  push eax
+  call IsAssaultInPistolSlotProhibitedForItem
+  test al, al
+  popad
+
+  @finish:
+end;
+
+procedure CUIActorMenu__ToSlot_assaultinpistolslot_Patch(); stdcall;
+asm
+  pushad
+  push ebp
+  call IsAssaultInPistolSlotProhibitedForItem
+  cmp al, 1
+  popad
+  je @finish
+
+  //original
+  push 02
+  push ebp
+  mov eax, [xrgame_addr]
+  add eax, $2a7af0 // CInventory::CanPutInSlot
+  call eax
+  test al, al
+
+  @finish:
+end;
+
+procedure CUIActorMenu__highlight_item_slot_pistolshighlight_Patch(); stdcall;
+asm
+  pushad
+  push ebx
+  call IsAssaultInPistolSlotProhibitedForItem
+  test al, al
+  popad
+
+  jne @finish
+  // original - call m_InvSlot2Highlight->Show(true);
+  mov eax, [edx+$58]
+  push 01
+  call eax
+
+  @finish:
+end;
+
+function CUIActorMenu__GetSlotList(this:pointer; slot_id:cardinal):pointer; stdcall; {CUIDragDropListEx*}
+asm
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+
+  mov ecx, this
+  push slot_id
+  mov eax, [xrgame_addr]
+  add eax, $46c470
+  call eax // CUIActorMenu::GetSlotList
+
+  pop ecx
+  mov [ecx], eax
+  popad
+
+  pop [@result]
+end;
+
+function CUIDragDropListEx__GetItemIdx(this:pointer; idx:cardinal):pCUICellItem; stdcall;
+asm
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+
+  mov ecx, this
+  push idx
+  mov eax, [xrgame_addr]
+  add eax, $4a0d60
+  call eax // CUIDragDropListEx::GetItemIdx
+
+  pop ecx
+  mov [ecx], eax
+  popad
+
+  pop [@result]
+end;
+
+function CUIActorMenu__ToBag(this:pointer; itm:pCUICellItem; b_use_cursor_pos:byte):byte; stdcall;
+asm
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+
+  movzx ecx, b_use_cursor_pos
+  push ecx
+  push itm
+  mov eax, [xrgame_addr]
+  add eax, $46c300
+  mov ecx, this
+  call eax // CUIActorMenu::ToBag
+
+  pop ecx
+  mov [ecx], eax
+  popad
+
+  pop eax
+  mov @result, al
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -3410,6 +3570,18 @@ begin
   jmp_addr:=xrGame_addr+$49df33;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__RefreshOffset_Patch), 42, true) then exit;
 
+  // В CUIActorMenu::CanSetItemToList добавляем условие на возможность помещать в пистолетный слот винтовки
+  jmp_addr:=xrGame_addr+$466bea;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__CanSetItemToList_assaultinpistolslot_Patch), 6, true) then exit;
+
+  // В CUIActorMenu::ToSlot добавляем проверку на возможность поместить винтовку в пистолетный слот перед попыткой это сделать
+  jmp_addr:=xrGame_addr+$46d0f7;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__ToSlot_assaultinpistolslot_Patch), 10, true) then exit;
+
+  // В CUIActorMenu::highlight_item_slot подсвечиваем слот пистолетов только когда можем поместить в него оружие
+  jmp_addr:=xrGame_addr+$4677f5;
+  if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__highlight_item_slot_pistolshighlight_Patch), 7, true) then exit;
+
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
@@ -3428,6 +3600,14 @@ begin
   //CUIActorMenu::ToBag - xrgame.dll+46c300
   //CUIActorMenu::MoveArtefactsToBag - xrgame.dll+46c590
   //CUIActorMenu::ToSlot - xrgame.dll+46d020
+  //CUIActorMenu::GetSlotList - xrgame.dll+46c470
+  //CUIActorMenu::SetMenuMode - xrgame.dll+467f50
+  //CUIActorMenu::InitInventoryMode - xrgame.dll+46e530
+  //CUIActorMenu::InitInventoryContents - xrgame.dll+46e310
+  //CUIActorMenu::CanSetItemToList - xrgame.dll+466bb0
+  //CUIActorMenu::InfoCurItem - xrgame.dll+467b80
+  //CUIActorMenu::set_highlight_item - xrgame.dll+467de0
+  //CUIActorMenu::highlight_item_slot - xrgame.dll+467750  
   //CUIActorMenu::UpdateOutfit - xrgame.dll+46c9c0
   //CAI_Stalker::can_sell - xrgame.dll+18e4f0
   //CAI_Stalker::update_sell_info - xrgame.dll+18e3b0
@@ -3449,12 +3629,7 @@ begin
 
   //create_cell_item - xrgame.dll+49f730
 
-  //CUIActorMenu::SetMenuMode - xrgame.dll+467f50
-  //CUIActorMenu::InitInventoryMode - xrgame.dll+46e530
-  //CUIActorMenu::InitInventoryContents - xrgame.dll+46e310
-
   //CUICustomMap::Initialize - xrgame.dll+447210
-
 
   result:=true;
 end;

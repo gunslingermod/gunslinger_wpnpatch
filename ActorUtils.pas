@@ -386,6 +386,9 @@ procedure PlanActorKickAnimator(kick_types_section:string);
 procedure OnInventoryShowAttempt(); stdcall;
 
 function IsTacticHudInstalled():boolean; stdcall;
+function IsAssaultInPistolSlotProhibitedForItem(itm:pointer):boolean; stdcall;
+
+procedure ActorItem2ActorRuck(act:pointer; iitem:pointer);
 
 const
 	eBoostHpRestore:cardinal=0;
@@ -414,6 +417,8 @@ var
 
 const
   KNIFE_SLOT:byte=1;
+  PISTOL_SLOT:byte=2;
+  ASSAULT_SLOT:byte=3;
   GRENADE_SLOT:byte=4;
   OUTFIT_SLOT:byte=7;
   DETECTOR_SLOT:byte=9;
@@ -1738,6 +1743,68 @@ begin
 {$endif}
 end;
 
+function IsAssaultInPistolSlotProhibitedForItem(itm:pointer):boolean; stdcall;
+var
+  val:single;
+  slot:integer;
+  outfit:pointer;
+const
+  PISTOL_SLOT_ALLOWED:PAnsiChar='pistol_slot_allowed';
+begin
+  result:=true;
+
+  slot:=game_ini_r_int_def(GetSection(itm), 'slot', 0)+1;
+  if slot = 2 then begin
+    result:=false;
+    exit;  
+  end;
+
+  val:=ModifyFloatUpgradedValue(itm, PISTOL_SLOT_ALLOWED, game_ini_r_single_def(GetSection(itm), PISTOL_SLOT_ALLOWED, 0.0));
+  if val >= 1 then begin
+    result:=false;
+    exit;
+  end;
+
+  outfit := ItemInSlot(GetActorIfAlive(), OUTFIT_SLOT);
+  if outfit<>nil then begin
+    val:=ModifyFloatUpgradedValue(outfit, PISTOL_SLOT_ALLOWED, game_ini_r_single_def(GetSection(outfit), PISTOL_SLOT_ALLOWED, 0.0));
+    if val >= 1 then begin
+      result:=false;
+      exit;
+    end;
+  end;
+end;
+
+procedure MoveItemFromSlotToBag(slot:cardinal);
+var
+  gc:pCUIGameCustom;
+  actor_menu:pointer;
+  slot_list:pointer;
+  slot_cell:pCUICellItem;
+  act:pointer;
+  itm:pointer;
+begin
+  act:=GetActorIfAlive();
+  if act=nil then exit;
+
+  itm:=ItemInSlot(act, slot);
+  if itm=nil then exit;  
+
+  actor_menu:=nil;
+  gc:=CurrentGameUI();
+  if gc<>nil then begin
+    actor_menu:=gc.m_ActorMenu;
+  end;
+
+  if actor_menu<>nil then begin
+    slot_list:=CUIActorMenu__GetSlotList(actor_menu, slot);
+    slot_cell:=CUIDragDropListEx__GetItemIdx(slot_list, 0);
+    CUIActorMenu__ToBag(actor_menu, slot_cell, 0);
+  end else begin
+    ActorItem2ActorRuck(act, itm);
+  end;
+end;
+
 procedure UpdateSlots(act:pointer);
 var
   sect:PChar;
@@ -1763,6 +1830,12 @@ begin
 {$endif}
 
   _last_act_slot:=GetActorActiveSlot();
+
+  // Постоянно мониторим пистолетный слот, если оружие в нем становится невозможно использовать - перемещаем в рюкзак
+  itm:=ItemInSlot(act, PISTOL_SLOT);
+  if (itm<>nil) and (IsAssaultInPistolSlotProhibitedForItem(itm)) then begin
+    MoveItemFromSlotToBag(PISTOL_SLOT);
+  end;
 end;
 
 procedure ActorItem2ActorRuck(act:pointer; iitem:pointer);
