@@ -339,15 +339,20 @@ procedure CWeaponMagazined__OnAnimationEnd_anm_open(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
 begin
+  buf:=GetBuffer(wpn);
   if IsWeaponJammed(wpn) then begin
     SetWeaponMisfireStatus(wpn, false);
     SetSubState(wpn, EWeaponSubStates__eSubStateReloadBegin);
     virtual_CHudItem_SwitchState(wpn, EHudStates__eIdle);
+    if buf<>nil then begin
+      if game_ini_r_bool_def(GetHudSection(wpn), 'first_state_after_jammed', true) then begin
+        buf.SetJustAfterReloadStatus(true);
+      end;
+    end;
     exit;
   end;
 
   SetSubState(wpn, EWeaponSubStates__eSubStateReloadInProcess); //вырезанное
-  buf:=GetBuffer(wpn);
   if (buf<>nil) and buf.AddCartridgeAfterOpen() then begin
     CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn);
   end;
