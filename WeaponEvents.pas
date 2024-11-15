@@ -3199,6 +3199,7 @@ begin
   //CEntityCondition::UpdateCondition - xrgame.dll+27def0
   //CEntityCondition::UpdateHealth - xrgame.dll+27dd70
   //CEntityCondition::BleedingSpeed - xrgame.dll+27dd00
+  //CEntityCondition::UpdateSatiety - xrgame.dll+275190  
   //CAI_Stalker::react_on_member_death - xrgame.dll+192430
   //CStalkerDangerPlanner::update - xrgame.dll+xrgame.dll+1785b0
   //CRocketLauncher::Load - xrgame.dll+2cc620

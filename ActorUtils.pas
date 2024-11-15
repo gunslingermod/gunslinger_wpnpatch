@@ -21,6 +21,7 @@ const
   actFall:cardinal = $100;
   actLanding:cardinal = $200;
   actLanding2:cardinal = $400;
+  actClimb:cardinal = $800;
   actSprint:cardinal = $1000;
   actLLookout:cardinal = $2000;
   actRLookout:cardinal = $4000;
