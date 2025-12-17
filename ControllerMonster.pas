@@ -902,6 +902,18 @@ begin
   end;
 end;
 
+procedure CPhantom__net_Spawn_checkenemy_Patch(); stdcall;
+asm
+  cmp eax, 0 // if (m_enemy == NULL)
+  jne @finish
+  mov eax, esi // m_enemy = this
+  mov [esi+$23c], 3 // m_TgtState = stShoot
+
+  @finish:
+  //original
+  mov ecx,[esi+$200]
+end;
+
 function Init():boolean; stdcall;
 var
   addr:cardinal;
@@ -932,6 +944,12 @@ begin
   addr:=xrgame_addr+$1318DF;
   if not WriteJump(addr, cardinal(@CControllerPsyHit__activate_Patch), 6, true) then exit;
 
+  // [bug] Баг в CPhantom::net_Spawn - иногда на загрузке игры звезды могут сойтись так, что в m_enemy попадет null, что тут же приведет к вылету
+  // В качестве исправления подставляем указатель на самого фантома - увы, в xform заведутся nan'ы при попытке установке ориентации, так что сразу и в стейт пропишем терминальный
+  addr:=xrgame_addr+$13B80B;
+  if not WriteJump(addr, cardinal(@CPhantom__net_Spawn_checkenemy_Patch), 6, true) then exit;
+
+
   //почему-то при обычных атаках контроля возникают рандомные вылеты вида
   //Expression    : assertion failed
   //Function      : CLensFlare::OnFrame
@@ -950,9 +968,10 @@ begin
   nop_code(xrgame_addr+$131A5C, 6);
   nop_code(xrgame_addr+$131A69, 1, CHR($EB));  
   nop_code(xrgame_addr+$131F12, 1,chr(0));   
-   
 
   result:=true;
 end;
+
+// CPhantom::OnFlyState - xrgame.dll+13aba0
 
 end.
