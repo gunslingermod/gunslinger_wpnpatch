@@ -7,14 +7,16 @@ procedure script_call(name:PChar; arg1:PChar; arg2:single); stdcall;
 function script_bool_call(name:PChar; arg1:pchar; arg2:single; arg3:pchar):boolean; stdcall;
 function script_pchar_call(name:PChar; arg1:pchar; arg2:single; arg3:boolean; arg4:pchar):pchar; stdcall;
 
-type bind_data = packed record
+type
+
+bind_data = packed record
   ptr1:cardinal;
   ptr2:cardinal;
   id:cardinal;    
 end;
-type pbinddata = ^bind_data;
+pbinddata = ^bind_data;
 
-type script_functor_pchar_single = packed record
+script_functor_pchar_single = packed record
   bind:pbinddata;
   str:^PChar;
   number:psingle;
@@ -23,7 +25,7 @@ type script_functor_pchar_single = packed record
   unused2:word;
 end;
 
-type script_bool_functor_pchar_single_pchar = packed record
+script_bool_functor_pchar_single_pchar = packed record
   bind:pbinddata;
   str1:^PChar;
   number:psingle;
@@ -33,7 +35,7 @@ type script_bool_functor_pchar_single_pchar = packed record
   unused2:word;
 end;
 
-type script_pchar_functor_pchar_single_bool_pchar = packed record
+script_pchar_functor_pchar_single_bool_pchar = packed record
   bind:pbinddata;
   str1:^PChar;
   number:psingle;
@@ -43,8 +45,21 @@ type script_pchar_functor_pchar_single_bool_pchar = packed record
   unused1:byte;
   unused2:word;
 end;
+pscript_functor_pchar_single = ^script_functor_pchar_single;
 
-type pscript_functor_pchar_single = ^script_functor_pchar_single;
+type
+
+CScriptGameObject = packed record
+  vtable:pointer;
+  m_game_object:pointer; // CGameObject*
+end;
+pCScriptGameObject = ^CScriptGameObject;
+
+CScriptBinderObject = packed record
+  vtable:pointer;
+  m_object:pCScriptGameObject;
+end;
+pCScriptBinderObject = ^CScriptBinderObject;
 
 implementation
 uses BaseGameData, Misc;

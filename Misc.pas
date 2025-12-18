@@ -177,7 +177,7 @@ procedure CSE_ALifeInventoryItem__add_upgrade(itm:pCSE_ALifeInventoryItem; up:ps
 procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem; itm_from:pCSE_ALifeInventoryItem); stdcall;
 
 implementation
-uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable;
+uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -469,9 +469,6 @@ end;
 
 
 procedure CScriptgameobject__restoreweaponimmediatly_impl(act:pointer);stdcall;
-var
-  i:integer;
-  cnt:cardinal;
 begin
   if act<>GetActor() then exit;
   ChangeSlotsBlockStatus(false);
@@ -1636,6 +1633,38 @@ asm
   cmp eax,ebx
 end;
 
+procedure NotifyBinderDead(o:pCScriptBinderObject); stdcall;
+var
+  msg:string;
+  sect:PAnsiChar;
+  id:cardinal;
+begin
+  msg:='Script binder '+inttohex(cardinal(o), 8)+' is dead due to exception';
+
+  if o.m_object<>nil then begin
+    if o.m_object.m_game_object<>nil then begin
+      sect:=get_string_value(GetCObjectSection(o.m_object.m_game_object));
+      id:=GetCObjectID(o.m_object.m_game_object);
+      msg:='Script binder of '+sect+':'+inttostr(id)+' is dead due to exception';
+    end;
+  end;
+
+  Log(msg, true);
+end;
+
+procedure CScriptBinder__clear_notifier_Patch(); stdcall;
+asm
+  //original
+  mov [ebp-04],00000000
+  lea eax,[esi+04]
+
+  pushad
+  push [eax]
+  call NotifyBinderDead
+  popad
+
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -1757,6 +1786,10 @@ begin
     end;
   end;
 
+  // В CScriptBinder::clear выдаем сообщение о том, что биндер умер в результате исключения
+  jmp_addr:=xrGame_addr+$c1516;
+  if not WriteJump(jmp_addr, cardinal(@CScriptBinder__clear_notifier_Patch), 10, true) then exit;
+
   result:=true;
 end;
 
@@ -1820,5 +1853,6 @@ end;
 // CShootingObject::StartShotParticles - xrgame.dll+2bbee0
 // CShootingObject::StartFlameParticles - xrgame.dll+2bbdb0
 
-
+// CScriptBinder::clear  - xrGame.dll+c14f0
+// CScriptBinder::net_Spawn - xrGame.dll+c15e0
 end.
