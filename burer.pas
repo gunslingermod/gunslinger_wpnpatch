@@ -720,6 +720,8 @@ var
   itm:pointer;
   big_boom_ready, big_boom_shooted, sniper_danger:boolean;
   under_aim_exact_now, under_aim_exact_recent:boolean;
+  cphmc:pointer;
+  dir:FVector3;
 begin
   //вообще не снимаем щит, если рядом грены.
   //более того, после взрыва грены щит может сняться слишком рано, и бюрер успеет получить урон. Чтобы этого не происходило, продлеваем действие щита
@@ -764,6 +766,21 @@ begin
     if not result and (under_aim_exact_now or sniper_danger) then begin
       // Если решено рискнуть, но мы под прицелом
       result := not script_bool_call('gunsl_burer.on_risky_under_aim', '', GetCObjectID(burer),'');
+
+      if not result then begin
+        // Сопровождаем аниматор камеры толчком
+        cphmc:=GetCharacterPhysicsSupport(GetActor());
+        if cphmc <>nil then begin
+          cphmc:=GetCPHMovementControl(cphmc);
+          if cphmc<>nil then begin
+		        dir:=FVector3_copyfromengine(CRenderDevice__GetCamRight());
+            if random > 0.5 then begin
+  		        v_mul(@dir, -1);
+            end;
+	        	CPHMovementControl_ApplyImpulse(cphmc, @dir, GetBurerRiskyImpulseForActor());
+	        end;
+        end;
+      end;
     end;
 
     if not result and IsKnife(itm) and IsBurerKnifeSelfKick() then begin
