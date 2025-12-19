@@ -4620,7 +4620,7 @@ begin
     giant_pos:=FVector3_copyfromengine(GetEntityPosition(giant));
 
     params:=GetPseudogiantThreatenParams();
-    if giant_pos.y<act_pos.y-params.low_delay_height_delta then begin
+    if abs(giant_pos.y-act_pos.y) > params.low_delay_height_delta then begin
       dist_xz:= sqrt((act_pos.x-giant_pos.x)*(act_pos.x-giant_pos.x)+(act_pos.z-giant_pos.z)*(act_pos.z-giant_pos.z));
       if (dist_xz <= params.low_delay_distance) and (next_threaten_time^ > GetGameTickCount() + params.std_to_low_delay_time) then begin
         next_threaten_time^:=GetGameTickCount() + params.std_to_low_delay_time;
@@ -4662,7 +4662,7 @@ begin
   giant_pos:=FVector3_copyfromengine(GetEntityPosition(giant));
 
   params:=GetPseudogiantThreatenParams();
-  if giant_pos.y>=act_pos.y-params.low_delay_height_delta then exit;
+  if abs(giant_pos.y - act_pos.y) < params.low_delay_height_delta then exit;
 
   dist_xz:= sqrt((act_pos.x-giant_pos.x)*(act_pos.x-giant_pos.x)+(act_pos.z-giant_pos.z)*(act_pos.z-giant_pos.z));
   if dist_xz > params.low_delay_distance then begin
@@ -5354,4 +5354,5 @@ end;
 // CControlThreaten::check_start_conditions - xrgame.dll+edd40
 // CInventory::Ruck - xrgame.dll+2a89d0
 // CInventory::BeltWidth - xrgame.dll+2a9d30
+// CEntityAlive::Die - xrgame.dll+27bf80
 end.
