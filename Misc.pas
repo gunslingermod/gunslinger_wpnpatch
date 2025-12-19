@@ -177,7 +177,7 @@ procedure CSE_ALifeInventoryItem__add_upgrade(itm:pCSE_ALifeInventoryItem; up:ps
 procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem; itm_from:pCSE_ALifeInventoryItem); stdcall;
 
 implementation
-uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors;
+uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors, Messenger;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -1633,23 +1633,52 @@ asm
   cmp eax,ebx
 end;
 
+
+var
+  _last_binded_section:string;
+  _last_binded_object:pointer;
+
+procedure BeforeReloadScriptBinder(s:PAnsiChar; o:pointer); stdcall;
+begin
+  _last_binded_section:=s;
+  _last_binded_object:=o;
+end;
+
+procedure CScriptBinder__reload_start_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  push ebx
+  call BeforeReloadScriptBinder
+  popad
+
+  //original
+  mov esi,[eax+$1C]
+  lea ecx,[ebp-$20]
+end;
+
 procedure NotifyBinderDead(o:pCScriptBinderObject); stdcall;
 var
   msg:string;
   sect:PAnsiChar;
   id:cardinal;
 begin
-  msg:='Script binder '+inttohex(cardinal(o), 8)+' is dead due to exception';
-
-  if o.m_object<>nil then begin
+  msg:='';
+  if (o<>nil) and (o.m_object<>nil) then begin
     if o.m_object.m_game_object<>nil then begin
       sect:=get_string_value(GetCObjectSection(o.m_object.m_game_object));
       id:=GetCObjectID(o.m_object.m_game_object);
       msg:='Script binder of '+sect+':'+inttostr(id)+' is dead due to exception';
+      Log(msg, true);
+      if IsDebug then Messenger.SendMessage(PAnsiChar(msg));
     end;
   end;
 
-  Log(msg, true);
+  if length(msg) = 0 then begin
+    msg:='Script binder '+inttohex(cardinal(o), 8) +' is dead due to exception! ';
+    msg:=msg+'Last binded object is ['+inttohex(cardinal(_last_binded_object), 8)+']: '+_last_binded_section+' ('+game_ini_read_string_def(PAnsiChar(_last_binded_section), 'script_binding', '<null>')+')';
+    Log(msg, true);
+  end;
 end;
 
 procedure CScriptBinder__clear_notifier_Patch(); stdcall;
@@ -1663,6 +1692,33 @@ asm
   call NotifyBinderDead
   popad
 
+end;
+
+
+procedure NotifyPatrolNotExist(name:PAnsiChar); stdcall;
+var
+  msg:string;
+begin
+  msg:='There is no patrol path '+name;
+  Log(msg, true);
+end;
+
+procedure CPatrolPathParams__CPatrolPathParams_notifier_Patch(); stdcall;
+asm
+  cmp eax, 0
+  jne @finish
+  
+  mov eax, [esp+$c]
+  pushad
+  push eax
+  call NotifyPatrolNotExist
+  popad
+  xor eax, eax
+  
+  @finish:
+  //original
+  mov edx,[esp+$14]
+  mov [esi+04],eax
 end;
 
 function Init():boolean;stdcall;
@@ -1790,6 +1846,14 @@ begin
   jmp_addr:=xrGame_addr+$c1516;
   if not WriteJump(jmp_addr, cardinal(@CScriptBinder__clear_notifier_Patch), 10, true) then exit;
 
+  // ¬ CScriptBinder::reload обрабатываем данные о том, какой биндер мы сейчас собираемс€ создавать
+  jmp_addr:=xrGame_addr+$c1a96;
+  if not WriteJump(jmp_addr, cardinal(@CScriptBinder__reload_start_Patch), 6, true) then exit;
+
+  // ¬ CPatrolPathParams::CPatrolPathParams восстанавливаем вырезанный компил€тором ассерт на ненайденный путь
+  jmp_addr:=xrGame_addr+$19eca6;
+  if not WriteJump(jmp_addr, cardinal(@CPatrolPathParams__CPatrolPathParams_notifier_Patch), 7, true) then exit;
+
   result:=true;
 end;
 
@@ -1855,4 +1919,5 @@ end;
 
 // CScriptBinder::clear  - xrGame.dll+c14f0
 // CScriptBinder::net_Spawn - xrGame.dll+c15e0
+// CPatrolPathParams::CPatrolPathParams - xrgame.dll+19ebf0
 end.
