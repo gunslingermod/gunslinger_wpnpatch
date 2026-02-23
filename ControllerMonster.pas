@@ -973,5 +973,8 @@ begin
 end;
 
 // CPhantom::OnFlyState - xrgame.dll+13aba0
+// CController::Die - xrgame.dll+12b7a0
+// CBaseMonster::Die - xrgame.dll+c6ed0
+// CCustomMonster::Die - xrgame.dll+bcba0
 
 end.

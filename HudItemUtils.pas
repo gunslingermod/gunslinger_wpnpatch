@@ -2068,6 +2068,7 @@ asm
   popad
 end;
 
+// same as CHudItem::AllowHudInertion
 procedure AllowWeaponInertion(wpn:pointer; status:boolean);stdcall;
 asm
   pushad

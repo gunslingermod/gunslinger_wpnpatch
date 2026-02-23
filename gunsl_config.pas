@@ -314,6 +314,7 @@ function GetBurerForceTeleFireMinDelta():cardinal; stdcall;
 function GetWeaponPhysicsDamageParams():weapon_physics_damage_params;
 function GetBoneNameForBurerTeleFire():PAnsiChar; stdcall;
 function GetBurerGraviImpulseForActor():single; stdcall;
+function GetBurerRiskyImpulseForActor():single; stdcall;
 function GetBurerFlyParams():burer_fly_params;
 function GetSkipFireAllProbability():single; stdcall;
 function GetBurerAimShieldDelay():cardinal; stdcall;
@@ -419,6 +420,7 @@ var
   _burer_critical_gren_timer:cardinal;
   _burer_forcetelefire_min_delta:cardinal;
   _burer_gravi_impulse_for_actor:single;
+  _burer_risky_impulse_for_actor:single;
   _burer_fly_params:burer_fly_params;
   _burer_skipfireall_prob:single;
   _burer_aim_shield_delay_const:cardinal;
@@ -1293,6 +1295,7 @@ begin
   _burer_critical_gren_timer:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_critical_gren_timer', 1000);
   _burer_forcetelefire_min_delta:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_forcetelefire_min_delta', 1000);
   _burer_gravi_impulse_for_actor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_gravi_impulse_for_actor', 1000);
+  _burer_risky_impulse_for_actor:=game_ini_r_single_def(GUNSL_BASE_SECTION, 'burer_risky_impulse_for_actor', 1000);
   _burer_aim_shield_delay_const:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_aim_shield_delay_const', 500);
   _burer_aim_shield_delay_random:=game_ini_r_int_def(GUNSL_BASE_SECTION, 'burer_aim_shield_delay_random', 1000);  
 
@@ -1715,6 +1718,12 @@ function GetBurerGraviImpulseForActor():single; stdcall;
 begin
   result:=_burer_gravi_impulse_for_actor;
 end;
+
+function GetBurerRiskyImpulseForActor():single; stdcall;
+begin
+  result:=_burer_risky_impulse_for_actor;
+end;
+
 
 function GetBurerFlyParams():burer_fly_params;
 begin
