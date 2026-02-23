@@ -2539,6 +2539,82 @@ asm
   pop eax
 end;
 
+function GetCustomUpgradeItemIconShaderForSection(sect:PAnsiChar):pointer; stdcall;
+var
+  texture:PAnsiChar;
+begin
+  result:=nil;
+  texture:=game_ini_read_string_def(sect, 'upgrade_icon_texture', nil);
+  if texture<>nil then begin
+    result:=GetModifiedUiShader(texture);
+  end;
+end;
+
+function GetCustomUpgradeItemIconShader(item:pointer):pointer; stdcall;
+var
+  sect:PAnsiChar;
+begin
+  result:=nil;
+  if item = nil then exit;
+  sect:=GetSection(item);
+  result:=GetCustomUpgradeItemIconShaderForSection(sect);
+end;
+
+procedure CUIInventoryUpgradeWnd__InitInventory_upgradesiconshader_Patch; stdcall;
+asm
+  test bl, bl
+  je @noicon
+
+  pushad
+  mov ecx,[esi+$64]             // m_inv_item
+  push ecx
+  call GetCustomUpgradeItemIconShader
+  test eax, eax
+  je @finish
+
+  push eax
+  mov ecx,[esi+$5C]             // m_item
+  mov edx, xrgame_addr
+  add edx, $47ace0
+  call edx                      //SetShader
+
+  @finish:
+  popad
+
+ @noicon:
+ // original
+ mov ecx,[esi+$5C]
+ test ecx,ecx
+end;
+
+procedure CUIRankingWnd__get_favorite_weapon_Patch(); stdcall;
+asm
+
+  pushad
+
+  mov eax, ebx //str
+  test eax, eax
+  je @finish
+
+  push eax
+  call GetCustomUpgradeItemIconShaderForSection
+  test eax, eax
+  je @finish
+
+  push eax
+  mov ecx,[ebp+$A4]
+  mov edx, xrgame_addr          // m_favorite_weapon_icon
+  add edx, $47ace0
+  call edx                      //SetShader
+
+  @finish:
+  popad
+
+  // original
+  mov eax, xrgame_addr
+  mov eax, [eax+$5127e8]
+end;
+
 procedure CreateAddonIcon(ppicon:ppCUIStatic; parent_static:pointer; item_section:PAnsiChar); stdcall;
 asm
   // Ќужно выполнить все те действи€, что и в CUIWeaponCellItem::CreateIcon, создав иконку и сохранив указатель на нее в буфере, на который указывает ppicon
@@ -3847,6 +3923,14 @@ begin
   jmp_addr:=xrGame_addr+$49d77e;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateIcon_modifyshader_Patch), 5, true) then exit;
 
+  //в CUIInventoryUpgradeWnd::InitInventory добавл€ем возможность задани€ картинки дл€ окна апгрейда из конфига
+  jmp_addr:=xrGame_addr+$43f743;
+  if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__InitInventory_upgradesiconshader_Patch), 5, true) then exit;
+
+  //¬ CUIRankingWnd::get_favorite_weapon приводим используемую текстуру в соответствие с используемой в окне апгрейда
+  jmp_addr:=xrGame_addr+$44c164;
+  if not WriteJump(jmp_addr, cardinal(@CUIRankingWnd__get_favorite_weapon_Patch), 5, true) then exit;
+
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
@@ -3896,7 +3980,11 @@ begin
 
   //CUICustomMap::Initialize - xrgame.dll+447210
 
+  //CUIInventoryUpgradeWnd::InitInventory - xrgame.dll+43f6b0
+  //CUIRankingWnd::get_favorite_weapon - xrgame.dll+44bfc0
+
   //InventoryUtilities::GetEquipmentIconsShader - xrgame.dll+465600
+  //InventoryUtilities::GetWeaponUpgradeIconsShader - xrgame.dll+4656c0
   //InventoryUtilities::DestroyShaders - xrgame.dll+465970
 
   result:=true;
