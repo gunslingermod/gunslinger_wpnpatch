@@ -2313,7 +2313,233 @@ begin
   ppicon^:=nil;
 end;
 
-procedure CreateAddonIcon(ppicon:ppCUIStatic; parent_static:pointer); stdcall;
+function GetEquipmentIconsShader():pointer; stdcall;
+asm
+  pushad
+  mov eax, xrgame_addr
+  add eax, $465600 // InventoryUtilities::GetEquipmentIconsShader
+  call eax
+  mov @result, eax
+  popad
+end;
+
+function CreateIconsShaderForTexture(texture:PAnsiChar):pointer; stdcall
+const
+  SHADER: PAnsiChar='hud\default';
+asm
+  pushad
+  push 04
+
+  mov eax,xrgame_addr
+  mov ecx, [eax+$5127b4]
+  call dword ptr [eax+$5127B0] //xrMemory::mem_alloc
+  mov @result, eax
+  mov esi,eax
+
+  mov eax,xrgame_addr
+  mov eax, [eax+$5124b0]
+  mov ecx, [eax]
+  mov edx, [ecx]
+  mov eax,[edx+08]
+  call eax         // ui_shader constructor
+  mov [esi],eax
+
+  mov ecx, eax
+  mov edx, [ecx]
+  mov eax,[edx+08]
+
+  push texture
+  push SHADER
+  call eax // IUIShader::Create
+
+  popad
+end;
+
+procedure FreeIconsShader(sh:pointer); stdcall
+asm
+  pushad
+
+  mov eax, sh
+
+  mov ecx,xrgame_addr
+  mov ecx,[ecx+$5124B0]
+  mov ecx,[ecx]
+  mov edx,[ecx]
+  mov edx,[edx+$0C]
+  mov edi,eax
+  mov eax,[eax]
+  push eax
+  call edx
+  mov [edi],0
+
+  mov eax,xrgame_addr
+  mov ecx, [eax+$5127b4]
+  push sh
+
+  mov esi,xrgame_addr
+  mov esi, [esi+$5127b8]
+  call esi
+
+  popad
+end;
+
+var
+  g_icons_textures:array of PAnsiChar;
+  g_icons_shaders:array of pointer;
+
+function GetModifiedUiShader(texture:PAnsiChar):pointer; stdcall;
+var
+  i:integer;
+begin
+  for i:=0 to length(g_icons_textures)-1 do begin
+    if strcomp(texture, g_icons_textures[i]) = 0 then begin
+      result:=g_icons_shaders[i];
+      exit;
+    end;
+  end;
+
+  i:=length(g_icons_textures);
+  setlength(g_icons_textures, i+1);
+  setlength(g_icons_shaders, i+1);
+  g_icons_textures[i]:=texture;
+  g_icons_shaders[i]:=CreateIconsShaderForTexture(texture);
+  result:=g_icons_shaders[i];
+end;
+
+procedure ClearModifiedUiShaders(); stdcall;
+var
+  i:integer;
+begin
+  for i:=0 to length(g_icons_shaders)-1 do begin
+    FreeIconsShader(g_icons_shaders[i]);
+  end;
+  setlength(g_icons_shaders, 0);
+  setlength(g_icons_textures, 0);
+end;
+
+procedure InventoryUtilities__DestroyShaders_Patch(); stdcall;
+asm
+  pushad
+  call ClearModifiedUiShaders
+  popad
+end;
+
+function GetEquipmentIconShader(section:PAnsiChar):pointer; stdcall;
+var
+  texture:PAnsiChar;
+begin
+  texture:=game_ini_read_string_def(section, 'icon_texture', nil);
+  if texture = nil then begin
+    result:=GetEquipmentIconsShader();
+  end else begin
+    result:=GetModifiedUiShader(texture);
+  end;
+end;
+
+function GetEquipmentIconShaderForWeaponCell(cell:pCUIWeaponCellItem; addontype:integer):pointer; stdcall;
+var
+  section:PAnsiChar;
+begin
+  if addontype=0 then begin
+    section:=GetSilencerSection(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData);
+  end else if addontype=1 then begin
+    section:=GetCurrentScopeSection(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData);
+  end else begin
+    section:=GetGLSection(cell.base_CUIInventoryCellItem.base_CUICellItem.m_pData);  
+  end;
+
+  result:=GetEquipmentIconShader(section);
+end;
+
+procedure CUIWeaponCellItem__CreateDragItem_silencershader_Patch(); stdcall;
+asm
+  push eax
+  mov eax, esp
+  pushad
+  push eax
+
+  push 0
+  push esi // ptr to CUIWeaponCellItem
+  call GetEquipmentIconShaderForWeaponCell
+
+  pop ecx
+  mov [ecx], eax
+  popad
+  pop eax
+end;
+
+procedure CUIWeaponCellItem__CreateIcon_modifyshader_Patch(); stdcall;
+asm
+  mov eax, [esp+$10] // addontype
+  push eax
+  mov eax, esp
+  pushad
+  push eax
+
+  push [eax]
+  push esi // ptr to CUIWeaponCellItem
+  call GetEquipmentIconShaderForWeaponCell
+
+  pop ecx
+  mov [ecx], eax
+  popad
+  pop eax
+end;
+
+procedure CUIWeaponCellItem__CreateDragItem_scopeshader_Patch(); stdcall;
+asm
+  push eax
+  mov eax, esp
+  pushad
+  push eax
+
+  push 1
+  push esi // ptr to CUIWeaponCellItem
+  call GetEquipmentIconShaderForWeaponCell
+
+  pop ecx
+  mov [ecx], eax
+  popad
+  pop eax
+end;
+
+procedure CUIWeaponCellItem__CreateDragItem_glshader_Patch(); stdcall;
+asm
+  push eax
+  mov eax, esp
+  pushad
+  push eax
+
+  push 2
+  push esi // ptr to CUIWeaponCellItem
+  call GetEquipmentIconShaderForWeaponCell
+
+  pop ecx
+  mov [ecx], eax
+  popad
+  pop eax
+end;
+
+procedure CUIInventoryCellItem_constructor_icontexture_Patch; stdcall;
+asm
+  push eax
+  mov eax, esp
+  pushad
+  push eax
+
+  push edi // edi = CInventoryItem* itm
+  call GetSection
+  push eax
+  call GetEquipmentIconShader
+
+  pop ecx
+  mov [ecx], eax
+
+  popad
+  pop eax
+end;
+
+procedure CreateAddonIcon(ppicon:ppCUIStatic; parent_static:pointer; item_section:PAnsiChar); stdcall;
 asm
   // Ќужно выполнить все те действи€, что и в CUIWeaponCellItem::CreateIcon, создав иконку и сохранив указатель на нее в буфере, на который указывает ppicon
   pushad
@@ -2340,11 +2566,30 @@ asm
   push [esp]                    //pass allocated CUIStatic ptr
   call edx                      //CUIWeaponCellItem::AttachChild
 
+  cmp item_section, 0
+  je @use_default_shader
+
+  push eax
+  mov eax, esp
+  pushad
+  push eax
+
+  push item_section
+  call GetEquipmentIconShader
+
+  pop ecx
+  mov [ecx], eax
+  popad
+  pop eax
+  jmp @shaderready
+
+  @use_default_shader:
   mov edx, xrgame_addr
   add edx, $465600
   call edx                      //InventoryUtilities::GetEquipmentIconsShader
 
-  mov ecx, [esp]                //allocated CUIStatic ptr  
+  @shaderready:
+  mov ecx, [esp]                //allocated CUIStatic ptr
   push eax
   mov edx, xrgame_addr
   add edx, $47ace0
@@ -2562,7 +2807,7 @@ end;
 
 procedure CellItemBuffer._CreateAddonIcon(icon:pupgrade_icon_data);
 begin
-  CreateAddonIcon(@icon.icon, _my_cell);
+  CreateAddonIcon(@icon.icon, _my_cell, icon.icon_section);
   _need_reorder_icons:=true;
 end;
 
@@ -2887,28 +3132,28 @@ var
 begin
   for i:=0 to length(_elements)-1 do begin
     if _elements[i].enabled and (_elements[i].icon<>nil) and not _elements[i].always_on_front then begin
-      CreateAddonIcon(@pstatic, drag_wnd);
+      CreateAddonIcon(@pstatic, drag_wnd, _elements[i].icon_section);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
     end;
   end;
 
   for i:=0 to length(_up_icons)-1 do begin
     if _up_icons[i].enabled and (_up_icons[i].icon<>nil) and not _up_icons[i].always_on_front then begin
-      CreateAddonIcon(@pstatic, drag_wnd);
+      CreateAddonIcon(@pstatic, drag_wnd, _up_icons[i].icon_section);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
     end;
   end;
 
   for i:=0 to length(_elements)-1 do begin
     if _elements[i].enabled and (_elements[i].icon<>nil) and _elements[i].always_on_front then begin
-      CreateAddonIcon(@pstatic, drag_wnd);
+      CreateAddonIcon(@pstatic, drag_wnd, _elements[i].icon_section);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _elements[i].icon_section, _elements[i].offset.x, _elements[i].offset.y, 0);
     end;
   end;
 
   for i:=0 to length(_up_icons)-1 do begin
     if _up_icons[i].enabled and (_up_icons[i].icon<>nil) and _up_icons[i].always_on_front then begin
-      CreateAddonIcon(@pstatic, drag_wnd);
+      CreateAddonIcon(@pstatic, drag_wnd, _up_icons[i].icon_section);
       CUIWeaponCellItem__InitAddon(@_my_cell.base_CUIInventoryCellItem.base_CUICellItem, pstatic, _up_icons[i].icon_section, _up_icons[i].offset.x, _up_icons[i].offset.y, 0);
     end;
   end;
@@ -3582,6 +3827,26 @@ begin
   jmp_addr:=xrGame_addr+$4677f5;
   if not WriteJump(jmp_addr, cardinal(@CUIActorMenu__highlight_item_slot_pistolshighlight_Patch), 7, true) then exit;
 
+  // ¬ CUIInventoryCellItem::CUIInventoryCellItem реализуем механизм подмены текстуры с иконками
+  jmp_addr:=xrGame_addr+$49d54a;
+  if not WriteJump(jmp_addr, cardinal(@CUIInventoryCellItem_constructor_icontexture_Patch), 5, true) then exit;
+
+  // в InventoryUtilities::DestroyShaders удал€ем все созданные нами шейдеры новых текстур иконок
+  jmp_addr:=xrGame_addr+$465ab0;
+  if not WriteJump(jmp_addr, cardinal(@InventoryUtilities__DestroyShaders_Patch), 5, false) then exit;
+
+  //¬ CUIWeaponCellItem::CreateDragItem замен€ем вызовы InventoryUtilities::GetEquipmentIconsShader() на наши, учитывающие новые текстуры
+  jmp_addr:=xrGame_addr+$49e37b;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateDragItem_silencershader_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$49e41f;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateDragItem_scopeshader_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$49e4d3;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateDragItem_glshader_Patch), 5, true) then exit;
+
+  // ¬ CUIWeaponCellItem::CreateIcon замен€ем вызовы InventoryUtilities::GetEquipmentIconsShader() на наши, учитывающие новые текстуры
+  jmp_addr:=xrGame_addr+$49d77e;
+  if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateIcon_modifyshader_Patch), 5, true) then exit;
+
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
@@ -3631,8 +3896,12 @@ begin
 
   //CUICustomMap::Initialize - xrgame.dll+447210
 
+  //InventoryUtilities::GetEquipmentIconsShader - xrgame.dll+465600
+  //InventoryUtilities::DestroyShaders - xrgame.dll+465970
+
   result:=true;
 end;
 
 end.
+
 
