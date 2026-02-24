@@ -11,7 +11,12 @@ type TKeyHoldState = record
 end;
 
 IReader = packed record
-  //...
+  vtbl:pointer;
+  m_last_pos:cardinal;
+  data:PAnsiChar;
+  pos:integer;
+  size:integer;
+  iterpos:integer;
 end;
 pIReader = ^IReader;
 ppIReader = ^pIReader;

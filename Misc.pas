@@ -177,7 +177,7 @@ procedure CSE_ALifeInventoryItem__add_upgrade(itm:pCSE_ALifeInventoryItem; up:ps
 procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem; itm_from:pCSE_ALifeInventoryItem); stdcall;
 
 implementation
-uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors, Messenger;
+uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors, Messenger,fs,strutils;
 var
   cscriptgameobject_restoreweaponimmediatly_addr:pointer;
   previous_electronics_problems_counter:single;
@@ -1721,6 +1721,119 @@ asm
   mov [esi+04],eax
 end;
 
+
+var
+  _ireader_addr:pIReader;
+  _original_ireader:IReader;
+  _new_omfs_buffer:string;  
+function RebuildIReaderForNewOmf(anims_cnt:cardinal; r:pIReader):integer; stdcall;
+var
+  i, j, k, cnt:integer;
+  omf_name:string;
+  omfs:array of string;
+  pos:integer;
+
+  dir_for_additional_omfs:string_path;
+  fname:string;
+  flist:FileList;
+begin
+  result:=anims_cnt;
+  FillMemory(@_original_ireader, sizeof(_original_ireader), 0);
+  _ireader_addr:=nil;
+
+  setlength(omfs, anims_cnt);
+  pos:=r^.pos;
+  for i:=0 to anims_cnt-1 do begin
+    omf_name:='';
+
+    while (r^.size > pos) and (r^.data[pos]<>chr(0)) do begin
+      omf_name:=omf_name+r^.data[pos];
+      pos:=pos+1;
+    end;
+    pos:=pos+1;
+
+    if length(omf_name)= 0 then begin
+     //something is wrong with data, exiting
+     setlength(omfs, 0);
+     exit;
+    end;
+    omfs[i]:=omf_name;
+  end;
+
+  for i:=0 to anims_cnt-1 do begin
+    fs_update_path(dir_for_additional_omfs, '$game_meshes$', PAnsiChar(omfs[i]+'\'));
+    fs_file_list_open(@flist, dir_for_additional_omfs, FS_ListFiles+FS_RootOnly);
+    cnt:=fs_file_list_count(@flist);
+    for j:=0 to cnt-1 do begin
+      fname:=fs_file_list_get_item(@flist, j);
+      if rightstr(fname, 4) = '.omf' then begin
+        omf_name:=omfs[i]+'\'+leftstr(fname, length(fname)-4);
+        log('Found additional OMF: '+omf_name);
+        k:=length(omfs);
+        setlength(omfs, k+1);
+        omfs[k]:=omf_name;
+      end;
+    end;
+  end;
+
+  if length(omfs)<>anims_cnt then begin
+    _new_omfs_buffer:='';
+    for i:=0 to length(omfs)-1 do begin
+      _new_omfs_buffer:=_new_omfs_buffer+omfs[i]+chr(0);
+    end;
+
+    _ireader_addr:=r;
+    _original_ireader:=r^;
+    r^.data:=PAnsiChar(_new_omfs_buffer);
+    r^.pos:=0;
+    r^.size:=length(_new_omfs_buffer);
+
+    result:=length(omfs);
+  end;
+
+  setlength(omfs, 0);
+end;
+
+procedure RestoreIreader(); stdcall;
+begin
+  if _ireader_addr <> nil then begin
+    log('Restoring IReader');
+    _ireader_addr^:=_original_ireader;
+    _ireader_addr:=nil;
+    FillMemory(@_original_ireader, sizeof(_original_ireader), 0);    
+  end;
+end;
+
+procedure CKinematicsAnimated__Load_newomfs_Patch(); stdcall;
+asm
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+
+  push esi //IReader
+  push [eax] //count
+  call RebuildIReaderForNewOmf
+
+  pop ecx
+  mov [ecx], eax
+  popad
+  pop eax
+
+  // original
+  lea edi,[ebx+$BC]
+end;
+
+procedure CKinematicsAnimated__Load_restorereader_Patch(); stdcall;
+asm
+  pushad
+  call RestoreIreader
+  popad
+  // original
+  mov [ebx+$C8],ecx
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -1853,6 +1966,33 @@ begin
   // В CPatrolPathParams::CPatrolPathParams восстанавливаем вырезанный компилятором ассерт на ненайденный путь
   jmp_addr:=xrGame_addr+$19eca6;
   if not WriteJump(jmp_addr, cardinal(@CPatrolPathParams__CPatrolPathParams_notifier_Patch), 7, true) then exit;
+
+  // В CKinematicsAnimated::Load подменяем список назначенных модели ОМФов
+  if xrRender_R1_addr<>0 then begin
+    jmp_addr:=xrRender_R1_addr+$7218f;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_newomfs_Patch), 6, true) then exit;
+    jmp_addr:=xrRender_R1_addr+$72560;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_restorereader_Patch), 6, true) then exit;
+
+  end else if xrRender_R2_addr<>0 then begin
+    jmp_addr:=xrRender_R2_addr+$9a53a;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_newomfs_Patch), 6, true) then exit;
+    jmp_addr:=xrRender_R2_addr+$9a8fc;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_restorereader_Patch), 6, true) then exit;
+
+  end else if xrRender_R3_addr<>0 then begin
+    jmp_addr:=xrRender_R3_addr+$a6efa;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_newomfs_Patch), 6, true) then exit;
+    jmp_addr:=xrRender_R3_addr+$a72bc;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_restorereader_Patch), 6, true) then exit;
+    
+  end else if xrRender_R4_addr<>0 then begin
+    jmp_addr:=xrRender_R4_addr+$b115a;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_newomfs_Patch), 6, true) then exit;
+    jmp_addr:=xrRender_R4_addr+$b151c;
+    if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_restorereader_Patch), 6, true) then exit;
+
+  end;
 
   result:=true;
 end;
