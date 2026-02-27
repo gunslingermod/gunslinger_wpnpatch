@@ -2595,18 +2595,38 @@ end;
 function IsUpgradeBanned(item:pointer; upgrade_id:pshared_str; loading:boolean):boolean; stdcall;
 var
   wpn:pointer;
-  banned_ups, mask:string;
-  sect:PAnsiChar;
+  banned_ups, allowed_ups, mask:string;
+  sect, up:PAnsiChar;
 const
   BANNED_UPGRADES:PAnsiChar='banned_upgrades';
+  ALLOWED_UPGRADES:PAnsiChar='allowed_upgrades';
 begin
   result:=false;
   sect:=GetSection(item);
-  if game_ini_line_exist(sect, BANNED_UPGRADES) then begin
+  up:=get_string_value(upgrade_id);
+  
+  if game_ini_line_exist(sect, ALLOWED_UPGRADES) then begin
+    result:=true;
+    allowed_ups:=game_ini_read_string(sect, ALLOWED_UPGRADES)+',';
+    if length(allowed_ups)>1 then begin
+      while GetNextSubStr(allowed_ups, mask, ',') do begin
+        if leftstr(up, length(mask)) = mask then begin
+          result:=false;
+          break;
+        end;
+      end;
+
+      if result then begin
+        Log('Upgrade "'+up+'" doesn''t match allowed upgrades for item '+sect);
+      end;
+    end;
+  end;
+
+  if not result and game_ini_line_exist(sect, BANNED_UPGRADES) then begin
     banned_ups:=game_ini_read_string(sect, BANNED_UPGRADES)+',';
     while GetNextSubStr(banned_ups, mask, ',') do begin
-      if leftstr(get_string_value(upgrade_id), length(mask)) = mask then begin
-        Log('Found banned upgrade "'+get_string_value(upgrade_id)+'" for item '+sect);
+      if leftstr(up, length(mask)) = mask then begin
+        Log('Found banned upgrade "'+up+'" for item '+sect);
         result:=true;
         break;
       end;
