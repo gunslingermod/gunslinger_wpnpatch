@@ -296,6 +296,26 @@ type CDialogHolder = packed record //sizeof = 0x2c
   _unused2:word;
 end;
 
+TiXmlDocument = packed record  //sizeof - 0x70
+  _undefined1:array[0..$6F] of byte;
+end;
+
+CXml = packed record //sizeof = 0x284
+ vtbl:pointer;
+ m_xml_file_name:string_path;
+
+ //0x20c
+ m_root:pointer; {XML_NODE*}
+ m_pLocalRoot:pointer; {XML_NODE*}
+ m_Doc:TiXmlDocument;
+end;
+
+CUIXml = packed record //sizeof = 0x288
+  base_CXml:CXml;
+  m_dbg_id:cardinal;
+end;
+pCUIXml = ^CUIXml;
+
 type CUIGameCustom = packed record //sizeof = 0x68
   base_DLL_Pure:DLL_Pure;
   base_CDialogHolder:CDialogHolder;
@@ -443,13 +463,48 @@ var
   bShowPauseString:pBoolean;
 
 implementation
-uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils, WeaponAdditionalBuffer;
+uses BaseGameData, collimator, ActorUtils, HudItemUtils, gunsl_config, sysutils, dynamic_caster, math, Level, ControllerMonster, ScriptFunctors, xr_Cartridge, HitUtils, WeaponAdditionalBuffer, fs;
 
 var
   register_level_isuishown_ret:cardinal;
   IsUIShown_ptr, IndicatorsShown_adapter_ptr, IsInventoryShown_adapter_ptr, IsActorControlled_adapter_ptr, IsActorBurned_adapter_ptr, IsPickupMode_adapter_ptr, IsTacticHudInstalled_adapter_ptr:pointer;
   ElectronicProblemsBegin_ptr, ElectronicProblemsEnd_ptr, ElectronicProblemsReset_ptr, ElectronicProblemsApply_ptr, GetParameterUpgraded_int_ptr, valid_saved_game_int_ptr:pointer;
   CUIInventoryUpgradeWnd__m_btn_disassemble:pCUI3tButton;
+
+procedure CUIXml_construct(this:pCUIXml); stdcall;
+asm
+  pushad
+  mov ecx, this
+  mov eax, xrgame_addr
+  add eax, $475b50
+  call eax
+  popad
+end;
+
+procedure CUIXml_destruct(this:pCUIXml); stdcall;
+asm
+  pushad
+  mov ecx, this
+  mov eax, xrgame_addr
+  add eax, $475b70
+  call eax
+  popad
+end;
+
+procedure CUIXml_Load(this:pCUIXml; path_alias:PAnsiChar; path:PAnsiChar; _xml_filename:PAnsiChar); stdcall;
+asm
+  pushad
+  push _xml_filename
+  push path
+  push path_alias
+
+  mov ecx, this
+  mov eax, xrgame_addr
+  add eax, $513300
+  call [eax]
+  popad
+end;
+
 
 procedure HideShownDialogs(); stdcall;
 asm
@@ -3674,6 +3729,68 @@ asm
   mov @result, al
 end;
 
+procedure CUIInventoryUpgradeWnd__LoadSchemes(this:pointer; ui:pCUIXml); stdcall;
+asm
+  pushad
+  mov ecx, this
+  push ui
+  mov eax, xrgame_addr
+  add eax, $43ffc0
+  call eax
+  popad
+end;
+
+procedure LoadAdditionalUpgradesSchemes(UIInventoryUpgradeWnd:pointer); stdcall;
+var
+  flist:FileList;
+  dirname,fname:string;
+  path:string_path;
+  cnt,i:integer;
+  xml:CUIXml;
+begin
+  dirname := 'ui\upgrade_schemes';
+  if Is16x9 then begin
+    dirname:=dirname+'_16';
+  end;
+  dirname:=dirname;
+
+  fs_update_path(path, '$game_config$', PAnsiChar(dirname+'\'));
+  fs_file_list_open(@flist, path, FS_ListFiles+FS_RootOnly);
+
+  cnt:=fs_file_list_count(@flist);
+
+  log('Found '+inttostr(cnt)+' UI upgrade scheme configs');  
+  if cnt > 0 then begin
+
+    for i:=0 to cnt-1 do begin
+      fname:=fs_file_list_get_item(@flist, i);
+      log('Loading '+fname);
+
+      CUIXml_construct(@xml);
+      CUIXml_Load(@xml, '$game_config$', PAnsiChar(dirname), PAnsiChar(fname));
+
+      CUIInventoryUpgradeWnd__LoadSchemes(UIInventoryUpgradeWnd, @xml);
+
+      CUIXml_destruct(@xml);
+    end;
+  end;
+
+  fs_file_list_close(@flist);
+end;
+
+
+procedure CUIInventoryUpgradeWnd__Init_addupschemes_Patch; stdcall;
+asm
+  pushad
+  push esi
+  call LoadAdditionalUpgradesSchemes
+  popad
+
+  //original
+  push ecx
+  call CUIXml_destruct
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -3930,6 +4047,10 @@ begin
   //В CUIRankingWnd::get_favorite_weapon приводим используемую текстуру в соответствие с используемой в окне апгрейда
   jmp_addr:=xrGame_addr+$44c164;
   if not WriteJump(jmp_addr, cardinal(@CUIRankingWnd__get_favorite_weapon_Patch), 5, true) then exit;
+
+  //в CUIInventoryUpgradeWnd::Init инициализируем дополнительные схемы апгрейдов
+  jmp_addr:=xrGame_addr+$43f0b3;
+  if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__Init_addupschemes_Patch), 5, true) then exit;
 
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
