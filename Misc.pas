@@ -1834,6 +1834,95 @@ asm
   mov [ebx+$C8],ecx
 end;
 
+
+procedure xrXmlParser_ParseFile(path:PAnsiChar; W:pointer; F:pIReader; xml:pointer); stdcall;
+asm
+  pushad
+  push xml
+  push F
+  push W
+  push path
+  mov eax, xrXmlParser_addr
+  add eax, $18e0
+  call eax
+  add esp,$10
+  popad
+end;
+
+procedure XmlIncludeDir(path:PAnsiChar; W:pointer; F:pIReader; xml:pointer; pstr:PAnsiChar); stdcall;
+var
+  dirpath:string_path;
+  dirname, str, fname:string;
+  i, cnt:integer;
+  flag:boolean;
+  flist:FileList;
+  r:pIReader;
+const
+  DIRECTIVE:string='#dir_include';
+begin
+  if (pstr[0] = '#') then begin
+    str:=pstr;
+    if (leftstr(str, length(DIRECTIVE))=DIRECTIVE) then begin
+      dirname:='';
+      flag:=false;
+      for i:=1 to length(str) do begin
+        if str[i]='"' then begin
+          flag:=not flag;
+          if not flag then begin
+            break;
+          end;
+        end else if flag then begin
+          dirname:=dirname+str[i];
+        end;  
+      end;
+
+      R_ASSERT(not flag and (length(dirname)>0), PAnsiChar('malformed directive: '+str), 'XmlIncludeDir');
+      if dirname[length(dirname)]='\' then begin
+        dirname:=leftstr(dirname, length(dirname)-1);
+      end else if Is16x9() then begin
+         dirname:=dirname+'_16';
+      end;
+
+      fs_update_path(dirpath, '$game_config$', PAnsiChar(dirname+'\'));
+
+      fs_file_list_open(@flist, dirpath, FS_ListFiles+FS_RootOnly);
+      cnt:=fs_file_list_count(@flist);
+      if cnt > 0 then begin
+
+        for i:=0 to cnt-1 do begin
+          fname:=fs_file_list_get_item(@flist, i);
+          if lowercase(rightstr(fname, 4)) = '.xml' then begin
+            fname:=dirpath+fname;
+            fs_r_open(@r, PAnsiChar(fname));
+            if r <> nil then begin
+              xrXmlParser_ParseFile(path, W, r, xml);
+              fs_r_close(@r);
+            end;
+          end;
+        end;
+        fs_file_list_close(@flist);
+      end;
+    end;
+  end;
+end;
+
+procedure xrXmlParser_ParseFile_includedir_patch; stdcall;
+asm
+  mov eax, esp
+  pushad
+  lea edx, [eax+$724]
+  push  edx // str
+  push [eax+$1734] // xml
+  push [eax+$1730] // F
+  push [eax+$172c] // W
+  push [eax+$1728] // path
+  call XmlIncludeDir
+  popad
+
+  //original
+  mov al,[esp+$724]
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -1993,6 +2082,10 @@ begin
     if not WriteJump(jmp_addr, cardinal(@CKinematicsAnimated__Load_restorereader_Patch), 6, true) then exit;
 
   end;
+
+  // В ParseFile из xrXMLParser добавляем директиву инклуда файлов из директории 
+  jmp_addr:=xrXmlParser_addr+$1935;
+  if not WriteJump(jmp_addr, cardinal(@xrXmlParser_ParseFile_includedir_patch), 7, true) then exit;
 
   result:=true;
 end;

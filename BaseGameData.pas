@@ -51,6 +51,7 @@ var
   xrCDB_addr:cardinal;
   xrAPI_addr:cardinal;
   xrPhysics_addr:cardinal;
+  xrXmlParser_addr:cardinal;
   xrRender_R1_addr:cardinal;
   xrRender_R2_addr:cardinal;
   xrRender_R3_addr:cardinal;
@@ -77,6 +78,7 @@ const
   xrRender_R2:PChar='xrRender_R2';
   xrRender_R3:PChar='xrRender_R3';
   xrRender_R4:PChar='xrRender_R4';
+  xrXmlParser:PChar='xrXMLParser';
   mydll:PChar='gunslinger_wpnpatch';
 
 function nop_code(addr:cardinal; count:cardinal; opcode:char = CHR($90)):boolean;
@@ -350,6 +352,7 @@ begin
   xrRender_R2_addr:=GetModuleHandle(xrRender_R2);
   xrRender_R3_addr:=GetModuleHandle(xrRender_R3);
   xrRender_R4_addr:=GetModuleHandle(xrRender_R4);
+  xrXmlParser_addr:=GetModuleHandle(xrXmlParser);
 
   mydll_handle:=GetModuleHandle(mydll);
   

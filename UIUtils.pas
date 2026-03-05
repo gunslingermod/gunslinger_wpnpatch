@@ -309,6 +309,7 @@ CXml = packed record //sizeof = 0x284
  m_pLocalRoot:pointer; {XML_NODE*}
  m_Doc:TiXmlDocument;
 end;
+pCXml = ^CXml;
 
 CUIXml = packed record //sizeof = 0x288
   base_CXml:CXml;
