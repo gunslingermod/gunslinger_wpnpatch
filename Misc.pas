@@ -5,7 +5,12 @@ interface
 uses MatVectors, windows, xr_strings, BaseGameData, vector;
 //всячина, которую не особо понятно, в какие модули спихнуть
 
-type CSE_Abstract = packed record
+type
+GameTypeChooser = packed record
+  m_GameType:word;
+end;
+
+CSE_Abstract = packed record
   vftable:pointer;
   _flags_ISE:cardinal;
 
@@ -22,10 +27,49 @@ type CSE_Abstract = packed record
   m_wVersion:word;
   m_script_version:word;
   RespawnTime:word;
+
+  //offset: 0x32
   ID:word;
   ID_Parent:word;
+  ID_Phantom:word;
+  owner:pointer; {xrClientData*}
+  
+  //offset: 0x3c
+  s_name:shared_str;
 
-  //to be continued...
+  //offset: 0x40
+  m_gameType:GameTypeChooser;
+  //offset: 0x42
+  s_RP:byte;
+  //offset: 0x43
+  s_flags:word;
+
+  _unused1:byte;
+  _unused2:word;
+
+  children:xr_vector;
+
+  //offset: 0x54
+  o_Position:FVector3;
+  //offset: 0x60
+  o_Angle:FVector3;
+
+  _unused3:cardinal;
+  m_tClassID:int64;
+  m_script_clsid:cardinal;
+
+  //offset: 0x7c
+  m_ini_string:shared_str;
+  m_ini_file:pointer; {CIniFile*}
+
+  //offset: 0x84
+  m_bALifeControl:byte;
+  _unused4:byte;
+
+  //offset: 0x86
+  m_tSpawnID:word;
+  m_spawn_flags:cardinal;
+  client_data:xr_vector;
 end;
 
 type pCSE_Abstract = ^CSE_Abstract;
@@ -176,6 +220,8 @@ procedure SetSysMousePoint(c:MouseCoord);
 procedure CSE_ALifeInventoryItem__add_upgrade(itm:pCSE_ALifeInventoryItem; up:pshared_str); stdcall;
 procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem; itm_from:pCSE_ALifeInventoryItem); stdcall;
 
+function IsAppLoaded():boolean; stdcall;
+
 implementation
 uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors, Messenger,fs,strutils;
 var
@@ -265,6 +311,13 @@ begin
     last_problems_update_was_decrease := (delta<0)
   end;
 //  Log(floattostr(current_electronics_problems_counter));
+end;
+
+function IsAppLoaded():boolean; stdcall;
+asm
+  mov eax, xrengine_addr
+  movzx eax, byte ptr[eax+$92d14]
+  mov @result, al
 end;
 
 procedure set_name_replace(swpn:pointer; name:PChar); stdcall;
@@ -1923,6 +1976,36 @@ asm
   mov al,[esp+$724]
 end;
 
+procedure CorrectBeforeSpawn(cgameobject:pointer; cse:pCSE_Abstract); stdcall;
+var
+  section:PAnsiChar;
+  v:FVector3;
+begin
+  section:=get_string_value(@cse.s_name);
+
+  if game_ini_r_bool_def(section, 'force_position', false) then begin
+    v:=cse.o_Position;
+    v:=game_ini_read_vector3_def(section, 'forced_position', @v);
+    cse.o_Position:=v;
+
+    v:=cse.o_Angle;
+    v:=game_ini_read_vector3_def(section, 'forced_angle', @v);
+    cse.o_Angle:=v
+  end;
+end;
+
+procedure CGameObject__net_Spawn_correctbeforeonline_patch; stdcall;
+asm
+  pushad
+    push ebp // CSE_Abstract*
+    push esi // this
+    call CorrectBeforeSpawn
+  popad
+
+  //original
+  mov [esi+$A4],dx
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -2086,6 +2169,10 @@ begin
   // В ParseFile из xrXMLParser добавляем директиву инклуда файлов из директории 
   jmp_addr:=xrXmlParser_addr+$1935;
   if not WriteJump(jmp_addr, cardinal(@xrXmlParser_ParseFile_includedir_patch), 7, true) then exit;
+
+  // В CGameObject::net_Spawn корректируем позицию при переходе в онлайн
+  jmp_addr:=xrgame_addr+$280d1e;
+  if not WriteJump(jmp_addr, cardinal(@CGameObject__net_Spawn_correctbeforeonline_patch), 7, true) then exit;
 
   result:=true;
 end;

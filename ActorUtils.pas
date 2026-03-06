@@ -4124,6 +4124,8 @@ var
   fun:PAnsiChar;
 begin
   result:=true;
+  // TODO: не вызывать во время загрузки игры, чтобы уже поднятые предметы не вываливались из рюкзака?
+
   sect:=GetSection(inventoryitem);
 
   if (sect<>nil) and game_ini_line_exist(sect, 'can_take_function') then begin
