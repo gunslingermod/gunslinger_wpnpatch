@@ -40,7 +40,7 @@ end;
 function GetControllerInputRandomOffset():controller_input_random_offset;
 
 implementation
-uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc, WeaponEvents, Throwable, dynamic_caster, KeyUtils;
+uses BaseGameData, ActorUtils, HudItemUtils, WeaponAdditionalBuffer, DetectorUtils, gunsl_config, math, sysutils, uiutils, Level, MatVectors, strutils, ScriptFunctors, misc, WeaponEvents, Throwable, dynamic_caster, KeyUtils, xr_strings;
 
 var
   _controlled_time_remains:cardinal;
@@ -507,23 +507,26 @@ function CheckActorVisibilityForController():boolean; stdcall;
 var
   act:pointer;
   i:integer;
+  contr_section:PAnsiChar;
 begin
-  if GetCurrentDifficulty >= gd_veteran then begin
-    // на высокой сложности контролер всегда завершает свое...
-    result:=true;
-    exit;
-  end;
-
   result:=false;
   act:=GetActor();
   if act=nil then exit;
 
 //  Log('Check visibility for '+inttostr(length(_active_controllers))+'controllers');
   for i:=0 to length(_active_controllers)-1 do begin
-    result:=IsControllerSeeActor(_active_controllers[i], act);
-    if result then begin
-//      log('Visible by #'+inttostr(i));
-      exit;
+    if GetCurrentDifficulty >= gd_veteran then begin
+      // на высокой сложности контролер всегда завершает свое, если не прописано обратное
+      contr_section:= get_string_value(GetCObjectSection(_active_controllers[i]));
+      if not game_ini_r_bool_def(contr_section, 'mandatory_suicide_visibility_check', false) then begin
+        result:=true;
+        break
+      end;
+    end;
+
+    if IsControllerSeeActor(_active_controllers[i], act) then begin
+      result:=true;
+      break
     end;
   end;
 end;
