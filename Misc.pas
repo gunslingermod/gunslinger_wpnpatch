@@ -1994,7 +1994,7 @@ begin
   end;
 end;
 
-procedure CGameObject__net_Spawn_correctbeforeonline_patch; stdcall;
+procedure CGameObject__net_Spawn_correctbeforeonline_Patch; stdcall;
 asm
   pushad
     push ebp // CSE_Abstract*
@@ -2004,6 +2004,99 @@ asm
 
   //original
   mov [esi+$A4],dx
+end;
+
+function IsResetVisualNeeded(pcobject:pointer):boolean; stdcall;
+var
+  sect:PAnsiChar;
+begin
+  if GetCObjectVisual(pcobject) = nil then begin
+    result:=true;
+  end else begin
+    result:=false;
+    sect:=get_string_value(GetCObjectSection(pcobject));
+    if game_ini_r_bool_def(sect, 'force_reset_visual_on_load', false) then begin
+      result:=true;
+    end;
+  end;
+end;
+
+procedure CObject__net_Spawn_correctvisual_Patch(); stdcall;
+asm
+  pushad
+  push esi
+  call IsResetVisualNeeded
+  cmp al, 1
+  popad
+
+  //original
+  mov [esi+$F8],ebp
+end;
+
+function SkipSavedObjectIfNeeded(file_stream:pIReader):boolean;stdcall;
+var
+  spawn_sz:word;
+  update_sz:word;
+  data:PAnsiChar;
+  cnt:integer;
+  u_id:word;
+  section:PAnsiChar;
+begin
+  result:=false;
+  data:=@file_stream^.data[file_stream^.pos];
+  spawn_sz:=PWord(@data[0])^;
+  u_id:=PWord(@data[2])^;
+  if u_id<>1 then exit; //M_SPAWN
+
+  section:=@data[4];
+  if not game_ini_section_exist(section) then begin
+    result:=true;
+  end else if game_ini_r_bool_def('gunslinger_autoremove_items', section, false) then begin
+    result:=true;
+  end;
+
+  if result then begin
+    Log('Preventing load of '+section);
+    update_sz:=PWord(@data[spawn_sz+2])^;
+    file_stream^.pos:=file_stream^.pos+update_sz+spawn_sz+4;
+    if file_stream^.pos > file_stream^.size then file_stream^.pos := file_stream^.size;
+  end;
+end;
+
+procedure CALifeObjectRegistry__get_object_Patch();stdcall;
+asm
+  mov eax, [esp+8]
+  pushad
+  push eax
+  call SkipSavedObjectIfNeeded
+  test al, al
+  popad
+
+  je @object_valid
+  pop eax //ret addr
+  xor eax, eax
+  ret
+
+
+  @object_valid:
+  //original
+  mov eax,$405C;
+end;
+
+procedure CALifeObjectRegistry__load_Patch(); stdcall;
+asm
+  test eax, eax
+  jne @valid_object
+  add esp, 8
+  mov edx, xrgame_addr
+  add edx, $a646e
+  jmp edx
+
+
+  @valid_object:
+  // original
+  mov ecx,[ebp-08]
+  mov [esi],eax
 end;
 
 function Init():boolean;stdcall;
@@ -2168,11 +2261,24 @@ begin
 
   // В ParseFile из xrXMLParser добавляем директиву инклуда файлов из директории 
   jmp_addr:=xrXmlParser_addr+$1935;
-  if not WriteJump(jmp_addr, cardinal(@xrXmlParser_ParseFile_includedir_patch), 7, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@xrXmlParser_ParseFile_includedir_Patch), 7, true) then exit;
 
   // В CGameObject::net_Spawn корректируем позицию при переходе в онлайн
   jmp_addr:=xrgame_addr+$280d1e;
-  if not WriteJump(jmp_addr, cardinal(@CGameObject__net_Spawn_correctbeforeonline_patch), 7, true) then exit;
+  if not WriteJump(jmp_addr, cardinal(@CGameObject__net_Spawn_correctbeforeonline_Patch), 7, true) then exit;
+
+  // В CObject::net_Spawn производим перевычитку визуала из конфига, игнорируя сохраненный - нужно чтобы в случае, когда путь к визуалу поменялся, сейвы использовали новый
+  jmp_addr:=xrEngine_addr+$19d07;
+  if not WriteJump(jmp_addr, cardinal(@CObject__net_Spawn_correctvisual_Patch), 6, true) then exit;
+
+  //В CALifeObjectRegistry::get_object пропускаем объекты, секции которых не существуют
+  jmp_addr:=xrgame_addr+$a5dd0;
+  if not WriteJump(jmp_addr, cardinal(@CALifeObjectRegistry__get_object_Patch), 5, true) then exit;
+
+  //В CALifeObjectRegistry::load пропускаем невалидные объекты
+  jmp_addr:=xrgame_addr+$a642f;
+  if not WriteJump(jmp_addr, cardinal(@CALifeObjectRegistry__load_Patch), 5, true) then exit;
+
 
   result:=true;
 end;

@@ -191,6 +191,7 @@ const
   function game_ini_read_string_def(section:PChar; key:PChar; def:PChar):PChar;stdcall;  
   function game_ini_read_vector3_def(section:PChar; key:PChar; def:pfvector3):FVector3;stdcall;
   function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
+  function game_ini_section_exist(section:PChar):boolean;stdcall;  
   function game_ini_r_single_def(section:PChar; key:PChar; def:single; is_default:pboolean=nil):single;stdcall;
   function game_ini_r_single(section:PChar; key:PChar):single;stdcall;
   function game_ini_r_bool(section:PChar; key:PChar):boolean;stdcall;
@@ -541,6 +542,25 @@ asm
 
     mov eax, xrCore_addr
     add eax, $182D0
+    call eax
+    mov @result, al
+
+    popfd
+    popad
+end;
+
+function game_ini_section_exist(section:PChar):boolean;stdcall;
+asm
+    pushad
+    pushfd
+
+    push section
+
+    call GetGameIni
+    mov ecx, eax
+
+    mov eax, xrCore_addr
+    add eax, $18260
     call eax
     mov @result, al
 
