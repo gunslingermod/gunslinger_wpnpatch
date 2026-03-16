@@ -2006,31 +2006,38 @@ asm
   mov [esi+$A4],dx
 end;
 
-function IsResetVisualNeeded(pcobject:pointer):boolean; stdcall;
+function GetTargetVisualName(visual:PAnsiChar; pgameobject:pointer):PAnsiChar; stdcall;
 var
   sect:PAnsiChar;
 begin
-  if GetCObjectVisual(pcobject) = nil then begin
-    result:=true;
-  end else begin
-    result:=false;
-    sect:=get_string_value(GetCObjectSection(pcobject));
-    if game_ini_r_bool_def(sect, 'force_reset_visual_on_load', false) then begin
-      result:=true;
-    end;
-  end;
+   // TODO: default visual when file not found?
+  result:=visual;
+  sect:=get_string_value(GetCObjectSection(pgameobject));
+  if game_ini_r_bool_def(sect, 'force_reset_visual_on_load', false) then begin
+    result:=game_ini_read_string_def(sect, 'visual', '');
+ end;
+
 end;
 
-procedure CObject__net_Spawn_correctvisual_Patch(); stdcall;
+procedure CGameObject__net_Spawn_correctvisual_Patch(); stdcall;
 asm
+  push ecx
+  mov ecx, esp
   pushad
-  push esi
-  call IsResetVisualNeeded
-  cmp al, 1
-  popad
+  push ecx
 
-  //original
-  mov [esi+$F8],ebp
+  push esi // object
+  push eax // visual name
+  call GetTargetVisualName
+
+  pop ecx
+  mov [ecx], eax
+
+  popad
+  pop eax
+
+  //original 
+  mov [edi],00000000
 end;
 
 function SkipSavedObjectIfNeeded(file_stream:pIReader):boolean;stdcall;
@@ -2267,9 +2274,9 @@ begin
   jmp_addr:=xrgame_addr+$280d1e;
   if not WriteJump(jmp_addr, cardinal(@CGameObject__net_Spawn_correctbeforeonline_Patch), 7, true) then exit;
 
-  // В CObject::net_Spawn производим перевычитку визуала из конфига, игнорируя сохраненный - нужно чтобы в случае, когда путь к визуалу поменялся, сейвы использовали новый
-  jmp_addr:=xrEngine_addr+$19d07;
-  if not WriteJump(jmp_addr, cardinal(@CObject__net_Spawn_correctvisual_Patch), 6, true) then exit;
+  // В CGameObject::net_Spawn производим перевычитку визуала из конфига, игнорируя сохраненный - нужно чтобы в случае, когда путь к визуалу поменялся, сейвы использовали новый
+  jmp_addr:=xrgame_addr+$280b8c;
+  if not WriteJump(jmp_addr, cardinal(@CGameObject__net_Spawn_correctvisual_Patch), 6, true) then exit;
 
   //В CALifeObjectRegistry::get_object пропускаем объекты, секции которых не существуют
   jmp_addr:=xrgame_addr+$a5dd0;
