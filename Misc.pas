@@ -1902,6 +1902,8 @@ asm
   popad
 end;
 
+var
+  last_xml_id:cardinal=0;
 procedure XmlIncludeDir(path:PAnsiChar; W:pointer; F:pIReader; xml:pointer; pstr:PAnsiChar); stdcall;
 var
   dirpath:string_path;
@@ -1910,12 +1912,19 @@ var
   flag:boolean;
   flist:FileList;
   r:pIReader;
+  is_rnd:boolean;
+  is_dir:boolean;
 const
   DIRECTIVE:string='#dir_include';
+  DIRECTIVE_RND:string='#random_include';
 begin
   if (pstr[0] = '#') then begin
     str:=pstr;
-    if (leftstr(str, length(DIRECTIVE))=DIRECTIVE) then begin
+    is_dir:=(leftstr(str, length(DIRECTIVE))=DIRECTIVE);
+    is_rnd:=(leftstr(str, length(DIRECTIVE_RND))=DIRECTIVE_RND);
+
+    if (is_dir or is_rnd) then begin
+      pstr[0]:=chr(0);
       dirname:='';
       flag:=false;
       for i:=1 to length(str) do begin
@@ -1940,10 +1949,37 @@ begin
 
       fs_file_list_open(@flist, dirpath, FS_ListFiles+FS_RootOnly);
       cnt:=fs_file_list_count(@flist);
-      if cnt > 0 then begin
 
+      if is_dir then begin
+        if cnt > 0 then begin
+          for i:=0 to cnt-1 do begin
+            fname:=fs_file_list_get_item(@flist, i);
+            if lowercase(rightstr(fname, 4)) = '.xml' then begin
+              fname:=dirpath+fname;
+              fs_r_open(@r, PAnsiChar(fname));
+              if r <> nil then begin
+                xrXmlParser_ParseFile(path, W, r, xml);
+                fs_r_close(@r);
+              end;
+            end;
+          end;
+        end;
+      end else if is_rnd then begin
+        R_ASSERT(cnt > 0, PAnsiChar('no files in: '+dirname), 'XmlIncludeDir');      
         for i:=0 to cnt-1 do begin
           fname:=fs_file_list_get_item(@flist, i);
+          if lowercase(rightstr(fname, 4)) = '.xml' then break;
+          R_ASSERT(i = cnt-1, PAnsiChar('no XML files in: '+dirname), 'XmlIncludeDir');
+        end;
+        
+        if last_xml_id = 0 then begin
+          last_xml_id:=random(10000);
+        end;
+
+        while (true) do begin
+          i:=last_xml_id+1;
+          last_xml_id:=i;
+          fname:=fs_file_list_get_item(@flist, i mod cnt);
           if lowercase(rightstr(fname, 4)) = '.xml' then begin
             fname:=dirpath+fname;
             fs_r_open(@r, PAnsiChar(fname));
@@ -1951,6 +1987,8 @@ begin
               xrXmlParser_ParseFile(path, W, r, xml);
               fs_r_close(@r);
             end;
+
+            break;
           end;
         end;
         fs_file_list_close(@flist);
