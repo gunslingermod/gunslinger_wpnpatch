@@ -345,6 +345,54 @@ type CUIGameSP = packed record
   m_game_objective:pointer; {SDrawStaticStruct*}
 end;
 
+SScriptTaskHelper = packed record
+  vtbl1:pointer;
+  vtbl2:pointer;
+  m_s_complete_lua_functions:xr_vector;
+  m_s_fail_lua_functions:xr_vector;
+  m_s_lua_functions_on_complete:xr_vector;
+  m_s_lua_functions_on_fail:xr_vector;
+end;
+
+CGameTask = packed record
+  m_task_state:cardinal;
+  m_task_type:cardinal;
+  m_pScriptHelper:SScriptTaskHelper;
+
+  //offset: 0x40
+  m_icon_texture_name:shared_str;
+  m_map_hint:shared_str;
+  m_map_location:shared_str;
+  m_map_object_id:word;
+  _unused1:word;
+  m_completeInfos:xr_vector;
+  m_failInfos:xr_vector;
+  m_infos_on_complete:xr_vector;
+  m_infos_on_fail:xr_vector;
+
+  m_fail_lua_functions:xr_vector;
+  m_complete_lua_functions:xr_vector;
+  m_lua_functions_on_complete:xr_vector;
+  m_lua_functions_on_fail:xr_vector;
+
+  //offset: 0xb0
+  m_linked_map_location:pCMapLocation;
+  m_ID:shared_str;
+  m_Title:shared_str;
+  m_Description:shared_str;
+  
+  m_ReceiveTime:int64;
+  m_FinishTime:int64;
+  m_TimeToComplete:int64;
+  m_timer_finish:int64;
+
+  //offset:0xe0
+  m_priority:cardinal;
+  m_read:byte;
+  _unused2:byte;
+  _unused3:word;  
+end;
+pCGameTask = ^CGameTask;
 
 function GetUICursor():pCUICursor; stdcall;
 
@@ -3792,6 +3840,47 @@ asm
   call CUIXml_destruct
 end;
 
+var
+  map_pointer_update_counter:integer;
+  map_pointer_last_task:PAnsiChar;
+  map_pointer_last_status:boolean;
+
+procedure SetTaskPointerStatus(task:pCGameTask); stdcall;
+var
+  pointer_status:boolean;
+  location:pCMapLocation;
+begin
+  map_pointer_update_counter:=map_pointer_update_counter+1;
+  if (map_pointer_update_counter mod 10)=0 then begin
+    map_pointer_update_counter := 0;
+  end;
+
+  location:=task^.m_linked_map_location;
+  if location<>nil then begin
+    if (map_pointer_update_counter = 0) and (get_string_value(@task^.m_ID) <> map_pointer_last_task) then begin
+      pointer_status:=not game_ini_r_bool_def('tasks_without_minimap_arrow', get_string_value(@task^.m_ID), false);
+      map_pointer_last_status:=pointer_status;
+      map_pointer_last_task:=get_string_value(@task^.m_ID);
+    end else begin
+      pointer_status:=map_pointer_last_status;
+    end;
+
+    if pointer_status then begin
+      location.m_flags:=location.m_flags or $10; //ePointerEnabled
+    end else begin
+      location.m_flags:=location.m_flags and $FFFFFFEF;
+    end;
+  end;
+end;
+
+procedure CGameTaskManager__UpdateTasks_checkpointers_Patch(); stdcall;
+asm
+  pushad
+  push eax
+  call SetTaskPointerStatus
+  popad
+end;
+
 function Init():boolean;stdcall;
 var
   jmp_addr:cardinal;
@@ -4053,6 +4142,10 @@ begin
   jmp_addr:=xrGame_addr+$43f0b3;
   if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__Init_addupschemes_Patch), 5, true) then exit;
 
+  //¬ CGameTaskManager::UpdateTasks исправл€ем баг - даже когда проводника в ѕрип€ть еще нет, стрелка на миникарте все равно указывает н€ янов
+  jmp_addr:=xrGame_addr+$29b541;
+  if not WriteJump(jmp_addr, cardinal(@CGameTaskManager__UpdateTasks_checkpointers_Patch), $20, true) then exit;
+
 
   // CUIWpnParams::SetInfo - xrgame.dll+4535b0
   // UIUpgrade::set_texture - xrgame.dll+440470
@@ -4102,12 +4195,16 @@ begin
 
   //CUICustomMap::Initialize - xrgame.dll+447210
 
+  //CMapLocation::UpdateSpotPointer - xrgame.dll+2a2840
+
   //CUIInventoryUpgradeWnd::InitInventory - xrgame.dll+43f6b0
   //CUIRankingWnd::get_favorite_weapon - xrgame.dll+44bfc0
 
   //InventoryUtilities::GetEquipmentIconsShader - xrgame.dll+465600
   //InventoryUtilities::GetWeaponUpgradeIconsShader - xrgame.dll+4656c0
   //InventoryUtilities::DestroyShaders - xrgame.dll+465970
+
+  // CGameTaskManager::UpdateTasks - xrgame.dll+29b3f0
 
   result:=true;
 end;
