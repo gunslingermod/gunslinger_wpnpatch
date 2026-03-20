@@ -551,6 +551,10 @@ begin
         scope_sect:=game_ini_read_string(GetCurrentScopeSection(wpn), 'scope_name');
       end;
       buf.LoadNightBrightnessParamsFromSection(scope_sect);
+
+      UpdateBonesVisibility(wpn);
+      SetAnimForceReassignStatus(wpn, true);
+      ReassignWorldAnims(wpn);
     end;
   end;
   SetAnimForceReassignStatus(wpn, true);
@@ -2965,7 +2969,7 @@ begin
   if not WriteJump(jmp_addr, cardinal(@UnloadMag_Patch), 5, true) then exit;
   //-----------------------------------------------------------------------------------------------------
 
-  //спавн и дестрой
+  //спавн и дестрой (CWeapon::net_Spawn и CWeapon::net_Destroy)
   jmp_addr:=xrGame_addr+$2C120B;
   if not WriteJump(jmp_addr, cardinal(@CWeapon_NetSpawn_Patch_middle),6, true) then exit;
 

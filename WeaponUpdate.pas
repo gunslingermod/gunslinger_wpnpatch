@@ -7,6 +7,8 @@ procedure ReassignWorldAnims(wpn:pointer); stdcall;
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 procedure ProcessAmmo(wpn: pointer; forced:boolean=false);
 
+procedure UpdateBonesVisibility(wpn:pointer); stdcall;
+
 implementation
 uses Messenger, BaseGameData, MatVectors, Misc, HudItemUtils, LightUtils, sysutils, WeaponAdditionalBuffer, WeaponEvents, ActorUtils, strutils, math, gunsl_config, ConsoleUtils, xr_BoneUtils, ActorDOF, dynamic_caster, RayPick, xr_ScriptParticles, xr_Cartridge, ControllerMonster, UIUtils, xr_RocketLauncher, KeyUtils;
 
@@ -783,6 +785,61 @@ begin
   end;
 end;
 
+procedure UpdateBonesVisibility(wpn:pointer); stdcall;
+var
+  upgrade_results:UpgradeProcessResults;
+  cur_hud_sect, new_hud_sect:PAnsiChar;
+  sect:PChar;
+  buf:WpnBuf;
+begin
+  //Обработаем установленные апгрейды
+  sect:=GetSection(wpn);
+  buf:=WeaponAdditionalBuffer.GetBuffer(wpn);
+  upgrade_results:=ProcessUpgrade(wpn);
+  if (GetInstalledUpgradesCount(wpn)>0) and (not upgrade_results.hud_overriden) then begin
+    cur_hud_sect:=GetHUDSection(wpn);
+    new_hud_sect:=cur_hud_sect;
+
+    if IsSilencerAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_silencer_is_attached', false) then begin
+      if buf<>nil then begin
+        new_hud_sect:=buf.GetDefaultHudSectionSil();
+      end else begin
+        new_hud_sect:=game_ini_read_string(sect, 'hud_silencer');
+      end;
+    end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_gl_is_attached', false) then begin
+      if buf<>nil then begin
+        new_hud_sect:=buf.GetDefaultHudSectionGL();
+      end else begin
+        new_hud_sect:=game_ini_read_string(sect, 'hud_gl');
+      end;
+    end else if IsScopeAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_scope_is_attached', false) then begin
+      if buf<>nil then begin
+        new_hud_sect:=buf.GetDefaultHudSectionScope();
+      end else begin
+        new_hud_sect:=game_ini_read_string(sect, 'hud_scope');
+      end;
+    end else begin
+      if buf<>nil then begin
+        new_hud_sect:=buf.GetDefaultHudSection();
+      end else begin
+        new_hud_sect:=game_ini_read_string(sect, 'hud');
+      end;
+    end;
+
+    if cur_hud_sect <> new_hud_sect then begin
+      SetHUDSection(wpn, new_hud_sect);
+    end;
+  end;
+
+  //Теперь отобразим установленный прицел
+  ProcessScope(wpn);
+  //Разберемся с визуализацией патронов
+  ProcessAmmo(wpn);
+  ProcessAmmoGL(wpn);
+  //Визуализация режима огня
+  ProcessFiremode(wpn);
+end;
+
 procedure CWeapon__ModUpdate(wpn:pointer); stdcall;
 var
   buf:WpnBuf;
@@ -804,9 +861,6 @@ var
   so:pointer;
   need_bones_recheck:boolean;
   k:single;
-
-  upgrade_results:UpgradeProcessResults;
-  cur_hud_sect, new_hud_sect:PAnsiChar;
 
   cb:TAnimationEffector;
 const
@@ -949,50 +1003,7 @@ begin
       need_bones_recheck:=NeedUpdateBonesCheck(wpn);
 
       if need_bones_recheck or ((GetOwner(wpn)=GetActor()) and (GetActor()<>nil) and (GetCurrentFrame() mod 10 = 0) ) then begin
-        //Обработаем установленные апгрейды
-        upgrade_results:=ProcessUpgrade(wpn);
-        if (GetInstalledUpgradesCount(wpn)>0) and (not upgrade_results.hud_overriden) then begin
-          cur_hud_sect:=GetHUDSection(wpn);
-          new_hud_sect:=cur_hud_sect;
-
-          if IsSilencerAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_silencer_is_attached', false) then begin
-            if buf<>nil then begin
-              new_hud_sect:=buf.GetDefaultHudSectionSil();
-            end else begin
-              new_hud_sect:=game_ini_read_string(sect, 'hud_silencer');
-            end;
-          end else if (GetGLStatus(wpn) = 2) and IsGLAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_gl_is_attached', false) then begin
-            if buf<>nil then begin
-              new_hud_sect:=buf.GetDefaultHudSectionGL();
-            end else begin
-              new_hud_sect:=game_ini_read_string(sect, 'hud_gl');
-            end;
-          end else if IsScopeAttached(wpn) and game_ini_r_bool_def(sect, 'hud_when_scope_is_attached', false) then begin
-            if buf<>nil then begin
-              new_hud_sect:=buf.GetDefaultHudSectionScope();
-            end else begin
-              new_hud_sect:=game_ini_read_string(sect, 'hud_scope');
-            end;
-          end else begin
-            if buf<>nil then begin
-              new_hud_sect:=buf.GetDefaultHudSection();
-            end else begin
-              new_hud_sect:=game_ini_read_string(sect, 'hud');
-            end;
-          end;
-
-          if cur_hud_sect <> new_hud_sect then begin
-            SetHUDSection(wpn, new_hud_sect);
-          end;
-        end;
-
-        //Теперь отобразим установленный прицел
-        ProcessScope(wpn);
-        //Разберемся с визуализацией патронов
-        ProcessAmmo(wpn);
-        ProcessAmmoGL(wpn);
-        //Визуализация режима огня
-        ProcessFiremode(wpn);
+        UpdateBonesVisibility(wpn);
       end;
       //анимы от 3-го лица
       ReassignWorldAnims(wpn);
