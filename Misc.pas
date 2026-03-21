@@ -232,8 +232,6 @@ procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem;
 
 function IsAppLoaded():boolean; stdcall;
 
-function GetSystemIni():pCIniFile;stdcall;
-
 implementation
 uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors, Messenger,fs,strutils;
 var
@@ -2156,123 +2154,6 @@ asm
   mov [esi],eax
 end;
 
-procedure CIniFile__Load(ini:pCIniFile; r:pIReader; path:PAnsiChar; p1:pointer; p2:pointer); stdcall;
-asm
-  pushad
-  mov ecx, ini
-  push p2
-  push p1
-  push path
-  push r
-  mov eax, xrcore_addr
-  add eax, $171f0
-  call eax
-  popad
-end;
-
-procedure IncludeConfigMods(ini:pCIniFile; path:PAnsiChar; p1:pointer; p2:pointer); stdcall;
-var
-  orig_filename, dirname, fname:string;
-  i, cnt:integer;
-  flist:FileList;
-  r:pIReader;
-  disable_asserts:boolean;
-begin
-  if (length(path) = 0) then exit;
-  orig_filename:=ini.m_file_path;
-  if length(orig_filename)=0 then exit;
-
-  dirname:=orig_filename+'.mods\';
-  fs_file_list_open(@flist, PAnsiChar(dirname), FS_ListFiles+FS_RootOnly);
-  cnt:=fs_file_list_count(@flist);
-
-  if cnt > 0 then begin
-    for i:=0 to cnt-1 do begin
-      fname:=fs_file_list_get_item(@flist, i);
-      if lowercase(rightstr(fname, 4)) = '.ltx' then begin
-        fname:=dirname+fname;
-        Log('Processing mod config: '+fname);
-
-        fs_r_open(@r, PAnsiChar(fname));
-        if r <> nil then begin
-          disable_asserts:= pansichar(xrCore_addr+$175c2)^ = chr($74);
-          if disable_asserts then begin
-            //Disable 'Duplicate section' asserts in CInifile::Load
-            if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
-            if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
-          end;
-
-          //Reset file path to prevent stack overflow due to recursive calls
-          ini.m_file_path[0]:=chr(0);
-          CIniFile__Load(ini, r, PAnsiChar(dirname), p1, p2);
-
-          //Restore file path
-          StrCopy(ini.m_file_path, PAnsiChar(orig_filename));
-
-          if disable_asserts then begin
-            //Enable disabled asserts
-            if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
-            if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
-          end;
-
-          fs_r_close(@r);
-        end;
-      end;
-    end;
-  end;
-end;
-
-function GetSystemIni():pCIniFile;stdcall;
-begin
-asm
-  mov eax, xrgame_addr
-  mov eax, [eax+$5127E8]
-  mov eax, [eax]
-  mov @result, eax
-end;
-end;
-
-function ApplySystemLtxMods():boolean; stdcall;
-var
-  path:string_path;
-begin
-  fs_update_path(path, '$game_config$', 'system.ltx');
-
-  //Disable 'Duplicate section' asserts in CInifile::Load
-  if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
-  if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
-
-  //Update the config
-  IncludeConfigMods(GetSystemIni(), path, nil, nil);
-
-  //Enable disabled asserts
-  if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
-  if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
-  result:=true;
-end;
-
-procedure CInifile__Load_dirinclude_Patch(); stdcall;
-asm
-  lea eax,[esp+$254]
-  mov ecx, [esp+$20] // CIniFile* this
-  pushad
-    push [ebp+$10]
-    push eax //str
-    push [ebp+$c] // path
-    push ecx
-    call IncludeConfigMods
-  popad
-
-
-  //original - return from method
-  pop edi
-  pop esi
-  pop ebx
-  mov esp, ebp
-  pop ebp
-  ret $10
-end;
-
 function Init():boolean;stdcall;
 var
   jmp_addr, jmp_addr_to:cardinal;
@@ -2452,16 +2333,6 @@ begin
   //В CALifeObjectRegistry::load пропускаем невалидные объекты
   jmp_addr:=xrgame_addr+$a642f;
   if not WriteJump(jmp_addr, cardinal(@CALifeObjectRegistry__load_Patch), 5, true) then exit;
-
-  //В CInifile::Load добавляем автодобавление конфиговых файлов из директории
-  jmp_addr:=xrCore_addr+$17ed9;
-  if not WriteJump(jmp_addr, cardinal(@CInifile__Load_dirinclude_Patch), 9, false) then exit;
-  jmp_addr:=xrCore_addr+$17ebf;
-  if not WriteJump(jmp_addr, cardinal(@CInifile__Load_dirinclude_Patch), 9, false) then exit;
-
-
-  //так как system.ltx читается раньше подгрузки нашей либы, принудительно загружаем конфиговые моды для него
-  if not ApplySystemLtxMods() then exit;
 
   result:=true;
 end;
