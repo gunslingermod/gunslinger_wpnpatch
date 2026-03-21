@@ -913,61 +913,6 @@ asm
   popad
 end;
 
-function IterateInjectionsFiles():boolean;
-var
-  path:string_path;
-  fname:string;
-  flist:FileList;
-  i, cnt:cardinal;
-
-  r:pIReader;
-begin
-  result:=false; 
-
-  fs_update_path(path, '$game_config$', 'injections\system\');
-  fs_file_list_open(@flist, path, FS_ListFiles+FS_RootOnly);
-
-  cnt:=fs_file_list_count(@flist);
-
-  log('Config injections count = '+inttostr(cnt));
-
-  if cnt > 0 then begin
-    for i:=0 to cnt-1 do begin
-      fname:=fs_file_list_get_item(@flist, i);
-      log('Injecting config file '+fname);
-      fname:=path+fname;
-
-      fs_r_open(@r, PAnsiChar(fname));
-      if r <> nil then begin
-        InjectReaderToSystemIni(r, path);
-        fs_r_close(@r);
-      end;
-    end;
-  end;
-
-  fs_file_list_close(@flist);
-
-  result:=true;
-end;
-
-function EnableConfigsInjections():boolean;
-begin
-  result:=false;
-
-  //1. Let's disable 'Duplicate section' asserts in CInifile::Load
-  if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
-  if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
-
-  //2. Iterate all injections configs
-  if not IterateInjectionsFiles() then exit;
-
-  //3. Enable disabled asserts
-  if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
-  if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
-
-  result:=true;
-end;
-
 function FixConsoleCommandsValues():boolean;
 var
   i, cnt:integer;
@@ -1040,10 +985,10 @@ begin
 end;
 
 function Init:boolean;
+var
+  addr:cardinal;
 begin
   result:=false;
-  
-  if not EnableConfigsInjections() then exit;
 
   _console_bool_flags:=0;
   _console_bool_flags:=_console_bool_flags or _mask_alterzoomclickswitch;
