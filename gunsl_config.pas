@@ -344,7 +344,7 @@ var
   g_pickup_distance:single;
 
 implementation
-uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils, xr_strings, fs;
+uses BaseGameData, sysutils, ConsoleUtils, ActorUtils, DetectorUtils, math, uiutils, xr_strings, fs, misc;
 
 var
   std_inertion:weapon_inertion_params;
@@ -519,16 +519,6 @@ const
   _mask_alterzoomclickswitch:cardinal=$800;
 
 //--------------------------------------------------Общие вещи---------------------------------------------------
-function GetGameIni():pointer;stdcall;
-begin
-asm
-  mov eax, xrgame_addr
-  mov eax, [eax+$5127E8]
-  mov eax, [eax]
-  mov @result, eax
-end;
-end;
-
 function game_ini_line_exist(section:PChar; key:PChar):boolean;stdcall;
 asm
     pushad
@@ -537,7 +527,7 @@ asm
     push key
     push section
 
-    call GetGameIni
+    call GetSystemIni
     mov ecx, eax
 
     mov eax, xrCore_addr
@@ -556,7 +546,7 @@ asm
 
     push section
 
-    call GetGameIni
+    call GetSystemIni
     mov ecx, eax
 
     mov eax, xrCore_addr
@@ -575,7 +565,7 @@ asm
 
     push key
     push section
-    call GetGameIni
+    call GetSystemIni
     mov ecx, eax
 
     mov eax, xrCore_addr
@@ -605,7 +595,7 @@ asm
     push key
     push section
 
-    call GetGameIni
+    call GetSystemIni
     mov ecx, eax
 
     mov eax, xrCore_addr
@@ -642,7 +632,7 @@ asm
 
     push key
     push section
-    call GetGameIni
+    call GetSystemIni
     mov ecx, eax
 
     mov eax, xrCore_addr
@@ -723,7 +713,7 @@ asm
     push idx
     push section
 
-    call GetGameIni
+    call GetSystemIni
     mov ecx, eax
 
     mov eax, xrCore_addr

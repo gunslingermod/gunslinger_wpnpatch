@@ -232,6 +232,8 @@ procedure CSE_ALifeInventoryItem__clone_upgrades(itm_to:pCSE_ALifeInventoryItem;
 
 function IsAppLoaded():boolean; stdcall;
 
+function GetSystemIni():pCIniFile;stdcall;
+
 implementation
 uses ActorUtils, gunsl_config, Math, HudItemUtils, dynamic_caster, sysutils, raypick, level, LensDoubleRender, throwable, ScriptFunctors, Messenger,fs,strutils;
 var
@@ -2168,18 +2170,19 @@ asm
   popad
 end;
 
-procedure IncludeConfigMods(ini:pCIniFile; path:PAnsiChar; pstr:PAnsiChar; p1:pointer; p2:pointer); stdcall;
+procedure IncludeConfigMods(ini:pCIniFile; path:PAnsiChar; p1:pointer; p2:pointer); stdcall;
 var
-  orig_dirname, dirname, fname:string;
+  orig_filename, dirname, fname:string;
   i, cnt:integer;
   flist:FileList;
   r:pIReader;
+  disable_asserts:boolean;
 begin
   if (length(path) = 0) then exit;
-  orig_dirname:=ini.m_file_path;
-  if length(orig_dirname)=0 then exit;
+  orig_filename:=ini.m_file_path;
+  if length(orig_filename)=0 then exit;
 
-  dirname:=orig_dirname+'.mods\';
+  dirname:=orig_filename+'.mods\';
   fs_file_list_open(@flist, PAnsiChar(dirname), FS_ListFiles+FS_RootOnly);
   cnt:=fs_file_list_count(@flist);
 
@@ -2192,20 +2195,25 @@ begin
 
         fs_r_open(@r, PAnsiChar(fname));
         if r <> nil then begin
-          //Disable 'Duplicate section' asserts in CInifile::Load
-          if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
-          if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
+          disable_asserts:= pansichar(xrCore_addr+$175c2)^ = chr($74);
+          if disable_asserts then begin
+            //Disable 'Duplicate section' asserts in CInifile::Load
+            if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
+            if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
+          end;
 
           //Reset file path to prevent stack overflow due to recursive calls
           ini.m_file_path[0]:=chr(0);
           CIniFile__Load(ini, r, PAnsiChar(dirname), p1, p2);
 
           //Restore file path
-          StrCopy(ini.m_file_path, PAnsiChar(orig_dirname));
+          StrCopy(ini.m_file_path, PAnsiChar(orig_filename));
 
-          //Enable disabled asserts
-          if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
-          if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
+          if disable_asserts then begin
+            //Enable disabled asserts
+            if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
+            if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
+          end;
 
           fs_r_close(@r);
         end;
@@ -2214,12 +2222,40 @@ begin
   end;
 end;
 
+function GetSystemIni():pCIniFile;stdcall;
+begin
+asm
+  mov eax, xrgame_addr
+  mov eax, [eax+$5127E8]
+  mov eax, [eax]
+  mov @result, eax
+end;
+end;
+
+function ApplySystemLtxMods():boolean; stdcall;
+var
+  path:string_path;
+begin
+  fs_update_path(path, '$game_config$', 'system.ltx');
+
+  //Disable 'Duplicate section' asserts in CInifile::Load
+  if not nop_code(xrCore_addr+$175c2, 1, chr($eb)) then exit;
+  if not nop_code(xrCore_addr+$17e5f, 1, chr($eb)) then exit;
+
+  //Update the config
+  IncludeConfigMods(GetSystemIni(), path, nil, nil);
+
+  //Enable disabled asserts
+  if not nop_code(xrCore_addr+$175c2, 1, chr($74)) then exit;
+  if not nop_code(xrCore_addr+$17e5f, 1, chr($74)) then exit;
+  result:=true;
+end;
+
 procedure CInifile__Load_dirinclude_Patch(); stdcall;
 asm
   lea eax,[esp+$254]
   mov ecx, [esp+$20] // CIniFile* this
   pushad
-    push [ebp+$14]
     push [ebp+$10]
     push eax //str
     push [ebp+$c] // path
@@ -2422,6 +2458,10 @@ begin
   if not WriteJump(jmp_addr, cardinal(@CInifile__Load_dirinclude_Patch), 9, false) then exit;
   jmp_addr:=xrCore_addr+$17ebf;
   if not WriteJump(jmp_addr, cardinal(@CInifile__Load_dirinclude_Patch), 9, false) then exit;
+
+
+  //так как system.ltx читается раньше подгрузки нашей либы, принудительно загружаем конфиговые моды для него
+  if not ApplySystemLtxMods() then exit;
 
   result:=true;
 end;
