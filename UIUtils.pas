@@ -2540,6 +2540,77 @@ begin
   end;
 end;
 
+function CUIWpnParams__SetInfo_getshader(ammo_sections:pxr_vector; idx:integer):pointer; stdcall;
+var
+  s:pshared_str;
+begin
+  if items_count_in_vector(ammo_sections, sizeof(shared_str)) > idx then begin
+    s:=get_item_from_vector(ammo_sections, idx, sizeof(shared_str));
+    result:=GetEquipmentIconShader(get_string_value(s));
+  end else begin
+    result:=GetEquipmentIconsShader();
+  end;
+end;
+
+procedure CUIHudStatesWnd__SetAmmoIcon_updateiconsshader_Patch(); stdcall;
+asm
+  mov ecx,[esi+$98] // original, m_ui_weapon_icon
+  pushad
+    push ecx
+
+    push edi //psharedstr sect_name
+    call get_string_value
+    push eax
+    call GetEquipmentIconShader
+
+    pop ecx
+    push eax
+    mov edx, xrgame_addr        
+    add edx, $47ace0
+    call edx                      //SetShader
+  popad
+end;
+
+procedure CUIWpnParams__SetInfo_getshader0_Patch(); stdcall;
+asm
+  lea eax, [esp+$44] // ammo_types
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+
+  push 0
+  push [eax]
+  call CUIWpnParams__SetInfo_getshader
+
+  pop ebx
+  mov [ebx], eax
+  popad
+
+  pop eax
+end;
+
+procedure CUIWpnParams__SetInfo_getshader1_Patch(); stdcall;
+asm
+  lea eax, [esp+$44] // ammo_types
+  push eax
+  mov eax, esp
+
+  pushad
+  push eax
+
+  push 1
+  push [eax]
+  call CUIWpnParams__SetInfo_getshader
+
+  pop ebx
+  mov [ebx], eax
+  popad
+
+  pop eax
+end;
+
 function GetEquipmentIconShaderForWeaponCell(cell:pCUIWeaponCellItem; addontype:integer):pointer; stdcall;
 var
   section:PAnsiChar;
@@ -4130,6 +4201,16 @@ begin
   jmp_addr:=xrGame_addr+$49d77e;
   if not WriteJump(jmp_addr, cardinal(@CUIWeaponCellItem__CreateIcon_modifyshader_Patch), 5, true) then exit;
 
+  // В CUIWpnParams::SetInfo заменяем вызовы InventoryUtilities::GetEquipmentIconsShader() на наши, учитывающие новые текстуры
+  jmp_addr:=xrGame_addr+$453e41;
+  if not WriteJump(jmp_addr, cardinal(@CUIWpnParams__SetInfo_getshader0_Patch), 5, true) then exit;
+  jmp_addr:=xrGame_addr+$453fe9;
+  if not WriteJump(jmp_addr, cardinal(@CUIWpnParams__SetInfo_getshader1_Patch), 5, true) then exit;
+
+  // В CUIHudStatesWnd::SetAmmoIcon меняем шейдер, хранящийся в m_ui_weapon_icon
+  jmp_addr:=xrGame_addr+$457751;
+  if not WriteJump(jmp_addr, cardinal(@CUIHudStatesWnd__SetAmmoIcon_updateiconsshader_Patch), 6, true) then exit;
+
   //в CUIInventoryUpgradeWnd::InitInventory добавляем возможность задания картинки для окна апгрейда из конфига
   jmp_addr:=xrGame_addr+$43f743;
   if not WriteJump(jmp_addr, cardinal(@CUIInventoryUpgradeWnd__InitInventory_upgradesiconshader_Patch), 5, true) then exit;
@@ -4205,6 +4286,7 @@ begin
   //InventoryUtilities::DestroyShaders - xrgame.dll+465970
 
   // CGameTaskManager::UpdateTasks - xrgame.dll+29b3f0
+  // CUIHudStatesWnd::SetAmmoIcon - xrgame.dll+457720
 
   result:=true;
 end;
