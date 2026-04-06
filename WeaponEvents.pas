@@ -2907,6 +2907,40 @@ asm
   add dword ptr [esi+$6CC],-$3C  
 end;
 
+function CWeapon__install_upgrade_impl_additional(wpn:pointer; section:PAnsiChar; test:boolean):boolean; stdcall;
+var
+  tri_state_reload_val:boolean;
+begin
+  result:=false;
+  if game_ini_line_exist(section, 'tri_state_reload') then begin
+    if not test then begin
+      tri_state_reload_val:=game_ini_r_bool(section, 'tri_state_reload');
+      SetTriStateReload(wpn, tri_state_reload_val);
+    end;
+    result:=true;
+  end;
+end;
+
+procedure CWeapon__install_upgrade_impl_Patch(); stdcall;
+asm
+  // original
+  mov edx,[eax+$1CC]
+
+  pushad
+  push edi
+  push ebp
+  push esi
+  call CWeapon__install_upgrade_impl_additional
+  test al, al
+  popad
+
+  je @finish
+  or bl, 1
+  @finish:
+
+
+end;
+
 function Init:boolean;
 var
   jmp_addr:cardinal;
@@ -3204,6 +3238,11 @@ begin
   jmp_addr:=xrGame_addr+$2FEC28;
   if not WriteJump(jmp_addr, cardinal(@attachable_hud_item__anim_play_cameff_patch), 8, true) then exit;
 
+  //В CWeapon::install_upgrade_impl добавляем обработку новых модификаторов
+  jmp_addr:=xrGame_addr+$2c3fc9;
+  if not WriteJump(jmp_addr, cardinal(@CWeapon__install_upgrade_impl_Patch), 6, true) then exit;
+
+
   result:=true;
 
   //Потенциальная проблема - при дропе оружия из CInventory::Activate вызывается SendDeactivateItem, который дергает SendHiddenItem (xrGame.dll+2dc9f0), отправляющий GE_WPN_STATE_CHANGE с eHiding
@@ -3227,6 +3266,7 @@ begin
   //CAI_Stalker::react_on_member_death - xrgame.dll+192430
   //CStalkerDangerPlanner::update - xrgame.dll+xrgame.dll+1785b0
   //CRocketLauncher::Load - xrgame.dll+2cc620
+  //CWeapon::install_upgrade_impl - xrgame.dll+2c3fb0
 ////////////////////////////////////////////////////////////////////////////////////
 
 

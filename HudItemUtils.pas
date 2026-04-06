@@ -71,6 +71,7 @@ procedure SetAimFactor(wpn:pointer; f:single); stdcall;
 function IsZoomHideCrosshair(wpn:pointer):boolean; stdcall;
 
 function IsTriStateReload(wpn:pointer):boolean; stdcall;
+procedure SetTriStateReload(wpn:pointer; val:boolean); stdcall;
 
 function GetCurrentState(wpn:pointer):integer; stdcall;
 procedure CHudItem_Play_Snd(itm:pointer; alias:PChar); stdcall;
@@ -507,7 +508,7 @@ asm
     mov ecx, wpn
     mov al, [ecx+$496]
     mov @result, al
-    
+
     @finish:
   popad
 end;
@@ -538,10 +539,41 @@ asm
     mov ecx, wpn
     mov al, [ecx+$458]
     mov @result, al
-    
+
     @finish:
   popad
 end;
+
+procedure SetTriStateReload(wpn:pointer; val:boolean); stdcall;
+asm
+  pushad
+    push 0
+    push RTTI_CWeapon
+    push RTTI_CWeaponShotgun
+    push 0
+    push wpn
+    call dynamic_cast
+    cmp eax, 0
+    jne @setval
+
+    push 0
+    push RTTI_CWeapon
+    push RTTI_CWeaponAutomaticShotgun
+    push 0
+    push wpn
+    call dynamic_cast
+    cmp eax, 0
+    je @finish
+
+    @setval:
+    mov ecx, wpn
+    mov al, val
+    mov [ecx+$458], al
+
+    @finish:
+  popad
+end;
+
 
 function GetOwner(wpn:pointer):pointer; stdcall;
 asm
