@@ -342,6 +342,28 @@ begin
   result:=base_anim;
 end;
 
+function ModifierAmmoCount(wpn:pointer; base_anim:string):string; stdcall;
+var
+  buf:WpnBuf;
+  tmpstr:string;
+  cnt:integer;
+begin
+  result:=base_anim;
+  
+  buf:=GetBuffer(wpn);
+  if buf <> nil then begin
+    if (buf.IsCustomReloadsForEachCartridge()) then begin
+      cnt:=GetCurrentAmmoCount(wpn);
+      if cnt > 0 then begin //для случая с 0 патронов и так отыграется empty
+        tmpstr:=result+'_'+inttostr(cnt);
+        if game_ini_line_exist(GetHUDSection(wpn), PAnsiChar(tmpstr)) then begin
+          result:=tmpstr;
+        end;
+      end
+    end;
+  end;
+end;
+
 function anm_std_selector(wpn:pointer; base_anim:PChar; allow_noscope_prefix:boolean):pchar;stdcall;
 var
   v:FVector3;
@@ -668,20 +690,25 @@ var
   hud_sect:PChar;
   v:FVector3;
   preload:boolean;
+  cnt:integer;
+  tmpstr:string;
 begin
   preload:=false;
   anim_name := ModifierStd(wpn, 'anm_add_cartridge');
 
   buf:=GetBuffer(wpn);
   if buf <> nil then begin
+    hud_sect:=GetHUDSection(wpn);
+
     if (buf.IsPreloadMode()) and (buf.IsPreloaded()) then begin
       preload:=true;
       anim_name:=anim_name+'_preloaded';
       buf.SetPreloadedStatus(false);
     end;
 
+    anim_name:=ModifierAmmoCount(wpn, anim_name);
+
     buf.SetReloaded(false);
-    hud_sect:=GetHUDSection(wpn);
     if game_ini_line_exist(hud_sect, PChar('lock_time_start_'+anim_name)) then begin
       MakeLockByConfigParam(wpn, hud_sect, PChar('lock_time_start_'+anim_name), false, OnAddCartridge);
     end else begin
@@ -1031,7 +1058,11 @@ begin
     ModifierGL(wpn, anim_name);
   end;
 
-  ModifierBM16(wpn, anim_name);
+  if buf.IsCustomReloadsForEachCartridge() then begin
+    anim_name:=ModifierAmmoCount(wpn, anim_name);
+  end else begin
+    ModifierBM16(wpn, anim_name);
+  end;
 
   StartCompanionAnimIfNeeded(rightstr(anim_name, length(anim_name)-4), wpn, false);
 

@@ -143,6 +143,7 @@ type
     _shells_offset:FVector3;
     _preloaded:boolean;
     _is_preload_mode:boolean;
+    _is_custom_reloads_for_each_cartridge:boolean;
 
     _need_permanent_lensrender:boolean;
 
@@ -271,6 +272,7 @@ type
     function GetShellsOffset:FVector3;
 
     function IsPreloadMode():boolean;
+    function IsCustomReloadsForEachCartridge():boolean;
     function IsPreloaded():boolean;
     procedure SetPreloadedStatus(status:boolean);
 
@@ -413,6 +415,7 @@ begin
   _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
   self._preloaded:=false;
   self._is_preload_mode:=game_ini_r_bool_def(GetHUDSection(wpn), 'empty_preload_mode', true);
+  self._is_custom_reloads_for_each_cartridge:=game_ini_r_bool_def(GetHUDSection(wpn), 'custom_reloads_for_each_cartridge', false);
 
   _actor_camera_speed:=game_ini_r_single_def(GetSection(wpn), 'actor_camera_speed_factor', 1.0)*GetCamSpeedDef();
   _is_alter_zoom_now:=false;
@@ -1576,6 +1579,11 @@ end;
 function WpnBuf.IsPreloadMode(): boolean;
 begin
   result:=self._is_preload_mode;
+end;
+
+function WpnBuf.IsCustomReloadsForEachCartridge():boolean;
+begin
+  result:=self._is_custom_reloads_for_each_cartridge;
 end;
 
 procedure WpnBuf.SetPreloadedStatus(status: boolean);
