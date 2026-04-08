@@ -5,7 +5,7 @@ interface
 function Init():boolean; stdcall;
 
 implementation
-uses BaseGameData, gunsl_config, misc, sysutils;
+uses BaseGameData, gunsl_config, misc, sysutils, scriptfunctors;
 
 const
   GUNS_SAVE_VER:cardinal = 1;
@@ -252,6 +252,58 @@ asm
   popad
 end;
 
+function CanSaveGameNow(need_log:boolean):boolean; stdcall;
+begin
+  result:=script_bool_call('gunsl_savegame.can_save_game_now', '', 0, '');
+  if need_log and not result then begin
+    Log('game saving is prohibited now');
+  end;
+end;
+
+procedure CCC_ALifeSave__Execute_checkpossibility_patch(); stdcall;
+asm
+  pushad
+  push 1
+  call CanSaveGameNow
+  test al, al
+  popad
+
+  jne @allowed
+  // return from parent
+  pop eax
+  mov esp,ebp
+  pop ebp
+  ret 4
+
+
+  @allowed:
+  // original
+  mov eax,$4460
+end;
+
+procedure CUIMMShniaga__InitShniaga_nosavegame_Patch(); stdcall
+const
+  NOSAVE_STR:PAnsiChar='menu_main_single_nosave';
+  WITHSAVE_STR:PAnsiChar='menu_main_single';
+asm
+  pop eax //ret addr
+
+  pushad
+  push 0
+  call CanSaveGameNow
+  test al, al
+  popad
+
+  jne @withsave
+  push NOSAVE_STR
+  jmp eax
+
+  @withsave:
+  push WITHSAVE_STR
+  jmp eax
+
+end;
+
 function Init():boolean; stdcall;
 var
   jmp_addr:cardinal;
@@ -269,6 +321,14 @@ begin
   //Переопределяем CSavedGameWrapper::valid_saved_game
   jmp_addr:=xrgame_addr+$adae0;
   if not WriteJump(jmp_addr, cardinal(@CSavedGameWrapper__valid_saved_game_override_patch), 6, false) then exit;
+
+  // В CCC_ALifeSave::Execute добавляем проверку на возможность сохранения
+  jmp_addr:=xrgame_addr+$3352b3;
+  if not WriteJump(jmp_addr, cardinal(@CCC_ALifeSave__Execute_checkpossibility_patch), 5, true) then exit;
+
+  // В CUIMMShniaga::InitShniaga добавляем режим главного меню без кнопки сохранения
+  jmp_addr:=xrGame_addr+$463358;
+  if not WriteJump(jmp_addr, cardinal(@CUIMMShniaga__InitShniaga_nosavegame_Patch), 5, true) then exit;  
 
   result:=true;
 end;
