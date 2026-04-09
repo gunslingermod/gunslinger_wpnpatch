@@ -1071,6 +1071,13 @@ end;
 
 procedure CInifile__Load_dirinclude_Patch(); stdcall;
 asm
+  // Если вызов идет из CInifile::Load - значит, это рекурсивная обработка #include, пропускаем ее
+  mov eax, [ebp+4]
+  mov ecx, xrcore_addr
+  add ecx, $17548
+  cmp eax, ecx
+  je @skip
+
   lea eax,[esp+$254]
   mov ecx, [esp+$20] // CIniFile* this
   pushad
@@ -1081,7 +1088,7 @@ asm
     call IncludeConfigMods
   popad
 
-
+  @skip:
   //original - return from method
   pop edi
   pop esi
