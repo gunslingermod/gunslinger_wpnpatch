@@ -282,6 +282,37 @@ end;
 
 //---------------------------------Патроны в патроннике для дробовиков----------------------------
 
+procedure RevolverCorrection(wpn:pointer);
+var
+  just_charged_i, i, cnt:integer;
+  buf:WpnBuf;
+
+  tmp:CCartridge;
+begin
+  // коррекция заряжания для оружия револьверного типа (магазин которого работает по принципу FIFO, а не LIFO)
+  buf:=GetBuffer(wpn);
+  cnt:=GetAmmoInMagCount(wpn);
+  if (buf<>nil) then begin
+
+    if buf.IsAmmoInChamber() and buf.SaveAmmoInChamber() then begin
+      just_charged_i:=cnt-2;
+    end else begin
+      just_charged_i:=cnt-1;
+    end;
+
+    if (just_charged_i > 0) then begin
+      // необходимо переместить только что заряженный патрон в конец магазина (начало вектора)
+      CopyCartridge(GetCartridgeFromMagVector(wpn,just_charged_i)^, tmp);
+
+      
+      for i:=just_charged_i downto 1 do begin
+        CopyCartridge(GetCartridgeFromMagVector(wpn,i-1)^, GetCartridgeFromMagVector(wpn,i)^);
+      end; 
+      CopyCartridge(tmp, GetCartridgeFromMagVector(wpn,0)^);
+    end;
+  end;
+end;
+
 function CWeaponShotgun__OnAnimationEnd_OnAddCartridge(wpn:pointer):boolean; stdcall;
 //возвращает, стоит ли продолжать набивать патроны в TriStateReload, или хватит уже :)
 var
@@ -293,6 +324,10 @@ begin
       virtual_CWeaponShotgun__AddCartridge(wpn, 1);
       if buf.IsAmmoInChamber() and buf.SaveAmmoInChamber() then begin
         SwapLastPrevAmmo(wpn);
+      end;
+
+      if buf.IsRevolverReload() then begin
+        RevolverCorrection(wpn);
       end;
     end;
     buf.SetJustAfterReloadStatus(true);

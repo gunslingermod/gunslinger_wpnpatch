@@ -122,6 +122,7 @@ type
     _is_ammo_in_chamber:boolean;
     _save_cartridge_in_chamber:boolean;
     _add_cartridge_in_open:boolean;
+    _is_revolver_reload:boolean;
 
     _actor_camera_speed:single;
 
@@ -243,6 +244,7 @@ type
     function IsTorchEnabled():boolean;
 
     function IsAmmoInChamber():boolean;
+    function IsRevolverReload():boolean;
     function SaveAmmoInChamber():boolean;
     function AddCartridgeAfterOpen():boolean;
 
@@ -411,6 +413,7 @@ begin
 
   _is_ammo_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'ammo_in_chamber', false);
   _save_cartridge_in_chamber:=game_ini_r_bool_def(GetSection(wpn), 'save_cartridge_in_ammochange', true);
+  _is_revolver_reload:=game_ini_r_bool_def(GetHUDSection(wpn), 'revolver_reload', false);
 
   _add_cartridge_in_open:=game_ini_r_bool_def(GetHUDSection(wpn), 'add_cartridge_in_open', true);
   self._preloaded:=false;
@@ -1221,6 +1224,10 @@ begin
   self._laser_enabled:=status;
 end;
 
+function WpnBuf.IsRevolverReload: boolean;
+begin
+  result:=self._is_revolver_reload;
+end;
 
 function WpnBuf.IsAmmoInChamber(): boolean;
 begin
@@ -2049,6 +2056,5 @@ function WpnBuf.GetDefaultHudSectionSil():PAnsiChar;
 begin
   result:=_default_hud_sect_sil;
 end;
-
 
 end.
