@@ -2723,6 +2723,11 @@ begin
 
     //Когда бюрер вырвал оружие из рук, оно находится в состоянии EHudStates__eHidden. Учитываем эту возможность
     good_state_for_shot:=(CanStartAction(wpn, true)) or ((state=EHudStates__eHidden) and (GetOwner(wpn) = nil));
+
+    if not good_state_for_shot and (GetOwner(wpn)<>nil) and (GetOwner(wpn)=GetActor()) and (IsActorSuicideNow()) then begin
+      good_state_for_shot := true;
+    end;
+
     if not good_state_for_shot then begin
       exit;
     end;
