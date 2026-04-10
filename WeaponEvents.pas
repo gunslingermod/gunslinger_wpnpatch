@@ -2208,7 +2208,39 @@ asm
   call eax
 end;
 
+function CWeaponRPG7__FireStart_need_skip_g_fireParams(pcobject:pointer):boolean; stdcall;
+var
+  wpn:pointer;
+  act:pointer;
+begin
+  result:=false;
+  wpn:=dynamic_cast(pcobject, 0, RTTI_CObject, RTTI_CWeapon, false);
+  if wpn<>nil then begin
+    act:=GetActor();
+    if (act<>nil) and (GetOwner(wpn)=act) then begin
+      // ¬ прицеливании стрел€ем из центра камеры, иначе - нет
+      result:= not (IsAimNow(wpn) or IsHolderInAimState(wpn));
+    end;
+  end;
+end;
+
 procedure CWeaponRPG7__FireStart_GrenadeLaunchPoint_Patch(); stdcall;
+asm
+  //original
+  test edi, edi
+  mov [esp+$1C+4],edi
+  je @finish
+
+  pushad
+  push esi
+  call CWeaponRPG7__FireStart_need_skip_g_fireParams
+  cmp al, 1
+  popad
+
+  @finish:
+end;
+
+{procedure CWeaponRPG7__FireStart_GrenadeLaunchPoint_Patch(); stdcall;
 asm
   //original
   test edi, edi
@@ -2221,7 +2253,7 @@ asm
   cmp eax, edi
   popad
   @finish:
-end;
+end;}
 
 procedure RPG7ReactiveHit(wpn:pointer); stdcall;
 var
