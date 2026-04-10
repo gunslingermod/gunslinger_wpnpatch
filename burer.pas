@@ -1153,7 +1153,7 @@ end;
 procedure CKinematics__Load_Patch(); stdcall;
 asm
   pushad
-  mov ebx, [esp+$578+$20]
+  mov ebx, [ebp+8]
   lea eax, [edi+$18c]
   push eax
   push ebx
