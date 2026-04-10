@@ -1797,10 +1797,14 @@ begin
     actor_menu:=gc.m_ActorMenu;
   end;
 
-  if actor_menu<>nil then begin
+  if (actor_menu<>nil) then begin
     slot_list:=CUIActorMenu__GetSlotList(actor_menu, slot);
-    slot_cell:=CUIDragDropListEx__GetItemIdx(slot_list, 0);
-    CUIActorMenu__ToBag(actor_menu, slot_cell, 0);
+    if CUIDragDropListEx__ItemsCount(slot_list)>0 then begin
+      slot_cell:=CUIDragDropListEx__GetItemIdx(slot_list, 0);
+      CUIActorMenu__ToBag(actor_menu, slot_cell, 0);
+    end else begin
+      ActorItem2ActorRuck(act, itm);
+    end;
   end else begin
     ActorItem2ActorRuck(act, itm);
   end;

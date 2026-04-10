@@ -500,6 +500,7 @@ pCellItemBuffer = ^CellItemBuffer;
 
 function CUIActorMenu__GetSlotList(this:pointer; slot_id:cardinal):pointer; stdcall; {CUIDragDropListEx*}
 function CUIDragDropListEx__GetItemIdx(this:pointer; idx:cardinal):pCUICellItem; stdcall;
+function CUIDragDropListEx__ItemsCount(this:pointer):integer; stdcall;
 function CUIActorMenu__ToBag(this:pointer; itm:pCUICellItem; b_use_cursor_pos:byte):byte; stdcall;
 
 const
@@ -3802,6 +3803,17 @@ asm
   popad
 
   pop [@result]
+end;
+
+function CUIDragDropListEx__ItemsCount(this:pointer):integer; stdcall;
+asm
+  mov eax, this
+  mov eax,[eax+$7C]
+  mov ecx,[eax+$24]
+  sub eax,[eax+$20]
+  sar eax,02
+
+  mov @result,eax
 end;
 
 function CUIDragDropListEx__GetItemIdx(this:pointer; idx:cardinal):pCUICellItem; stdcall;
